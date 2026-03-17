@@ -1,0 +1,93 @@
+"""Ticketing, connector config, and sync log models."""
+
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+
+
+class TicketProvider(str, enum.Enum):
+    JIRA = "JIRA"
+    GITHUB = "GITHUB"
+
+
+class ConnectorType(str, enum.Enum):
+    CROWDSTRIKE = "CROWDSTRIKE"
+    NESSUS = "NESSUS"
+    DEFENDER = "DEFENDER"
+    WIZ = "WIZ"
+
+
+class SyncStatus(str, enum.Enum):
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    PARTIAL = "PARTIAL"
+
+
+class ConnectorConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "connector_configs"
+    __table_args__ = (UniqueConstraint("tenant_id", "connector_type", name="uq_connector_tenant_type"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    credentials_secret_arn: Mapped[str | None] = mapped_column(String(500))
+    config: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_sync_status: Mapped[str | None] = mapped_column(String(20))
+    last_sync_record_count: Mapped[int | None] = mapped_column(Integer)
+    sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=15)
+
+    sync_logs: Mapped[list["SyncLog"]] = relationship(back_populates="connector", cascade="all, delete-orphan")
+
+
+class SyncLog(Base, UUIDPrimaryKeyMixin):
+    __tablename__ = "sync_logs"
+
+    connector_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("connector_configs.id", ondelete="CASCADE"), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    records_fetched: Mapped[int] = mapped_column(Integer, default=0)
+    records_created: Mapped[int] = mapped_column(Integer, default=0)
+    records_updated: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+
+    connector: Mapped["ConnectorConfig"] = relationship(back_populates="sync_logs")
+
+
+class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "tickets"
+    __table_args__ = (UniqueConstraint("tenant_id", "external_ticket_id", "provider", name="uq_ticket_external"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    vulnerability_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    external_ticket_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    external_ticket_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    external_status: Mapped[str | None] = mapped_column(String(50))
+    project_key: Mapped[str | None] = mapped_column(String(50))
+    assignee: Mapped[str | None] = mapped_column(String(255))
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_by_rule: Mapped[str | None] = mapped_column(String(200))
+    detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ticket_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TicketRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "ticket_rules"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    conditions: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    action: Mapped[dict] = mapped_column(JSONB, nullable=False)
