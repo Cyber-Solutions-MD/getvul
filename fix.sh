@@ -1,3 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+
+cd ~/Desktop/getvul
+
+echo "🔧 Fixing pyproject.toml — exclude alembic from package discovery..."
+
+cat > backend/pyproject.toml << 'FILEEOF'
 [project]
 name = "getvul-backend"
 version = "0.1.0"
@@ -55,3 +63,31 @@ testpaths = ["tests"]
 python_version = "3.12"
 plugins = ["pydantic.mypy"]
 strict = true
+FILEEOF
+
+echo "🔧 Removing obsolete version from docker-compose.yml..."
+sed -i '' '/^version:/d' docker-compose.yml
+
+echo "🔄 Rebuilding (no cache)..."
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+
+echo "⏳ Waiting for services to start..."
+sleep 15
+
+echo "🔍 Checking containers..."
+docker compose ps
+
+echo ""
+echo "🔍 Testing endpoints..."
+echo "Health:"
+curl -s http://localhost:8000/health || echo "  ⚠️  Backend not responding yet"
+echo ""
+echo "Auth /me:"
+curl -s http://localhost:8000/auth/me || echo "  ⚠️  Backend not responding yet"
+echo ""
+
+echo ""
+echo "If backend isn't up yet, check logs:"
+echo "  docker compose logs backend --tail 30"
