@@ -3,49 +3,91 @@ set -euo pipefail
 
 cd ~/Desktop/getvul
 
-echo "🔧 Fixing backend Dockerfile..."
+echo "🔧 Fixing pyproject.toml — exclude alembic from package discovery..."
 
-cat > backend/Dockerfile << 'FILEEOF'
-FROM python:3.12-slim
+cat > backend/pyproject.toml << 'FILEEOF'
+[project]
+name = "getvul-backend"
+version = "0.1.0"
+description = "GetVul — Unified Vulnerability Aggregation Platform"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "redis>=5.2",
+    "python-jose[cryptography]>=3.3",
+    "httpx>=0.27",
+    "boto3>=1.35",
+    "orjson>=3.10",
+    "tenacity>=9.0",
+    "croniter>=3.0",
+    "structlog>=24.0",
+]
 
-WORKDIR /app
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "httpx>=0.27",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "factory-boy>=3.3",
+]
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev && \
-    rm -rf /var/lib/apt/lists/*
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
 
-COPY . .
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*", "tests*"]
 
-RUN pip install --no-cache-dir -e ".[dev]"
+[tool.ruff]
+target-version = "py312"
+line-length = 120
 
-EXPOSE 8000
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "TCH"]
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+strict = true
 FILEEOF
 
 echo "🔧 Removing obsolete version from docker-compose.yml..."
-sed -i '' '1{/^version:/d;}' docker-compose.yml
+sed -i '' '/^version:/d' docker-compose.yml
 
-echo "🔄 Rebuilding containers..."
+echo "🔄 Rebuilding (no cache)..."
 docker compose down
-docker compose up --build -d
+docker compose build --no-cache
+docker compose up -d
 
-echo "⏳ Waiting for backend to start..."
-sleep 10
+echo "⏳ Waiting for services to start..."
+sleep 15
 
+echo "🔍 Checking containers..."
+docker compose ps
+
+echo ""
 echo "🔍 Testing endpoints..."
+echo "Health:"
+curl -s http://localhost:8000/health || echo "  ⚠️  Backend not responding yet"
 echo ""
-echo "Health check:"
-curl -s http://localhost:8000/health
+echo "Auth /me:"
+curl -s http://localhost:8000/auth/me || echo "  ⚠️  Backend not responding yet"
 echo ""
+
 echo ""
-echo "Auth /me (expect 401):"
-curl -s http://localhost:8000/auth/me
-echo ""
-echo ""
-echo "Auth login/google:"
-curl -s http://localhost:8000/auth/login/google | head -c 200
-echo ""
-echo ""
-echo "✅ Done! Backend running at http://localhost:8000"
-echo "   Swagger docs: http://localhost:8000/docs"
+echo "If backend isn't up yet, check logs:"
+echo "  docker compose logs backend --tail 30"
