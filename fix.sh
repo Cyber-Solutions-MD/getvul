@@ -1,3 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+
+cd ~/Desktop/getvul
+
+echo "🔧 Fix 1: Asset detail page — show remediations for host..."
+
+mkdir -p frontend/src/app/dashboard/assets/\[id\]
+
+cat > frontend/src/app/dashboard/assets/\[id\]/page.tsx << 'TSXEOF'
 "use client";
 
 import { useEffect, useState } from "react";
@@ -225,3 +235,202 @@ export default function AssetDetailPage() {
     </div>
   );
 }
+TSXEOF
+
+
+echo "🔧 Fix 2: Add host filter to vulnerability dashboard..."
+
+# Check what the current vuln page looks like
+VULN_PAGE="frontend/src/app/dashboard/vulnerabilities/page.tsx"
+
+# Add hostname filter to the backend vulnerabilities list endpoint
+# Check if it already supports asset_hostname param
+grep -c "hostname\|asset_id\|host" backend/app/vulnerabilities/router.py | head -1
+
+# Add hostname search to the vuln list endpoint
+python3 << 'PYEOF'
+with open("backend/app/vulnerabilities/router.py", "r") as f:
+    content = f.read()
+
+# Check if hostname filter already exists
+if "hostname" in content and "asset_hostname" in content:
+    print("Hostname filter already exists in vuln router")
+else:
+    # Find the list endpoint and add hostname filter param
+    # Add after existing Query params
+    if "def list_vulnerabilities" in content or "async def list_" in content:
+        # Add import for Asset if not present
+        if "from app.assets.models import Asset" not in content:
+            content = content.replace(
+                "from app.vulnerabilities.models import",
+                "from app.assets.models import Asset\nfrom app.vulnerabilities.models import",
+            )
+        
+        # Add hostname param to the list function
+        # Find the pattern: search: str = Query("" and add after it
+        if 'asset_hostname: str = Query("")' not in content:
+            content = content.replace(
+                'search: str = Query("",',
+                'search: str = Query("",\n    asset_hostname: str = Query("", description="Filter by hostname"),',
+                1,
+            )
+            # If that didn't work try alternate patterns
+            if 'asset_hostname' not in content:
+                content = content.replace(
+                    'search: str = Query("")',
+                    'search: str = Query("")\n    asset_hostname: str = Query("", description="Filter by hostname"),',
+                    1,
+                )
+
+        # Add the filter logic — join with Asset table
+        if "asset_hostname" in content and "Asset.hostname" not in content:
+            # Add filter after existing filters
+            content = content.replace(
+                "if search:",
+                'if asset_hostname:\n        query = query.join(Asset, Vulnerability.asset_id == Asset.id).where(Asset.hostname.ilike(f"%{asset_hostname}%"))\n    if search:',
+                1,
+            )
+        
+        with open("backend/app/vulnerabilities/router.py", "w") as f:
+            f.write(content)
+        print("Added hostname filter to vuln router")
+    else:
+        print("Could not find list endpoint — manual fix needed")
+PYEOF
+
+# Now add the host filter UI to the frontend vulnerabilities page
+# We need to add a hostname search input
+python3 << 'PYEOF'
+with open("frontend/src/app/dashboard/vulnerabilities/page.tsx", "r") as f:
+    content = f.read()
+
+# Check if hostname filter already exists
+if "asset_hostname" in content or "hostFilter" in content:
+    print("Host filter already in frontend vuln page")
+else:
+    # Add state for hostname filter
+    content = content.replace(
+        'const [search, setSearch] = useState("");',
+        'const [search, setSearch] = useState("");\n  const [hostFilter, setHostFilter] = useState("");',
+        1,
+    )
+    
+    # Add hostname to API params
+    content = content.replace(
+        'if (search) params.set("search", search);',
+        'if (search) params.set("search", search);\n    if (hostFilter) params.set("asset_hostname", hostFilter);',
+        1,
+    )
+    
+    # Add hostFilter to useCallback/useEffect dependency if present
+    content = content.replace(
+        'search, ',
+        'search, hostFilter, ',
+        1,
+    )
+    
+    # Add hostname input to the filter UI — find the search input and add after it
+    # Look for the search input pattern
+    search_input_end = content.find('Search CVE')
+    if search_input_end == -1:
+        search_input_end = content.find('search')
+    
+    # Simpler: add the host filter input after the search input
+    # Find the pattern: onChange={(e) => { setSearch(
+    old_search = 'onChange={(e) => { setSearch(e.target.value); setPage(1); }}'
+    if old_search in content:
+        # Find the closing of the search input tag and add host filter after
+        # Add before the filter pills
+        content = content.replace(
+            old_search,
+            old_search + '''
+          />
+          <input
+            type="text"
+            placeholder="Filter by hostname..."
+            value={hostFilter}
+            onChange={(e) => { setHostFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"''',
+            1,
+        )
+        print("Added host filter input to frontend")
+    else:
+        # Try alternate approach — just add after search state setter
+        print("Could not find exact search input pattern — trying alternate")
+        # Find the Filters section and add hostname input
+        if "Filters" in content:
+            content = content.replace(
+                '>Filters</span>',
+                '''>Filters</span>
+              <input type="text" placeholder="Filter by hostname..." value={hostFilter}
+                onChange={(e) => { setHostFilter(e.target.value); setPage(1); }}
+                className="rounded-lg border border-gray-600 bg-gray-800 px-3 py-1.5 text-xs text-white placeholder-gray-400" />''',
+                1,
+            )
+            print("Added host filter via Filters label")
+    
+    with open("frontend/src/app/dashboard/vulnerabilities/page.tsx", "w") as f:
+        f.write(content)
+PYEOF
+
+
+echo ""
+echo "🔄 Rebuilding..."
+docker compose up --build -d
+
+echo "⏳ Waiting..."
+for i in $(seq 1 30); do
+  if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+    echo "✅ Backend is up!"
+    break
+  fi
+  sleep 2
+done
+
+echo ""
+echo "Testing asset detail:"
+# Get first asset ID
+ASSET_ID=$(curl -s "http://localhost:8000/api/v1/assets?page=1&page_size=1" \
+  -H "Authorization: Bearer dev-token" | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])" 2>/dev/null)
+
+if [ -n "$ASSET_ID" ]; then
+  echo "Asset ID: $ASSET_ID"
+  curl -s "http://localhost:8000/api/v1/assets/$ASSET_ID" \
+    -H "Authorization: Bearer dev-token" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(f'Host: {d[\"hostname\"]}')
+print(f'Vulns: {d[\"vuln_counts\"][\"total\"]}')
+print(f'Vuln details returned: {len(d.get(\"vulnerabilities\",[]))}')
+" 2>&1
+
+  echo ""
+  echo "Testing remediations for host:"
+  curl -s "http://localhost:8000/api/v1/vulnerabilities/hosts/$ASSET_ID/remediations" \
+    -H "Authorization: Bearer dev-token" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+if isinstance(d, list):
+    print(f'{len(d)} remediations found')
+    for r in d[:3]:
+        print(f'  {r.get(\"remediation_action\",r.get(\"remediation\",\"?\"))[:60]}')
+else:
+    print(f'Response: {str(d)[:200]}')
+" 2>&1
+fi
+
+echo ""
+echo "Testing hostname filter on vulns:"
+curl -s "http://localhost:8000/api/v1/vulnerabilities?asset_hostname=par03642&page_size=3" \
+  -H "Authorization: Bearer dev-token" | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(f'Vulns for par03642: {d.get(\"total\",len(d.get(\"items\",[])))}')
+except: print('hostname filter not working yet')
+" 2>&1
+
+echo ""
+echo "Done! Test:"
+echo "  1. Click any asset row → should show remediations"
+echo "  2. Vulnerabilities page → hostname filter input"
