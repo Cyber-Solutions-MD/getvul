@@ -85,7 +85,7 @@ async def seed_database(db: AsyncSession) -> dict:
         name="Demo Organization",
         slug="demo",
         domain="demo.getvul.app",
-        idp_provider=IdPProvider.GOOGLE,
+        idp_provider="GOOGLE",
         idp_tenant_id="demo",
     )
     db.add(tenant)
@@ -96,7 +96,7 @@ async def seed_database(db: AsyncSession) -> dict:
         tenant_id=tenant.id,
         email="admin@demo.getvul.app",
         display_name="Demo Admin",
-        role=UserRole.OWNER,
+        role="OWNER",
         idp_subject="demo-subject-001",
     )
     db.add(user)

@@ -3,106 +3,90 @@ set -euo pipefail
 
 cd ~/Desktop/getvul
 
-echo "🔧 Fixing docker-compose.yml..."
+echo "🔧 Fixing enum types in tenant model..."
 
-cat > docker-compose.yml << 'FILEEOF'
-services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: getvul
-      POSTGRES_PASSWORD: getvul
-      POSTGRES_DB: getvul
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U getvul"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+cat > backend/app/tenants/models.py << 'FILEEOF'
+"""Tenant and User SQLAlchemy models."""
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+import enum
+import uuid
+from datetime import datetime
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: >
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: "postgresql+asyncpg://getvul:getvul@postgres:5432/getvul"
-      REDIS_URL: "redis://redis:6379/0"
-      DEBUG: "true"
-      ENVIRONMENT: "development"
-      JWT_SECRET_KEY: "dev-secret-change-in-prod"
-      ENCRYPTION_KEY: "dGhpcy1pcy1hLXRlc3Qta2V5LXBsZWFzZS1jaGFuZ2U="
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    command: npm run dev
-    ports:
-      - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: "http://localhost:8000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
-volumes:
-  pgdata:
+
+class IdPProvider(str, enum.Enum):
+    GOOGLE = "GOOGLE"
+    AZURE_ENTRA_ID = "AZURE_ENTRA_ID"
+
+
+class UserRole(str, enum.Enum):
+    OWNER = "OWNER"
+    ADMIN = "ADMIN"
+    ANALYST = "ANALYST"
+    VIEWER = "VIEWER"
+
+
+class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "tenants"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(63), unique=True, nullable=False, index=True)
+    domain: Mapped[str | None] = mapped_column(String(255), unique=True)
+    idp_provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    idp_tenant_id: Mapped[str | None] = mapped_column(String(255))
+    session_timeout_minutes: Mapped[int] = mapped_column(Integer, default=15, server_default="15")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+    users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+
+
+class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_user_tenant_email"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(255))
+    avatar_url: Mapped[str | None] = mapped_column(String(500))
+    role: Mapped[str] = mapped_column(String(20), nullable=False, server_default="VIEWER")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    idp_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="users")
 FILEEOF
 
-echo "🔧 Generating a real Fernet key..."
+echo "🔧 Fixing seed.py to use string values instead of enums..."
 
-# Generate proper Fernet key and update docker-compose
-FERNET_KEY=$(docker run --rm python:3.12-slim python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null || echo "ZHVtbXkta2V5LXBsZWFzZS1yZXBsYWNlLW1l")
+sed -i '' 's/idp_provider=IdPProvider.GOOGLE/idp_provider="GOOGLE"/' backend/app/seed.py
+sed -i '' 's/role=UserRole.OWNER/role="OWNER"/' backend/app/seed.py
 
-sed -i '' "s|ENCRYPTION_KEY:.*|ENCRYPTION_KEY: \"${FERNET_KEY}\"|" docker-compose.yml
-
-# Also update .env
-grep -q "ENCRYPTION_KEY" .env 2>/dev/null && sed -i '' "s|ENCRYPTION_KEY=.*|ENCRYPTION_KEY=${FERNET_KEY}|" .env || echo "ENCRYPTION_KEY=${FERNET_KEY}" >> .env
-
-echo "🔄 Rebuilding..."
-docker compose down
-docker compose build --no-cache
+echo "🔧 Resetting database (fresh migration)..."
+docker compose down -v
 docker compose up -d
 
 echo "⏳ Waiting for services (30s)..."
 sleep 30
 
-echo "🔍 Testing..."
-echo "Health:"
-curl -s http://localhost:8000/health
+echo "🔍 Seeding..."
+curl -s -X POST http://localhost:8000/dev/seed
 echo ""
 echo ""
-echo "Connector types:"
-curl -s http://localhost:8000/api/v1/connectors/types | head -c 300
+
+echo "🔍 Testing vuln list..."
+curl -s "http://localhost:8000/api/v1/vulnerabilities?page_size=2" -H "Authorization: Bearer dev-token" | head -c 300
 echo ""
 echo ""
-echo "✅ Done!"
-echo "   Frontend: http://localhost:3000/dashboard"
-echo "   API docs: http://localhost:8000/docs"
+
+echo "🔍 Testing stats..."
+curl -s "http://localhost:8000/api/v1/vulnerabilities/stats" -H "Authorization: Bearer dev-token"
+echo ""
+
+echo ""
+echo "✅ Fixed! Commit and push:"
+echo "   git add -A && git commit -m 'fix: use String columns instead of PG enum types' && git push"
