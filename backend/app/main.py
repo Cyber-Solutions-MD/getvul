@@ -36,3 +36,16 @@ app.include_router(connector_router, prefix="/api/v1/connectors", tags=["Connect
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "getvul-api"}
+
+
+# ── Dev-only endpoints ──
+if settings.environment == "development":
+    from app.db.session import get_db
+    from app.seed import seed_database
+    from fastapi import Depends
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    @app.post("/dev/seed", tags=["Dev"])
+    async def seed(db: AsyncSession = Depends(get_db)):
+        """Seed the database with sample data. Dev only."""
+        return await seed_database(db)

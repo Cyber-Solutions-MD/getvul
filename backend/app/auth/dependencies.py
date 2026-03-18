@@ -8,23 +8,23 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt import decode_token
 from app.auth.schemas import CurrentUser
+from app.config import settings
+from app.db.session import get_db
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CurrentUser:
-    """Extract and validate the current user from the JWT bearer token.
+    """Extract and validate the current user from the JWT bearer token."""
 
-    Used as a FastAPI dependency:
-        @router.get("/me")
-        async def me(user: CurrentUser = Depends(get_current_user)):
-            return user
-    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -32,8 +32,26 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    token = credentials.credentials
+
+    # Dev mode: accept "dev-token" and return the first owner user
+    if settings.environment == "development" and token == "dev-token":
+        from app.tenants.models import User
+        result = await db.execute(
+            select(User).where(User.role == "OWNER", User.is_active.is_(True)).limit(1)
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            return CurrentUser(
+                id=user.id,
+                tenant_id=user.tenant_id,
+                email=user.email,
+                role=user.role.value if hasattr(user.role, "value") else user.role,
+            )
+        raise HTTPException(status_code=401, detail="No dev user found. Run POST /dev/seed first.")
+
     try:
-        payload = decode_token(credentials.credentials)
+        payload = decode_token(token)
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,10 +60,7 @@ async def get_current_user(
         )
 
     if payload.token_type != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type",
-        )
+        raise HTTPException(status_code=401, detail="Invalid token type")
 
     return CurrentUser(
         id=uuid.UUID(payload.sub),
