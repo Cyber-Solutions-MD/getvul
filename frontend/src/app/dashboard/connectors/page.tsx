@@ -30,6 +30,7 @@ const CONNECTOR_META: Record<string, { color: string }> = {
   NESSUS: { color: "text-green-400" },
   DEFENDER: { color: "text-blue-400" },
   WIZ: { color: "text-purple-400" },
+  JAMF: { color: "text-pink-400" },
 };
 
 export default function ConnectorsPage() {

@@ -3,25 +3,19 @@
 import enum
 import uuid
 
-from sqlalchemy import Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
-class AssetType(str, enum.Enum):
-    ENDPOINT = "ENDPOINT"
+class DeviceCategory(str, enum.Enum):
+    WORKSTATION = "WORKSTATION"
     SERVER = "SERVER"
-    VM = "VM"
-    CONTAINER = "CONTAINER"
-    CLOUD_RESOURCE = "CLOUD_RESOURCE"
-
-
-class CloudProvider(str, enum.Enum):
-    AWS = "AWS"
-    AZURE = "AZURE"
-    GCP = "GCP"
+    NETWORK = "NETWORK"
+    MOBILE = "MOBILE"
+    OTHER = "OTHER"
 
 
 class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -43,6 +37,20 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     wiz_asset_id: Mapped[str | None] = mapped_column(String(100))
     nessus_host_id: Mapped[str | None] = mapped_column(String(100))
     risk_score: Mapped[int | None] = mapped_column(Integer)
+
+    # Device classification
+    device_category: Mapped[str | None] = mapped_column(String(30), index=True)
+
+    # JAMF / MDM enrichment
+    jamf_id: Mapped[str | None] = mapped_column(String(100))
+    serial_number: Mapped[str | None] = mapped_column(String(100))
+    model: Mapped[str | None] = mapped_column(String(200))
+    department: Mapped[str | None] = mapped_column(String(200))
+    building: Mapped[str | None] = mapped_column(String(200))
+    assigned_user: Mapped[str | None] = mapped_column(String(300))
+    managed_by: Mapped[str | None] = mapped_column(String(30))
+    last_checkin_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    mdm_details: Mapped[dict | None] = mapped_column(JSONB, default=dict)
 
     vulnerabilities: Mapped[list["Vulnerability"]] = relationship("Vulnerability", back_populates="asset")
     correlations: Mapped[list["VulnerabilityCorrelation"]] = relationship("VulnerabilityCorrelation", back_populates="asset")

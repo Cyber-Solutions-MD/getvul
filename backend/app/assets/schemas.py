@@ -21,10 +21,17 @@ class AssetResponse(BaseModel):
     cloud_resource_id: str | None
     seen_by_sources: list | None
     risk_score: int | None
+    device_category: str | None
+    serial_number: str | None
+    model: str | None
+    department: str | None
+    building: str | None
+    assigned_user: str | None
+    managed_by: str | None
+    last_checkin_at: datetime | None
+    mdm_details: dict | None
     created_at: datetime
     updated_at: datetime
-
-    # Computed on detail view
     vuln_counts: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -34,11 +41,20 @@ class AssetSummary(BaseModel):
     id: uuid.UUID
     hostname: str | None
     os_name: str | None
+    os_version: str | None
     asset_type: str | None
     cloud_provider: str | None
     seen_by_sources: list | None
     risk_score: int | None
+    device_category: str | None
+    model: str | None
+    assigned_user: str | None
+    managed_by: str | None
     open_vuln_count: int = 0
+    critical_count: int = 0
+    high_count: int = 0
+    exploitable_count: int = 0
+    kev_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -48,6 +64,7 @@ class AssetFilter(BaseModel):
     os_name: str | None = None
     asset_type: str | None = None
     cloud_provider: str | None = None
-    source: str | None = Field(None, description="Filter by scanner source")
+    source: str | None = None
     risk_score_min: int | None = Field(None, ge=0, le=100)
+    device_category: str | None = None
     search: str | None = None

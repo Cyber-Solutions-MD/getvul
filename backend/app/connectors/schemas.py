@@ -1,85 +1,14 @@
-"""Pydantic schemas for connector management."""
+"""Connector schemas — Pydantic models for request/response."""
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-CONNECTOR_TYPES = {
-    "CROWDSTRIKE": {
-        "name": "CrowdStrike Falcon",
-        "fields": ["client_id", "client_secret", "base_url"],
-        "defaults": {"base_url": "https://api.crowdstrike.com"},
-        "description": "Collect vulnerability assessments from Spotlight and cloud posture findings from Horizon CSPM.",
-        "setup_url": "https://falcon.crowdstrike.com/api-clients-and-keys/",
-        "permissions": [
-            {"scope": "Vulnerabilities (spotlight-vulnerabilities)", "access": "Read", "purpose": "Fetch vulnerability findings from Spotlight"},
-            {"scope": "Hosts (hosts)", "access": "Read", "purpose": "Resolve device hostname, OS, IP from AID"},
-            {"scope": "Configuration Assessment", "access": "Read", "purpose": "Fetch CSPM misconfigurations and policy violations"},
-            {"scope": "CSPM Registration (cspm-registration)", "access": "Read", "purpose": "Fallback: cloud account posture (AWS/Azure/GCP)"},
-        ],
-        "base_urls": {
-            "US-1": "https://api.crowdstrike.com",
-            "US-2": "https://api.us-2.crowdstrike.com",
-            "EU-1": "https://api.eu-1.crowdstrike.com",
-            "US-GOV": "https://api.laggar.gcw.crowdstrike.com",
-        },
-        "notes": "Create an API client in Falcon Console → Support & Resources → API Clients and Keys. Select your cloud region for the correct Base URL.",
-    },
-    "NESSUS": {
-        "name": "Nessus Professional",
-        "fields": ["access_key", "secret_key", "base_url"],
-        "defaults": {"base_url": "https://localhost:8834"},
-        "description": "Collect scan results and vulnerability findings from Tenable Nessus.",
-        "setup_url": "https://docs.tenable.com/nessus/Content/GenerateAnAPIKey.htm",
-        "permissions": [
-            {"scope": "API Keys", "access": "Admin", "purpose": "Full access to scan results and host data"},
-        ],
-        "base_urls": {},
-        "notes": "Generate API keys in Nessus → Settings → My Account → API Keys. Nessus must be network-accessible from GetVul (self-hosted or VPN). For Tenable.io (cloud), use the Tenable.io base URL instead.",
-    },
-    "DEFENDER": {
-        "name": "Microsoft Defender for Endpoint",
-        "fields": ["tenant_id", "client_id", "client_secret"],
-        "defaults": {},
-        "description": "Collect vulnerability and device data from Microsoft Defender Vulnerability Management, plus Defender for Cloud posture findings.",
-        "setup_url": "https://learn.microsoft.com/en-us/defender-endpoint/api/exposed-apis-create-app-webapp",
-        "permissions": [
-            {"scope": "Vulnerability.Read.All", "access": "Application", "purpose": "Read all vulnerability data across the tenant"},
-            {"scope": "Machine.Read.All", "access": "Application", "purpose": "Read all machine/device information"},
-            {"scope": "SecurityRecommendation.Read.All", "access": "Application", "purpose": "Read security recommendations and patching guidance"},
-            {"scope": "SecurityBaseline.Read.All", "access": "Application", "purpose": "Read security baseline assessments (CSPM)"},
-        ],
-        "base_urls": {},
-        "notes": "Register an App in Azure Entra ID → App registrations → New registration. Add API permissions under 'Microsoft Threat Protection' or 'WindowsDefenderATP'. Grant admin consent. Use the Application (client) ID and create a client secret.",
-    },
-    "WIZ": {
-        "name": "Wiz",
-        "fields": ["client_id", "client_secret", "api_endpoint_url", "auth_url"],
-        "defaults": {
-            "auth_url": "https://auth.app.wiz.io/oauth/token",
-            "api_endpoint_url": "https://api.us1.app.wiz.io/graphql",
-        },
-        "description": "Collect cloud vulnerability findings, misconfigurations, and security issues from Wiz.",
-        "setup_url": "https://docs.wiz.io/wiz-docs/docs/set-up-wiz-service-accounts",
-        "permissions": [
-            {"scope": "read:vulnerabilities", "access": "Service Account", "purpose": "Read vulnerability findings across all cloud accounts"},
-            {"scope": "read:resources", "access": "Service Account", "purpose": "Read cloud resource inventory and metadata"},
-            {"scope": "read:issues", "access": "Service Account", "purpose": "Read security issues including misconfigs and secrets"},
-            {"scope": "read:cloud_configuration", "access": "Service Account", "purpose": "Read cloud configuration assessments (CSPM)"},
-        ],
-        "base_urls": {
-            "US": "https://api.us1.app.wiz.io/graphql",
-            "US2": "https://api.us2.app.wiz.io/graphql",
-            "EU": "https://api.eu1.app.wiz.io/graphql",
-        },
-        "notes": "Create a Service Account in Wiz → Settings → Service Accounts. Assign the 'Global Reader' role for read-only access. The API endpoint URL depends on your Wiz data region.",
-    },
-}
-
+# ── Connector type metadata ──
 
 class ConnectorPermission(BaseModel):
     scope: str
@@ -88,56 +17,176 @@ class ConnectorPermission(BaseModel):
 
 
 class ConnectorTypeInfo(BaseModel):
-    type: str
+    id: str
     name: str
-    fields: list[str]
-    defaults: dict[str, str]
     description: str
-    setup_url: str
-    permissions: list[ConnectorPermission]
-    base_urls: dict[str, str]
-    notes: str
+    fields: list[dict[str, Any]]
+    permissions: list[ConnectorPermission] = []
+    setup_url: str = ""
+    base_urls: dict[str, str] = {}
+    notes: str = ""
 
 
-class ConnectorConfigResponse(BaseModel):
-    id: uuid.UUID
-    connector_type: str
-    connector_name: str
-    is_enabled: bool
-    config: dict
-    has_credentials: bool
-    last_sync_at: datetime | None
-    last_sync_status: str | None
-    last_sync_record_count: int | None
-    sync_interval_minutes: int
-    created_at: datetime
-    updated_at: datetime
+CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
+    "CROWDSTRIKE": ConnectorTypeInfo(
+        id="CROWDSTRIKE",
+        name="CrowdStrike Falcon",
+        description="Vulnerability management via Spotlight + CSPM via Configuration Assessment",
+        fields=[
+            {"name": "client_id", "label": "Client ID", "type": "text", "required": True},
+            {"name": "client_secret", "label": "Client Secret", "type": "password", "required": True},
+            {"name": "base_url", "label": "Base URL", "type": "select", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="Spotlight Vulnerabilities", access="Read", purpose="Fetch vulnerability findings"),
+            ConnectorPermission(scope="Hosts", access="Read", purpose="Resolve device hostnames and OS info"),
+            ConnectorPermission(scope="Configuration Assessment", access="Read", purpose="CSPM / cloud posture findings"),
+            ConnectorPermission(scope="CSPM Registration", access="Read", purpose="Fallback for cloud posture data"),
+        ],
+        setup_url="https://falcon.crowdstrike.com/documentation/46/crowdstrike-oauth2-based-apis",
+        base_urls={
+            "US-1": "https://api.crowdstrike.com",
+            "US-2": "https://api.us-2.crowdstrike.com",
+            "EU-1": "https://api.eu-1.crowdstrike.com",
+            "US-GOV": "https://api.laggar.gcw.crowdstrike.com",
+        },
+        notes="Create an API client in Falcon Console → Support & Resources → API Clients and Keys",
+    ),
+    "NESSUS": ConnectorTypeInfo(
+        id="NESSUS",
+        name="Nessus Professional",
+        description="On-prem vulnerability scanner",
+        fields=[
+            {"name": "url", "label": "Nessus URL", "type": "text", "required": True},
+            {"name": "access_key", "label": "Access Key", "type": "password", "required": True},
+            {"name": "secret_key", "label": "Secret Key", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="Scans", access="Read", purpose="List and export scan results"),
+            ConnectorPermission(scope="Vulnerabilities", access="Read", purpose="Fetch vulnerability details"),
+        ],
+        setup_url="https://docs.tenable.com/nessus/Content/GenerateAnAPIKey.htm",
+        notes="Generate API keys in Nessus → Settings → My Account → API Keys",
+    ),
+    "DEFENDER": ConnectorTypeInfo(
+        id="DEFENDER",
+        name="Microsoft Defender for Endpoint",
+        description="Microsoft's endpoint security + vulnerability management",
+        fields=[
+            {"name": "tenant_id", "label": "Azure Tenant ID", "type": "text", "required": True},
+            {"name": "client_id", "label": "App Client ID", "type": "text", "required": True},
+            {"name": "client_secret", "label": "App Client Secret", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="Machine.Read.All", access="Application", purpose="Read device information"),
+            ConnectorPermission(scope="Vulnerability.Read.All", access="Application", purpose="Read vulnerability data"),
+            ConnectorPermission(scope="SecurityRecommendation.Read.All", access="Application", purpose="Read security recommendations"),
+        ],
+        setup_url="https://learn.microsoft.com/en-us/defender-endpoint/api/exposed-apis-create-app-webapp",
+        notes="Register an app in Azure Entra ID → API permissions → Add Microsoft Threat Protection permissions",
+    ),
+    "WIZ": ConnectorTypeInfo(
+        id="WIZ",
+        name="Wiz",
+        description="Cloud security — vulnerabilities + CSPM + CIEM",
+        fields=[
+            {"name": "client_id", "label": "Client ID", "type": "text", "required": True},
+            {"name": "client_secret", "label": "Client Secret", "type": "password", "required": True},
+            {"name": "api_url", "label": "API Endpoint URL", "type": "text", "required": True},
+            {"name": "auth_url", "label": "Auth URL", "type": "text", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="read:vulnerabilities", access="Read", purpose="Fetch vulnerability findings"),
+            ConnectorPermission(scope="read:cloud_configuration", access="Read", purpose="CSPM findings"),
+            ConnectorPermission(scope="read:resources", access="Read", purpose="Cloud resource inventory"),
+        ],
+        setup_url="https://docs.wiz.io/wiz-docs/docs/set-up-wiz-service-accounts",
+        base_urls={
+            "US": "https://api.us1.app.wiz.io/graphql",
+            "US2": "https://api.us2.app.wiz.io/graphql",
+            "EU": "https://api.eu1.app.wiz.io/graphql",
+        },
+        notes="Create a Service Account in Wiz → Settings → Service Accounts with read-only permissions",
+    ),
+    "JAMF": ConnectorTypeInfo(
+        id="JAMF",
+        name="Jamf Pro",
+        description="Apple device management — enriches asset data with MDM info",
+        fields=[
+            {"name": "base_url", "label": "Jamf Pro URL", "type": "text", "required": True},
+            {"name": "client_id", "label": "Client ID", "type": "text", "required": True},
+            {"name": "client_secret", "label": "Client Secret", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="Read Computers", access="Read", purpose="Fetch computer inventory and details"),
+            ConnectorPermission(scope="Read Users", access="Read", purpose="Resolve assigned user info"),
+        ],
+        setup_url="https://learn.jamf.com/en-US/bundle/jamf-pro-documentation/page/API_Roles_and_Clients.html",
+        notes="Create API Role with Read Computers + Read Users, then create API Client assigned to that role",
+    ),
+}
 
-    model_config = {"from_attributes": True}
 
+# ── Request / Response schemas ──
 
 class ConnectorCreate(BaseModel):
-    connector_type: str = Field(..., pattern="^(CROWDSTRIKE|NESSUS|DEFENDER|WIZ)$")
-    credentials: dict[str, str] = Field(..., description="Key-value pairs of credentials (will be encrypted)")
-    config: dict = Field(default_factory=dict, description="Additional config (base_url, etc.)")
-    is_enabled: bool = True
-    sync_interval_minutes: int = Field(15, ge=5, le=1440)
+    connector_type: str
+    credentials: dict[str, str]
+    config: dict[str, Any] = {}
+    sync_interval_minutes: int = 60
 
 
 class ConnectorUpdate(BaseModel):
     credentials: dict[str, str] | None = None
-    config: dict | None = None
+    config: dict[str, Any] | None = None
     is_enabled: bool | None = None
-    sync_interval_minutes: int | None = Field(None, ge=5, le=1440)
+    sync_interval_minutes: int | None = None
 
 
 class ConnectorTestRequest(BaseModel):
-    connector_type: str = Field(..., pattern="^(CROWDSTRIKE|NESSUS|DEFENDER|WIZ)$")
+    connector_type: str
     credentials: dict[str, str]
-    config: dict = Field(default_factory=dict)
+    config: dict[str, Any] = {}
 
 
-class ConnectorTestResult(BaseModel):
+class ConnectorTestResponse(BaseModel):
     success: bool
     message: str
-    details: dict | None = None
+    scopes: dict[str, bool] = {}
+
+
+class ConnectorResponse(BaseModel):
+    id: str
+    connector_type: str
+    connector_name: str = ""
+    is_enabled: bool
+    config: dict[str, Any] = {}
+    has_credentials: bool = False
+    last_sync_at: datetime | None = None
+    last_sync_status: str | None = None
+    last_sync_record_count: int | None = None
+    sync_interval_minutes: int = 60
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SyncStatusResponse(BaseModel):
+    connector_id: str
+    is_syncing: bool
+    last_sync_at: datetime | None = None
+    last_sync_status: str | None = None
+    last_sync_record_count: int | None = None
+
+
+
+
+# ── Aliases for backward compatibility ──
+ConnectorConfigResponse = ConnectorResponse
+ConnectorTypeResponse = ConnectorTypeInfo
+ConnectorTestResult = ConnectorTestResponse
+ConnectorCreateRequest = ConnectorCreate
+ConnectorUpdateRequest = ConnectorUpdate
+ConnectorTest = ConnectorTestRequest

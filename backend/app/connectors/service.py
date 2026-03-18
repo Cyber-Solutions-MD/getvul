@@ -18,6 +18,32 @@ from app.encryption import decrypt_value, encrypt_value
 from app.ticketing.models import ConnectorConfig
 
 
+def _get_connector_name(connector_type: str) -> str:
+    """Get display name for a connector type."""
+    info = CONNECTOR_TYPES.get(connector_type)
+    if info is None:
+        return connector_type
+    return info.name if hasattr(info, "name") else connector_type
+
+
+def _to_response(c: ConnectorConfig) -> ConnectorConfigResponse:
+    """Convert DB model to response schema."""
+    return ConnectorConfigResponse(
+        id=str(c.id),
+        connector_type=c.connector_type,
+        connector_name=_get_connector_name(c.connector_type),
+        is_enabled=c.is_enabled,
+        config=c.config or {},
+        has_credentials=bool(c.credentials_secret_arn),
+        last_sync_at=c.last_sync_at,
+        last_sync_status=c.last_sync_status,
+        last_sync_record_count=c.last_sync_record_count,
+        sync_interval_minutes=c.sync_interval_minutes,
+        created_at=c.created_at,
+        updated_at=c.updated_at,
+    )
+
+
 async def list_connectors(
     db: AsyncSession, tenant_id: uuid.UUID,
 ) -> list[ConnectorConfigResponse]:
@@ -27,33 +53,13 @@ async def list_connectors(
         .where(ConnectorConfig.tenant_id == tenant_id)
         .order_by(ConnectorConfig.connector_type)
     )
-    connectors = result.scalars().all()
-
-    return [
-        ConnectorConfigResponse(
-            id=c.id,
-            connector_type=c.connector_type,
-            connector_name=CONNECTOR_TYPES.get(c.connector_type, {}).get("name", c.connector_type),
-            is_enabled=c.is_enabled,
-            config=c.config or {},
-            has_credentials=c.credentials_secret_arn is not None and c.credentials_secret_arn != "",
-            last_sync_at=c.last_sync_at,
-            last_sync_status=c.last_sync_status,
-            last_sync_record_count=c.last_sync_record_count,
-            sync_interval_minutes=c.sync_interval_minutes,
-            created_at=c.created_at,
-            updated_at=c.updated_at,
-        )
-        for c in connectors
-    ]
+    return [_to_response(c) for c in result.scalars().all()]
 
 
 async def create_connector(
     db: AsyncSession, tenant_id: uuid.UUID, body: ConnectorCreate,
 ) -> ConnectorConfigResponse:
     """Create a new connector with encrypted credentials."""
-
-    # Encrypt all credential values
     encrypted_creds = json.dumps({
         k: encrypt_value(v) for k, v in body.credentials.items()
     })
@@ -61,29 +67,16 @@ async def create_connector(
     connector = ConnectorConfig(
         tenant_id=tenant_id,
         connector_type=body.connector_type,
-        is_enabled=body.is_enabled,
+        is_enabled=True,
         credentials_secret_arn=encrypted_creds,
         config=body.config,
         sync_interval_minutes=body.sync_interval_minutes,
     )
     db.add(connector)
     await db.flush()
+    await db.refresh(connector)
 
-    type_info = CONNECTOR_TYPES.get(body.connector_type, {})
-    return ConnectorConfigResponse(
-        id=connector.id,
-        connector_type=connector.connector_type,
-        connector_name=type_info.get("name", connector.connector_type),
-        is_enabled=connector.is_enabled,
-        config=connector.config or {},
-        has_credentials=True,
-        last_sync_at=None,
-        last_sync_status=None,
-        last_sync_record_count=None,
-        sync_interval_minutes=connector.sync_interval_minutes,
-        created_at=connector.created_at,
-        updated_at=connector.updated_at,
-    )
+    return _to_response(connector)
 
 
 async def update_connector(
@@ -114,22 +107,7 @@ async def update_connector(
         connector.sync_interval_minutes = body.sync_interval_minutes
 
     await db.flush()
-
-    type_info = CONNECTOR_TYPES.get(connector.connector_type, {})
-    return ConnectorConfigResponse(
-        id=connector.id,
-        connector_type=connector.connector_type,
-        connector_name=type_info.get("name", connector.connector_type),
-        is_enabled=connector.is_enabled,
-        config=connector.config or {},
-        has_credentials=connector.credentials_secret_arn is not None,
-        last_sync_at=connector.last_sync_at,
-        last_sync_status=connector.last_sync_status,
-        last_sync_record_count=connector.last_sync_record_count,
-        sync_interval_minutes=connector.sync_interval_minutes,
-        created_at=connector.created_at,
-        updated_at=connector.updated_at,
-    )
+    return _to_response(connector)
 
 
 async def delete_connector(
