@@ -37,7 +37,7 @@ class ConnectorConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     connector_type: Mapped[str] = mapped_column(String(30), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    credentials_secret_arn: Mapped[str | None] = mapped_column(String(500))
+    credentials_secret_arn: Mapped[str | None] = mapped_column(Text)
     config: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_sync_status: Mapped[str | None] = mapped_column(String(20))
