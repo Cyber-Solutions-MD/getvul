@@ -16,10 +16,10 @@ CONNECTOR_TYPES = {
         "description": "Collect vulnerability assessments from Spotlight and cloud posture findings from Horizon CSPM.",
         "setup_url": "https://falcon.crowdstrike.com/api-clients-and-keys/",
         "permissions": [
-            {"scope": "Spotlight vulnerabilities", "access": "Read", "purpose": "Fetch vulnerability findings per host"},
-            {"scope": "Hosts", "access": "Read", "purpose": "Resolve device details (hostname, OS, IP)"},
-            {"scope": "CSPM Registration", "access": "Read", "purpose": "Fetch cloud posture policy evaluations"},
-            {"scope": "Detections", "access": "Read", "purpose": "Fetch indicators of misconfiguration (IoM)"},
+            {"scope": "Vulnerabilities (spotlight-vulnerabilities)", "access": "Read", "purpose": "Fetch vulnerability findings from Spotlight"},
+            {"scope": "Hosts (hosts)", "access": "Read", "purpose": "Resolve device hostname, OS, IP from AID"},
+            {"scope": "Configuration Assessment", "access": "Read", "purpose": "Fetch CSPM misconfigurations and policy violations"},
+            {"scope": "CSPM Registration (cspm-registration)", "access": "Read", "purpose": "Fallback: cloud account posture (AWS/Azure/GCP)"},
         ],
         "base_urls": {
             "US-1": "https://api.crowdstrike.com",
