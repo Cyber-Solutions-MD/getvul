@@ -172,6 +172,9 @@ async def seed_database(db: AsyncSession) -> dict:
 
     await db.commit()
 
+    # Seed CSPM data
+    cspm_count = await seed_cspm_data(db, tenant.id)
+
     return {
         "message": "Database seeded",
         "seeded": True,
@@ -181,4 +184,98 @@ async def seed_database(db: AsyncSession) -> dict:
         "assets_created": len(assets),
         "vulnerabilities_created": vuln_count,
         "vulnerabilities_skipped": skipped,
+        "misconfigurations_created": cspm_count,
     }
+
+
+# ── CSPM Sample Data ──
+
+SAMPLE_MISCONFIGS = [
+    ("CIS-1.2.1", "S3 bucket without encryption", "ENCRYPTION", "HIGH", "aws_s3_bucket", "AWS"),
+    ("CIS-1.3.5", "Public S3 bucket ACL", "STORAGE", "CRITICAL", "aws_s3_bucket", "AWS"),
+    ("CIS-2.1.1", "CloudTrail not enabled", "LOGGING", "HIGH", "aws_cloudtrail", "AWS"),
+    ("CIS-3.4.2", "Security group allows 0.0.0.0/0 ingress on port 22", "NETWORK", "CRITICAL", "aws_security_group", "AWS"),
+    ("CIS-1.4.1", "Root account has active access keys", "IAM", "CRITICAL", "aws_iam_user", "AWS"),
+    ("CIS-1.5.3", "MFA not enabled for IAM users", "IAM", "HIGH", "aws_iam_user", "AWS"),
+    ("CIS-4.1.1", "EBS volumes not encrypted", "ENCRYPTION", "MEDIUM", "aws_ebs_volume", "AWS"),
+    ("CIS-2.2.1", "RDS instance publicly accessible", "DATABASE", "CRITICAL", "aws_rds_instance", "AWS"),
+    ("AZ-1.1.1", "Storage account allows public blob access", "STORAGE", "HIGH", "azure_storage_account", "AZURE"),
+    ("AZ-2.1.3", "NSG allows inbound from any source", "NETWORK", "CRITICAL", "azure_nsg", "AZURE"),
+    ("AZ-3.1.1", "Key Vault soft delete not enabled", "ENCRYPTION", "MEDIUM", "azure_key_vault", "AZURE"),
+    ("AZ-4.1.2", "SQL Server auditing disabled", "DATABASE", "HIGH", "azure_sql_server", "AZURE"),
+    ("GCP-1.1.1", "Default service account used", "IAM", "HIGH", "gcp_compute_instance", "GCP"),
+    ("GCP-2.1.1", "Firewall rule allows 0.0.0.0/0", "NETWORK", "CRITICAL", "gcp_firewall_rule", "GCP"),
+    ("WIZ-SEC-01", "Container running as root", "CONTAINER", "HIGH", "k8s_pod", "AWS"),
+    ("WIZ-SEC-02", "Secret exposed in environment variable", "SECRETS", "CRITICAL", "k8s_deployment", "AWS"),
+    ("CS-CSPM-101", "Unrotated access keys older than 90 days", "IAM", "MEDIUM", "aws_iam_access_key", "AWS"),
+    ("CS-CSPM-202", "VPC flow logs disabled", "LOGGING", "MEDIUM", "aws_vpc", "AWS"),
+    ("DEF-CLOUD-01", "VM disk encryption disabled", "ENCRYPTION", "HIGH", "azure_vm", "AZURE"),
+    ("DEF-CLOUD-02", "Web app does not use HTTPS only", "NETWORK", "MEDIUM", "azure_web_app", "AZURE"),
+]
+
+CSPM_SOURCES = ["CROWDSTRIKE", "WIZ", "DEFENDER"]
+CSPM_FRAMEWORKS = [
+    ["CIS AWS 1.5"], ["CIS AWS 1.5", "SOC2"], ["PCI-DSS 3.2.1"],
+    ["CIS Azure 2.0"], ["HIPAA"], ["SOC2", "ISO 27001"], ["NIST 800-53"],
+]
+CSPM_REGIONS = [
+    "us-east-1", "us-west-2", "eu-west-1", "eu-central-1",
+    "eastus", "westeurope", "us-central1", "asia-east1",
+]
+CSPM_ACCOUNTS = [
+    ("123456789012", "prod-account"), ("987654321098", "dev-account"),
+    ("sub-abc-123", "Azure Prod"), ("sub-def-456", "Azure Dev"),
+    ("proj-main-001", "GCP Main"),
+]
+
+
+async def seed_cspm_data(db: AsyncSession, tenant_id: uuid.UUID) -> int:
+    """Seed CSPM misconfiguration data."""
+    from app.cspm.models import Misconfiguration
+
+    count = 0
+    now = datetime.now(timezone.utc)
+
+    for _ in range(200):
+        rule_id, rule_name, category, severity, res_type, cloud = random.choice(SAMPLE_MISCONFIGS)
+        source = random.choice(CSPM_SOURCES)
+        account = random.choice(CSPM_ACCOUNTS)
+        region = random.choice(CSPM_REGIONS)
+        frameworks = random.choice(CSPM_FRAMEWORKS)
+        days_ago = random.randint(1, 120)
+        status = random.choice(["OPEN", "OPEN", "OPEN", "REMEDIATED", "SUPPRESSED"])
+
+        resource_id = f"arn:{cloud.lower()}:{res_type}:{region}:{account[0]}:{uuid.uuid4().hex[:8]}"
+
+        m = Misconfiguration(
+            tenant_id=tenant_id,
+            rule_id=rule_id,
+            rule_name=rule_name,
+            category=category,
+            severity=severity,
+            frameworks=frameworks,
+            resource_id=resource_id,
+            resource_name=f"{res_type}-{uuid.uuid4().hex[:6]}",
+            resource_type=res_type,
+            resource_region=region,
+            cloud_provider=cloud,
+            cloud_account_id=account[0],
+            cloud_account_name=account[1],
+            source=source,
+            source_finding_id=f"{source}-{uuid.uuid4().hex[:8]}",
+            status=status,
+            first_detected_at=now - timedelta(days=days_ago),
+            last_seen_at=now - timedelta(days=random.randint(0, min(3, days_ago))),
+            remediated_at=(now - timedelta(days=random.randint(0, days_ago // 2))) if status == "REMEDIATED" else None,
+        )
+
+        try:
+            async with db.begin_nested():
+                db.add(m)
+                await db.flush()
+            count += 1
+        except Exception:
+            continue
+
+    await db.commit()
+    return count

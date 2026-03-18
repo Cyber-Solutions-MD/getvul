@@ -14,7 +14,7 @@ from app.tenants.models import Tenant, User  # noqa: F401
 from app.assets.models import Asset  # noqa: F401
 from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation  # noqa: F401
 from app.ticketing.models import ConnectorConfig, SyncLog, Ticket, TicketRule  # noqa: F401
-
+from app.cspm.models import Misconfiguration  # noqa: F401
 config = context.config
 
 if config.config_file_name is not None:

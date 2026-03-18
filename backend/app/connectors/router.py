@@ -92,3 +92,37 @@ async def test_connector_credentials(
 ):
     """Test connector credentials without saving. Requires Admin."""
     return await test_connector(body.connector_type, body.credentials, body.config)
+
+
+@router.post("/{connector_id}/sync")
+async def trigger_sync(
+    connector_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Trigger a manual sync for a connector. Requires Admin."""
+    from sqlalchemy import select
+    from app.ticketing.models import ConnectorConfig
+    from app.connectors.sync import run_sync
+
+    result = await db.execute(
+        select(ConnectorConfig).where(
+            ConnectorConfig.id == connector_id,
+            ConnectorConfig.tenant_id == user.tenant_id,
+        )
+    )
+    connector = result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    log = await run_sync(db, connector)
+    await db.commit()
+
+    return {
+        "status": log.status,
+        "records_fetched": log.records_fetched,
+        "records_created": log.records_created,
+        "records_updated": log.records_updated,
+        "details": log.details,
+        "error": log.error_message,
+    }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Bug,
+  Cloud,
   Server,
   Plug,
   Ticket,
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/vulnerabilities", label: "Vulnerabilities", icon: Bug },
+  { href: "/dashboard/cspm", label: "Cloud Posture", icon: Cloud },
   { href: "/dashboard/assets", label: "Assets", icon: Server },
   { href: "/dashboard/connectors", label: "Connectors", icon: Plug },
   { href: "/dashboard/tickets", label: "Tickets", icon: Ticket },
