@@ -31,18 +31,37 @@ from app.dependencies import DBSession
 router = APIRouter()
 
 
-@router.get("/types", response_model=list[ConnectorTypeInfo])
+@router.get("/types")
 async def get_connector_types():
-    """List all supported connector types, required fields, and permissions."""
-    return [
-        ConnectorTypeInfo(
-            type=k, name=v["name"], fields=v["fields"], defaults=v["defaults"],
-            description=v["description"], setup_url=v["setup_url"],
-            permissions=v["permissions"], base_urls=v.get("base_urls", {}), notes=v["notes"],
-        )
-        for k, v in CONNECTOR_TYPES.items()
-    ]
-
+    """Return connector types in the format the frontend expects."""
+    result = []
+    for k, v in CONNECTOR_TYPES.items():
+        field_names = [f["name"] if isinstance(f, dict) else f for f in (v.fields if isinstance(v.fields, list) else [])]
+        defaults = {}
+        for f in (v.fields if isinstance(v.fields, list) else []):
+            if isinstance(f, dict):
+                name = f.get("name", "")
+                if f.get("type") == "select" and isinstance(v.base_urls, dict) and v.base_urls:
+                    defaults[name] = list(v.base_urls.values())[0]
+                else:
+                    defaults[f.get("name", "")] = ""
+            else:
+                defaults[f] = ""
+        result.append({
+            "type": v.id if hasattr(v, "id") else k,
+            "name": v.name if hasattr(v, "name") else k,
+            "description": v.description if hasattr(v, "description") else "",
+            "fields": field_names,
+            "defaults": defaults,
+            "permissions": [
+                {"scope": p.scope, "access": p.access, "purpose": p.purpose}
+                for p in (v.permissions if hasattr(v, "permissions") else [])
+            ],
+            "setup_url": v.setup_url if hasattr(v, "setup_url") else "",
+            "base_urls": dict(v.base_urls) if hasattr(v, "base_urls") else {},
+            "notes": v.notes if hasattr(v, "notes") else "",
+        })
+    return result
 
 @router.get("", response_model=list[ConnectorConfigResponse])
 async def list_all_connectors(

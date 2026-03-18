@@ -68,3 +68,27 @@ async def get_current_user(
         email=payload.email,
         role=payload.role,
     )
+
+
+# ── Role-based access helpers ──
+
+ROLE_HIERARCHY = {"owner": 4, "admin": 3, "analyst": 2, "viewer": 1}
+
+
+def require_role(minimum_role: str):
+    """Dependency that checks the user has at least the given role.
+
+    Usage:
+        @router.post("/classify")
+        async def classify(user=Depends(require_role("admin"))):
+    """
+    from fastapi import Depends, HTTPException
+
+    async def _check(user=Depends(get_current_user)):
+        user_level = ROLE_HIERARCHY.get(user.role.lower() if hasattr(user.role, 'lower') else str(user.role).lower(), 0)
+        required_level = ROLE_HIERARCHY.get(minimum_role.lower(), 0)
+        if user_level < required_level:
+            raise HTTPException(403, f"Requires {minimum_role} role or higher")
+        return user
+
+    return _check

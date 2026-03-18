@@ -129,11 +129,51 @@ async def test_wiz(credentials: dict, config: dict) -> ConnectorTestResult:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
 
+
+
+async def test_jamf(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test JAMF Pro API access."""
+    base_url = config.get("base_url", credentials.get("base_url", "")).rstrip("/")
+    if not base_url:
+        return ConnectorTestResult(success=False, message="Base URL is required")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{base_url}/api/oauth/token",
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": credentials["client_id"],
+                    "client_secret": credentials["client_secret"],
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+        if resp.status_code == 200:
+            token = resp.json().get("access_token", "")
+            # Test inventory access
+            async with httpx.AsyncClient(timeout=15) as client:
+                inv_resp = await client.get(
+                    f"{base_url}/api/v1/computers-inventory",
+                    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                    params={"page-size": 1},
+                )
+            inv_status = "✓" if inv_resp.status_code == 200 else f"✗ ({inv_resp.status_code})"
+            total = inv_resp.json().get("totalCount", "?") if inv_resp.status_code == 200 else "?"
+            return ConnectorTestResult(
+                success=True,
+                message="Successfully authenticated with Jamf Pro",
+                details={"inventory_access": inv_status, "total_computers": total},
+            )
+        else:
+            return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}", details={"response": resp.text[:500]})
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
 TESTERS = {
     "CROWDSTRIKE": test_crowdstrike,
     "NESSUS": test_nessus,
     "DEFENDER": test_defender,
     "WIZ": test_wiz,
+    "JAMF": test_jamf,
 }
 
 

@@ -23,12 +23,20 @@ CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
     "CROWDSTRIKE": CrowdStrikeConnector,
 }
 
+# Special connectors that don't follow the standard vuln/cspm pattern
+SPECIAL_CONNECTORS = {"JAMF"}
+
 
 async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
     now = datetime.now(timezone.utc)
     log = SyncLog(connector_id=connector_config.id, tenant_id=connector_config.tenant_id, status="RUNNING", started_at=now)
     db.add(log)
     await db.flush()
+
+    # JAMF uses a special sync path (device enrichment, not vulns)
+    if connector_config.connector_type == "JAMF":
+        from app.connectors.jamf_sync import run_jamf_sync
+        return await run_jamf_sync(db, connector_config)
 
     connector_cls = CONNECTOR_CLASSES.get(connector_config.connector_type)
     if not connector_cls:
