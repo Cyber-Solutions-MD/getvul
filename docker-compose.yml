@@ -40,7 +40,7 @@ services:
       DEBUG: "true"
       ENVIRONMENT: "development"
       JWT_SECRET_KEY: "dev-secret-change-in-prod"
-      ENCRYPTION_KEY: "ZHVtbXkta2V5LXBsZWFzZS1yZXBsYWNlLW1l"
+      ENCRYPTION_KEY: "3iPwTM32LuijVi-uwCGt448cCCPHGVvUoriwi0A3FkY="
     volumes:
       - ./backend:/app
     depends_on:

@@ -25,6 +25,7 @@ from app.connectors.service import (
     update_connector,
 )
 from app.connectors.tester import test_connector
+from app.connectors.scheduler import trigger_background_sync, is_sync_running
 from app.dependencies import DBSession
 
 router = APIRouter()
@@ -35,15 +36,9 @@ async def get_connector_types():
     """List all supported connector types, required fields, and permissions."""
     return [
         ConnectorTypeInfo(
-            type=k,
-            name=v["name"],
-            fields=v["fields"],
-            defaults=v["defaults"],
-            description=v["description"],
-            setup_url=v["setup_url"],
-            permissions=v["permissions"],
-            base_urls=v.get("base_urls", {}),
-            notes=v["notes"],
+            type=k, name=v["name"], fields=v["fields"], defaults=v["defaults"],
+            description=v["description"], setup_url=v["setup_url"],
+            permissions=v["permissions"], base_urls=v.get("base_urls", {}), notes=v["notes"],
         )
         for k, v in CONNECTOR_TYPES.items()
     ]
@@ -105,10 +100,9 @@ async def trigger_sync(
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_admin)],
 ):
-    """Trigger a manual sync for a connector. Requires Admin."""
+    """Trigger a sync in the background. Returns immediately."""
     from sqlalchemy import select
     from app.ticketing.models import ConnectorConfig
-    from app.connectors.sync import run_sync
 
     result = await db.execute(
         select(ConnectorConfig).where(
@@ -120,14 +114,40 @@ async def trigger_sync(
     if connector is None:
         raise HTTPException(status_code=404, detail="Connector not found")
 
-    log = await run_sync(db, connector)
-    await db.commit()
+    if is_sync_running(str(connector_id)):
+        return {"status": "ALREADY_RUNNING", "message": "Sync is already in progress"}
+
+    triggered = trigger_background_sync(str(connector_id), str(user.tenant_id))
+    if not triggered:
+        return {"status": "ALREADY_RUNNING", "message": "Sync is already in progress"}
+
+    return {"status": "STARTED", "message": "Sync started in background. Refresh to see results."}
+
+
+@router.get("/{connector_id}/sync-status")
+async def get_sync_status(
+    connector_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Check if a sync is currently running and get last sync info."""
+    from sqlalchemy import select
+    from app.ticketing.models import ConnectorConfig
+
+    result = await db.execute(
+        select(ConnectorConfig).where(
+            ConnectorConfig.id == connector_id,
+            ConnectorConfig.tenant_id == user.tenant_id,
+        )
+    )
+    connector = result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(status_code=404, detail="Connector not found")
 
     return {
-        "status": log.status,
-        "records_fetched": log.records_fetched,
-        "records_created": log.records_created,
-        "records_updated": log.records_updated,
-        "details": log.details,
-        "error": log.error_message,
+        "is_running": is_sync_running(str(connector_id)),
+        "last_sync_at": connector.last_sync_at.isoformat() if connector.last_sync_at else None,
+        "last_sync_status": connector.last_sync_status,
+        "last_sync_record_count": connector.last_sync_record_count,
+        "sync_interval_minutes": connector.sync_interval_minutes,
     }
