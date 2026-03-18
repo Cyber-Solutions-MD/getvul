@@ -1,8 +1,19 @@
+export interface ConnectorPermission {
+  scope: string;
+  access: string;
+  purpose: string;
+}
+
 export interface ConnectorType {
   type: string;
   name: string;
   fields: string[];
   defaults: Record<string, string>;
+  description: string;
+  setup_url: string;
+  permissions: ConnectorPermission[];
+  base_urls: Record<string, string>;
+  notes: string;
 }
 
 export interface ConnectorConfig {
