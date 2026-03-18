@@ -7,14 +7,23 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.auth.rbac import require_viewer
+from app.auth.rbac import require_admin, require_viewer
 from app.auth.schemas import CurrentUser
 from app.dependencies import AuthenticatedUser, DBSession
 from app.pagination import PaginatedResponse, PaginationParams
 from app.assets.schemas import AssetFilter, AssetResponse, AssetSummary
-from app.assets.service import get_asset, list_assets
+from app.assets.service import get_asset, get_asset_stats, list_assets
 
 router = APIRouter()
+
+
+@router.get("/stats")
+async def asset_stats(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    """Get asset dashboard statistics."""
+    return await get_asset_stats(db, user.tenant_id)
 
 
 @router.get("", response_model=PaginatedResponse[AssetSummary])
@@ -31,15 +40,10 @@ async def list_all_assets(
     risk_score_min: int | None = Query(None, ge=0, le=100),
     search: str | None = Query(None),
 ):
-    """List assets with filtering and pagination."""
     filters = AssetFilter(
-        hostname=hostname,
-        os_name=os_name,
-        asset_type=asset_type,
-        cloud_provider=cloud_provider,
-        source=source,
-        risk_score_min=risk_score_min,
-        search=search,
+        hostname=hostname, os_name=os_name, asset_type=asset_type,
+        cloud_provider=cloud_provider, source=source,
+        risk_score_min=risk_score_min, search=search,
     )
     pagination = PaginationParams(page=page, page_size=page_size)
     return await list_assets(db, user.tenant_id, filters, pagination)
@@ -51,7 +55,6 @@ async def get_single_asset(
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_viewer)],
 ):
-    """Get full asset detail with vulnerability counts."""
     asset = await get_asset(db, user.tenant_id, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="Asset not found")
@@ -68,14 +71,19 @@ async def get_asset_vulns(
     severity: list[str] | None = Query(None),
     status: list[str] | None = Query(None),
 ):
-    """List all vulnerabilities for a specific asset."""
     from app.vulnerabilities.schemas import VulnerabilityFilter
     from app.vulnerabilities.service import list_vulnerabilities
-
-    filters = VulnerabilityFilter(
-        asset_id=asset_id,
-        severity=severity,
-        status=status,
-    )
+    filters = VulnerabilityFilter(asset_id=asset_id, severity=severity, status=status)
     pagination = PaginationParams(page=page, page_size=page_size)
     return await list_vulnerabilities(db, user.tenant_id, filters, pagination)
+
+
+@router.post("/recompute-risk-scores")
+async def recompute_risk(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Recompute risk scores for all assets. Requires Admin."""
+    from app.assets.risk import recompute_all_risk_scores
+    count = await recompute_all_risk_scores(db, user.tenant_id)
+    return {"message": f"Recomputed risk scores for {count} assets", "count": count}

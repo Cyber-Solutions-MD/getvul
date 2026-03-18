@@ -23,8 +23,6 @@ class AssetResponse(BaseModel):
     risk_score: int | None
     created_at: datetime
     updated_at: datetime
-
-    # Computed on detail view
     vuln_counts: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -34,11 +32,16 @@ class AssetSummary(BaseModel):
     id: uuid.UUID
     hostname: str | None
     os_name: str | None
+    os_version: str | None
     asset_type: str | None
     cloud_provider: str | None
     seen_by_sources: list | None
     risk_score: int | None
     open_vuln_count: int = 0
+    critical_count: int = 0
+    high_count: int = 0
+    exploitable_count: int = 0
+    kev_count: int = 0
 
     model_config = {"from_attributes": True}
 
