@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
-from app.tenants.models import Tenant, User, UserRole, IdPProvider
+from app.tenants.models import Tenant, User
 from app.vulnerabilities.models import Vulnerability
 
 
@@ -121,8 +121,12 @@ async def seed_database(db: AsyncSession) -> dict:
         assets.append(asset)
     await db.flush()
 
-    # Create vulnerabilities
+    # Commit tenant + user + assets first so they survive vuln insert failures
+    await db.commit()
+
+    # Create vulnerabilities using savepoints for each insert
     vuln_count = 0
+    skipped = 0
     now = datetime.now(timezone.utc)
 
     for _ in range(300):
@@ -156,13 +160,17 @@ async def seed_database(db: AsyncSession) -> dict:
             last_seen_at=last_seen,
             remediated_at=remediated,
         )
+
         try:
-            db.add(vuln)
-            await db.flush()
+            async with db.begin_nested():
+                db.add(vuln)
+                await db.flush()
             vuln_count += 1
         except Exception:
-            await db.rollback()
+            skipped += 1
             continue
+
+    await db.commit()
 
     return {
         "message": "Database seeded",
@@ -172,4 +180,5 @@ async def seed_database(db: AsyncSession) -> dict:
         "user_email": user.email,
         "assets_created": len(assets),
         "vulnerabilities_created": vuln_count,
+        "vulnerabilities_skipped": skipped,
     }
