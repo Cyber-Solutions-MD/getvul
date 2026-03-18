@@ -3,522 +3,367 @@ set -euo pipefail
 
 cd ~/Desktop/getvul
 
-echo "🔧 Fixing CrowdStrike connector with correct field mapping..."
+echo "🔧 Rewriting vulnerabilities page with proper filter passthrough..."
 
-cat > backend/app/connectors/crowdstrike.py << 'FILEEOF'
-"""CrowdStrike Falcon connector — Spotlight vulnerabilities + Configuration Assessment (CSPM).
+cat > frontend/src/app/dashboard/vulnerabilities/page.tsx << 'FILEEOF'
+"use client";
 
-Spotlight combined API response structure (EU-1, as of Mar 2026):
-{
-  "id": "...",
-  "aid": "fd3a5886...",              ← device agent ID (no host_info!)
-  "vulnerability_id": "CVE-2025-...", ← CVE ID at top level
-  "status": "open",
-  "apps": [                           ← array, not "app"
-    {
-      "product_name_version": "Safari",
-      "product_name_normalized": "Safari",
-      "vendor_normalized": "Apple",
-      ...
+import { useCallback, useEffect, useState } from "react";
+import { Bug, RefreshCw, Loader2, Pill, Monitor } from "lucide-react";
+import { api } from "@/lib/api";
+import VulnFilters, { type VulnFilterState } from "@/components/vulnerabilities/VulnFilters";
+import VulnTable from "@/components/vulnerabilities/VulnTable";
+import BulkActions from "@/components/vulnerabilities/BulkActions";
+import Pagination from "@/components/ui/Pagination";
+import { SeverityBadge } from "@/components/ui/Badge";
+import { cn } from "@/lib/utils";
+import type { VulnerabilitySummary } from "@/types/vulnerability";
+
+interface PaginatedVulns {
+  items: VulnerabilitySummary[];
+  total: number; page: number; page_size: number; total_pages: number;
+}
+
+interface RemediationGrouped {
+  remediation_id: string; remediation_action: string | null;
+  affected_product: string | null; affected_hosts: number;
+  vuln_count: number; max_severity: string;
+}
+
+interface PaginatedRemediations {
+  items: RemediationGrouped[];
+  total: number; page: number; page_size: number; total_pages: number;
+}
+
+interface HostForRemediation {
+  asset_id: string; hostname: string; os_name: string | null;
+  os_version: string | null; cve_id: string | null; severity: string;
+  exploit_available: boolean; cisa_kev: boolean; exploit_status: string | null;
+}
+
+interface RemediationForHost {
+  remediation_id: string; remediation_action: string | null;
+  cve_id: string | null; severity: string; affected_product: string | null;
+  exploit_available: boolean; cisa_kev: boolean;
+  exploit_status: string | null; exploit_status_id: number | null;
+}
+
+const DEFAULT_FILTERS: VulnFilterState = {
+  search: "", severity: [], source: [], status: [],
+  exploit_available: null, cisa_kev: null,
+};
+
+type Tab = "vulnerabilities" | "remediations";
+
+function buildFilterParams(filters: VulnFilterState): URLSearchParams {
+  const p = new URLSearchParams();
+  filters.severity.forEach((s) => p.append("severity", s));
+  filters.source.forEach((s) => p.append("source", s));
+  filters.status.forEach((s) => p.append("status", s));
+  if (filters.search) p.set("search", filters.search);
+  if (filters.exploit_available === true) p.set("exploit_only", "true");
+  if (filters.cisa_kev === true) p.set("kev_only", "true");
+  return p;
+}
+
+export default function VulnerabilitiesPage() {
+  const [tab, setTab] = useState<Tab>("vulnerabilities");
+  const [vulnData, setVulnData] = useState<PaginatedVulns | null>(null);
+  const [remData, setRemData] = useState<PaginatedRemediations | null>(null);
+  const [filters, setFilters] = useState<VulnFilterState>(DEFAULT_FILTERS);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Drill-down states
+  const [selectedRemediation, setSelectedRemediation] = useState<RemediationGrouped | null>(null);
+  const [remHosts, setRemHosts] = useState<HostForRemediation[] | null>(null);
+  const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
+  const [selectedHostName, setSelectedHostName] = useState<string>("");
+  const [hostRemediations, setHostRemediations] = useState<RemediationForHost[] | null>(null);
+
+  // ── Data fetching ──
+
+  const fetchVulns = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p = buildFilterParams(filters);
+      p.set("page", String(page));
+      p.set("page_size", "25");
+      // Vulns endpoint uses different param names
+      p.delete("exploit_only");
+      p.delete("kev_only");
+      if (filters.exploit_available !== null) p.set("exploit_available", String(filters.exploit_available));
+      if (filters.cisa_kev !== null) p.set("cisa_kev", String(filters.cisa_kev));
+      setVulnData(await api<PaginatedVulns>(`/api/v1/vulnerabilities?${p}`));
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [page, filters]);
+
+  const fetchRemediations = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p = buildFilterParams(filters);
+      p.set("page", String(page));
+      p.set("page_size", "25");
+      setRemData(await api<PaginatedRemediations>(`/api/v1/vulnerabilities/remediations/grouped?${p}`));
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [page, filters]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (tab === "vulnerabilities") fetchVulns();
+      else if (!selectedRemediation && !selectedHostId) fetchRemediations();
+    }, 300);
+    return () => clearTimeout(t);
+  }, [tab, fetchVulns, fetchRemediations, selectedRemediation, selectedHostId]);
+
+  // Reset on filter/tab change
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+    setSelectedRemediation(null);
+    setRemHosts(null);
+    setSelectedHostId(null);
+    setHostRemediations(null);
+  }, [filters, tab]);
+
+  // ── Drill-downs (always pass current filters) ──
+
+  async function drillRemediation(rem: RemediationGrouped) {
+    setSelectedRemediation(rem);
+    setSelectedHostId(null);
+    setHostRemediations(null);
+    try {
+      const p = buildFilterParams(filters);
+      const url = `/api/v1/vulnerabilities/remediations/${encodeURIComponent(rem.remediation_id)}/hosts?${p}`;
+      const hosts = await api<HostForRemediation[]>(url);
+      setRemHosts(hosts);
+    } catch (e) {
+      console.error("Failed to fetch hosts for remediation:", e);
+      setRemHosts([]);
     }
-  ],
-  "cve": {
-    "id": "CVE-2025-..."              ← only has "id", NO severity/score
-  },
-  "confidence": "confirmed",
-  "created_timestamp": "...",
-  "updated_timestamp": "..."
+  }
+
+  async function drillHost(assetId: string, hostname: string) {
+    setSelectedHostId(assetId);
+    setSelectedHostName(hostname);
+    try {
+      const p = buildFilterParams(filters);
+      const url = `/api/v1/vulnerabilities/hosts/${assetId}/remediations?${p}`;
+      const rems = await api<RemediationForHost[]>(url);
+      setHostRemediations(rems);
+    } catch (e) {
+      console.error("Failed to fetch remediations for host:", e);
+      setHostRemediations([]);
+    }
+  }
+
+  function goBackToRemediations() {
+    setSelectedRemediation(null);
+    setRemHosts(null);
+    setSelectedHostId(null);
+    setHostRemediations(null);
+  }
+
+  function goBackFromHost() {
+    setSelectedHostId(null);
+    setHostRemediations(null);
+  }
+
+  // ── Render ──
+
+  const data = tab === "vulnerabilities" ? vulnData : remData;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Bug className="h-6 w-6 text-indigo-400" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">Vulnerabilities</h1>
+            {data && <p className="text-sm text-gray-400">
+              {data.total.toLocaleString()} {tab === "vulnerabilities" ? "vulnerabilities" : "remediations"}
+            </p>}
+          </div>
+        </div>
+        <button onClick={() => tab === "vulnerabilities" ? fetchVulns() : fetchRemediations()} disabled={loading}
+          className="flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg bg-gray-900 p-1 w-fit">
+        <button onClick={() => setTab("vulnerabilities")}
+          className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all",
+            tab === "vulnerabilities" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white")}>
+          <Bug className="h-4 w-4" />Vulnerabilities
+        </button>
+        <button onClick={() => setTab("remediations")}
+          className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all",
+            tab === "remediations" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white")}>
+          <Pill className="h-4 w-4" />Remediations
+        </button>
+      </div>
+
+      {/* Filters */}
+      <VulnFilters filters={filters} onChange={setFilters} />
+
+      {/* Bulk actions */}
+      {selectedIds.size > 0 && (
+        <BulkActions selectedCount={selectedIds.size} selectedIds={Array.from(selectedIds)}
+          onComplete={() => { setSelectedIds(new Set()); fetchVulns(); }} />
+      )}
+
+      {/* Content */}
+      {loading && !data ? (
+        <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
+      ) : tab === "vulnerabilities" ? (
+        /* ── Vulnerabilities tab ── */
+        <>
+          <VulnTable
+            vulnerabilities={vulnData?.items || []}
+            selectedIds={selectedIds}
+            onSelectToggle={(id) => setSelectedIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+            onSelectAll={(ids) => setSelectedIds(ids.length ? new Set(ids) : new Set())}
+            onHostClick={(assetId, hostname) => { setTab("remediations"); drillHost(assetId, hostname); }}
+          />
+          {vulnData && vulnData.total_pages > 1 && (
+            <Pagination page={vulnData.page} totalPages={vulnData.total_pages}
+              total={vulnData.total} pageSize={vulnData.page_size} onPageChange={setPage} />
+          )}
+        </>
+      ) : selectedHostId && hostRemediations ? (
+        /* ── Drill-down: remediations for a host ── */
+        <div className="space-y-4">
+          <div>
+            <button onClick={goBackFromHost} className="text-xs text-indigo-400 hover:text-indigo-300">
+              ← {selectedRemediation ? "Back to affected hosts" : "Back to remediations"}
+            </button>
+            <h2 className="mt-1 text-lg font-medium text-white flex items-center gap-2">
+              <Monitor className="h-5 w-5 text-gray-400" />{selectedHostName}
+            </h2>
+            <p className="text-sm text-gray-400">{hostRemediations.length} remediations needed</p>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-gray-800">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
+                <th className="px-3 py-3 text-left font-medium text-gray-400">CVE</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Severity</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Product</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Remediation</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Exploit</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">KEV</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {hostRemediations.map((r, i) => (
+                  <tr key={i} className="hover:bg-gray-800/30">
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{r.cve_id}</td>
+                    <td className="px-3 py-2.5"><SeverityBadge severity={r.severity} /></td>
+                    <td className="px-3 py-2.5 text-xs text-gray-400 max-w-[150px] truncate">{r.affected_product}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-300 max-w-[300px] truncate">{r.remediation_action || "—"}</td>
+                    <td className="px-3 py-2.5"><ExploitBadge status={r.exploit_status} available={r.exploit_available} /></td>
+                    <td className="px-3 py-2.5">{r.cisa_kev ? <span className="text-red-400 text-xs font-medium">🛡️ KEV</span> : <span className="text-gray-600">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {hostRemediations.length === 0 && <div className="py-12 text-center text-gray-500">No remediations match your filters for this host</div>}
+          </div>
+        </div>
+      ) : selectedRemediation && remHosts ? (
+        /* ── Drill-down: hosts affected by a remediation ── */
+        <div className="space-y-4">
+          <div>
+            <button onClick={goBackToRemediations} className="text-xs text-indigo-400 hover:text-indigo-300">← Back to remediations</button>
+            <h2 className="mt-1 text-lg font-medium text-white">{selectedRemediation.remediation_action || "Unknown remediation"}</h2>
+            <p className="text-sm text-gray-400">{selectedRemediation.affected_product} · {remHosts.length} matching entries</p>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-gray-800">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Hostname</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">CVE</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Severity</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Exploit Status</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">CISA KEV</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">OS</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {remHosts.map((h, i) => (
+                  <tr key={i} className="hover:bg-gray-800/30 cursor-pointer" onClick={() => drillHost(h.asset_id, h.hostname)}>
+                    <td className="px-3 py-2.5 text-indigo-400 hover:text-indigo-300">{h.hostname}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{h.cve_id}</td>
+                    <td className="px-3 py-2.5"><SeverityBadge severity={h.severity} /></td>
+                    <td className="px-3 py-2.5"><ExploitBadge status={h.exploit_status} available={h.exploit_available} /></td>
+                    <td className="px-3 py-2.5">{h.cisa_kev ? <span className="text-red-400 text-xs font-medium">🛡️ KEV</span> : <span className="text-gray-600">—</span>}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-400">{h.os_name} {h.os_version}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {remHosts.length === 0 && <div className="py-12 text-center text-gray-500">No hosts match your filters for this remediation</div>}
+          </div>
+        </div>
+      ) : (
+        /* ── Remediations grouped table ── */
+        <>
+          <div className="overflow-hidden rounded-xl border border-gray-800">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Remediation</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Product</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Max Severity</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Affected Hosts</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Vuln Count</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {(remData?.items || []).map((rem) => (
+                  <tr key={rem.remediation_id} className="hover:bg-gray-800/30 cursor-pointer" onClick={() => drillRemediation(rem)}>
+                    <td className="px-3 py-2.5 text-white max-w-[400px] truncate">{rem.remediation_action || rem.remediation_id}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-400 max-w-[200px] truncate">{rem.affected_product}</td>
+                    <td className="px-3 py-2.5"><SeverityBadge severity={rem.max_severity} /></td>
+                    <td className="px-3 py-2.5 text-white font-medium">{rem.affected_hosts}</td>
+                    <td className="px-3 py-2.5 text-gray-400">{rem.vuln_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {remData?.items.length === 0 && <div className="py-12 text-center text-gray-500">No remediations match your filters</div>}
+          </div>
+          {remData && remData.total_pages > 1 && (
+            <Pagination page={remData.page} totalPages={remData.total_pages}
+              total={remData.total} pageSize={remData.page_size} onPageChange={setPage} />
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
-Key insight: severity is NOT in the response. We must query per-severity filter.
-Hostname is NOT in the response. We must resolve via Hosts API using aid.
-"""
-
-from __future__ import annotations
-
-import asyncio
-import httpx
-import structlog
-
-from app.connectors.base import BaseConnector, NormalizedMisconfiguration, NormalizedVulnerability
-
-logger = structlog.get_logger()
-
-SEVERITY_FILTERS = [
-    ("CRITICAL", "status:'open'+cve.severity:'CRITICAL'"),
-    ("HIGH", "status:'open'+cve.severity:'HIGH'"),
-    ("MEDIUM", "status:'open'+cve.severity:'MEDIUM'"),
-    ("LOW", "status:'open'+cve.severity:'LOW'"),
-]
-
-CS_CSPM_CATEGORY_MAP = {
-    "IAM": "IAM", "Network": "NETWORK", "Encryption": "ENCRYPTION",
-    "Logging": "LOGGING", "Storage": "STORAGE", "Compute": "COMPUTE",
-    "Database": "DATABASE", "Container": "CONTAINER", "Secrets": "SECRETS",
+function ExploitBadge({ status, available }: { status: string | null; available: boolean }) {
+  if (!available && !status) return <span className="text-gray-600 text-xs">—</span>;
+  const color = (status === "Used in the Wild" || status === "Used in Malware") ? "text-red-400" :
+                status === "Functional" ? "text-orange-400" :
+                status === "Proof of Concept" ? "text-yellow-400" : "text-gray-400";
+  return <span className={cn("text-xs font-medium", color)}>🔥 {status || (available ? "Yes" : "No")}</span>;
 }
-
-CS_SEVERITY_MAP = {
-    "critical": "CRITICAL", "high": "HIGH", "medium": "MEDIUM",
-    "low": "LOW", "informational": "INFO", "none": "INFO",
-}
-
-
-class CrowdStrikeConnector(BaseConnector):
-    source_name = "CROWDSTRIKE"
-
-    def __init__(self):
-        self.base_url: str = "https://api.crowdstrike.com"
-        self.access_token: str | None = None
-        self.client: httpx.AsyncClient | None = None
-        self._device_cache: dict[str, dict] = {}
-
-    async def authenticate(self, credentials: dict, config: dict) -> bool:
-        self.base_url = config.get("base_url", credentials.get("base_url", self.base_url))
-        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=60)
-
-        try:
-            resp = await self.client.post(
-                "/oauth2/token",
-                data={
-                    "client_id": credentials["client_id"],
-                    "client_secret": credentials["client_secret"],
-                },
-            )
-            if resp.status_code == 201:
-                self.access_token = resp.json().get("access_token")
-                logger.info("crowdstrike_auth_success")
-                return True
-            else:
-                logger.error("crowdstrike_auth_failed", status=resp.status_code)
-                return False
-        except Exception as e:
-            logger.error("crowdstrike_auth_error", error=str(e))
-            return False
-
-    def _headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.access_token}", "Accept": "application/json"}
-
-    # ── Device resolution via Hosts API ──
-
-    async def _resolve_devices_batch(self, aids: list[str]) -> None:
-        """Batch-resolve device details for multiple AIDs. Fills _device_cache."""
-        uncached = [aid for aid in aids if aid and aid not in self._device_cache]
-        if not uncached or not self.client:
-            return
-
-        # Hosts API accepts up to 100 IDs per call
-        for i in range(0, len(uncached), 100):
-            batch = uncached[i:i + 100]
-            try:
-                resp = await self.client.get(
-                    "/devices/entities/devices/v2",
-                    headers=self._headers(),
-                    params=[("ids", aid) for aid in batch],
-                )
-                if resp.status_code == 200:
-                    for device in resp.json().get("resources", []):
-                        device_id = device.get("device_id", "")
-                        self._device_cache[device_id] = device
-                elif resp.status_code == 429:
-                    logger.warning("crowdstrike_hosts_rate_limited")
-                    await asyncio.sleep(2)
-            except Exception as e:
-                logger.warning("crowdstrike_hosts_batch_error", error=str(e))
-
-    def _get_device(self, aid: str) -> dict:
-        """Get cached device details."""
-        return self._device_cache.get(aid, {})
-
-    # ── Vulnerability ingestion (Spotlight) ──
-
-    async def fetch_vulnerabilities(self) -> list[NormalizedVulnerability]:
-        """Fetch vulnerabilities from CrowdStrike Spotlight.
-
-        Strategy: Query each severity level separately since the API response
-        does NOT include severity — it can only be determined by the filter used.
-
-        Scopes required:
-          - Vulnerabilities (spotlight-vulnerabilities) — Read
-          - Hosts (hosts) — Read
-        """
-        if not self.client or not self.access_token:
-            return []
-
-        all_vulns: list[NormalizedVulnerability] = []
-
-        for severity_label, filter_str in SEVERITY_FILTERS:
-            logger.info("crowdstrike_fetching_severity", severity=severity_label)
-            vulns = await self._fetch_vulns_by_filter(filter_str, severity_label)
-            all_vulns.extend(vulns)
-            logger.info("crowdstrike_severity_fetched", severity=severity_label, count=len(vulns))
-
-        logger.info("crowdstrike_vulns_total", count=len(all_vulns))
-        return all_vulns
-
-    async def _fetch_vulns_by_filter(
-        self, filter_str: str, severity: str, max_pages: int = 50,
-    ) -> list[NormalizedVulnerability]:
-        """Fetch all vulns matching a filter, with pagination."""
-        vulns: list[NormalizedVulnerability] = []
-        after = None
-
-        for page in range(max_pages):
-            params: dict = {
-                "filter": filter_str,
-                "limit": 400,
-            }
-            if after:
-                params["after"] = after
-
-            try:
-                resp = await self.client.get(
-                    "/spotlight/combined/vulnerabilities/v1",
-                    headers=self._headers(),
-                    params=params,
-                )
-
-                if resp.status_code == 403:
-                    logger.warning("crowdstrike_spotlight_no_access")
-                    break
-                if resp.status_code == 429:
-                    logger.warning("crowdstrike_rate_limited", page=page)
-                    await asyncio.sleep(5)
-                    continue
-
-                resp.raise_for_status()
-                data = resp.json()
-            except Exception as e:
-                logger.error("crowdstrike_vuln_fetch_error", page=page, error=str(e))
-                break
-
-            resources = data.get("resources") or []
-            if not resources:
-                break
-
-            # Batch resolve hostnames for all AIDs in this page
-            aids = list({item.get("aid", "") for item in resources if item.get("aid")})
-            await self._resolve_devices_batch(aids)
-
-            for item in resources:
-                vuln = self._normalize_vuln(item, severity)
-                if vuln:
-                    vulns.append(vuln)
-
-            meta = data.get("meta", {}).get("pagination", {})
-            after = meta.get("after")
-            if not after or len(resources) < 400:
-                break
-
-        return vulns
-
-    def _normalize_vuln(self, item: dict, severity: str) -> NormalizedVulnerability | None:
-        """Normalize a Spotlight vulnerability resource."""
-
-        # CVE ID: top-level vulnerability_id or cve.id
-        cve_id = item.get("vulnerability_id")
-        if not cve_id:
-            cve_obj = item.get("cve", {})
-            cve_id = cve_obj.get("id") if isinstance(cve_obj, dict) else None
-
-        # Device info via Hosts API
-        aid = item.get("aid", "")
-        device = self._get_device(aid)
-        hostname = device.get("hostname", "")
-        local_ip = device.get("local_ip", "")
-        os_version = device.get("os_version", "")
-        platform = device.get("platform_name", "")
-
-        if not hostname:
-            hostname = local_ip or aid[:12] or "unknown"
-
-        # App info: apps is an ARRAY
-        apps = item.get("apps") or []
-        product = ""
-        vendor = ""
-        if apps and isinstance(apps, list):
-            first_app = apps[0]
-            product = first_app.get("product_name_version", "") or first_app.get("product_name_normalized", "")
-            vendor = first_app.get("vendor_normalized", "")
-            if vendor and product and vendor.lower() not in product.lower():
-                product = f"{vendor} {product}"
-
-        # Remediation info from apps
-        remediation_text = ""
-        if apps and isinstance(apps, list):
-            rem = apps[0].get("remediation", {})
-            if isinstance(rem, dict):
-                remediation_text = rem.get("action", "")
-
-        # Exploit status — check suppression_info and confidence
-        exploit_available = False  # Not directly available in this response format
-
-        return NormalizedVulnerability(
-            cve_id=cve_id,
-            vulnerability_name=None,
-            cvss_v3_score=None,  # Not in Spotlight combined response
-            severity=severity,   # From our per-severity query
-            exploit_available=exploit_available,
-            source_vuln_id=str(item.get("id", "")),
-            affected_product=product[:300] if product else None,
-            hostname=hostname.lower().strip(),
-            ip_addresses=[local_ip] if local_ip else [],
-            os_name=platform,
-            os_version=os_version,
-            remediation_info=remediation_text[:2000] if remediation_text else None,
-        )
-
-    # ── CSPM ingestion (Configuration Assessment) ──
-
-    async def fetch_misconfigurations(self) -> list[NormalizedMisconfiguration]:
-        """Fetch CSPM findings.
-
-        Tries Configuration Assessment API first, then CSPM registration fallback.
-        Scope required: Configuration Assessment — Read
-        """
-        if not self.client or not self.access_token:
-            return []
-
-        findings = await self._fetch_configuration_assessments()
-        if findings:
-            return findings
-
-        findings = await self._fetch_cspm_fallback()
-        return findings
-
-    async def _fetch_configuration_assessments(self) -> list[NormalizedMisconfiguration]:
-        """Configuration Assessment API — requires 'Configuration Assessment' scope."""
-        all_findings: list[NormalizedMisconfiguration] = []
-        after = None
-
-        for page in range(50):
-            params: dict = {
-                "filter": "status:'fail'",
-                "limit": 500,
-            }
-            if after:
-                params["after"] = after
-
-            try:
-                resp = await self.client.get(
-                    "/configuration-assessment/combined/assessments/v1",
-                    headers=self._headers(),
-                    params=params,
-                )
-
-                if resp.status_code == 403:
-                    logger.info("crowdstrike_config_assessment_403",
-                                detail="Add 'Configuration Assessment — Read' scope to your API client")
-                    return []
-                if resp.status_code == 404:
-                    logger.info("crowdstrike_config_assessment_404")
-                    return []
-                if resp.status_code == 429:
-                    await asyncio.sleep(5)
-                    continue
-
-                resp.raise_for_status()
-                data = resp.json()
-            except httpx.HTTPStatusError:
-                return []
-            except Exception as e:
-                logger.error("crowdstrike_config_assessment_error", error=str(e))
-                break
-
-            resources = data.get("resources") or []
-            if not resources:
-                break
-
-            for item in resources:
-                finding = self._normalize_config_assessment(item)
-                if finding:
-                    all_findings.append(finding)
-
-            meta = data.get("meta", {}).get("pagination", {})
-            after = meta.get("after")
-            if not after or len(resources) < 500:
-                break
-
-        logger.info("crowdstrike_config_assessments_fetched", count=len(all_findings))
-        return all_findings
-
-    def _normalize_config_assessment(self, item: dict) -> NormalizedMisconfiguration | None:
-        rule = item.get("rule", {}) or {}
-        resource = item.get("resource", {}) or {}
-
-        rule_id = str(rule.get("id") or item.get("rule_id") or item.get("id", ""))
-        rule_name = str(rule.get("name") or rule.get("description") or item.get("title", "Unknown"))[:500]
-
-        severity_raw = (rule.get("severity") or item.get("severity", "medium")).lower()
-        severity = CS_SEVERITY_MAP.get(severity_raw, "MEDIUM")
-
-        category_raw = rule.get("category") or item.get("category", "Other")
-        category = CS_CSPM_CATEGORY_MAP.get(category_raw, "OTHER")
-
-        benchmarks = rule.get("benchmarks") or item.get("benchmarks") or []
-        frameworks = []
-        if isinstance(benchmarks, list):
-            for b in benchmarks:
-                frameworks.append(b.get("name", str(b)) if isinstance(b, dict) else str(b))
-
-        cloud = (resource.get("cloud_provider") or item.get("cloud_provider", "")).upper()
-        if cloud not in ("AWS", "AZURE", "GCP"):
-            cloud = None
-
-        return NormalizedMisconfiguration(
-            rule_id=rule_id,
-            rule_name=rule_name,
-            rule_description=str(rule.get("description") or rule.get("rationale", ""))[:2000] or None,
-            category=category,
-            severity=severity,
-            frameworks=frameworks,
-            resource_id=str(resource.get("id") or item.get("resource_id", "")),
-            resource_name=str(resource.get("name") or item.get("resource_name", ""))[:300] or None,
-            resource_type=str(resource.get("type") or item.get("resource_type", ""))[:100] or None,
-            resource_region=str(resource.get("region") or item.get("region", ""))[:50] or None,
-            cloud_provider=cloud,
-            cloud_account_id=str(resource.get("account_id") or item.get("account_id", ""))[:100] or None,
-            source_finding_id=str(item.get("id", "")),
-            remediation_info=str(rule.get("remediation") or item.get("remediation", ""))[:2000] or None,
-        )
-
-    async def _fetch_cspm_fallback(self) -> list[NormalizedMisconfiguration]:
-        """Fallback CSPM endpoints if Configuration Assessment is not available."""
-        endpoints = [
-            "/cloud-connect-cspm-aws/entities/iom/v2",
-            "/detects/entities/iom/v2",
-        ]
-
-        for endpoint in endpoints:
-            try:
-                resp = await self.client.get(
-                    endpoint,
-                    headers=self._headers(),
-                    params={"limit": 500},
-                )
-                if resp.status_code not in (200, 207):
-                    continue
-
-                resources = resp.json().get("resources") or []
-                if not resources:
-                    continue
-
-                findings = []
-                for item in resources:
-                    severity_raw = (item.get("severity") or "medium").lower()
-                    severity = CS_SEVERITY_MAP.get(severity_raw, "MEDIUM")
-                    category_raw = item.get("policy_type") or "Other"
-                    category = CS_CSPM_CATEGORY_MAP.get(category_raw, "OTHER")
-                    cloud = (item.get("cloud_provider") or "").upper()
-                    if cloud not in ("AWS", "AZURE", "GCP"):
-                        cloud = None
-
-                    findings.append(NormalizedMisconfiguration(
-                        rule_id=str(item.get("policy_id", item.get("id", ""))),
-                        rule_name=str(item.get("policy_statement", item.get("title", "Unknown")))[:500],
-                        rule_description=item.get("policy_description"),
-                        category=category,
-                        severity=severity,
-                        frameworks=item.get("benchmark", []),
-                        resource_id=str(item.get("resource_id", "")),
-                        resource_name=item.get("resource_name"),
-                        resource_type=item.get("resource_type"),
-                        resource_region=item.get("region"),
-                        cloud_provider=cloud,
-                        cloud_account_id=item.get("cloud_account_id"),
-                        source_finding_id=str(item.get("id", "")),
-                        remediation_info=item.get("remediation"),
-                    ))
-
-                if findings:
-                    logger.info("crowdstrike_cspm_fallback_fetched", endpoint=endpoint, count=len(findings))
-                    return findings
-
-            except Exception as e:
-                logger.warning("crowdstrike_cspm_fallback_error", endpoint=endpoint, error=str(e))
-
-        logger.info("crowdstrike_cspm_no_data",
-                     detail="Add 'Configuration Assessment — Read' scope in Falcon Console")
-        return []
-
-    async def close(self):
-        if self.client:
-            await self.client.aclose()
 FILEEOF
 
-echo "🧹 Clearing old data and re-syncing with correct mapping..."
+echo "🔄 Restarting frontend..."
+docker compose up -d --force-recreate frontend
 
-# Restart to pick up new code
-docker compose up -d --force-recreate backend
 sleep 10
 
-# Clear old incorrectly-mapped data
-curl -s -X POST http://localhost:8000/dev/clear-test-data \
-  -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null || echo "Cleared"
-
+echo "✅ Fixed! Test it:"
+echo "   1. Go to http://localhost:3000/dashboard/vulnerabilities"
+echo "   2. Switch to Remediations tab"
+echo "   3. Click HIGH filter"
+echo "   4. Click a remediation → only HIGH vulns should show"
+echo "   5. Changing filter while drilled-in resets back to the list"
 echo ""
-echo "⏳ Triggering fresh sync (this may take a few minutes for 45k+ vulns)..."
-
-# Get connector ID
-CONNECTOR_ID=$(curl -s "http://localhost:8000/api/v1/connectors" \
-  -H "Authorization: Bearer dev-token" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for c in data:
-    if c['connector_type'] == 'CROWDSTRIKE':
-        print(c['id'])
-        break
-" 2>/dev/null || echo "")
-
-if [ -n "$CONNECTOR_ID" ]; then
-    echo "Connector ID: $CONNECTOR_ID"
-    curl -s -X POST "http://localhost:8000/api/v1/connectors/${CONNECTOR_ID}/sync" \
-      -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null || echo "Sync triggered"
-    
-    echo ""
-    echo "⏳ Sync is running in the background. Checking progress every 30s..."
-    
-    for i in $(seq 1 20); do
-        sleep 30
-        STATUS=$(curl -s "http://localhost:8000/api/v1/connectors/${CONNECTOR_ID}/sync-status" \
-          -H "Authorization: Bearer dev-token" 2>/dev/null)
-        IS_RUNNING=$(echo "$STATUS" | python3 -c "import json,sys; print(json.load(sys.stdin).get('is_running', False))" 2>/dev/null || echo "unknown")
-        
-        if [ "$IS_RUNNING" = "False" ] || [ "$IS_RUNNING" = "false" ]; then
-            echo "✅ Sync complete!"
-            echo "$STATUS" | python3 -m json.tool 2>/dev/null
-            break
-        else
-            echo "   Still syncing... (check $i)"
-        fi
-    done
-else
-    echo "⚠️ No CrowdStrike connector found. Sync manually from the UI."
-fi
-
-echo ""
-echo "🔍 Checking results..."
-echo "Vuln stats:"
-curl -s "http://localhost:8000/api/v1/vulnerabilities/stats" \
-  -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null
-
-echo ""
-echo "CSPM stats:"
-curl -s "http://localhost:8000/api/v1/cspm/stats" \
-  -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null
-
-echo ""
-echo "Sample vulns (first 5):"
-curl -s "http://localhost:8000/api/v1/vulnerabilities?page_size=5" \
-  -H "Authorization: Bearer dev-token" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for v in data.get('items', []):
-    print(f\"  {v['severity']:10s} {v.get('cve_id', 'N/A'):20s} {v.get('asset_hostname', 'unknown'):30s} {v.get('affected_product', '')}\")
-" 2>/dev/null || echo "Failed"
-
-echo ""
-echo "📝 Commit when ready:"
-echo "   git add -A && git commit -m 'fix: CrowdStrike severity per-filter query + hostname via Hosts API' && git push"
-echo ""
-echo "⚠️  CSPM: If still 0 findings, add 'Configuration Assessment — Read' scope"
-echo "   in Falcon Console → API Clients and Keys → Edit your client"
+echo "📝 Commit:"
+echo "   git add -A && git commit -m 'fix: filters now properly reset drill-downs and pass to all API calls' && git push"

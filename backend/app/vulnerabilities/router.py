@@ -137,10 +137,16 @@ async def hosts_for_remediation(
     remediation_id: str,
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_viewer)],
+    severity: list[str] | None = Query(None),
+    exploit_only: bool = Query(False),
+    kev_only: bool = Query(False),
 ):
-    """Get all hosts affected by a specific remediation."""
+    """Get all hosts affected by a specific remediation, with filters."""
     from app.vulnerabilities.remediation_service import get_hosts_for_remediation
-    return await get_hosts_for_remediation(db, user.tenant_id, remediation_id)
+    return await get_hosts_for_remediation(
+        db, user.tenant_id, remediation_id,
+        severity=severity, exploit_only=exploit_only, kev_only=kev_only,
+    )
 
 
 @router.get("/hosts/{asset_id}/remediations")
@@ -148,7 +154,13 @@ async def remediations_for_host(
     asset_id: uuid.UUID,
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_viewer)],
+    severity: list[str] | None = Query(None),
+    exploit_only: bool = Query(False),
+    kev_only: bool = Query(False),
 ):
-    """Get all remediations needed for a specific host."""
+    """Get all remediations needed for a specific host, with filters."""
     from app.vulnerabilities.remediation_service import get_remediations_for_host
-    return await get_remediations_for_host(db, user.tenant_id, asset_id)
+    return await get_remediations_for_host(
+        db, user.tenant_id, asset_id,
+        severity=severity, exploit_only=exploit_only, kev_only=kev_only,
+    )

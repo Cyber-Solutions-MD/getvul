@@ -47,6 +47,17 @@ const DEFAULT_FILTERS: VulnFilterState = {
 
 type Tab = "vulnerabilities" | "remediations";
 
+function buildFilterParams(filters: VulnFilterState): URLSearchParams {
+  const p = new URLSearchParams();
+  filters.severity.forEach((s) => p.append("severity", s));
+  filters.source.forEach((s) => p.append("source", s));
+  filters.status.forEach((s) => p.append("status", s));
+  if (filters.search) p.set("search", filters.search);
+  if (filters.exploit_available === true) p.set("exploit_only", "true");
+  if (filters.cisa_kev === true) p.set("kev_only", "true");
+  return p;
+}
+
 export default function VulnerabilitiesPage() {
   const [tab, setTab] = useState<Tab>("vulnerabilities");
   const [vulnData, setVulnData] = useState<PaginatedVulns | null>(null);
@@ -63,15 +74,17 @@ export default function VulnerabilitiesPage() {
   const [selectedHostName, setSelectedHostName] = useState<string>("");
   const [hostRemediations, setHostRemediations] = useState<RemediationForHost[] | null>(null);
 
+  // ── Data fetching ──
+
   const fetchVulns = useCallback(async () => {
     setLoading(true);
     try {
-      const p = new URLSearchParams();
-      p.set("page", String(page)); p.set("page_size", "25");
-      if (filters.search) p.set("search", filters.search);
-      filters.severity.forEach((s) => p.append("severity", s));
-      filters.source.forEach((s) => p.append("source", s));
-      filters.status.forEach((s) => p.append("status", s));
+      const p = buildFilterParams(filters);
+      p.set("page", String(page));
+      p.set("page_size", "25");
+      // Vulns endpoint uses different param names
+      p.delete("exploit_only");
+      p.delete("kev_only");
       if (filters.exploit_available !== null) p.set("exploit_available", String(filters.exploit_available));
       if (filters.cisa_kev !== null) p.set("cisa_kev", String(filters.cisa_kev));
       setVulnData(await api<PaginatedVulns>(`/api/v1/vulnerabilities?${p}`));
@@ -82,12 +95,9 @@ export default function VulnerabilitiesPage() {
   const fetchRemediations = useCallback(async () => {
     setLoading(true);
     try {
-      const p = new URLSearchParams();
-      p.set("page", String(page)); p.set("page_size", "25");
-      if (filters.search) p.set("search", filters.search);
-      filters.severity.forEach((s) => p.append("severity", s));
-      if (filters.exploit_available === true) p.set("exploit_only", "true");
-      if (filters.cisa_kev === true) p.set("kev_only", "true");
+      const p = buildFilterParams(filters);
+      p.set("page", String(page));
+      p.set("page_size", "25");
       setRemData(await api<PaginatedRemediations>(`/api/v1/vulnerabilities/remediations/grouped?${p}`));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -96,39 +106,79 @@ export default function VulnerabilitiesPage() {
   useEffect(() => {
     const t = setTimeout(() => {
       if (tab === "vulnerabilities") fetchVulns();
-      else fetchRemediations();
+      else if (!selectedRemediation && !selectedHostId) fetchRemediations();
     }, 300);
     return () => clearTimeout(t);
-  }, [tab, fetchVulns, fetchRemediations]);
+  }, [tab, fetchVulns, fetchRemediations, selectedRemediation, selectedHostId]);
 
-  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [filters, tab]);
+  // Reset on filter/tab change
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+    setSelectedRemediation(null);
+    setRemHosts(null);
+    setSelectedHostId(null);
+    setHostRemediations(null);
+  }, [filters, tab]);
+
+  // ── Drill-downs (always pass current filters) ──
 
   async function drillRemediation(rem: RemediationGrouped) {
     setSelectedRemediation(rem);
+    setSelectedHostId(null);
+    setHostRemediations(null);
     try {
-      const hosts = await api<HostForRemediation[]>(`/api/v1/vulnerabilities/remediations/${encodeURIComponent(rem.remediation_id)}/hosts`);
+      const p = buildFilterParams(filters);
+      const url = `/api/v1/vulnerabilities/remediations/${encodeURIComponent(rem.remediation_id)}/hosts?${p}`;
+      const hosts = await api<HostForRemediation[]>(url);
       setRemHosts(hosts);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error("Failed to fetch hosts for remediation:", e);
+      setRemHosts([]);
+    }
   }
 
   async function drillHost(assetId: string, hostname: string) {
-    setSelectedHostId(assetId); setSelectedHostName(hostname);
+    setSelectedHostId(assetId);
+    setSelectedHostName(hostname);
     try {
-      const rems = await api<RemediationForHost[]>(`/api/v1/vulnerabilities/hosts/${assetId}/remediations`);
+      const p = buildFilterParams(filters);
+      const url = `/api/v1/vulnerabilities/hosts/${assetId}/remediations?${p}`;
+      const rems = await api<RemediationForHost[]>(url);
       setHostRemediations(rems);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error("Failed to fetch remediations for host:", e);
+      setHostRemediations([]);
+    }
   }
+
+  function goBackToRemediations() {
+    setSelectedRemediation(null);
+    setRemHosts(null);
+    setSelectedHostId(null);
+    setHostRemediations(null);
+  }
+
+  function goBackFromHost() {
+    setSelectedHostId(null);
+    setHostRemediations(null);
+  }
+
+  // ── Render ──
 
   const data = tab === "vulnerabilities" ? vulnData : remData;
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Bug className="h-6 w-6 text-indigo-400" />
           <div>
             <h1 className="text-2xl font-bold text-white">Vulnerabilities</h1>
-            {data && <p className="text-sm text-gray-400">{data.total.toLocaleString()} {tab === "vulnerabilities" ? "vulnerabilities" : "remediations"}</p>}
+            {data && <p className="text-sm text-gray-400">
+              {data.total.toLocaleString()} {tab === "vulnerabilities" ? "vulnerabilities" : "remediations"}
+            </p>}
           </div>
         </div>
         <button onClick={() => tab === "vulnerabilities" ? fetchVulns() : fetchRemediations()} disabled={loading}
@@ -139,78 +189,55 @@ export default function VulnerabilitiesPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-gray-900 p-1 w-fit">
-        <button onClick={() => { setTab("vulnerabilities"); setSelectedRemediation(null); setSelectedHostId(null); }}
+        <button onClick={() => setTab("vulnerabilities")}
           className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all",
             tab === "vulnerabilities" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white")}>
           <Bug className="h-4 w-4" />Vulnerabilities
         </button>
-        <button onClick={() => { setTab("remediations"); setSelectedRemediation(null); setSelectedHostId(null); }}
+        <button onClick={() => setTab("remediations")}
           className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all",
             tab === "remediations" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white")}>
           <Pill className="h-4 w-4" />Remediations
         </button>
       </div>
 
+      {/* Filters */}
       <VulnFilters filters={filters} onChange={setFilters} />
 
+      {/* Bulk actions */}
       {selectedIds.size > 0 && (
         <BulkActions selectedCount={selectedIds.size} selectedIds={Array.from(selectedIds)}
           onComplete={() => { setSelectedIds(new Set()); fetchVulns(); }} />
       )}
 
+      {/* Content */}
       {loading && !data ? (
         <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
       ) : tab === "vulnerabilities" ? (
+        /* ── Vulnerabilities tab ── */
         <>
-          <VulnTable vulnerabilities={vulnData?.items || []} selectedIds={selectedIds}
-            onSelectToggle={(id) => setSelectedIds(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+          <VulnTable
+            vulnerabilities={vulnData?.items || []}
+            selectedIds={selectedIds}
+            onSelectToggle={(id) => setSelectedIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; })}
             onSelectAll={(ids) => setSelectedIds(ids.length ? new Set(ids) : new Set())}
-            onHostClick={(assetId, hostname) => { setTab("remediations"); drillHost(assetId, hostname); }} />
+            onHostClick={(assetId, hostname) => { setTab("remediations"); drillHost(assetId, hostname); }}
+          />
           {vulnData && vulnData.total_pages > 1 && (
-            <Pagination page={vulnData.page} totalPages={vulnData.total_pages} total={vulnData.total} pageSize={vulnData.page_size} onPageChange={setPage} />
+            <Pagination page={vulnData.page} totalPages={vulnData.total_pages}
+              total={vulnData.total} pageSize={vulnData.page_size} onPageChange={setPage} />
           )}
         </>
-      ) : selectedRemediation && remHosts ? (
-        /* Drill-down: hosts affected by a remediation */
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <button onClick={() => { setSelectedRemediation(null); setRemHosts(null); }} className="text-xs text-indigo-400 hover:text-indigo-300">← Back to remediations</button>
-              <h2 className="mt-1 text-lg font-medium text-white">{selectedRemediation.remediation_action || "Unknown remediation"}</h2>
-              <p className="text-sm text-gray-400">{selectedRemediation.affected_product} · {remHosts.length} affected hosts</p>
-            </div>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-gray-800">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Hostname</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">CVE</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Severity</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Exploit Status</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">CISA KEV</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">OS</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {remHosts.map((h, i) => (
-                  <tr key={i} className="hover:bg-gray-800/30 cursor-pointer" onClick={() => drillHost(h.asset_id, h.hostname)}>
-                    <td className="px-3 py-2.5 text-white">{h.hostname}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{h.cve_id}</td>
-                    <td className="px-3 py-2.5"><SeverityBadge severity={h.severity} /></td>
-                    <td className="px-3 py-2.5"><ExploitBadge status={h.exploit_status} available={h.exploit_available} /></td>
-                    <td className="px-3 py-2.5">{h.cisa_kev ? <span className="text-red-400 text-xs font-medium">🛡️ KEV</span> : <span className="text-gray-600">—</span>}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-400">{h.os_name} {h.os_version}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       ) : selectedHostId && hostRemediations ? (
-        /* Drill-down: remediations needed for a host */
+        /* ── Drill-down: remediations for a host ── */
         <div className="space-y-4">
           <div>
-            <button onClick={() => { setSelectedHostId(null); setHostRemediations(null); }} className="text-xs text-indigo-400 hover:text-indigo-300">← Back</button>
-            <h2 className="mt-1 text-lg font-medium text-white flex items-center gap-2"><Monitor className="h-5 w-5 text-gray-400" />{selectedHostName}</h2>
+            <button onClick={goBackFromHost} className="text-xs text-indigo-400 hover:text-indigo-300">
+              ← {selectedRemediation ? "Back to affected hosts" : "Back to remediations"}
+            </button>
+            <h2 className="mt-1 text-lg font-medium text-white flex items-center gap-2">
+              <Monitor className="h-5 w-5 text-gray-400" />{selectedHostName}
+            </h2>
             <p className="text-sm text-gray-400">{hostRemediations.length} remediations needed</p>
           </div>
           <div className="overflow-hidden rounded-xl border border-gray-800">
@@ -236,10 +263,45 @@ export default function VulnerabilitiesPage() {
                 ))}
               </tbody>
             </table>
+            {hostRemediations.length === 0 && <div className="py-12 text-center text-gray-500">No remediations match your filters for this host</div>}
+          </div>
+        </div>
+      ) : selectedRemediation && remHosts ? (
+        /* ── Drill-down: hosts affected by a remediation ── */
+        <div className="space-y-4">
+          <div>
+            <button onClick={goBackToRemediations} className="text-xs text-indigo-400 hover:text-indigo-300">← Back to remediations</button>
+            <h2 className="mt-1 text-lg font-medium text-white">{selectedRemediation.remediation_action || "Unknown remediation"}</h2>
+            <p className="text-sm text-gray-400">{selectedRemediation.affected_product} · {remHosts.length} matching entries</p>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-gray-800">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Hostname</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">CVE</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Severity</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">Exploit Status</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">CISA KEV</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-400">OS</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {remHosts.map((h, i) => (
+                  <tr key={i} className="hover:bg-gray-800/30 cursor-pointer" onClick={() => drillHost(h.asset_id, h.hostname)}>
+                    <td className="px-3 py-2.5 text-indigo-400 hover:text-indigo-300">{h.hostname}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{h.cve_id}</td>
+                    <td className="px-3 py-2.5"><SeverityBadge severity={h.severity} /></td>
+                    <td className="px-3 py-2.5"><ExploitBadge status={h.exploit_status} available={h.exploit_available} /></td>
+                    <td className="px-3 py-2.5">{h.cisa_kev ? <span className="text-red-400 text-xs font-medium">🛡️ KEV</span> : <span className="text-gray-600">—</span>}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-400">{h.os_name} {h.os_version}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {remHosts.length === 0 && <div className="py-12 text-center text-gray-500">No hosts match your filters for this remediation</div>}
           </div>
         </div>
       ) : (
-        /* Remediations grouped table */
+        /* ── Remediations grouped table ── */
         <>
           <div className="overflow-hidden rounded-xl border border-gray-800">
             <table className="w-full text-sm">
@@ -262,10 +324,11 @@ export default function VulnerabilitiesPage() {
                 ))}
               </tbody>
             </table>
-            {remData?.items.length === 0 && <div className="py-12 text-center text-gray-500">No remediations found</div>}
+            {remData?.items.length === 0 && <div className="py-12 text-center text-gray-500">No remediations match your filters</div>}
           </div>
           {remData && remData.total_pages > 1 && (
-            <Pagination page={remData.page} totalPages={remData.total_pages} total={remData.total} pageSize={remData.page_size} onPageChange={setPage} />
+            <Pagination page={remData.page} totalPages={remData.total_pages}
+              total={remData.total} pageSize={remData.page_size} onPageChange={setPage} />
           )}
         </>
       )}
@@ -275,8 +338,7 @@ export default function VulnerabilitiesPage() {
 
 function ExploitBadge({ status, available }: { status: string | null; available: boolean }) {
   if (!available && !status) return <span className="text-gray-600 text-xs">—</span>;
-  const color = status === "Used in the Wild" ? "text-red-400" :
-                status === "Used in Malware" ? "text-red-400" :
+  const color = (status === "Used in the Wild" || status === "Used in Malware") ? "text-red-400" :
                 status === "Functional" ? "text-orange-400" :
                 status === "Proof of Concept" ? "text-yellow-400" : "text-gray-400";
   return <span className={cn("text-xs font-medium", color)}>🔥 {status || (available ? "Yes" : "No")}</span>;
