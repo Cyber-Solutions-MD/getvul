@@ -8,6 +8,7 @@ from app.vulnerabilities.router import router as vuln_router
 from app.assets.router import router as asset_router
 from app.tenants.router import router as tenant_router
 from app.connectors.router import router as connector_router
+from app.cspm.router import router as cspm_router
 from app.config import settings
 
 app = FastAPI(
@@ -31,6 +32,7 @@ app.include_router(vuln_router, prefix="/api/v1/vulnerabilities", tags=["Vulnera
 app.include_router(asset_router, prefix="/api/v1/assets", tags=["Assets"])
 app.include_router(tenant_router, prefix="/api/v1/tenant", tags=["Tenant & Users"])
 app.include_router(connector_router, prefix="/api/v1/connectors", tags=["Connectors"])
+app.include_router(cspm_router, prefix="/api/v1/cspm", tags=["CSPM"])
 
 
 @app.get("/health")
@@ -38,7 +40,6 @@ async def health_check():
     return {"status": "ok", "service": "getvul-api"}
 
 
-# ── Dev-only endpoints ──
 if settings.environment == "development":
     from app.db.session import get_db
     from app.seed import seed_database
@@ -47,5 +48,4 @@ if settings.environment == "development":
 
     @app.post("/dev/seed", tags=["Dev"])
     async def seed(db: AsyncSession = Depends(get_db)):
-        """Seed the database with sample data. Dev only."""
         return await seed_database(db)
