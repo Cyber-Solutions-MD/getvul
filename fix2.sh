@@ -1,3 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+
+cd ~/Desktop/getvul
+
+echo "🔧 Fixing CrowdStrike connector with correct field mapping..."
+
+cat > backend/app/connectors/crowdstrike.py << 'FILEEOF'
 """CrowdStrike Falcon connector — Spotlight vulnerabilities + Configuration Assessment (CSPM).
 
 Spotlight combined API response structure (EU-1, as of Mar 2026):
@@ -435,3 +443,82 @@ class CrowdStrikeConnector(BaseConnector):
     async def close(self):
         if self.client:
             await self.client.aclose()
+FILEEOF
+
+echo "🧹 Clearing old data and re-syncing with correct mapping..."
+
+# Restart to pick up new code
+docker compose up -d --force-recreate backend
+sleep 10
+
+# Clear old incorrectly-mapped data
+curl -s -X POST http://localhost:8000/dev/clear-test-data \
+  -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null || echo "Cleared"
+
+echo ""
+echo "⏳ Triggering fresh sync (this may take a few minutes for 45k+ vulns)..."
+
+# Get connector ID
+CONNECTOR_ID=$(curl -s "http://localhost:8000/api/v1/connectors" \
+  -H "Authorization: Bearer dev-token" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for c in data:
+    if c['connector_type'] == 'CROWDSTRIKE':
+        print(c['id'])
+        break
+" 2>/dev/null || echo "")
+
+if [ -n "$CONNECTOR_ID" ]; then
+    echo "Connector ID: $CONNECTOR_ID"
+    curl -s -X POST "http://localhost:8000/api/v1/connectors/${CONNECTOR_ID}/sync" \
+      -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null || echo "Sync triggered"
+    
+    echo ""
+    echo "⏳ Sync is running in the background. Checking progress every 30s..."
+    
+    for i in $(seq 1 20); do
+        sleep 30
+        STATUS=$(curl -s "http://localhost:8000/api/v1/connectors/${CONNECTOR_ID}/sync-status" \
+          -H "Authorization: Bearer dev-token" 2>/dev/null)
+        IS_RUNNING=$(echo "$STATUS" | python3 -c "import json,sys; print(json.load(sys.stdin).get('is_running', False))" 2>/dev/null || echo "unknown")
+        
+        if [ "$IS_RUNNING" = "False" ] || [ "$IS_RUNNING" = "false" ]; then
+            echo "✅ Sync complete!"
+            echo "$STATUS" | python3 -m json.tool 2>/dev/null
+            break
+        else
+            echo "   Still syncing... (check $i)"
+        fi
+    done
+else
+    echo "⚠️ No CrowdStrike connector found. Sync manually from the UI."
+fi
+
+echo ""
+echo "🔍 Checking results..."
+echo "Vuln stats:"
+curl -s "http://localhost:8000/api/v1/vulnerabilities/stats" \
+  -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null
+
+echo ""
+echo "CSPM stats:"
+curl -s "http://localhost:8000/api/v1/cspm/stats" \
+  -H "Authorization: Bearer dev-token" | python3 -m json.tool 2>/dev/null
+
+echo ""
+echo "Sample vulns (first 5):"
+curl -s "http://localhost:8000/api/v1/vulnerabilities?page_size=5" \
+  -H "Authorization: Bearer dev-token" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for v in data.get('items', []):
+    print(f\"  {v['severity']:10s} {v.get('cve_id', 'N/A'):20s} {v.get('asset_hostname', 'unknown'):30s} {v.get('affected_product', '')}\")
+" 2>/dev/null || echo "Failed"
+
+echo ""
+echo "📝 Commit when ready:"
+echo "   git add -A && git commit -m 'fix: CrowdStrike severity per-filter query + hostname via Hosts API' && git push"
+echo ""
+echo "⚠️  CSPM: If still 0 findings, add 'Configuration Assessment — Read' scope"
+echo "   in Falcon Console → API Clients and Keys → Edit your client"
