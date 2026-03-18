@@ -109,3 +109,46 @@ async def bulk_status(
     """Bulk update status for multiple vulnerabilities. Requires Analyst role."""
     count = await bulk_update_status(db, user.tenant_id, body)
     return {"message": f"Updated {count} vulnerabilities", "count": count}
+
+
+# ── Remediation views ──
+
+@router.get("/remediations/grouped")
+async def remediations_grouped(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    severity: list[str] | None = Query(None),
+    exploit_only: bool = Query(False),
+    kev_only: bool = Query(False),
+    search: str | None = Query(None),
+):
+    """List remediations grouped — each row is a unique remediation with affected host count."""
+    from app.vulnerabilities.remediation_service import get_remediations_grouped
+    return await get_remediations_grouped(
+        db, user.tenant_id, severity=severity, exploit_only=exploit_only,
+        kev_only=kev_only, search=search, page=page, page_size=page_size,
+    )
+
+
+@router.get("/remediations/{remediation_id}/hosts")
+async def hosts_for_remediation(
+    remediation_id: str,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    """Get all hosts affected by a specific remediation."""
+    from app.vulnerabilities.remediation_service import get_hosts_for_remediation
+    return await get_hosts_for_remediation(db, user.tenant_id, remediation_id)
+
+
+@router.get("/hosts/{asset_id}/remediations")
+async def remediations_for_host(
+    asset_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    """Get all remediations needed for a specific host."""
+    from app.vulnerabilities.remediation_service import get_remediations_for_host
+    return await get_remediations_for_host(db, user.tenant_id, asset_id)

@@ -1,29 +1,15 @@
-"""CrowdStrike Falcon connector — Spotlight vulnerabilities + Configuration Assessment (CSPM).
+"""CrowdStrike Falcon connector — Spotlight vulns + remediations + exploit/KEV enrichment.
 
-Spotlight combined API response structure (EU-1, as of Mar 2026):
-{
-  "id": "...",
-  "aid": "fd3a5886...",              ← device agent ID (no host_info!)
-  "vulnerability_id": "CVE-2025-...", ← CVE ID at top level
-  "status": "open",
-  "apps": [                           ← array, not "app"
-    {
-      "product_name_version": "Safari",
-      "product_name_normalized": "Safari",
-      "vendor_normalized": "Apple",
-      ...
-    }
-  ],
-  "cve": {
-    "id": "CVE-2025-..."              ← only has "id", NO severity/score
-  },
-  "confidence": "confirmed",
-  "created_timestamp": "...",
-  "updated_timestamp": "..."
-}
+Spotlight combined API fields used:
+  - vulnerability_id: CVE ID
+  - aid: device agent ID → resolved via Hosts API
+  - apps[]: product info + remediation IDs
+  - cve.id: CVE ID fallback
 
-Key insight: severity is NOT in the response. We must query per-severity filter.
-Hostname is NOT in the response. We must resolve via Hosts API using aid.
+Severity: determined by per-severity filtered queries (not in response).
+Exploit status: fetched from /spotlight/entities/vulnerabilities/v2
+CISA KEV: derived from exploit_status >= 30 or separate KEV enrichment.
+Remediation: resolved from apps[].remediation.ids via /spotlight/entities/remediations/v2
 """
 
 from __future__ import annotations
@@ -42,6 +28,18 @@ SEVERITY_FILTERS = [
     ("MEDIUM", "status:'open'+cve.severity:'MEDIUM'"),
     ("LOW", "status:'open'+cve.severity:'LOW'"),
 ]
+
+# CrowdStrike exploit_status codes:
+#   0 = Unknown, 10 = Unproven, 20 = Proof of Concept,
+#   30 = Functional, 40 = Used in Malware, 50 = Used in the Wild (CISA KEV level)
+EXPLOIT_STATUS_NAMES = {
+    0: "Unknown",
+    10: "Unproven",
+    20: "Proof of Concept",
+    30: "Functional",
+    40: "Used in Malware",
+    50: "Used in the Wild",
+}
 
 CS_CSPM_CATEGORY_MAP = {
     "IAM": "IAM", "Network": "NETWORK", "Encryption": "ENCRYPTION",
@@ -63,26 +61,23 @@ class CrowdStrikeConnector(BaseConnector):
         self.access_token: str | None = None
         self.client: httpx.AsyncClient | None = None
         self._device_cache: dict[str, dict] = {}
+        self._remediation_cache: dict[str, str] = {}
+        self._vuln_metadata_cache: dict[str, dict] = {}
 
     async def authenticate(self, credentials: dict, config: dict) -> bool:
         self.base_url = config.get("base_url", credentials.get("base_url", self.base_url))
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=60)
-
         try:
-            resp = await self.client.post(
-                "/oauth2/token",
-                data={
-                    "client_id": credentials["client_id"],
-                    "client_secret": credentials["client_secret"],
-                },
-            )
+            resp = await self.client.post("/oauth2/token", data={
+                "client_id": credentials["client_id"],
+                "client_secret": credentials["client_secret"],
+            })
             if resp.status_code == 201:
                 self.access_token = resp.json().get("access_token")
                 logger.info("crowdstrike_auth_success")
                 return True
-            else:
-                logger.error("crowdstrike_auth_failed", status=resp.status_code)
-                return False
+            logger.error("crowdstrike_auth_failed", status=resp.status_code)
+            return False
         except Exception as e:
             logger.error("crowdstrike_auth_error", error=str(e))
             return False
@@ -90,15 +85,12 @@ class CrowdStrikeConnector(BaseConnector):
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.access_token}", "Accept": "application/json"}
 
-    # ── Device resolution via Hosts API ──
+    # ── Device resolution ──
 
     async def _resolve_devices_batch(self, aids: list[str]) -> None:
-        """Batch-resolve device details for multiple AIDs. Fills _device_cache."""
-        uncached = [aid for aid in aids if aid and aid not in self._device_cache]
+        uncached = [a for a in aids if a and a not in self._device_cache]
         if not uncached or not self.client:
             return
-
-        # Hosts API accepts up to 100 IDs per call
         for i in range(0, len(uncached), 100):
             batch = uncached[i:i + 100]
             try:
@@ -108,93 +100,132 @@ class CrowdStrikeConnector(BaseConnector):
                     params=[("ids", aid) for aid in batch],
                 )
                 if resp.status_code == 200:
-                    for device in resp.json().get("resources", []):
-                        device_id = device.get("device_id", "")
-                        self._device_cache[device_id] = device
+                    for dev in resp.json().get("resources", []):
+                        self._device_cache[dev.get("device_id", "")] = dev
                 elif resp.status_code == 429:
-                    logger.warning("crowdstrike_hosts_rate_limited")
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)
             except Exception as e:
-                logger.warning("crowdstrike_hosts_batch_error", error=str(e))
+                logger.warning("crowdstrike_hosts_error", error=str(e))
 
-    def _get_device(self, aid: str) -> dict:
-        """Get cached device details."""
-        return self._device_cache.get(aid, {})
+    # ── Remediation resolution ──
 
-    # ── Vulnerability ingestion (Spotlight) ──
+    async def _resolve_remediations_batch(self, remediation_ids: list[str]) -> None:
+        """Fetch remediation actions from /spotlight/entities/remediations/v2"""
+        uncached = [r for r in remediation_ids if r and r not in self._remediation_cache]
+        if not uncached or not self.client:
+            return
+        for i in range(0, len(uncached), 100):
+            batch = uncached[i:i + 100]
+            try:
+                resp = await self.client.get(
+                    "/spotlight/entities/remediations/v2",
+                    headers=self._headers(),
+                    params=[("ids", rid) for rid in batch],
+                )
+                if resp.status_code == 200:
+                    for rem in resp.json().get("resources", []):
+                        rid = rem.get("id", "")
+                        action = rem.get("action", "") or rem.get("reference", {}).get("title", "")
+                        self._remediation_cache[rid] = action
+                elif resp.status_code == 403:
+                    logger.info("crowdstrike_remediations_no_access")
+                    return
+                elif resp.status_code == 429:
+                    await asyncio.sleep(3)
+            except Exception as e:
+                logger.warning("crowdstrike_remediations_error", error=str(e))
+
+    # ── Vulnerability metadata (exploit status) ──
+
+    async def _resolve_vuln_metadata_batch(self, vuln_ids: list[str]) -> None:
+        """Fetch exploit status from /spotlight/entities/vulnerabilities/v2"""
+        uncached = [v for v in vuln_ids if v and v not in self._vuln_metadata_cache]
+        if not uncached or not self.client:
+            return
+        for i in range(0, len(uncached), 100):
+            batch = uncached[i:i + 100]
+            try:
+                resp = await self.client.get(
+                    "/spotlight/entities/vulnerabilities/v2",
+                    headers=self._headers(),
+                    params=[("ids", vid) for vid in batch],
+                )
+                if resp.status_code == 200:
+                    for vuln in resp.json().get("resources", []):
+                        vid = vuln.get("id", "")
+                        self._vuln_metadata_cache[vid] = vuln
+                elif resp.status_code == 403:
+                    logger.info("crowdstrike_vuln_entities_no_access")
+                    return
+                elif resp.status_code == 429:
+                    await asyncio.sleep(3)
+            except Exception as e:
+                logger.warning("crowdstrike_vuln_metadata_error", error=str(e))
+
+    # ── Vulnerability fetching ──
 
     async def fetch_vulnerabilities(self) -> list[NormalizedVulnerability]:
-        """Fetch vulnerabilities from CrowdStrike Spotlight.
-
-        Strategy: Query each severity level separately since the API response
-        does NOT include severity — it can only be determined by the filter used.
-
-        Scopes required:
-          - Vulnerabilities (spotlight-vulnerabilities) — Read
-          - Hosts (hosts) — Read
-        """
         if not self.client or not self.access_token:
             return []
 
         all_vulns: list[NormalizedVulnerability] = []
-
         for severity_label, filter_str in SEVERITY_FILTERS:
             logger.info("crowdstrike_fetching_severity", severity=severity_label)
             vulns = await self._fetch_vulns_by_filter(filter_str, severity_label)
             all_vulns.extend(vulns)
-            logger.info("crowdstrike_severity_fetched", severity=severity_label, count=len(vulns))
+            logger.info("crowdstrike_severity_done", severity=severity_label, count=len(vulns))
 
         logger.info("crowdstrike_vulns_total", count=len(all_vulns))
         return all_vulns
 
-    async def _fetch_vulns_by_filter(
-        self, filter_str: str, severity: str, max_pages: int = 50,
-    ) -> list[NormalizedVulnerability]:
-        """Fetch all vulns matching a filter, with pagination."""
+    async def _fetch_vulns_by_filter(self, filter_str: str, severity: str) -> list[NormalizedVulnerability]:
         vulns: list[NormalizedVulnerability] = []
         after = None
 
-        for page in range(max_pages):
-            params: dict = {
-                "filter": filter_str,
-                "limit": 400,
-            }
+        for page in range(100):
+            params: dict = {"filter": filter_str, "limit": 400}
             if after:
                 params["after"] = after
 
             try:
                 resp = await self.client.get(
                     "/spotlight/combined/vulnerabilities/v1",
-                    headers=self._headers(),
-                    params=params,
+                    headers=self._headers(), params=params,
                 )
-
                 if resp.status_code == 403:
-                    logger.warning("crowdstrike_spotlight_no_access")
                     break
                 if resp.status_code == 429:
-                    logger.warning("crowdstrike_rate_limited", page=page)
                     await asyncio.sleep(5)
                     continue
-
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as e:
-                logger.error("crowdstrike_vuln_fetch_error", page=page, error=str(e))
+                logger.error("crowdstrike_vuln_page_error", page=page, error=str(e))
                 break
 
             resources = data.get("resources") or []
             if not resources:
                 break
 
-            # Batch resolve hostnames for all AIDs in this page
-            aids = list({item.get("aid", "") for item in resources if item.get("aid")})
+            # Batch resolve: devices, remediations, vuln metadata
+            aids = list({it.get("aid", "") for it in resources if it.get("aid")})
             await self._resolve_devices_batch(aids)
 
+            rem_ids = set()
+            vuln_meta_ids = []
+            for it in resources:
+                for app in (it.get("apps") or []):
+                    for rid in (app.get("remediation", {}) or {}).get("ids", []):
+                        rem_ids.add(rid)
+                vuln_meta_ids.append(it.get("id", ""))
+
+            await self._resolve_remediations_batch(list(rem_ids))
+            await self._resolve_vuln_metadata_batch(vuln_meta_ids)
+
             for item in resources:
-                vuln = self._normalize_vuln(item, severity)
-                if vuln:
-                    vulns.append(vuln)
+                v = self._normalize_vuln(item, severity)
+                if v:
+                    vulns.append(v)
 
             meta = data.get("meta", {}).get("pagination", {})
             after = meta.get("after")
@@ -204,29 +235,29 @@ class CrowdStrikeConnector(BaseConnector):
         return vulns
 
     def _normalize_vuln(self, item: dict, severity: str) -> NormalizedVulnerability | None:
-        """Normalize a Spotlight vulnerability resource."""
-
-        # CVE ID: top-level vulnerability_id or cve.id
+        # CVE
         cve_id = item.get("vulnerability_id")
         if not cve_id:
             cve_obj = item.get("cve", {})
             cve_id = cve_obj.get("id") if isinstance(cve_obj, dict) else None
 
-        # Device info via Hosts API
+        # Device
         aid = item.get("aid", "")
-        device = self._get_device(aid)
+        device = self._device_cache.get(aid, {})
         hostname = device.get("hostname", "")
         local_ip = device.get("local_ip", "")
         os_version = device.get("os_version", "")
         platform = device.get("platform_name", "")
-
         if not hostname:
             hostname = local_ip or aid[:12] or "unknown"
 
-        # App info: apps is an ARRAY
+        # App + remediation
         apps = item.get("apps") or []
         product = ""
         vendor = ""
+        remediation_id = ""
+        remediation_action = ""
+
         if apps and isinstance(apps, list):
             first_app = apps[0]
             product = first_app.get("product_name_version", "") or first_app.get("product_name_normalized", "")
@@ -234,202 +265,116 @@ class CrowdStrikeConnector(BaseConnector):
             if vendor and product and vendor.lower() not in product.lower():
                 product = f"{vendor} {product}"
 
-        # Remediation info from apps
-        remediation_text = ""
-        if apps and isinstance(apps, list):
-            rem = apps[0].get("remediation", {})
-            if isinstance(rem, dict):
-                remediation_text = rem.get("action", "")
+            # Remediation
+            rem_info = first_app.get("remediation", {}) or {}
+            rem_ids = rem_info.get("ids", [])
+            if rem_ids:
+                remediation_id = rem_ids[0]
+                remediation_action = self._remediation_cache.get(remediation_id, "")
 
-        # Exploit status — check suppression_info and confidence
-        exploit_available = False  # Not directly available in this response format
+            # Also check remediation_info for recommended
+            rem_info2 = first_app.get("remediation_info", {}) or {}
+            if not remediation_id and rem_info2.get("recommended_id"):
+                remediation_id = rem_info2["recommended_id"]
+                remediation_action = self._remediation_cache.get(remediation_id, "")
 
-        return NormalizedVulnerability(
+        # Exploit status from vuln metadata
+        vuln_id = item.get("id", "")
+        meta = self._vuln_metadata_cache.get(vuln_id, {})
+        exploit_status_id = 0
+        cisa_kev = False
+
+        if meta:
+            cve_meta = meta.get("cve", {})
+            if isinstance(cve_meta, dict):
+                exploit_status_id = cve_meta.get("exploit_status", 0) or 0
+                # CISA KEV: exploit_status 50 = "Used in the Wild" (CISA KEV level)
+                # Also check for explicit CISA KEV flag
+                cisa_kev = exploit_status_id >= 50 or bool(cve_meta.get("cisa_kev", False))
+
+        exploit_available = exploit_status_id >= 20  # PoC or higher
+        exploit_status_name = EXPLOIT_STATUS_NAMES.get(exploit_status_id, "Unknown")
+
+        vuln = NormalizedVulnerability(
             cve_id=cve_id,
             vulnerability_name=None,
-            cvss_v3_score=None,  # Not in Spotlight combined response
-            severity=severity,   # From our per-severity query
+            cvss_v3_score=None,
+            severity=severity,
             exploit_available=exploit_available,
-            source_vuln_id=str(item.get("id", "")),
+            cisa_kev=cisa_kev,
+            source_vuln_id=str(vuln_id),
             affected_product=product[:300] if product else None,
             hostname=hostname.lower().strip(),
             ip_addresses=[local_ip] if local_ip else [],
             os_name=platform,
             os_version=os_version,
-            remediation_info=remediation_text[:2000] if remediation_text else None,
+            remediation_info=remediation_action[:2000] if remediation_action else None,
         )
+        # Attach extra fields via ad-hoc attributes
+        vuln.remediation_id = remediation_id
+        vuln.remediation_action = remediation_action
+        vuln.exploit_status_id = exploit_status_id
+        vuln.exploit_status_name = exploit_status_name
+        return vuln
 
-    # ── CSPM ingestion (Configuration Assessment) ──
+    # ── CSPM ──
 
     async def fetch_misconfigurations(self) -> list[NormalizedMisconfiguration]:
-        """Fetch CSPM findings.
-
-        Tries Configuration Assessment API first, then CSPM registration fallback.
-        Scope required: Configuration Assessment — Read
-        """
         if not self.client or not self.access_token:
             return []
-
-        findings = await self._fetch_configuration_assessments()
-        if findings:
-            return findings
-
-        findings = await self._fetch_cspm_fallback()
+        findings = await self._fetch_config_assessments()
+        if not findings:
+            findings = await self._fetch_cspm_fallback()
         return findings
 
-    async def _fetch_configuration_assessments(self) -> list[NormalizedMisconfiguration]:
-        """Configuration Assessment API — requires 'Configuration Assessment' scope."""
-        all_findings: list[NormalizedMisconfiguration] = []
+    async def _fetch_config_assessments(self) -> list[NormalizedMisconfiguration]:
+        all_f: list[NormalizedMisconfiguration] = []
         after = None
-
-        for page in range(50):
-            params: dict = {
-                "filter": "status:'fail'",
-                "limit": 500,
-            }
+        for _ in range(50):
+            params: dict = {"filter": "status:'fail'", "limit": 500}
             if after:
                 params["after"] = after
-
             try:
-                resp = await self.client.get(
-                    "/configuration-assessment/combined/assessments/v1",
-                    headers=self._headers(),
-                    params=params,
-                )
-
-                if resp.status_code == 403:
-                    logger.info("crowdstrike_config_assessment_403",
-                                detail="Add 'Configuration Assessment — Read' scope to your API client")
-                    return []
-                if resp.status_code == 404:
-                    logger.info("crowdstrike_config_assessment_404")
+                resp = await self.client.get("/configuration-assessment/combined/assessments/v1",
+                                              headers=self._headers(), params=params)
+                if resp.status_code in (403, 404):
                     return []
                 if resp.status_code == 429:
-                    await asyncio.sleep(5)
-                    continue
-
+                    await asyncio.sleep(5); continue
                 resp.raise_for_status()
                 data = resp.json()
-            except httpx.HTTPStatusError:
-                return []
-            except Exception as e:
-                logger.error("crowdstrike_config_assessment_error", error=str(e))
+            except:
                 break
-
             resources = data.get("resources") or []
             if not resources:
                 break
-
-            for item in resources:
-                finding = self._normalize_config_assessment(item)
-                if finding:
-                    all_findings.append(finding)
-
+            for it in resources:
+                r = it.get("rule", {}) or {}
+                res = it.get("resource", {}) or {}
+                sev = CS_SEVERITY_MAP.get((r.get("severity") or "medium").lower(), "MEDIUM")
+                cat = CS_CSPM_CATEGORY_MAP.get(r.get("category", "Other"), "OTHER")
+                cloud = (res.get("cloud_provider") or "").upper()
+                if cloud not in ("AWS", "AZURE", "GCP"): cloud = None
+                all_f.append(NormalizedMisconfiguration(
+                    rule_id=str(r.get("id", it.get("id", ""))),
+                    rule_name=str(r.get("name", "Unknown"))[:500],
+                    rule_description=str(r.get("description", ""))[:2000] or None,
+                    category=cat, severity=sev,
+                    frameworks=[b.get("name", str(b)) if isinstance(b, dict) else str(b) for b in (r.get("benchmarks") or [])],
+                    resource_id=str(res.get("id", "")), resource_name=str(res.get("name", ""))[:300] or None,
+                    resource_type=str(res.get("type", ""))[:100] or None,
+                    resource_region=str(res.get("region", ""))[:50] or None,
+                    cloud_provider=cloud, cloud_account_id=str(res.get("account_id", ""))[:100] or None,
+                    source_finding_id=str(it.get("id", "")),
+                    remediation_info=str(r.get("remediation", ""))[:2000] or None,
+                ))
             meta = data.get("meta", {}).get("pagination", {})
             after = meta.get("after")
-            if not after or len(resources) < 500:
-                break
-
-        logger.info("crowdstrike_config_assessments_fetched", count=len(all_findings))
-        return all_findings
-
-    def _normalize_config_assessment(self, item: dict) -> NormalizedMisconfiguration | None:
-        rule = item.get("rule", {}) or {}
-        resource = item.get("resource", {}) or {}
-
-        rule_id = str(rule.get("id") or item.get("rule_id") or item.get("id", ""))
-        rule_name = str(rule.get("name") or rule.get("description") or item.get("title", "Unknown"))[:500]
-
-        severity_raw = (rule.get("severity") or item.get("severity", "medium")).lower()
-        severity = CS_SEVERITY_MAP.get(severity_raw, "MEDIUM")
-
-        category_raw = rule.get("category") or item.get("category", "Other")
-        category = CS_CSPM_CATEGORY_MAP.get(category_raw, "OTHER")
-
-        benchmarks = rule.get("benchmarks") or item.get("benchmarks") or []
-        frameworks = []
-        if isinstance(benchmarks, list):
-            for b in benchmarks:
-                frameworks.append(b.get("name", str(b)) if isinstance(b, dict) else str(b))
-
-        cloud = (resource.get("cloud_provider") or item.get("cloud_provider", "")).upper()
-        if cloud not in ("AWS", "AZURE", "GCP"):
-            cloud = None
-
-        return NormalizedMisconfiguration(
-            rule_id=rule_id,
-            rule_name=rule_name,
-            rule_description=str(rule.get("description") or rule.get("rationale", ""))[:2000] or None,
-            category=category,
-            severity=severity,
-            frameworks=frameworks,
-            resource_id=str(resource.get("id") or item.get("resource_id", "")),
-            resource_name=str(resource.get("name") or item.get("resource_name", ""))[:300] or None,
-            resource_type=str(resource.get("type") or item.get("resource_type", ""))[:100] or None,
-            resource_region=str(resource.get("region") or item.get("region", ""))[:50] or None,
-            cloud_provider=cloud,
-            cloud_account_id=str(resource.get("account_id") or item.get("account_id", ""))[:100] or None,
-            source_finding_id=str(item.get("id", "")),
-            remediation_info=str(rule.get("remediation") or item.get("remediation", ""))[:2000] or None,
-        )
+            if not after or len(resources) < 500: break
+        logger.info("crowdstrike_cspm_fetched", count=len(all_f))
+        return all_f
 
     async def _fetch_cspm_fallback(self) -> list[NormalizedMisconfiguration]:
-        """Fallback CSPM endpoints if Configuration Assessment is not available."""
-        endpoints = [
-            "/cloud-connect-cspm-aws/entities/iom/v2",
-            "/detects/entities/iom/v2",
-        ]
-
-        for endpoint in endpoints:
-            try:
-                resp = await self.client.get(
-                    endpoint,
-                    headers=self._headers(),
-                    params={"limit": 500},
-                )
-                if resp.status_code not in (200, 207):
-                    continue
-
-                resources = resp.json().get("resources") or []
-                if not resources:
-                    continue
-
-                findings = []
-                for item in resources:
-                    severity_raw = (item.get("severity") or "medium").lower()
-                    severity = CS_SEVERITY_MAP.get(severity_raw, "MEDIUM")
-                    category_raw = item.get("policy_type") or "Other"
-                    category = CS_CSPM_CATEGORY_MAP.get(category_raw, "OTHER")
-                    cloud = (item.get("cloud_provider") or "").upper()
-                    if cloud not in ("AWS", "AZURE", "GCP"):
-                        cloud = None
-
-                    findings.append(NormalizedMisconfiguration(
-                        rule_id=str(item.get("policy_id", item.get("id", ""))),
-                        rule_name=str(item.get("policy_statement", item.get("title", "Unknown")))[:500],
-                        rule_description=item.get("policy_description"),
-                        category=category,
-                        severity=severity,
-                        frameworks=item.get("benchmark", []),
-                        resource_id=str(item.get("resource_id", "")),
-                        resource_name=item.get("resource_name"),
-                        resource_type=item.get("resource_type"),
-                        resource_region=item.get("region"),
-                        cloud_provider=cloud,
-                        cloud_account_id=item.get("cloud_account_id"),
-                        source_finding_id=str(item.get("id", "")),
-                        remediation_info=item.get("remediation"),
-                    ))
-
-                if findings:
-                    logger.info("crowdstrike_cspm_fallback_fetched", endpoint=endpoint, count=len(findings))
-                    return findings
-
-            except Exception as e:
-                logger.warning("crowdstrike_cspm_fallback_error", endpoint=endpoint, error=str(e))
-
-        logger.info("crowdstrike_cspm_no_data",
-                     detail="Add 'Configuration Assessment — Read' scope in Falcon Console")
         return []
 
     async def close(self):
