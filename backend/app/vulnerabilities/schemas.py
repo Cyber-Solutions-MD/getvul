@@ -29,6 +29,10 @@ class VulnerabilityResponse(BaseModel):
     affected_product: str | None
     affected_version: str | None
     fixed_version: str | None
+    remediation_id: str | None = None
+    remediation_action: str | None = None
+    exploit_status_id: int | None = None
+    exploit_status_name: str | None = None
     remediation_info: str | None
     status: str
     first_detected_at: datetime
