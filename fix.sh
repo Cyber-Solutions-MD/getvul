@@ -1,3 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+
+cd ~/Desktop/getvul
+
+echo "🔧 Fixing docker-compose.yml..."
+
+cat > docker-compose.yml << 'FILEEOF'
 services:
   postgres:
     image: postgres:16-alpine
@@ -40,7 +48,7 @@ services:
       DEBUG: "true"
       ENVIRONMENT: "development"
       JWT_SECRET_KEY: "dev-secret-change-in-prod"
-      ENCRYPTION_KEY: "ZHVtbXkta2V5LXBsZWFzZS1yZXBsYWNlLW1l"
+      ENCRYPTION_KEY: "dGhpcy1pcy1hLXRlc3Qta2V5LXBsZWFzZS1jaGFuZ2U="
     volumes:
       - ./backend:/app
     depends_on:
@@ -66,3 +74,35 @@ services:
 
 volumes:
   pgdata:
+FILEEOF
+
+echo "🔧 Generating a real Fernet key..."
+
+# Generate proper Fernet key and update docker-compose
+FERNET_KEY=$(docker run --rm python:3.12-slim python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null || echo "ZHVtbXkta2V5LXBsZWFzZS1yZXBsYWNlLW1l")
+
+sed -i '' "s|ENCRYPTION_KEY:.*|ENCRYPTION_KEY: \"${FERNET_KEY}\"|" docker-compose.yml
+
+# Also update .env
+grep -q "ENCRYPTION_KEY" .env 2>/dev/null && sed -i '' "s|ENCRYPTION_KEY=.*|ENCRYPTION_KEY=${FERNET_KEY}|" .env || echo "ENCRYPTION_KEY=${FERNET_KEY}" >> .env
+
+echo "🔄 Rebuilding..."
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+
+echo "⏳ Waiting for services (30s)..."
+sleep 30
+
+echo "🔍 Testing..."
+echo "Health:"
+curl -s http://localhost:8000/health
+echo ""
+echo ""
+echo "Connector types:"
+curl -s http://localhost:8000/api/v1/connectors/types | head -c 300
+echo ""
+echo ""
+echo "✅ Done!"
+echo "   Frontend: http://localhost:3000/dashboard"
+echo "   API docs: http://localhost:8000/docs"

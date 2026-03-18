@@ -7,6 +7,7 @@ from app.auth.router import router as auth_router
 from app.vulnerabilities.router import router as vuln_router
 from app.assets.router import router as asset_router
 from app.tenants.router import router as tenant_router
+from app.connectors.router import router as connector_router
 from app.config import settings
 
 app = FastAPI(
@@ -25,11 +26,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routes ──
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(vuln_router, prefix="/api/v1/vulnerabilities", tags=["Vulnerabilities"])
 app.include_router(asset_router, prefix="/api/v1/assets", tags=["Assets"])
 app.include_router(tenant_router, prefix="/api/v1/tenant", tags=["Tenant & Users"])
+app.include_router(connector_router, prefix="/api/v1/connectors", tags=["Connectors"])
 
 
 @app.get("/health")
