@@ -229,7 +229,7 @@ async def get_asset(
                 "severity": v.severity,
                 "status": v.status,
                 "product": v.affected_product,
-                "remediation": v.remediation,
+                "remediation": v.remediation_action,
                 "exploit_status": v.exploit_status_name,
                 "is_exploitable": bool(v.exploit_status_id) if hasattr(v, "exploit_status") else False,
                 "is_cisa_kev": v.cisa_kev or False,

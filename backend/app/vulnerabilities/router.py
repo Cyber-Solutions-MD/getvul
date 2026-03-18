@@ -11,6 +11,9 @@ from app.auth.rbac import require_analyst, require_viewer
 from app.auth.schemas import CurrentUser
 from app.dependencies import AuthenticatedUser, DBSession
 from app.pagination import PaginatedResponse, PaginationParams
+from sqlalchemy import select, func, case
+from app.assets.models import Asset
+from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
     DashboardStats,
@@ -151,16 +154,61 @@ async def hosts_for_remediation(
 
 @router.get("/hosts/{asset_id}/remediations")
 async def remediations_for_host(
-    asset_id: uuid.UUID,
+    asset_id: str,
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_viewer)],
-    severity: list[str] | None = Query(None),
-    exploit_only: bool = Query(False),
-    kev_only: bool = Query(False),
 ):
-    """Get all remediations needed for a specific host, with filters."""
-    from app.vulnerabilities.remediation_service import get_remediations_for_host
-    return await get_remediations_for_host(
-        db, user.tenant_id, asset_id,
-        severity=severity, exploit_only=exploit_only, kev_only=kev_only,
+    """Get remediations for a specific host, grouped by remediation action."""
+    # Verify asset belongs to tenant
+    asset = (await db.execute(
+        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
+    )).scalar_one_or_none()
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+
+    # Group vulns by remediation_action + product
+    query = (
+        select(
+            Vulnerability.remediation_action,
+            Vulnerability.affected_product,
+            func.count().label("vuln_count"),
+            func.max(
+                case(
+                    (Vulnerability.severity == "CRITICAL", 4),
+                    (Vulnerability.severity == "HIGH", 3),
+                    (Vulnerability.severity == "MEDIUM", 2),
+                    (Vulnerability.severity == "LOW", 1),
+                    else_=0,
+                )
+            ).label("max_sev_rank"),
+        )
+        .where(Vulnerability.asset_id == asset_id)
+        .group_by(Vulnerability.remediation_action, Vulnerability.affected_product)
+        .order_by(
+            func.max(
+                case(
+                    (Vulnerability.severity == "CRITICAL", 4),
+                    (Vulnerability.severity == "HIGH", 3),
+                    (Vulnerability.severity == "MEDIUM", 2),
+                    (Vulnerability.severity == "LOW", 1),
+                    else_=0,
+                )
+            ).desc(),
+            func.count().desc(),
+        )
     )
+
+    result = await db.execute(query)
+    rows = result.fetchall()
+
+    sev_map = {4: "CRITICAL", 3: "HIGH", 2: "MEDIUM", 1: "LOW", 0: "UNKNOWN"}
+
+    return [
+        {
+            "remediation_action": row.remediation_action or "No remediation available",
+            "product": row.affected_product or "Unknown",
+            "max_severity": sev_map.get(row.max_sev_rank, "UNKNOWN"),
+            "vuln_count": row.vuln_count,
+        }
+        for row in rows
+    ]
