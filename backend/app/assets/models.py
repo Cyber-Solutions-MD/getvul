@@ -41,6 +41,14 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Device classification
     device_category: Mapped[str | None] = mapped_column(String(30), index=True)
 
+    # CrowdStrike / source device enrichment
+    last_login_user: Mapped[str | None] = mapped_column(String(300))
+    last_login_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    host_status: Mapped[str | None] = mapped_column(String(30))
+    system_manufacturer: Mapped[str | None] = mapped_column(String(200))
+    external_ip: Mapped[str | None] = mapped_column(String(50))
+
     # JAMF / MDM enrichment
     jamf_id: Mapped[str | None] = mapped_column(String(100))
     serial_number: Mapped[str | None] = mapped_column(String(100))

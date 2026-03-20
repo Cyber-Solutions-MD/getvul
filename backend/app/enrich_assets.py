@@ -9,7 +9,7 @@ import httpx
 from sqlalchemy import select
 
 from app.assets.models import Asset
-from app.vulnerabilities.models import Vulnerability  # noqa: F401 — resolve relationships
+from app.vulnerabilities.models import Vulnerability  # noqa: F401
 from app.tenants.models import Tenant, User  # noqa: F401
 from app.connectors.service import get_decrypted_credentials
 from app.db.session import async_session_factory
@@ -43,34 +43,47 @@ async def enrich():
             token = resp.json()["access_token"]
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Get ALL assets from DB
+            # Get ALL assets from DB — build multiple lookup keys
             result = await db.execute(select(Asset))
             assets = result.scalars().all()
-            hostname_to_asset = {a.hostname.lower(): a for a in assets if a.hostname}
-            logger.info(f"Found {len(assets)} total assets, {len(hostname_to_asset)} unique hostnames")
+
+            # Build lookup maps (case-insensitive)
+            by_hostname_lower = {}
+            by_hostname_stripped = {}  # without .local suffix
+            for a in assets:
+                if a.hostname:
+                    h = a.hostname.lower()
+                    by_hostname_lower[h] = a
+                    # Also try without .local
+                    if h.endswith(".local"):
+                        by_hostname_stripped[h.replace(".local", "")] = a
+
+            logger.info(f"DB has {len(assets)} assets, {len(by_hostname_lower)} unique hostnames")
 
             # Paginate through ALL CrowdStrike hosts
             offset = 0
-            limit = 500
+            limit = 5000
             matched = 0
+            unmatched = 0
             by_category = {}
+            cs_total = 0
 
             while True:
-                # Get batch of device IDs
                 resp = await client.get(
                     f"{base_url}/devices/queries/devices/v1",
                     headers=headers,
-                    params={"limit": limit, "offset": offset},
+                    params={"limit": limit, "offset": offset, "sort": "hostname.asc"},
                 )
                 if resp.status_code != 200:
                     logger.error(f"Query failed: {resp.status_code}")
                     break
 
-                aids = resp.json().get("resources", [])
+                data = resp.json()
+                aids = data.get("resources", [])
                 if not aids:
                     break
 
-                # Get full device details
+                # Get full device details in batches of 100
                 for batch_start in range(0, len(aids), 100):
                     batch = aids[batch_start : batch_start + 100]
                     resp2 = await client.get(
@@ -82,16 +95,24 @@ async def enrich():
                         continue
 
                     for device in resp2.json().get("resources", []):
-                        hostname = (device.get("hostname") or "").lower()
-                        asset = hostname_to_asset.get(hostname)
-                        if not asset:
-                            continue
-
+                        cs_hostname = (device.get("hostname") or "").lower()
                         product_type_desc = device.get("product_type_desc", "")
                         platform_name = device.get("platform_name", "")
                         device_id = device.get("device_id", "")
+                        cs_total += 1
 
-                        # Save AID for future use
+                        # Try matching: exact → without .local → stripped
+                        asset = (
+                            by_hostname_lower.get(cs_hostname)
+                            or by_hostname_stripped.get(cs_hostname)
+                            or by_hostname_lower.get(cs_hostname + ".local")
+                        )
+
+                        if not asset:
+                            unmatched += 1
+                            continue
+
+                        # Save AID
                         asset.crowdstrike_aid = device_id
 
                         # Update seen_by_sources with metadata
@@ -115,14 +136,36 @@ async def enrich():
                         by_category[category] = by_category.get(category, 0) + 1
                         matched += 1
 
-                logger.info(f"Processed {offset + len(aids)} hosts, matched {matched} assets so far")
+                total_hosts = data.get("meta", {}).get("pagination", {}).get("total", 0)
+                logger.info(f"Processed {offset + len(aids)}/{total_hosts} CS hosts, matched {matched}")
 
-                total = resp.json().get("meta", {}).get("pagination", {}).get("total", 0)
                 offset += limit
-                if offset >= total:
+                if offset >= total_hosts:
                     break
 
+            # For any remaining assets that didn't match CrowdStrike, reclassify from hostname/OS
+            remaining = await db.execute(
+                select(Asset).where(
+                    (Asset.crowdstrike_aid.is_(None)) | (Asset.crowdstrike_aid == "")
+                )
+            )
+            remaining_count = 0
+            for asset in remaining.scalars().all():
+                category = classify_asset_from_data(
+                    hostname=asset.hostname or "",
+                    os_name=asset.os_name or "",
+                )
+                if asset.device_category != category:
+                    asset.device_category = category
+                    by_category[category] = by_category.get(category, 0) + 1
+                    remaining_count += 1
+
             await db.commit()
-            logger.info(f"Done! Enriched {matched} assets: {by_category}")
+            logger.info(
+                f"Done! CS hosts scanned: {cs_total}, "
+                f"matched: {matched}, unmatched: {unmatched}, "
+                f"reclassified from hostname: {remaining_count}"
+            )
+            logger.info(f"Categories: {by_category}")
 
 asyncio.run(enrich())

@@ -42,9 +42,10 @@ async def list_assets(
             query = query.where(Asset.device_category.in_(categories))
     if scanner:
         # Filter by seen_by_sources containing the scanner
+        # seen_by_sources is a JSONB array like ["CROWDSTRIKE", "NESSUS"]
         scanners = [s.strip().upper() for s in scanner.split(",") if s.strip()]
         for s in scanners:
-            query = query.where(Asset.seen_by_sources.has_key(s.upper()))
+            query = query.where(Asset.seen_by_sources.contains([s]))
     if min_risk > 0:
         query = query.where(Asset.risk_score >= min_risk)
 
@@ -206,18 +207,38 @@ async def get_asset(
         "os_name": asset.os_name,
         "os_version": asset.os_version,
         "device_category": asset.device_category or "OTHER",
+        "asset_type": asset.asset_type,
         "risk_score": asset.risk_score or 0,
         "ip_addresses": asset.ip_addresses or [],
         "mac_addresses": asset.mac_addresses or [],
+        "external_ip": asset.external_ip,
         "seen_by_sources": asset.seen_by_sources or {},
+        # Device identity
+        "serial_number": asset.serial_number,
+        "model": asset.model,
+        "system_manufacturer": asset.system_manufacturer,
+        # User & activity
+        "last_login_user": asset.last_login_user,
+        "last_login_at": asset.last_login_at.isoformat() if asset.last_login_at else None,
+        "last_seen_at": asset.last_seen_at.isoformat() if asset.last_seen_at else None,
+        "host_status": asset.host_status,
+        # HR / MDM enrichment
         "assigned_user": asset.assigned_user,
         "department": asset.department,
         "building": asset.building,
-        "model": asset.model,
-        "serial_number": asset.serial_number,
         "managed_by": asset.managed_by,
         "last_checkin_at": str(asset.last_checkin_at) if asset.last_checkin_at else None,
         "mdm_details": asset.mdm_details,
+        # Humaans-specific (extracted from mdm_details for convenience)
+        "humaans_email": (asset.mdm_details or {}).get("humaans_email"),
+        "github_handle": (asset.mdm_details or {}).get("github_handle"),
+        "linkedin_handle": (asset.mdm_details or {}).get("linkedin_handle"),
+        "element_handle": (asset.mdm_details or {}).get("element_handle"),
+        "humaans_teams": (asset.mdm_details or {}).get("humaans_teams"),
+        "humaans_location": (asset.mdm_details or {}).get("humaans_location"),
+        "humaans_timezone": (asset.mdm_details or {}).get("humaans_timezone"),
+        # CrowdStrike
+        "crowdstrike_aid": asset.crowdstrike_aid,
         "vuln_counts": {
             "total": vc.total, "critical": vc.critical, "high": vc.high,
             "medium": vc.medium, "low": vc.low, "exploitable": vc.exploitable, "kev": vc.kev,
@@ -238,6 +259,18 @@ async def get_asset(
             for v in vulns
         ],
     }
+
+
+@router.post("/recompute-risk-scores")
+async def recompute_risk_scores(
+    user=Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recompute risk scores for all assets based on current vulnerabilities."""
+    from app.assets.risk_score import compute_risk_scores
+    stats = await compute_risk_scores(db, user.tenant_id)
+    await db.commit()
+    return {"message": "Risk scores recomputed", **stats}
 
 
 @router.post("/classify")

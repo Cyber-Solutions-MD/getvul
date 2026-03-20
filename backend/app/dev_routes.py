@@ -18,6 +18,30 @@ async def seed(db: AsyncSession = Depends(get_db)):
     return await seed_database(db)
 
 
+@router.post("/run-correlations")
+async def run_correlations_endpoint(db: AsyncSession = Depends(get_db)):
+    """Run the correlation engine for the demo tenant. Dev only."""
+    from sqlalchemy import select
+    from app.tenants.models import Tenant
+    from app.vulnerabilities.correlation_service import run_correlations
+    from app.assets.risk_score import compute_risk_scores
+
+    tenant = (await db.execute(select(Tenant).limit(1))).scalar_one_or_none()
+    if not tenant:
+        return {"error": "No tenant found. Seed first."}
+
+    corr_stats = await run_correlations(db, tenant.id)
+    risk_stats = await compute_risk_scores(db, tenant.id)
+    await db.commit()
+
+    return {
+        "message": "Correlations and risk scores computed",
+        "tenant_id": str(tenant.id),
+        "correlations": corr_stats,
+        "risk_scores": risk_stats,
+    }
+
+
 @router.post("/clear-test-data")
 async def clear_test_data(db: AsyncSession = Depends(get_db)):
     """Remove all seed/test data. Keeps connector configs and real synced data untouched.

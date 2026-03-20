@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from app.connectors.base import BaseConnector
+from app.connectors.base import BaseConnector, NormalizedVulnerability
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,11 @@ class JamfConnector(BaseConnector):
     CONNECTOR_TYPE = "JAMF"
 
     def __init__(self, base_url: str, client_id: str, client_secret: str):
-        self.base_url = base_url.rstrip("/")
+        # Strip trailing /api or /api/ — the connector appends /api/... paths itself
+        url = base_url.rstrip("/")
+        if url.endswith("/api"):
+            url = url[:-4]
+        self.base_url = url
         self.client_id = client_id
         self.client_secret = client_secret
         self.token: str | None = None
@@ -116,6 +120,7 @@ class JamfConnector(BaseConnector):
                         "ip_address": general.get("lastIpAddress", ""),
                         "mac_address": general.get("macAddress", ""),
                         "assigned_user": user_loc.get("username", ""),
+                        "last_login_user": general.get("lastLoggedInUsernameBinary", ""),
                         "department": user_loc.get("department", ""),
                         "building": user_loc.get("building", ""),
                         "last_checkin": general.get("lastContactTime", ""),
@@ -132,10 +137,6 @@ class JamfConnector(BaseConnector):
         logger.info("jamf_fetched computers=%d", len(computers))
         return computers
 
-    async def sync_vulnerabilities(self, tenant_id, db):
-        """JAMF doesn't provide vulnerabilities — no-op."""
-        return []
-
-    async def sync_cspm(self, tenant_id, db):
-        """JAMF doesn't provide CSPM findings — no-op."""
+    async def fetch_vulnerabilities(self) -> list[NormalizedVulnerability]:
+        """JAMF doesn't provide vulnerabilities."""
         return []

@@ -18,6 +18,7 @@ CS_TYPE_MAP = {
     "workstation": "WORKSTATION",
     "server": "SERVER",
     "domain controller": "SERVER",
+    "kubernetes cluster": "SERVER",
 }
 
 # ── Hostname patterns ──
@@ -133,20 +134,14 @@ def classify_asset_from_data(
 
 
 def classify_asset(asset) -> str:
-    """Classify from an Asset ORM object."""
-    sources = asset.seen_by_sources or {}
-    # seen_by_sources can be a dict with metadata or a list
-    product_type_desc = ""
-    platform_name = ""
-    if isinstance(sources, dict):
-        cs = sources.get("CROWDSTRIKE") or sources.get("crowdstrike") or {}
-        if isinstance(cs, dict):
-            product_type_desc = cs.get("product_type_desc", "")
-            platform_name = cs.get("platform_name", "")
+    """Classify from an Asset ORM object.
 
+    Uses asset_type as the source-reported type (e.g., CrowdStrike product_type_desc
+    like "Workstation" or "Server") and os_name as the platform hint.
+    """
     return classify_asset_from_data(
         hostname=asset.hostname or "",
         os_name=asset.os_name or "",
-        platform_name=platform_name,
-        product_type_desc=product_type_desc,
+        platform_name=asset.os_name or "",  # os_name holds platform ("Mac", "Linux", "Windows")
+        product_type_desc=asset.asset_type or "",  # asset_type holds CrowdStrike product_type_desc
     )

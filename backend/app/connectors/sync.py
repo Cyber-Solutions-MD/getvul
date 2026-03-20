@@ -9,12 +9,15 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.assets.classification import classify_asset_from_data
 from app.assets.models import Asset
+from app.assets.risk_score import compute_risk_scores
 from app.connectors.base import BaseConnector, NormalizedMisconfiguration, NormalizedVulnerability
 from app.connectors.crowdstrike import CrowdStrikeConnector
 from app.connectors.service import get_decrypted_credentials
 from app.cspm.models import Misconfiguration
 from app.ticketing.models import ConnectorConfig, SyncLog
+from app.vulnerabilities.correlation_service import run_correlations
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
@@ -24,7 +27,7 @@ CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
 }
 
 # Special connectors that don't follow the standard vuln/cspm pattern
-SPECIAL_CONNECTORS = {"JAMF"}
+SPECIAL_CONNECTORS = {"JAMF", "HUMAANS", "ASANA"}
 
 
 async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
@@ -33,10 +36,21 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
     db.add(log)
     await db.flush()
 
-    # JAMF uses a special sync path (device enrichment, not vulns)
+    # Special connectors that don't follow the standard vuln/cspm pattern
     if connector_config.connector_type == "JAMF":
         from app.connectors.jamf_sync import run_jamf_sync
         return await run_jamf_sync(db, connector_config)
+
+    if connector_config.connector_type == "HUMAANS":
+        from app.connectors.humaans_sync import run_humaans_sync
+        return await run_humaans_sync(db, connector_config)
+
+    if connector_config.connector_type == "ASANA":
+        # Asana is a ticketing connector — no data to sync, just config storage
+        log.status = "SUCCESS"
+        log.finished_at = datetime.now(timezone.utc)
+        log.details = {"message": "Asana is a ticketing connector, no data sync needed"}
+        return log
 
     connector_cls = CONNECTOR_CLASSES.get(connector_config.connector_type)
     if not connector_cls:
@@ -70,12 +84,17 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
             if await _upsert_misconfiguration(db, connector_config.tenant_id, m, connector_config.connector_type):
                 mc += 1
 
+        # Post-sync: run correlation engine and risk score computation
+        corr_stats = await run_correlations(db, connector_config.tenant_id)
+        risk_stats = await compute_risk_scores(db, connector_config.tenant_id)
+
         log.status = "SUCCESS"
         log.records_fetched = len(vulns) + len(misconfigs)
         log.records_created = vc + mc
         log.records_updated = vu
         log.details = {"vulns_fetched": len(vulns), "vulns_created": vc, "vulns_updated": vu,
-                       "misconfigs_fetched": len(misconfigs), "misconfigs_created": mc}
+                       "misconfigs_fetched": len(misconfigs), "misconfigs_created": mc,
+                       "correlations": corr_stats, "risk_scores": risk_stats}
         connector_config.last_sync_at = datetime.now(timezone.utc)
         connector_config.last_sync_status = "SUCCESS"
         connector_config.last_sync_record_count = log.records_fetched
@@ -97,17 +116,89 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
     hostname = (v.hostname or "unknown").lower().strip()
     result = await db.execute(select(Asset).where(Asset.tenant_id == tenant_id, Asset.hostname == hostname))
     asset = result.scalar_one_or_none()
+
+    # Classify using all available hints from the source
+    platform_name = getattr(v, "platform_name", None) or ""
+    product_type_desc = getattr(v, "product_type_desc", None) or ""
+    device_category = classify_asset_from_data(
+        hostname=hostname,
+        os_name=v.os_name or "",
+        platform_name=platform_name,
+        product_type_desc=product_type_desc,
+    )
+
+    # Parse timestamps from source
+    _last_login_at = _parse_ts(getattr(v, "last_login_at", None))
+    _last_seen_at = _parse_ts(getattr(v, "last_seen_at", None))
+
+    # Build model name from manufacturer + product
+    _manufacturer = getattr(v, "system_manufacturer", None) or ""
+    _product_name = getattr(v, "system_product_name", None) or ""
+    _model = f"{_manufacturer} {_product_name}".strip() if (_manufacturer or _product_name) else None
+
     if asset is None:
-        asset = Asset(tenant_id=tenant_id, hostname=hostname, ip_addresses=v.ip_addresses,
-                      os_name=v.os_name, os_version=v.os_version, asset_type=v.asset_type,
-                      seen_by_sources=[source])
+        asset = Asset(
+            tenant_id=tenant_id, hostname=hostname, ip_addresses=v.ip_addresses,
+            mac_addresses=[v.mac_address] if getattr(v, "mac_address", None) else [],
+            os_name=v.os_name, os_version=v.os_version,
+            asset_type=product_type_desc or v.asset_type,
+            seen_by_sources=[source], device_category=device_category,
+            # CrowdStrike device enrichment
+            serial_number=getattr(v, "serial_number", None),
+            model=_model,
+            system_manufacturer=_manufacturer or None,
+            external_ip=getattr(v, "external_ip", None),
+            last_login_user=getattr(v, "last_login_user", None),
+            last_login_at=_last_login_at,
+            last_seen_at=_last_seen_at,
+            host_status=getattr(v, "host_status", None),
+            crowdstrike_aid=getattr(v, "crowdstrike_aid", None),
+        )
         db.add(asset)
         await db.flush()
     else:
         sources = asset.seen_by_sources or []
         if source not in sources:
             asset.seen_by_sources = sources + [source]
+        # Update classification if we now have better data (e.g., product_type_desc)
+        if product_type_desc or not asset.device_category or asset.device_category == "OTHER":
+            asset.device_category = device_category
+        if product_type_desc:
+            asset.asset_type = product_type_desc
+        if v.os_version and (not asset.os_version or len(v.os_version) > len(asset.os_version or "")):
+            asset.os_version = v.os_version
+        # Always update volatile device fields from source
+        if getattr(v, "serial_number", None):
+            asset.serial_number = v.serial_number
+        if _model:
+            asset.model = _model
+        if _manufacturer:
+            asset.system_manufacturer = _manufacturer
+        if getattr(v, "external_ip", None):
+            asset.external_ip = v.external_ip
+        if getattr(v, "mac_address", None):
+            asset.mac_addresses = [v.mac_address]
+        if getattr(v, "last_login_user", None):
+            asset.last_login_user = v.last_login_user
+        if _last_login_at:
+            asset.last_login_at = _last_login_at
+        if _last_seen_at:
+            asset.last_seen_at = _last_seen_at
+        if getattr(v, "host_status", None):
+            asset.host_status = v.host_status
+        if getattr(v, "crowdstrike_aid", None):
+            asset.crowdstrike_aid = v.crowdstrike_aid
     return asset
+
+
+def _parse_ts(val: str | None) -> datetime | None:
+    """Parse an ISO timestamp string to datetime, or return None."""
+    if not val:
+        return None
+    try:
+        return datetime.fromisoformat(val.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
 
 
 async def _upsert_vulnerability(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVulnerability,
@@ -128,6 +219,8 @@ async def _upsert_vulnerability(db: AsyncSession, tenant_id: uuid.UUID, v: Norma
         existing.remediation_action = getattr(v, "remediation_action", None) or v.remediation_info
         existing.exploit_status_id = getattr(v, "exploit_status_id", None)
         existing.exploit_status_name = getattr(v, "exploit_status_name", None)
+        if getattr(v, "file_paths", None):
+            existing.file_paths = v.file_paths
         return False
     else:
         vuln = Vulnerability(
@@ -142,6 +235,7 @@ async def _upsert_vulnerability(db: AsyncSession, tenant_id: uuid.UUID, v: Norma
             remediation_info=v.remediation_info,
             exploit_status_id=getattr(v, "exploit_status_id", None),
             exploit_status_name=getattr(v, "exploit_status_name", None),
+            file_paths=getattr(v, "file_paths", None),
             status="OPEN", first_detected_at=now, last_seen_at=now,
         )
         db.add(vuln)

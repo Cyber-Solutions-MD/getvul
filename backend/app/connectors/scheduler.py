@@ -112,6 +112,16 @@ async def _scheduler_loop() -> None:
         except Exception as e:
             logger.error("scheduler_loop_error", error=str(e))
 
+        # Run ticket rules
+        try:
+            async with async_session_factory() as db:
+                from app.ticketing.rule_engine import run_all_due_rules
+                result = await run_all_due_rules(db)
+                if result.get("tickets_created", 0) > 0:
+                    logger.info("ticket_rules_completed", **result)
+        except Exception as e:
+            logger.error("ticket_rules_error", error=str(e))
+
         # Check every 60 seconds
         await asyncio.sleep(60)
 

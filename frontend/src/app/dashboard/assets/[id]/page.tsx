@@ -66,22 +66,59 @@ export default function AssetDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">{CAT_ICONS[asset.device_category] || "❓"} {asset.hostname}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white">{CAT_ICONS[asset.device_category] || "❓"} {asset.hostname}</h1>
+            {asset.host_status && (
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                asset.host_status === "normal" || asset.host_status === "online"
+                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                  : asset.host_status === "contained" || asset.host_status === "containment_pending"
+                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                  : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+              }`}>{asset.host_status}</span>
+            )}
+          </div>
           <p className="mt-1 text-gray-400">
             {asset.os_name} {asset.os_version}
             {asset.model && <span> · {asset.model}</span>}
             {asset.serial_number && <span> · S/N: {asset.serial_number}</span>}
           </p>
-          {asset.assigned_user && (
+          {(asset.last_login_user || asset.assigned_user) && (
             <p className="text-sm text-gray-500">
-              Assigned: {asset.assigned_user}
+              {asset.last_login_user && <span>Last login: {asset.last_login_user}</span>}
+              {asset.last_login_user && asset.last_login_at && <span className="text-gray-600"> ({new Date(asset.last_login_at).toLocaleDateString()})</span>}
+              {asset.assigned_user && asset.last_login_user && <span> · </span>}
+              {asset.assigned_user && <span>Assigned: {asset.assigned_user}</span>}
               {asset.department && <span> · {asset.department}</span>}
             </p>
           )}
         </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-400">Risk Score</p>
-          <p className={`text-4xl font-bold ${riskColor(asset.risk_score)}`}>{asset.risk_score}</p>
+        <div className="flex items-start gap-4">
+          <button
+            onClick={async () => {
+              if (!confirm(`Create Asana remediation ticket for ${asset.hostname}?`)) return;
+              try {
+                const resp = await fetch(`${API}/api/v1/tickets/host`, {
+                  method: "POST", headers,
+                  body: JSON.stringify({ asset_id: asset.id, provider: "ASANA", project_key: "" }),
+                });
+                const data = await resp.json();
+                if (resp.ok && data.task_url) {
+                  alert(`Ticket created! ${data.vulns_linked} vulns linked, assigned to ${data.assignee || 'unassigned'}. Due: ${data.due_on}`);
+                  window.open(data.task_url, "_blank");
+                } else {
+                  alert(`Error: ${data.detail || data.error || 'Failed'}`);
+                }
+              } catch (e: any) { alert(`Error: ${e.message}`); }
+            }}
+            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-500 whitespace-nowrap"
+          >
+            Create Ticket
+          </button>
+          <div className="text-right">
+            <p className="text-sm text-gray-400">Risk Score</p>
+            <p className={`text-4xl font-bold ${riskColor(asset.risk_score)}`}>{asset.risk_score}</p>
+          </div>
         </div>
       </div>
 
@@ -107,25 +144,85 @@ export default function AssetDetailPage() {
         ))}
       </div>
 
-      {/* Info row */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* Info panels */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Device Info */}
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-          <p className="mb-2 text-sm font-medium text-gray-400">IP Addresses</p>
-          {(asset.ip_addresses || []).length > 0
-            ? asset.ip_addresses.map((ip: string) => <span key={ip} className="mr-2 rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-300">{ip}</span>)
-            : <p className="text-sm text-gray-500">None</p>}
+          <p className="mb-3 text-sm font-medium text-gray-400">Device Info</p>
+          <div className="space-y-2 text-sm">
+            <InfoRow label="Type" value={asset.asset_type || asset.device_category} />
+            <InfoRow label="Serial Number" value={asset.serial_number} />
+            <InfoRow label="Model" value={asset.model} />
+            {asset.crowdstrike_aid && <InfoRow label="CrowdStrike AID" value={asset.crowdstrike_aid} mono />}
+          </div>
         </div>
+
+        {/* Network */}
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-          <p className="mb-2 text-sm font-medium text-gray-400">Scanners</p>
+          <p className="mb-3 text-sm font-medium text-gray-400">Network</p>
+          <div className="space-y-2 text-sm">
+            <InfoRow label="Local IP" value={(asset.ip_addresses || []).join(", ")} />
+            <InfoRow label="External IP" value={asset.external_ip} />
+            <InfoRow label="MAC Address" value={(asset.mac_addresses || []).join(", ")} />
+          </div>
+        </div>
+
+        {/* User & Activity */}
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+          <p className="mb-3 text-sm font-medium text-gray-400">User & Activity</p>
+          <div className="space-y-2 text-sm">
+            <InfoRow label="Assigned User" value={asset.assigned_user} />
+            <InfoRow label="Work Email" value={asset.humaans_email} />
+            <InfoRow label="Department" value={asset.department} />
+            {asset.github_handle && (
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 shrink-0">GitHub</span>
+                <a href={`https://github.com/${asset.github_handle.replace(/^@/, "")}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-indigo-400 hover:underline text-right truncate">@{asset.github_handle.replace(/^@/, "")}</a>
+              </div>
+            )}
+            {asset.linkedin_handle && (
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 shrink-0">LinkedIn</span>
+                <a href={`https://linkedin.com/in/${asset.linkedin_handle}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-indigo-400 hover:underline text-right truncate">{asset.linkedin_handle}</a>
+              </div>
+            )}
+            {asset.element_handle && <InfoRow label="Element" value={asset.element_handle} />}
+            {asset.humaans_location && <InfoRow label="Location" value={asset.humaans_location} />}
+            {asset.humaans_timezone && <InfoRow label="Timezone" value={asset.humaans_timezone} />}
+            {asset.humaans_teams && asset.humaans_teams.length > 0 && (
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 shrink-0">Teams</span>
+                <span className="text-gray-200 text-right text-xs">{asset.humaans_teams.join(", ")}</span>
+              </div>
+            )}
+            <div className="mt-2 border-t border-gray-700 pt-2" />
+            <InfoRow label="Last Login User" value={asset.last_login_user} />
+            <InfoRow label="Last Login" value={asset.last_login_at ? new Date(asset.last_login_at).toLocaleString() : null} />
+            <InfoRow label="Last Seen" value={asset.last_seen_at ? timeAgo(asset.last_seen_at) : null} />
+            <InfoRow label="Host Status" value={asset.host_status} badge={
+              asset.host_status === "normal" ? "green" : asset.host_status === "contained" ? "red" : "gray"
+            } />
+          </div>
+        </div>
+
+        {/* Scanners */}
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+          <p className="mb-3 text-sm font-medium text-gray-400">Scanners</p>
           <div className="flex flex-wrap gap-2">
-            {Object.keys(asset.seen_by_sources || {}).map((s: string) => (
+            {(Array.isArray(asset.seen_by_sources) ? asset.seen_by_sources : Object.keys(asset.seen_by_sources || {})).map((s: string) => (
               <span key={s} className="rounded-full border border-indigo-500/30 bg-indigo-500/20 px-2 py-0.5 text-xs text-indigo-400">{s}</span>
             ))}
           </div>
         </div>
-        {asset.mdm_details && (
+
+        {/* MDM Security (if available) */}
+        {asset.mdm_details && Object.keys(asset.mdm_details).length > 0 && (
           <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-            <p className="mb-2 text-sm font-medium text-gray-400">MDM Security</p>
+            <p className="mb-3 text-sm font-medium text-gray-400">MDM Security</p>
             {Object.entries(asset.mdm_details).map(([k, v]) => (
               <div key={k} className="flex justify-between text-sm">
                 <span className="text-gray-400">{k}</span>
@@ -224,4 +321,32 @@ export default function AssetDetailPage() {
       )}
     </div>
   );
+}
+
+function InfoRow({ label, value, mono, badge }: { label: string; value: string | null | undefined; mono?: boolean; badge?: "green" | "red" | "gray" }) {
+  if (!value) return null;
+  const badgeColors = { green: "bg-green-500/20 text-green-400", red: "bg-red-500/20 text-red-400", gray: "bg-gray-500/20 text-gray-400" };
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-gray-500 shrink-0">{label}</span>
+      {badge ? (
+        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${badgeColors[badge]}`}>{value}</span>
+      ) : (
+        <span className={`text-gray-200 text-right truncate ${mono ? "font-mono text-xs" : ""}`}>{value}</span>
+      )}
+    </div>
+  );
+}
+
+function timeAgo(iso: string): string {
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  const diffMin = Math.floor((now - then) / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(iso).toLocaleDateString();
 }

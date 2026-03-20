@@ -63,6 +63,7 @@ class CrowdStrikeConnector(BaseConnector):
         self._device_cache: dict[str, dict] = {}
         self._remediation_cache: dict[str, str] = {}
         self._vuln_metadata_cache: dict[str, dict] = {}
+        self._eval_logic_cache: dict[str, list[str]] = {}  # eval_id -> [filepaths]
 
     async def authenticate(self, credentials: dict, config: dict) -> bool:
         self.base_url = config.get("base_url", credentials.get("base_url", self.base_url))
@@ -162,6 +163,39 @@ class CrowdStrikeConnector(BaseConnector):
             except Exception as e:
                 logger.warning("crowdstrike_vuln_metadata_error", error=str(e))
 
+    # ── Evaluation logic (file paths) ──
+
+    async def _resolve_eval_logic_batch(self, eval_ids: list[str]) -> None:
+        """Fetch file paths from /spotlight/entities/evaluation-logic/v1"""
+        uncached = [e for e in eval_ids if e and e not in self._eval_logic_cache]
+        if not uncached or not self.client:
+            return
+        for i in range(0, len(uncached), 50):
+            batch = uncached[i:i + 50]
+            try:
+                resp = await self.client.get(
+                    "/spotlight/entities/evaluation-logic/v1",
+                    headers=self._headers(),
+                    params=[("ids", eid) for eid in batch],
+                )
+                if resp.status_code == 200:
+                    for el in resp.json().get("resources", []):
+                        eid = el.get("id", "")
+                        paths = []
+                        for logic in el.get("logic", []):
+                            for item in logic.get("items", []):
+                                fp = item.get("filepath", "")
+                                if fp and fp not in paths:
+                                    paths.append(fp)
+                        self._eval_logic_cache[eid] = paths
+                elif resp.status_code in (403, 404):
+                    logger.info("crowdstrike_eval_logic_no_access")
+                    return
+                elif resp.status_code == 429:
+                    await asyncio.sleep(3)
+            except Exception as e:
+                logger.warning("crowdstrike_eval_logic_error", error=str(e))
+
     # ── Vulnerability fetching ──
 
     async def fetch_vulnerabilities(self) -> list[NormalizedVulnerability]:
@@ -222,6 +256,15 @@ class CrowdStrikeConnector(BaseConnector):
             await self._resolve_remediations_batch(list(rem_ids))
             await self._resolve_vuln_metadata_batch(vuln_meta_ids)
 
+            # Batch resolve evaluation logic for file paths
+            eval_ids = set()
+            for it in resources:
+                for app in (it.get("apps") or []):
+                    el = app.get("evaluation_logic", {})
+                    if isinstance(el, dict) and el.get("id"):
+                        eval_ids.add(el["id"])
+            await self._resolve_eval_logic_batch(list(eval_ids))
+
             for item in resources:
                 v = self._normalize_vuln(item, severity)
                 if v:
@@ -248,6 +291,16 @@ class CrowdStrikeConnector(BaseConnector):
         local_ip = device.get("local_ip", "")
         os_version = device.get("os_version", "")
         platform = device.get("platform_name", "")
+        product_type_desc = device.get("product_type_desc", "")
+        serial_number = device.get("serial_number", "")
+        mac_address = device.get("mac_address", "")
+        external_ip = device.get("external_ip", "")
+        last_login_user = device.get("last_login_user", "")
+        last_login_at = device.get("last_login_timestamp", "")
+        last_seen = device.get("last_seen", "")
+        host_status = device.get("status", "")
+        system_manufacturer = device.get("system_manufacturer", "")
+        system_product_name = device.get("system_product_name", "")
         if not hostname:
             hostname = local_ip or aid[:12] or "unknown"
 
@@ -295,6 +348,13 @@ class CrowdStrikeConnector(BaseConnector):
         exploit_available = exploit_status_id >= 20  # PoC or higher
         exploit_status_name = EXPLOIT_STATUS_NAMES.get(exploit_status_id, "Unknown")
 
+        # File paths from evaluation logic
+        file_paths = None
+        if apps and isinstance(apps, list):
+            el = apps[0].get("evaluation_logic", {})
+            if isinstance(el, dict) and el.get("id"):
+                file_paths = self._eval_logic_cache.get(el["id"])
+
         vuln = NormalizedVulnerability(
             cve_id=cve_id,
             vulnerability_name=None,
@@ -309,6 +369,19 @@ class CrowdStrikeConnector(BaseConnector):
             os_name=platform,
             os_version=os_version,
             remediation_info=remediation_action[:2000] if remediation_action else None,
+            platform_name=platform,
+            product_type_desc=product_type_desc,
+            serial_number=serial_number or None,
+            mac_address=mac_address or None,
+            external_ip=external_ip or None,
+            last_login_user=last_login_user or None,
+            last_login_at=last_login_at or None,
+            last_seen_at=last_seen or None,
+            host_status=host_status or None,
+            system_manufacturer=system_manufacturer or None,
+            system_product_name=system_product_name or None,
+            crowdstrike_aid=aid or None,
+            file_paths=file_paths,
         )
         # Attach extra fields via ad-hoc attributes
         vuln.remediation_id = remediation_id

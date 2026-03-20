@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -66,6 +66,7 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     exploit_status_id: Mapped[int | None] = mapped_column(Integer)
     exploit_status_name: Mapped[str | None] = mapped_column(String(100))
     remediation_info: Mapped[str | None] = mapped_column(Text)
+    file_paths: Mapped[dict | None] = mapped_column(JSONB)  # ["path1", "path2"]
     status: Mapped[str] = mapped_column(String(20), default=VulnStatus.OPEN.value, index=True)
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

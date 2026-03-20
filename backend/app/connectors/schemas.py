@@ -108,6 +108,35 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         },
         notes="Create a Service Account in Wiz → Settings → Service Accounts with read-only permissions",
     ),
+    "ASANA": ConnectorTypeInfo(
+        id="ASANA",
+        name="Asana",
+        description="Create vulnerability tickets in Asana and assign them to users for remediation",
+        fields=[
+            {"name": "access_token", "label": "Personal Access Token", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="tasks:write", access="Write", purpose="Create and update vulnerability tickets"),
+            ConnectorPermission(scope="projects:read", access="Read", purpose="List projects for ticket assignment"),
+            ConnectorPermission(scope="workspaces:read", access="Read", purpose="List workspaces"),
+        ],
+        setup_url="https://app.asana.com/0/my-apps",
+        notes="Generate a Personal Access Token in Asana → My Settings → Apps → Developer Apps → Personal Access Tokens. After adding, edit the connector to select a workspace and project.",
+    ),
+    "HUMAANS": ConnectorTypeInfo(
+        id="HUMAANS",
+        name="Humaans",
+        description="HR platform — enriches assets with user info, GitHub/Element handles, and device assignments",
+        fields=[
+            {"name": "api_token", "label": "API Access Token", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="public:read", access="Read", purpose="Read people names, emails, job titles"),
+            ConnectorPermission(scope="private:read", access="Read", purpose="Read equipment, custom fields (GitHub/Element handles)"),
+        ],
+        setup_url="https://app.humaans.io/settings/api-access-tokens",
+        notes="Generate an API token in Humaans → Settings → API Access Tokens. Use an Owner or Admin token to access all people. Custom fields named 'GitHub' and 'Element' (or 'Matrix') will be auto-detected.",
+    ),
     "JAMF": ConnectorTypeInfo(
         id="JAMF",
         name="Jamf Pro",

@@ -26,6 +26,21 @@ class NormalizedVulnerability:
     os_name: str | None = None
     os_version: str | None = None
     asset_type: str = "ENDPOINT"
+    # Classification hints from the source (e.g., CrowdStrike product_type_desc)
+    platform_name: str | None = None
+    product_type_desc: str | None = None
+    # Device enrichment from the source
+    serial_number: str | None = None
+    mac_address: str | None = None
+    external_ip: str | None = None
+    last_login_user: str | None = None
+    last_login_at: str | None = None
+    last_seen_at: str | None = None
+    host_status: str | None = None
+    system_manufacturer: str | None = None
+    system_product_name: str | None = None
+    crowdstrike_aid: str | None = None
+    file_paths: list[str] | None = None  # Paths where the vulnerable software was detected
 
 
 @dataclass

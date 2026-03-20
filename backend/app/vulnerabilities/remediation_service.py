@@ -11,11 +11,24 @@ from app.assets.models import Asset
 from app.vulnerabilities.models import Vulnerability
 
 
-def _base_open_vulns(tenant_id: uuid.UUID):
-    """Base conditions for open vulns."""
+def _base_open_vulns(tenant_id: uuid.UUID, show_suppressed: str = "active"):
+    """Base conditions for vulns.
+
+    show_suppressed: "active" (default), "ignored", or "all"
+    """
+    if show_suppressed == "ignored":
+        return and_(
+            Vulnerability.tenant_id == tenant_id,
+            Vulnerability.status == "SUPPRESSED",
+        )
+    if show_suppressed == "all":
+        return and_(
+            Vulnerability.tenant_id == tenant_id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS", "SUPPRESSED"]),
+        )
     return and_(
         Vulnerability.tenant_id == tenant_id,
-        Vulnerability.status == "OPEN",
+        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
     )
 
 
@@ -38,9 +51,10 @@ async def get_remediations_grouped(
     exploit_only: bool = False,
     kev_only: bool = False,
     search: str | None = None,
+    show_suppressed: str = "active",
     page: int = 1, page_size: int = 25,
 ) -> dict:
-    """Group open vulns by remediation_id."""
+    """Group vulns by remediation_id. show_suppressed: active, ignored, or all."""
 
     base = select(
         Vulnerability.remediation_id,
@@ -55,8 +69,9 @@ async def get_remediations_grouped(
             (Vulnerability.severity == "LOW", 1),
             else_=0,
         )).label("max_severity_rank"),
+        func.count().filter(Vulnerability.status == "SUPPRESSED").label("suppressed_count"),
     ).where(
-        _base_open_vulns(tenant_id),
+        _base_open_vulns(tenant_id, show_suppressed=show_suppressed),
         Vulnerability.remediation_id.isnot(None),
         Vulnerability.remediation_id != "",
     ).group_by(
@@ -97,6 +112,8 @@ async def get_remediations_grouped(
             "affected_hosts": r.affected_hosts,
             "vuln_count": r.vuln_count,
             "max_severity": sev_map.get(r.max_severity_rank, "MEDIUM"),
+            "is_suppressed": r.suppressed_count == r.vuln_count,
+            "suppressed_count": r.suppressed_count,
         } for r in rows],
         "total": total, "page": page, "page_size": page_size,
         "total_pages": max(1, -(-total // page_size)),

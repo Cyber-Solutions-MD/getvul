@@ -20,6 +20,7 @@ interface RemediationGrouped {
   remediation_id: string; remediation_action: string | null;
   affected_product: string | null; affected_hosts: number;
   vuln_count: number; max_severity: string;
+  is_suppressed?: boolean; suppressed_count?: number;
 }
 
 interface PaginatedRemediations {
@@ -66,6 +67,10 @@ export default function VulnerabilitiesPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showSuppressed, setShowSuppressed] = useState<"active" | "ignored" | "all">("active");
+  const [savedFilters, setSavedFilters] = useState<any[]>([]);
+  const [showSaveFilter, setShowSaveFilter] = useState(false);
+  const [saveFilterName, setSaveFilterName] = useState("");
 
   // Drill-down states
   const [selectedRemediation, setSelectedRemediation] = useState<RemediationGrouped | null>(null);
@@ -94,14 +99,16 @@ export default function VulnerabilitiesPage() {
 
   const fetchRemediations = useCallback(async () => {
     setLoading(true);
+    setRemData(null);  // Clear stale data immediately
     try {
       const p = buildFilterParams(filters);
       p.set("page", String(page));
       p.set("page_size", "25");
+      p.set("show_suppressed", showSuppressed);
       setRemData(await api<PaginatedRemediations>(`/api/v1/vulnerabilities/remediations/grouped?${p}`));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [page, filters]);
+  }, [page, filters, showSuppressed]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -111,7 +118,7 @@ export default function VulnerabilitiesPage() {
     return () => clearTimeout(t);
   }, [tab, fetchVulns, fetchRemediations, selectedRemediation, selectedHostId]);
 
-  // Reset on filter/tab change
+  // Reset on filter/tab/suppressed change
   useEffect(() => {
     setPage(1);
     setSelectedIds(new Set());
@@ -119,7 +126,7 @@ export default function VulnerabilitiesPage() {
     setRemHosts(null);
     setSelectedHostId(null);
     setHostRemediations(null);
-  }, [filters, tab]);
+  }, [filters, tab, showSuppressed]);
 
   // ── Drill-downs (always pass current filters) ──
 
@@ -149,6 +156,77 @@ export default function VulnerabilitiesPage() {
     } catch (e) {
       console.error("Failed to fetch remediations for host:", e);
       setHostRemediations([]);
+    }
+  }
+
+  // ── Saved filters ──
+  const loadSavedFilters = useCallback(async () => {
+    try {
+      const data = await api<any[]>(`/api/v1/vulnerabilities/saved-filters?filter_type=${tab === "vulnerabilities" ? "vulnerability" : "remediation"}`);
+      setSavedFilters(data);
+    } catch {}
+  }, [tab]);
+
+  useEffect(() => { loadSavedFilters(); }, [loadSavedFilters]);
+
+  async function handleSaveFilter() {
+    if (!saveFilterName.trim()) return;
+    const filterData: any = { ...filters };
+    if (tab === "remediations") filterData.show_suppressed = showSuppressed;
+    await api("/api/v1/vulnerabilities/saved-filters", {
+      method: "POST",
+      body: JSON.stringify({ name: saveFilterName, filter_type: tab === "vulnerabilities" ? "vulnerability" : "remediation", filters: filterData }),
+    });
+    setSaveFilterName("");
+    setShowSaveFilter(false);
+    loadSavedFilters();
+  }
+
+  function applySavedFilter(sf: any) {
+    const f = sf.filters;
+    setFilters({
+      search: f.search || "",
+      severity: f.severity || [],
+      source: f.source || [],
+      status: f.status || [],
+      exploit_available: f.exploit_available ?? null,
+      cisa_kev: f.cisa_kev ?? null,
+    });
+    if (f.show_suppressed) setShowSuppressed(f.show_suppressed);
+    setPage(1);
+  }
+
+  async function updateSavedFilter(sf: any) {
+    if (!confirm(`Update "${sf.name}" with the current filter settings? This will also update any linked automation rules.`)) return;
+    const filterData: any = { ...filters };
+    if (tab === "remediations") filterData.show_suppressed = showSuppressed;
+    try {
+      const result = await api<any>(`/api/v1/vulnerabilities/saved-filters/${sf.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ filters: filterData }),
+      });
+      loadSavedFilters();
+      const rulesUpdated = result.rules_updated || 0;
+      if (rulesUpdated > 0) alert(`Filter updated. ${rulesUpdated} linked automation rule(s) also updated.`);
+    } catch (e: any) { alert(`Error: ${e.message}`); }
+  }
+
+  async function deleteSavedFilter(id: string) {
+    await api(`/api/v1/vulnerabilities/saved-filters/${id}`, { method: "DELETE" });
+    loadSavedFilters();
+  }
+
+  async function createRuleFromFilter(sf: any) {
+    const ruleName = prompt("Rule name:", `Rule: ${sf.name}`);
+    if (!ruleName) return;
+    try {
+      const result = await api<any>(`/api/v1/vulnerabilities/saved-filters/${sf.id}/create-rule`, {
+        method: "POST",
+        body: JSON.stringify({ name: ruleName }),
+      });
+      alert(`Automation rule "${result.rule_name}" created! Go to Tickets → Automation Rules to configure it.`);
+    } catch (e: any) {
+      alert(`Error: ${e.message}`);
     }
   }
 
@@ -203,6 +281,37 @@ export default function VulnerabilitiesPage() {
 
       {/* Filters */}
       <VulnFilters filters={filters} onChange={setFilters} />
+
+      {/* Saved filters bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {savedFilters.map(sf => (
+          <div key={sf.id} className="flex items-center gap-1 rounded-lg border border-gray-700 bg-gray-900 pl-3 pr-1 py-1">
+            <button onClick={() => applySavedFilter(sf)} className="text-xs text-indigo-400 hover:text-indigo-300 font-medium">{sf.name}</button>
+            <button onClick={() => updateSavedFilter(sf)} title="Update filter with current settings"
+              className="rounded p-1 text-gray-500 hover:text-emerald-400 text-xs">↑</button>
+            <button onClick={() => createRuleFromFilter(sf)} title="Create automation rule"
+              className="rounded p-1 text-gray-500 hover:text-orange-400 text-xs">→R</button>
+            <button onClick={() => deleteSavedFilter(sf.id)} className="rounded p-1 text-gray-600 hover:text-red-400 text-xs">×</button>
+          </div>
+        ))}
+        {showSaveFilter ? (
+          <div className="flex items-center gap-2">
+            <input value={saveFilterName} onChange={e => setSaveFilterName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSaveFilter()}
+              placeholder="Filter name..." autoFocus
+              className="w-40 rounded-lg border border-indigo-500 bg-gray-900 px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none" />
+            <button onClick={handleSaveFilter} disabled={!saveFilterName.trim()}
+              className="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">Save</button>
+            <button onClick={() => { setShowSaveFilter(false); setSaveFilterName(""); }}
+              className="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
+          </div>
+        ) : (
+          <button onClick={() => setShowSaveFilter(true)}
+            className="rounded-lg border border-dashed border-gray-700 px-3 py-1 text-xs text-gray-500 hover:text-gray-300 hover:border-gray-500">
+            + Save current filter
+          </button>
+        )}
+      </div>
 
       {/* Bulk actions */}
       {selectedIds.size > 0 && (
@@ -303,6 +412,18 @@ export default function VulnerabilitiesPage() {
       ) : (
         /* ── Remediations grouped table ── */
         <>
+          <div className="flex items-center gap-2 mb-3">
+            {(["active", "ignored", "all"] as const).map(mode => (
+              <button key={mode} onClick={() => { setShowSuppressed(mode); setPage(1); }}
+                className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+                  showSuppressed === mode
+                    ? "border-indigo-500 bg-indigo-500/15 text-indigo-400"
+                    : "border-gray-700 bg-gray-900 text-gray-500 hover:text-gray-300"
+                )}>
+                {mode === "active" ? "Active" : mode === "ignored" ? "Ignored" : "All"}
+              </button>
+            ))}
+          </div>
           <div className="overflow-hidden rounded-xl border border-gray-800">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-gray-800 bg-gray-900/70">
@@ -311,15 +432,31 @@ export default function VulnerabilitiesPage() {
                 <th className="px-3 py-3 text-left font-medium text-gray-400">Max Severity</th>
                 <th className="px-3 py-3 text-left font-medium text-gray-400">Affected Hosts</th>
                 <th className="px-3 py-3 text-left font-medium text-gray-400">Vuln Count</th>
+                <th className="px-3 py-3 text-right font-medium text-gray-400">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-800/50">
                 {(remData?.items || []).map((rem) => (
-                  <tr key={rem.remediation_id} className="hover:bg-gray-800/30 cursor-pointer" onClick={() => drillRemediation(rem)}>
-                    <td className="px-3 py-2.5 text-white max-w-[400px] truncate">{rem.remediation_action || rem.remediation_id}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-400 max-w-[200px] truncate">{rem.affected_product}</td>
-                    <td className="px-3 py-2.5"><SeverityBadge severity={rem.max_severity} /></td>
-                    <td className="px-3 py-2.5 text-white font-medium">{rem.affected_hosts}</td>
-                    <td className="px-3 py-2.5 text-gray-400">{rem.vuln_count}</td>
+                  <tr key={rem.remediation_id} className={cn(
+                    "hover:bg-gray-800/30 cursor-pointer group",
+                    rem.is_suppressed && "opacity-50"
+                  )}>
+                    <td className="px-3 py-2.5 max-w-[400px] truncate" onClick={() => drillRemediation(rem)}>
+                      <span className={rem.is_suppressed ? "text-gray-500 line-through" : "text-white"}>
+                        {rem.remediation_action || rem.remediation_id}
+                      </span>
+                      {rem.is_suppressed && <span className="ml-2 rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-400">ignored</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-gray-400 max-w-[200px] truncate" onClick={() => drillRemediation(rem)}>{rem.affected_product}</td>
+                    <td className="px-3 py-2.5" onClick={() => drillRemediation(rem)}><SeverityBadge severity={rem.max_severity} /></td>
+                    <td className="px-3 py-2.5 text-white font-medium" onClick={() => drillRemediation(rem)}>{rem.affected_hosts}</td>
+                    <td className="px-3 py-2.5 text-gray-400" onClick={() => drillRemediation(rem)}>{rem.vuln_count}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      {rem.is_suppressed ? (
+                        <UnsuppressButton remediationId={rem.remediation_id} vulnCount={rem.vuln_count} onDone={fetchRemediations} />
+                      ) : (
+                        <SuppressButton remediationId={rem.remediation_id} vulnCount={rem.vuln_count} onDone={fetchRemediations} />
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -342,4 +479,54 @@ function ExploitBadge({ status, available }: { status: string | null; available:
                 status === "Functional" ? "text-orange-400" :
                 status === "Proof of Concept" ? "text-yellow-400" : "text-gray-400";
   return <span className={cn("text-xs font-medium", color)}>🔥 {status || (available ? "Yes" : "No")}</span>;
+}
+
+function UnsuppressButton({ remediationId, vulnCount, onDone }: { remediationId: string; vulnCount: number; onDone: () => void }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleUnsuppress(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`Restore this remediation? ${vulnCount} vulnerabilities will be reopened and risk scores recalculated.`)) return;
+    setLoading(true);
+    try {
+      await api<any>(`/api/v1/vulnerabilities/remediations/${encodeURIComponent(remediationId)}/unsuppress`, { method: "POST" });
+      onDone();
+    } catch {} finally { setLoading(false); }
+  }
+
+  return (
+    <button onClick={handleUnsuppress} disabled={loading}
+      className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50">
+      {loading ? "..." : "Restore"}
+    </button>
+  );
+}
+
+function SuppressButton({ remediationId, vulnCount, onDone }: { remediationId: string; vulnCount: number; onDone: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function handleSuppress(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`Ignore this remediation? This will suppress ${vulnCount} vulnerabilities and recalculate risk scores.`)) return;
+    setLoading(true);
+    try {
+      const resp = await api<any>(`/api/v1/vulnerabilities/remediations/${encodeURIComponent(remediationId)}/suppress`, { method: "POST" });
+      setResult(`${resp.suppressed} suppressed`);
+      setTimeout(() => { setResult(null); onDone(); }, 1500);
+    } catch (e: any) {
+      setResult(`Error: ${e.message}`);
+      setTimeout(() => setResult(null), 3000);
+    } finally { setLoading(false); }
+  }
+
+  if (result) return <span className="text-xs text-emerald-400">{result}</span>;
+
+  return (
+    <button onClick={handleSuppress} disabled={loading}
+      className="opacity-0 group-hover:opacity-100 transition-opacity rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-orange-400 hover:border-orange-500/30 disabled:opacity-50"
+    >
+      {loading ? "..." : "Ignore"}
+    </button>
+  );
 }

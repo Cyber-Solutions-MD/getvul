@@ -30,6 +30,8 @@ const CONNECTOR_META: Record<string, { color: string }> = {
   NESSUS: { color: "text-green-400" },
   DEFENDER: { color: "text-blue-400" },
   WIZ: { color: "text-purple-400" },
+  ASANA: { color: "text-orange-400" },
+  HUMAANS: { color: "text-cyan-400" },
   JAMF: { color: "text-pink-400" },
 };
 
@@ -38,6 +40,7 @@ export default function ConnectorsPage() {
   const [connectors, setConnectors] = useState<ConnectorConfig[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [editingConnector, setEditingConnector] = useState<ConnectorConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
 
@@ -158,6 +161,12 @@ export default function ConnectorsPage() {
                         {isSyncing ? "Syncing..." : "Sync Now"}
                       </button>
                       <button
+                        onClick={() => setEditingConnector(conn)}
+                        className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-gray-800"
+                      >
+                        Edit
+                      </button>
+                      <button
                         onClick={() => handleDelete(conn.id)}
                         className="rounded-lg border border-gray-700 p-1.5 text-gray-500 hover:bg-gray-800 hover:text-red-400"
                       >
@@ -199,6 +208,15 @@ export default function ConnectorsPage() {
           onSaved={() => { setShowAddModal(false); setSelectedType(null); loadData(); }}
         />
       )}
+
+      {editingConnector && (
+        <EditConnectorModal
+          connector={editingConnector}
+          type={connectorTypes.find((t) => t.type === editingConnector.connector_type)!}
+          onClose={() => setEditingConnector(null)}
+          onSaved={() => { setEditingConnector(null); loadData(); }}
+        />
+      )}
     </div>
   );
 }
@@ -217,7 +235,7 @@ function AddConnectorModal({ type, onClose, onSaved }: { type: ConnectorType; on
   const [error, setError] = useState<string | null>(null);
   const [showPerms, setShowPerms] = useState(false);
 
-  const isSecretField = (f: string) => f.includes("secret") || f.includes("key") || f.includes("password");
+  const isSecretField = (f: string) => f.includes("secret") || f.includes("key") || f.includes("password") || f.includes("token");
   const fieldLabel = (f: string) => f.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   async function handleTest() {
@@ -350,6 +368,156 @@ function AddConnectorModal({ type, onClose, onSaved }: { type: ConnectorType; on
             <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:text-white">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}Save Connector
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditConnectorModal({ connector, type, onClose, onSaved }: {
+  connector: ConnectorConfig; type: ConnectorType; onClose: () => void; onSaved: () => void;
+}) {
+  const [credentials, setCredentials] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    if (type?.fields) {
+      type.fields.forEach((f) => { initial[f] = ""; });
+    }
+    return initial;
+  });
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [syncInterval, setSyncInterval] = useState(connector.sync_interval_minutes);
+  const [isEnabled, setIsEnabled] = useState(connector.is_enabled);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ConnectorTestResult | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isSecretField = (f: string) => f.includes("secret") || f.includes("key") || f.includes("password") || f.includes("token");
+  const fieldLabel = (f: string) => f.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const hasNewCredentials = Object.values(credentials).some((v) => v.trim() !== "");
+
+  async function handleTest() {
+    if (!hasNewCredentials) { setError("Enter new credentials to test"); return; }
+    setTesting(true); setTestResult(null); setError(null);
+    try {
+      const result = await api<ConnectorTestResult>("/api/v1/connectors/test", {
+        method: "POST", body: JSON.stringify({ connector_type: connector.connector_type, credentials, config: connector.config || {} }),
+      });
+      setTestResult(result);
+    } catch (e: any) { setTestResult({ success: false, message: e.message }); }
+    finally { setTesting(false); }
+  }
+
+  async function handleSave() {
+    setSaving(true); setError(null);
+    try {
+      const body: any = { sync_interval_minutes: syncInterval, is_enabled: isEnabled };
+      if (hasNewCredentials) {
+        body.credentials = credentials;
+      }
+      await api(`/api/v1/connectors/${connector.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      onSaved();
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  }
+
+  if (!type) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 backdrop-blur-sm py-8">
+      <div className="mx-4 w-full max-w-lg rounded-xl border border-gray-800 bg-gray-950 p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="rounded-lg bg-gray-800 p-2">
+            <Plug className={cn("h-5 w-5", CONNECTOR_META[connector.connector_type]?.color || "text-gray-400")} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">Edit {connector.connector_name}</h2>
+            <p className="text-sm text-gray-400">Update credentials or settings</p>
+          </div>
+        </div>
+
+        {/* Enable/Disable toggle */}
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/50 px-4 py-3">
+          <span className="text-sm text-gray-300">Connector Enabled</span>
+          <button
+            onClick={() => setIsEnabled(!isEnabled)}
+            className={cn(
+              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+              isEnabled ? "bg-indigo-600" : "bg-gray-700"
+            )}
+          >
+            <span className={cn(
+              "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+              isEnabled ? "translate-x-6" : "translate-x-1"
+            )} />
+          </button>
+        </div>
+
+        {/* Credential fields */}
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">Leave credential fields blank to keep existing values. Fill in to replace.</p>
+          {type.fields.map((field) => (
+            <div key={field}>
+              <label className="mb-1.5 block text-sm font-medium text-gray-300">{fieldLabel(field)}</label>
+              <div className="relative">
+                <input
+                  type={isSecretField(field) && !showSecrets[field] ? "password" : "text"}
+                  value={credentials[field] || ""}
+                  onChange={(e) => setCredentials({ ...credentials, [field]: e.target.value })}
+                  placeholder={`Enter new ${fieldLabel(field)} (or leave blank to keep current)`}
+                  className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                {isSecretField(field) && (
+                  <button type="button" onClick={() => setShowSecrets({ ...showSecrets, [field]: !showSecrets[field] })} className="absolute right-2 top-2.5 text-gray-500 hover:text-gray-300">
+                    {showSecrets[field] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-300">Sync Interval (minutes)</label>
+            <div className="flex items-center gap-3">
+              {[5, 15, 30, 60].map((m) => (
+                <button key={m} onClick={() => setSyncInterval(m)}
+                  className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+                    syncInterval === m ? "border-indigo-500 bg-indigo-500/15 text-indigo-400" : "border-gray-700 bg-gray-900 text-gray-400 hover:text-gray-300"
+                  )}>{m === 60 ? "1 hr" : `${m} min`}</button>
+              ))}
+              <input type="number" min={5} max={1440} value={syncInterval}
+                onChange={(e) => setSyncInterval(Number(e.target.value))}
+                className="w-20 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none" />
+              <span className="text-xs text-gray-500">min</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Test/Error results */}
+        {testResult && (
+          <div className={cn("mt-4 rounded-lg border p-3 text-sm", testResult.success ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-400")}>
+            <div className="flex items-center gap-2">{testResult.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}{testResult.message}</div>
+          </div>
+        )}
+        {error && <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
+
+        {/* Actions */}
+        <div className="mt-6 flex items-center justify-between">
+          <button onClick={handleTest} disabled={testing || !hasNewCredentials}
+            className="flex items-center gap-2 rounded-lg border border-gray-700 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800 disabled:opacity-50">
+            {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube2 className="h-4 w-4" />}Test Connection
+          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:text-white">Cancel</button>
+            <button onClick={handleSave} disabled={saving}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}Update Connector
             </button>
           </div>
         </div>

@@ -14,6 +14,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 class TicketProvider(str, enum.Enum):
     JIRA = "JIRA"
     GITHUB = "GITHUB"
+    ASANA = "ASANA"
 
 
 class ConnectorType(str, enum.Enum):
@@ -91,3 +92,8 @@ class TicketRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     conditions: Mapped[dict] = mapped_column(JSONB, nullable=False)
     action: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    saved_filter_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    schedule_minutes: Mapped[int] = mapped_column(Integer, default=1440)  # default daily
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_status: Mapped[str | None] = mapped_column(String(20))
+    last_run_tickets_created: Mapped[int | None] = mapped_column(Integer)

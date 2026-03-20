@@ -11,6 +11,8 @@ from app.assets.router import router as asset_router
 from app.tenants.router import router as tenant_router
 from app.connectors.router import router as connector_router
 from app.cspm.router import router as cspm_router
+from app.users.router import router as users_router
+from app.ticketing.router import router as tickets_router
 from app.config import settings
 
 
@@ -54,6 +56,8 @@ app.include_router(asset_router, prefix="/api/v1/assets", tags=["Assets"])
 app.include_router(tenant_router, prefix="/api/v1/tenant", tags=["Tenant & Users"])
 app.include_router(connector_router, prefix="/api/v1/connectors", tags=["Connectors"])
 app.include_router(cspm_router, prefix="/api/v1/cspm", tags=["CSPM"])
+app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
+app.include_router(tickets_router, prefix="/api/v1/tickets", tags=["Tickets"])
 
 
 @app.get("/health")

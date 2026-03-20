@@ -168,12 +168,82 @@ async def test_jamf(credentials: dict, config: dict) -> ConnectorTestResult:
     except Exception as e:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
+async def test_asana(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Asana Personal Access Token."""
+    token = credentials.get("access_token", "")
+    if not token:
+        return ConnectorTestResult(success=False, message="Access token is required")
+    try:
+        from app.ticketing.asana_client import AsanaClient
+        client = AsanaClient(token)
+        result = await client.test_connection()
+        await client.close()
+        if result["success"]:
+            return ConnectorTestResult(
+                success=True,
+                message=f"Authenticated as {result['user']} ({result['email']})",
+                details={
+                    "user": result["user"],
+                    "email": result["email"],
+                    "workspaces": result["workspaces"],
+                },
+            )
+        return ConnectorTestResult(success=False, message=result["message"])
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
+async def test_humaans(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Humaans.io API access token."""
+    token = credentials.get("api_token", "")
+    if not token:
+        return ConnectorTestResult(success=False, message="API token is required")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+            # Test people access
+            resp = await client.get("https://app.humaans.io/api/people", headers=headers, params={"$limit": 1})
+            if resp.status_code != 200:
+                return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
+
+            people_total = resp.json().get("total", 0)
+
+            # Test equipment access
+            eq_resp = await client.get("https://app.humaans.io/api/equipment", headers=headers, params={"$limit": 1})
+            eq_status = "✓" if eq_resp.status_code == 200 else f"✗ ({eq_resp.status_code})"
+            eq_total = eq_resp.json().get("total", "?") if eq_resp.status_code == 200 else "?"
+
+            # Test custom fields access
+            cf_resp = await client.get("https://app.humaans.io/api/custom-fields", headers=headers, params={"$limit": 250})
+            cf_status = "✓" if cf_resp.status_code == 200 else f"✗ ({cf_resp.status_code})"
+            field_names = []
+            if cf_resp.status_code == 200:
+                field_names = [f.get("name", "") for f in cf_resp.json().get("data", [])]
+
+            return ConnectorTestResult(
+                success=True,
+                message="Successfully authenticated with Humaans",
+                details={
+                    "people_count": people_total,
+                    "equipment_access": eq_status,
+                    "equipment_count": eq_total,
+                    "custom_fields_access": cf_status,
+                    "custom_field_names": field_names,
+                },
+            )
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
 TESTERS = {
     "CROWDSTRIKE": test_crowdstrike,
     "NESSUS": test_nessus,
     "DEFENDER": test_defender,
     "WIZ": test_wiz,
     "JAMF": test_jamf,
+    "ASANA": test_asana,
+    "HUMAANS": test_humaans,
 }
 
 

@@ -115,7 +115,6 @@ async def seed_database(db: AsyncSession) -> dict:
             asset_type=random.choice(["SERVER", "ENDPOINT", "VM"]),
             cloud_provider=random.choice(["AWS", "AZURE", None]),
             seen_by_sources=random.sample(SOURCES, k=random.randint(1, 3)),
-            risk_score=random.randint(0, 100),
         )
         db.add(asset)
         assets.append(asset)
@@ -129,7 +128,59 @@ async def seed_database(db: AsyncSession) -> dict:
     skipped = 0
     now = datetime.now(timezone.utc)
 
-    for _ in range(300):
+    # Phase 1: Create multi-source correlated vulnerabilities.
+    # Pick 10 high-profile CVEs and assign them to specific assets from 2-3 sources each.
+    # This ensures the correlation engine has meaningful data.
+    correlated_pairs = []
+    critical_cves = [c for c in SAMPLE_CVES if c[5] in ("CRITICAL", "HIGH")][:10]
+    for cve_data in critical_cves:
+        cve_id, product, affected_ver, fixed_ver, cvss, severity = cve_data
+        # Pick 2-3 assets for each CVE
+        target_assets = random.sample(assets, k=min(3, len(assets)))
+        for asset in target_assets:
+            # Each asset gets this CVE from 2-3 different sources
+            num_sources = random.choice([2, 2, 3])
+            chosen_sources = random.sample(SOURCES, k=num_sources)
+            days_ago = random.randint(7, 90)
+            is_exploitable = random.random() < 0.5
+            is_kev = random.random() < 0.3
+
+            for source in chosen_sources:
+                first_detected = now - timedelta(days=days_ago + random.randint(0, 5))
+                last_seen = now - timedelta(days=random.randint(0, 2))
+
+                vuln = Vulnerability(
+                    tenant_id=tenant.id,
+                    cve_id=cve_id,
+                    vulnerability_name=f"{product} vulnerability",
+                    cvss_v3_score=cvss,
+                    severity=severity,
+                    exploit_available=is_exploitable,
+                    cisa_kev=is_kev,
+                    asset_id=asset.id,
+                    source=source,
+                    source_vuln_id=f"{source}-{uuid.uuid4().hex[:8]}",
+                    affected_product=product,
+                    affected_version=affected_ver,
+                    fixed_version=fixed_ver,
+                    status="OPEN",
+                    first_detected_at=first_detected,
+                    last_seen_at=last_seen,
+                )
+
+                try:
+                    async with db.begin_nested():
+                        db.add(vuln)
+                        await db.flush()
+                    vuln_count += 1
+                except Exception:
+                    skipped += 1
+                    continue
+
+            correlated_pairs.append((cve_id, asset.hostname))
+
+    # Phase 2: Create additional single-source vulnerabilities
+    for _ in range(200):
         cve_data = random.choice(SAMPLE_CVES)
         cve_id, product, affected_ver, fixed_ver, cvss, severity = cve_data
         asset = random.choice(assets)
@@ -172,6 +223,14 @@ async def seed_database(db: AsyncSession) -> dict:
 
     await db.commit()
 
+    # Phase 3: Run correlation engine and risk score computation
+    from app.vulnerabilities.correlation_service import run_correlations
+    from app.assets.risk_score import compute_risk_scores
+
+    corr_stats = await run_correlations(db, tenant.id)
+    risk_stats = await compute_risk_scores(db, tenant.id)
+    await db.commit()
+
     # Seed CSPM data
     cspm_count = await seed_cspm_data(db, tenant.id)
 
@@ -185,6 +244,8 @@ async def seed_database(db: AsyncSession) -> dict:
         "vulnerabilities_created": vuln_count,
         "vulnerabilities_skipped": skipped,
         "misconfigurations_created": cspm_count,
+        "correlations": corr_stats,
+        "risk_scores": risk_stats,
     }
 
 
