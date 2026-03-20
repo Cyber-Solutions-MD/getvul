@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Bug, RefreshCw, Loader2, Pill, Monitor } from "lucide-react";
+import ExportButton from "@/components/ui/ExportButton";
 import { api } from "@/lib/api";
 import VulnFilters, { type VulnFilterState } from "@/components/vulnerabilities/VulnFilters";
 import VulnTable from "@/components/vulnerabilities/VulnTable";
@@ -263,6 +264,7 @@ export default function VulnerabilitiesPage() {
           className="flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh
         </button>
+        <ExportButton resource={tab === "vulnerabilities" ? "vulnerabilities" : "remediations"} />
       </div>
 
       {/* Tabs */}
@@ -436,7 +438,7 @@ export default function VulnerabilitiesPage() {
               </tr></thead>
               <tbody className="divide-y divide-gray-800/50">
                 {(remData?.items || []).map((rem) => (
-                  <tr key={rem.remediation_id} className={cn(
+                  <tr key={`${rem.remediation_id}-${rem.affected_product}`} className={cn(
                     "hover:bg-gray-800/30 cursor-pointer group",
                     rem.is_suppressed && "opacity-50"
                   )}>

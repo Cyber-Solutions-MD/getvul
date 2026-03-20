@@ -116,8 +116,121 @@ async def me(user: Annotated[CurrentUser, Depends(get_current_user)]):
 
 @router.post("/logout")
 async def logout():
-    """Logout — client should discard tokens.
-
-    Server-side token revocation can be added with a Redis blocklist.
-    """
+    """Logout — client should discard tokens."""
     return {"message": "Logged out. Please discard your tokens."}
+
+
+# ── Password auth ──
+
+@router.post("/register")
+async def register(
+    body: dict,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Register a new user with email/password."""
+    from app.auth.password import register_user
+
+    result = await register_user(
+        db,
+        email=body.get("email", ""),
+        password=body.get("password", ""),
+        display_name=body.get("display_name", ""),
+        tenant_slug=body.get("tenant_slug"),
+        tenant_name=body.get("tenant_name"),
+    )
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+
+    user = result["user"]
+    tenant = result["tenant"]
+    from app.audit import audit
+    from app.auth.schemas import CurrentUser
+    cu = CurrentUser(id=user.id, tenant_id=tenant.id, email=user.email, role=user.role)
+    await audit(db, cu, "auth.register", "user", str(user.id), {"email": user.email})
+    await db.commit()
+    return issue_tokens(user, tenant)
+
+
+@router.post("/login")
+async def login_password(
+    body: dict,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Login with email/password."""
+    from app.auth.password import login_with_password
+
+    result = await login_with_password(db, body.get("email", ""), body.get("password", ""))
+    if "error" in result:
+        raise HTTPException(401, result["error"])
+
+    user = result["user"]
+    tenant = result["tenant"]
+    from app.audit import audit
+    from app.auth.schemas import CurrentUser
+    cu = CurrentUser(id=user.id, tenant_id=tenant.id, email=user.email, role=user.role)
+    await audit(db, cu, "auth.login", "user", str(user.id), {"method": "password"})
+    await db.commit()
+    return issue_tokens(user, tenant)
+
+
+@router.post("/change-password")
+async def change_password_endpoint(
+    body: dict,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Change current user's password."""
+    from app.auth.password import change_password
+
+    result = await change_password(
+        db, user.id,
+        current_password=body.get("current_password"),
+        new_password=body.get("new_password", ""),
+    )
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    await db.commit()
+    return result
+
+
+@router.get("/config")
+async def auth_config(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tenant_slug: str | None = Query(None),
+):
+    """Public endpoint — returns auth config for the login page.
+
+    Tells the frontend which login methods are available.
+    """
+    from sqlalchemy import select
+    from app.tenants.models import Tenant
+
+    config = {
+        "password_login": True,
+        "sso_providers": [],
+        "sso_enforced": False,
+        "tenant_name": None,
+    }
+
+    tenant = None
+    if tenant_slug:
+        tenant = (await db.execute(
+            select(Tenant).where(Tenant.slug == tenant_slug, Tenant.is_active.is_(True))
+        )).scalar_one_or_none()
+
+    if tenant:
+        config["tenant_name"] = tenant.name
+        config["sso_enforced"] = tenant.sso_enforced
+        if tenant.sso_enforced:
+            config["password_login"] = False  # Disabled unless user has override
+        if tenant.idp_provider == "GOOGLE":
+            config["sso_providers"].append("google")
+        elif tenant.idp_provider == "AZURE_ENTRA_ID":
+            config["sso_providers"].append("azure")
+        elif tenant.idp_provider == "LOCAL":
+            pass  # No SSO, password only
+        else:
+            # Both available
+            config["sso_providers"] = ["google", "azure"]
+
+    return config

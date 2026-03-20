@@ -1,7 +1,11 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// Dev token for local development (bypasses SSO)
-const DEV_TOKEN = "dev-token";
+function getToken(): string {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("getvul_token") || "dev-token";
+  }
+  return "dev-token";
+}
 
 interface FetchOptions extends RequestInit {
   token?: string;
@@ -15,7 +19,7 @@ export async function api<T = any>(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token || DEV_TOKEN}`,
+    Authorization: `Bearer ${token || getToken()}`,
     ...(customHeaders as Record<string, string>),
   };
 
@@ -32,4 +36,4 @@ export async function api<T = any>(
   return res.json();
 }
 
-export { API_URL, DEV_TOKEN };
+export { API_URL };

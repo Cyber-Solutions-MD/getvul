@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -H 'Authorization: Bearer dev-token' 'http://localhost:8000/api/v1/tickets?page_size=5')",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''/Users/chemencedji/Desktop/getvul/backend/app/vulnerabilities/router.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''/Users/chemencedji/Desktop/getvul/backend/app/ticketing/service.py''\\).read\\(\\)\\); ast.parse\\(open\\(''/Users/chemencedji/Desktop/getvul/backend/app/ticketing/router.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(time curl:*)",
+      "Bash(curl -s http://localhost:3000 -o /dev/null -w \"%{http_code}\")",
+      "Bash(python3 -c \":*)",
+      "Bash(curl -s -H 'Authorization: Bearer dev-token' 'http://localhost:8000/api/v1/tickets/rules')",
+      "Bash(curl -s -H 'Authorization: Bearer dev-token' 'http://localhost:8000/api/v1/tickets/assignees')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f''''{len\\(d\\)} assignees''''\\); [print\\(f''''  {u[\"\"name\"\"]:25s} {u[\"\"email\"\"]}''''\\) for u in d[:5]]\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''/Users/chemencedji/Desktop/getvul/backend/app/ticketing/rule_engine.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(grep -v \"INFO sqlalchemy\\\\|^FROM\\\\|^WHERE\\\\|^$\\\\|^SELECT\\\\|^JOIN\\\\|^GROUP\\\\|^ORDER\\\\|^LIMIT\")",
+      "Bash(grep -v \"INFO sqlalchemy\\\\|^FROM\\\\|^WHERE\\\\|^$\\\\|^SELECT\")",
+      "Bash(grep -v \"INFO sqlalchemy\\\\|^FROM\\\\|^WHERE\\\\|^$\\\\|^SELECT\\\\|^INSERT\\\\|^UPDATE\\\\|^JOIN\\\\|^GROUP\\\\|^ORDER\\\\|^LIMIT\\\\|^COMMIT\\\\|^ROLLBACK\\\\|BEGIN\")",
+      "Bash(grep -v \"INFO sqlalchemy\\\\|^$\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''''/Users/chemencedji/Desktop/getvul/backend/app/ticketing/router.py''''\\).read\\(\\)\\); print\\(''''OK''''\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''''/Users/chemencedji/Desktop/getvul/backend/app/ticketing/rule_engine.py''''\\).read\\(\\)\\); ast.parse\\(open\\(''''/Users/chemencedji/Desktop/getvul/backend/app/ticketing/schemas.py''''\\).read\\(\\)\\); print\\(''''OK''''\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''''/Users/chemencedji/Desktop/getvul/backend/app/vulnerabilities/remediation_service.py''''\\).read\\(\\)\\); ast.parse\\(open\\(''''/Users/chemencedji/Desktop/getvul/backend/app/vulnerabilities/router.py''''\\).read\\(\\)\\); print\\(''''OK''''\\)\")",
+      "Bash(curl -s -H 'Authorization: Bearer dev-token' 'http://localhost:8000/api/v1/vulnerabilities/remediations/grouped?show_suppressed=ignored&page_size=5')",
+      "Bash(curl -s -H 'Authorization: Bearer dev-token' 'http://localhost:8000/api/v1/vulnerabilities/saved-filters')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(type\\(d\\).__name__, d[:2] if isinstance\\(d, list\\) else d\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''''/Users/chemencedji/Desktop/getvul/backend/app/vulnerabilities/router.py''''\\).read\\(\\)\\); print\\(''''OK''''\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(type\\(d\\).__name__, len\\(d\\)\\)\")",
+      "Bash(grep -v \"INFO sqlalchemy\\\\|^FROM\\\\|^WHERE\\\\|^SELECT\\\\|^$\")"
+    ]
+  }
+}

@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import ExportButton from "@/components/ui/ExportButton";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const TOKEN = "dev-token";
-const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}` };
+import { getAuthHeaders, API_BASE } from "@/lib/fetch";
+const headers = getAuthHeaders();
 
 const SEV_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-500/20 text-red-400",
@@ -52,6 +53,7 @@ export default function UsersPage() {
   const [pages, setPages] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
   const pageSize = 25;
+  const [activeTab, setActiveTab] = useState<"users" | "groups">("users");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,7 +104,26 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-white">Users</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">Users</h1>
+        <ExportButton resource="users" />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-gray-700">
+        <button onClick={() => setActiveTab("users")}
+          className={`pb-2 text-sm font-medium transition ${activeTab === "users" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400 hover:text-gray-300"}`}>
+          Users
+        </button>
+        <button onClick={() => setActiveTab("groups")}
+          className={`pb-2 text-sm font-medium transition ${activeTab === "groups" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400 hover:text-gray-300"}`}>
+          Groups
+        </button>
+      </div>
+
+      {activeTab === "groups" && <GroupsPanel />}
+
+      {activeTab === "users" && <>
 
       {/* Stats cards */}
       {stats && (
@@ -197,6 +218,79 @@ export default function UsersPage() {
           </button>
         </div>
       )}
+      </>}
+    </div>
+  );
+}
+
+function GroupsPanel() {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const token = typeof window !== "undefined" ? localStorage.getItem("getvul_token") || "dev-token" : "dev-token";
+    fetch(`${API}/api/v1/tenant/groups`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setGroups(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = search
+    ? groups.filter(g => g.name.toLowerCase().includes(search.toLowerCase()))
+    : groups;
+
+  if (loading) return <p className="text-gray-500 text-sm py-8 text-center">Loading groups...</p>;
+  if (groups.length === 0) return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-12 text-center">
+      <p className="text-gray-400">No groups found</p>
+      <p className="mt-2 text-sm text-gray-500">Connect Google Workspace or Azure Entra ID in Connectors to sync groups</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search groups..."
+          className="w-72 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
+        <span className="text-sm text-gray-500">{filtered.length} groups</span>
+      </div>
+      <div className="space-y-2">
+        {filtered.map(g => (
+          <div key={g.name} className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden">
+            <button onClick={() => setExpanded(expanded === g.name ? null : g.name)}
+              className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-800/50">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-600">{expanded === g.name ? "▼" : "▶"}</span>
+                <div>
+                  <p className="text-sm font-medium text-white">{g.name}</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-gray-800 px-2.5 py-0.5 text-xs text-gray-400">{g.member_count} members</span>
+            </button>
+            {expanded === g.name && (
+              <div className="border-t border-gray-800 px-5 py-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {g.members.map((m: any) => (
+                    <div key={m.id} className="flex items-center gap-2 rounded-lg bg-gray-800/50 px-3 py-2">
+                      <div className="h-6 w-6 rounded-full bg-indigo-600/50 flex items-center justify-center text-xs text-indigo-300">
+                        {(m.display_name || m.email)[0]?.toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-white truncate">{m.display_name || m.email}</p>
+                        <p className="text-xs text-gray-500 truncate">{m.email}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -322,7 +416,7 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
       <p className="text-sm text-gray-400">{label}</p>
       <p className={`mt-2 text-2xl font-bold ${accent ? colors[accent] || "text-white" : "text-white"}`}>
-        {value.toLocaleString()}
+        {(value ?? 0).toLocaleString()}
       </p>
     </div>
   );

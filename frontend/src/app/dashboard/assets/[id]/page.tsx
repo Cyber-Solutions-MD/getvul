@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const TOKEN = "dev-token";
-const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}` };
+import { getAuthHeaders, API_BASE } from "@/lib/fetch";
+const headers = getAuthHeaders();
 
 const SEV_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-500/20 text-red-400 border-red-500/30",

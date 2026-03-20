@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import audit
 from app.auth.rbac import require_admin, require_owner
 from app.auth.schemas import CurrentUser
 from app.dependencies import AuthenticatedUser, DBSession
@@ -62,7 +63,9 @@ async def update_user_role(
     if target_user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    old_role = target_user.role
     target_user.role = body.role
+    await audit(db, user, "user.role_change", "user", str(user_id), {"email": target_user.email, "old_role": old_role, "new_role": body.role})
     await db.flush()
     return target_user
 
@@ -84,4 +87,255 @@ async def deactivate_user(
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="User not found")
+    await audit(db, user, "user.deactivate", "user", str(user_id))
     return {"message": "User deactivated"}
+
+
+@router.get("/settings")
+async def get_tenant_settings(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Get tenant settings including SSO enforcement."""
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+    return {
+        "sso_enforced": tenant.sso_enforced,
+        "idp_provider": tenant.idp_provider,
+        "domain": tenant.domain,
+        "timezone": tenant.timezone,
+        "password_policy": tenant.password_policy or {"min_length": 8, "require_uppercase": False, "require_lowercase": False, "require_digit": False, "require_symbol": False, "history_count": 0},
+        "syslog_config": tenant.syslog_config,
+    }
+
+
+@router.patch("/settings")
+async def update_tenant_settings(
+    body: dict,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_owner)],
+):
+    """Update tenant settings. Requires Owner role."""
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+
+    if "sso_enforced" in body:
+        if body["sso_enforced"] and (not tenant.idp_provider or tenant.idp_provider == "LOCAL"):
+            raise HTTPException(400, "Cannot enforce SSO without an identity provider configured. Select Google or Azure first.")
+        tenant.sso_enforced = bool(body["sso_enforced"])
+    if "name" in body:
+        tenant.name = body["name"]
+    if "domain" in body:
+        tenant.domain = body["domain"]
+    if "idp_provider" in body:
+        tenant.idp_provider = body["idp_provider"]
+        if body["idp_provider"] == "LOCAL" and tenant.sso_enforced:
+            tenant.sso_enforced = False  # Auto-disable SSO when switching to LOCAL
+    if "slug" in body:
+        tenant.slug = body["slug"]
+    if "timezone" in body:
+        tenant.timezone = body["timezone"]
+    if "password_policy" in body:
+        from sqlalchemy.orm.attributes import flag_modified as _fm
+        tenant.password_policy = body["password_policy"]
+        _fm(tenant, "password_policy")
+    if "syslog_config" in body:
+        from sqlalchemy.orm.attributes import flag_modified
+        tenant.syslog_config = body["syslog_config"]
+        flag_modified(tenant, "syslog_config")
+
+        # Apply syslog config
+        from app.audit import configure_syslog, disable_syslog
+        cfg = body["syslog_config"]
+        if cfg and cfg.get("enabled") and cfg.get("host"):
+            configure_syslog(
+                host=cfg["host"],
+                port=int(cfg.get("port", 514)),
+                protocol=cfg.get("protocol", "udp"),
+                facility=cfg.get("facility", "local0"),
+            )
+        else:
+            disable_syslog()
+
+    # Audit log all changed fields
+    changed = {k: v for k, v in body.items() if k != "syslog_config" or (v and v.get("enabled"))}
+    await audit(db, user, "settings.update", "tenant", str(tenant.id), changed)
+
+    await db.commit()
+    return {"message": "Settings updated"}
+
+
+@router.patch("/users/{user_id}/allow-password")
+async def toggle_user_password_login(
+    user_id: uuid.UUID,
+    body: dict,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_owner)],
+):
+    """Toggle whether a user can use password login when SSO is enforced. Requires Owner."""
+    target = (await db.execute(
+        select(User).where(User.id == user_id, User.tenant_id == user.tenant_id)
+    )).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    target.allow_password_login = bool(body.get("allow", True))
+    await audit(db, user, "user.password_toggle", "user", str(user_id), {"email": target.email, "allow": target.allow_password_login})
+    await db.commit()
+    return {"message": "Updated", "allow_password_login": target.allow_password_login}
+
+
+@router.post("/users")
+async def create_user(
+    body: dict,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_owner)],
+):
+    """Create a new user in the tenant. Requires Owner role.
+
+    If user with this email already exists in the tenant, updates their role and password instead.
+    """
+    from app.auth.password import hash_password
+
+    email = (body.get("email") or "").lower().strip()
+    if not email or "@" not in email:
+        raise HTTPException(400, "Valid email is required")
+
+    display_name = body.get("display_name", email.split("@")[0])
+    role = body.get("role", "VIEWER")
+    password = body.get("password", "")
+
+    # Check if user already exists in this tenant
+    existing = (await db.execute(
+        select(User).where(User.tenant_id == user.tenant_id, User.email == email)
+    )).scalar_one_or_none()
+
+    if existing:
+        # Update existing user
+        if display_name:
+            existing.display_name = display_name
+        if role:
+            existing.role = role
+        if password and len(password) >= 8:
+            existing.password_hash = hash_password(password)
+        existing.is_active = True
+        existing.allow_password_login = True
+        await db.commit()
+        await audit(db, user, "user.update", "user", str(existing.id), {"email": email, "role": role})
+        return {"message": f"User {email} updated", "id": str(existing.id), "created": False}
+
+    # Create new user
+    new_user = User(
+        tenant_id=user.tenant_id,
+        email=email,
+        display_name=display_name,
+        role=role,
+        password_hash=hash_password(password) if password and len(password) >= 8 else None,
+        allow_password_login=True,
+        is_active=True,
+    )
+    db.add(new_user)
+    await db.flush()
+    await db.commit()
+    await audit(db, user, "user.create", "user", str(new_user.id), {"email": email, "role": role})
+    return {"message": f"User {email} created", "id": str(new_user.id), "created": True}
+
+
+@router.patch("/users/{user_id}")
+async def update_user(
+    user_id: uuid.UUID,
+    body: dict,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_owner)],
+):
+    """Update user display name or email. Requires Owner role."""
+    target = (await db.execute(
+        select(User).where(User.id == user_id, User.tenant_id == user.tenant_id)
+    )).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    changes = {}
+    if "display_name" in body:
+        target.display_name = body["display_name"]
+        changes["display_name"] = body["display_name"]
+    if "email" in body and body["email"]:
+        target.email = body["email"].lower().strip()
+        changes["email"] = target.email
+
+    await audit(db, user, "user.update", "user", str(user_id), changes)
+    await db.commit()
+    return {"message": "Updated"}
+
+
+@router.get("/audit-log")
+async def get_audit_log(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    action: str | None = None,
+    resource_type: str | None = None,
+    user_email: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+):
+    """Get audit log entries. Requires Admin role."""
+    from app.audit import get_audit_logs
+    return await get_audit_logs(db, user.tenant_id, action, resource_type, user_email, page, page_size)
+
+
+@router.get("/groups")
+async def list_groups(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """List all groups and their member counts."""
+    from sqlalchemy import func
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    # Get all unique groups across users
+    result = await db.execute(
+        select(User).where(
+            User.tenant_id == user.tenant_id,
+            User.groups.isnot(None),
+        )
+    )
+    users_with_groups = result.scalars().all()
+
+    groups_map: dict[str, list[dict]] = {}
+    for u in users_with_groups:
+        for g in (u.groups or []):
+            if g not in groups_map:
+                groups_map[g] = []
+            groups_map[g].append({
+                "id": str(u.id),
+                "email": u.email,
+                "display_name": u.display_name,
+                "role": u.role,
+                "department": u.department,
+            })
+
+    return [
+        {"name": name, "member_count": len(members), "members": members}
+        for name, members in sorted(groups_map.items(), key=lambda x: -len(x[1]))
+    ]
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_owner)],
+):
+    """Permanently delete a user. Requires Owner role."""
+    if user_id == user.id:
+        raise HTTPException(400, "Cannot delete yourself")
+
+    target = (await db.execute(
+        select(User).where(User.id == user_id, User.tenant_id == user.tenant_id)
+    )).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    email = target.email
+    await audit(db, user, "user.delete", "user", str(user_id), {"email": email})
+    await db.delete(target)
+    await db.commit()
+    return {"message": f"User {email} deleted"}

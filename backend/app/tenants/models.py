@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -33,6 +33,10 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     idp_tenant_id: Mapped[str | None] = mapped_column(String(255))
     session_timeout_minutes: Mapped[int] = mapped_column(Integer, default=15, server_default="15")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    sso_enforced: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC", server_default="UTC")
+    password_policy: Mapped[dict | None] = mapped_column(JSONB)
+    syslog_config: Mapped[dict | None] = mapped_column(JSONB)
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 
@@ -47,7 +51,14 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     avatar_url: Mapped[str | None] = mapped_column(String(500))
     role: Mapped[str] = mapped_column(String(20), nullable=False, server_default="VIEWER")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
-    idp_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    idp_subject: Mapped[str | None] = mapped_column(String(255))
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    allow_password_login: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    groups: Mapped[dict | None] = mapped_column(JSONB, default=list)
+    password_history: Mapped[dict | None] = mapped_column(JSONB, default=list)  # List of previous hashes
+    department: Mapped[str | None] = mapped_column(String(200))
+    job_title: Mapped[str | None] = mapped_column(String(200))
+    idp_source: Mapped[str | None] = mapped_column(String(30))  # google, azure, humaans, local
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     tenant: Mapped["Tenant"] = relationship(back_populates="users")

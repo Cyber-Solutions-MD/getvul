@@ -1,193 +1,464 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Bug,
-  AlertTriangle,
-  ShieldAlert,
-  Flame,
-  Link2,
-  Clock,
-  Loader2,
+  Bug, AlertTriangle, ShieldAlert, Flame, Link2, Clock,
+  Loader2, Server, Ticket, Users, Plug, TrendingUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import ExportButton from "@/components/ui/ExportButton";
 import type { DashboardStats } from "@/types/vulnerability";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [overview, setOverview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
+  const [tab, setTab] = useState<"overview" | "report">("overview");
 
   useEffect(() => {
-    loadStats();
+    Promise.all([
+      api<DashboardStats>("/api/v1/vulnerabilities/stats").catch(() => null),
+      api("/api/v1/vulnerabilities/overview").catch(() => null),
+    ]).then(([s, o]) => {
+      setStats(s);
+      setOverview(o);
+    }).finally(() => setLoading(false));
   }, []);
 
-  async function loadStats() {
-    try {
-      const data = await api<DashboardStats>("/api/v1/vulnerabilities/stats");
-      setStats(data);
-    } catch (e) {
-      console.error("Failed to load stats:", e);
-    } finally {
-      setLoading(false);
-    }
-  }
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>;
 
-  async function handleSeed() {
-    setSeeding(true);
-    try {
-      await api("/dev/seed", { method: "POST" });
-      await loadStats();
-    } catch (e) {
-      console.error("Seed failed:", e);
-    } finally {
-      setSeeding(false);
-    }
-  }
-
-  const severityColors: Record<string, string> = {
+  const sevColors: Record<string, string> = {
     CRITICAL: "bg-red-500/20 text-red-400 border-red-500/30",
     HIGH: "bg-orange-500/20 text-orange-400 border-orange-500/30",
     MEDIUM: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     LOW: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-      </div>
-    );
-  }
-
-  // Show seed button if no data
-  if (!stats || stats.total_vulnerabilities === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Bug className="h-12 w-12 text-gray-600" />
-        <h2 className="mt-4 text-lg font-medium text-white">No vulnerability data yet</h2>
-        <p className="mt-2 text-sm text-gray-400">
-          Seed the database with sample data to explore the dashboard
-        </p>
-        <button
-          onClick={handleSeed}
-          disabled={seeding}
-          className="mt-6 flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {seeding && <Loader2 className="h-4 w-4 animate-spin" />}
-          {seeding ? "Seeding..." : "Seed Sample Data"}
-        </button>
-      </div>
-    );
-  }
+  const riskColor = (s: number) => s >= 80 ? "text-red-400" : s >= 50 ? "text-orange-400" : s >= 20 ? "text-yellow-400" : "text-green-400";
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-white">Dashboard</h1>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={<Bug className="h-5 w-5 text-indigo-400" />}
-          label="Total Vulnerabilities"
-          value={stats.total_vulnerabilities.toLocaleString()}
-        />
-        <StatCard
-          icon={<AlertTriangle className="h-5 w-5 text-orange-400" />}
-          label="Open"
-          value={stats.open_vulnerabilities.toLocaleString()}
-        />
-        <StatCard
-          icon={<Flame className="h-5 w-5 text-red-400" />}
-          label="Exploitable"
-          value={stats.exploitable_count.toLocaleString()}
-        />
-        <StatCard
-          icon={<ShieldAlert className="h-5 w-5 text-red-400" />}
-          label="CISA KEV"
-          value={stats.cisa_kev_count.toLocaleString()}
-        />
+      <div className="flex gap-4 border-b border-gray-700">
+        <button onClick={() => setTab("overview")}
+          className={`pb-2 text-sm font-medium transition ${tab === "overview" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400 hover:text-gray-300"}`}>
+          Overview
+        </button>
+        <button onClick={() => setTab("report")}
+          className={`pb-2 text-sm font-medium transition ${tab === "report" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400 hover:text-gray-300"}`}>
+          Executive Report
+        </button>
       </div>
 
+      {tab === "report" && <ReportBuilder />}
+
+      {tab === "overview" && <>
+
+      {/* Top stat cards */}
+      {stats && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard icon={<Bug className="h-5 w-5 text-indigo-400" />} label="Total Vulnerabilities" value={stats.total_vulnerabilities} />
+          <StatCard icon={<AlertTriangle className="h-5 w-5 text-orange-400" />} label="Open" value={stats.open_vulnerabilities} />
+          <StatCard icon={<Flame className="h-5 w-5 text-red-400" />} label="Exploitable" value={stats.exploitable_count} />
+          <StatCard icon={<ShieldAlert className="h-5 w-5 text-red-400" />} label="CISA KEV" value={stats.cisa_kev_count} />
+        </div>
+      )}
+
+      {/* Second row — tickets + risk + MTTR */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {overview?.tickets && (
+          <>
+            <StatCard icon={<Ticket className="h-5 w-5 text-orange-400" />} label="Open Tickets" value={overview.tickets.open}
+              sub={overview.tickets.overdue > 0 ? `${overview.tickets.overdue} overdue` : undefined} subColor="text-red-400" />
+            <StatCard icon={<Ticket className="h-5 w-5 text-emerald-400" />} label="Resolved Tickets" value={overview.tickets.resolved} />
+          </>
+        )}
+        {stats && (
+          <>
+            <StatCard icon={<Link2 className="h-5 w-5 text-emerald-400" />} label="Correlated CVEs" value={stats.correlated_cves} />
+            <StatCard icon={<Clock className="h-5 w-5 text-blue-400" />} label="MTTR" value={stats.mttr_days ? `${stats.mttr_days}d` : "N/A"} text />
+          </>
+        )}
+      </div>
+
+      {/* Main grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
-          <h2 className="mb-4 text-sm font-medium text-gray-400">By Severity</h2>
-          <div className="space-y-3">
-            {stats.by_severity.map((s) => (
-              <div key={s.severity} className="flex items-center justify-between">
-                <span
-                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
-                    severityColors[s.severity] || "bg-gray-700 text-gray-300"
-                  }`}
-                >
-                  {s.severity}
-                </span>
-                <div className="flex items-center gap-3">
-                  <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-800">
-                    <div
-                      className="h-full rounded-full bg-indigo-500"
-                      style={{
-                        width: `${Math.max(2, (s.count / stats.total_vulnerabilities) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-16 text-right text-sm font-medium text-white">
-                    {s.count.toLocaleString()}
+
+        {/* Severity breakdown */}
+        {stats && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+            <h2 className="mb-4 text-sm font-medium text-gray-400">Vulnerabilities by Severity</h2>
+            <div className="space-y-3">
+              {stats.by_severity.map(s => (
+                <div key={s.severity} className="flex items-center justify-between">
+                  <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${sevColors[s.severity] || "bg-gray-700 text-gray-300"}`}>
+                    {s.severity}
                   </span>
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-800">
+                      <div className="h-full rounded-full bg-indigo-500"
+                        style={{ width: `${Math.max(2, (s.count / stats.total_vulnerabilities) * 100)}%` }} />
+                    </div>
+                    <span className="w-16 text-right text-sm font-medium text-white">{s.count.toLocaleString()}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Risk distribution */}
+        {overview?.risk_distribution && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+            <h2 className="mb-4 text-sm font-medium text-gray-400">Asset Risk Distribution</h2>
+            <div className="space-y-3">
+              {[
+                { label: "Critical (80+)", count: overview.risk_distribution.critical, color: "bg-red-500" },
+                { label: "High (50-79)", count: overview.risk_distribution.high, color: "bg-orange-500" },
+                { label: "Medium (20-49)", count: overview.risk_distribution.medium, color: "bg-yellow-500" },
+                { label: "Low (<20)", count: overview.risk_distribution.low, color: "bg-green-500" },
+              ].map(r => {
+                const total = Object.values(overview.risk_distribution as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
+                return (
+                  <div key={r.label} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-300">{r.label}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-800">
+                        <div className={`h-full rounded-full ${r.color}`}
+                          style={{ width: `${Math.max(2, total ? (r.count / total) * 100 : 0)}%` }} />
+                      </div>
+                      <span className="w-16 text-right text-sm font-medium text-white">{r.count.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Top 10 Riskiest Hosts */}
+        {overview?.top_risky_hosts?.length > 0 && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 lg:col-span-2">
+            <h2 className="mb-4 text-sm font-medium text-gray-400">Top 10 Riskiest Hosts</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-gray-500">
+                  <tr>
+                    <th className="pb-2">Host</th>
+                    <th className="pb-2">Type</th>
+                    <th className="pb-2">User</th>
+                    <th className="pb-2 text-center">Risk</th>
+                    <th className="pb-2 text-center">Vulns</th>
+                    <th className="pb-2 text-center">Critical</th>
+                    <th className="pb-2 text-center">Exploitable</th>
+                    <th className="pb-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {overview.top_risky_hosts.map((h: any) => (
+                    <tr key={h.id} className="hover:bg-gray-800/30 cursor-pointer" onClick={() => router.push(`/dashboard/assets/${h.id}`)}>
+                      <td className="py-2 text-white font-medium">{h.hostname}</td>
+                      <td className="py-2 text-gray-400 text-xs">{h.device_category || "—"}</td>
+                      <td className="py-2 text-gray-400 text-xs truncate max-w-[120px]">{h.assigned_user || "—"}</td>
+                      <td className="py-2 text-center">
+                        <span className={`font-bold ${riskColor(h.risk_score)}`}>{h.risk_score}</span>
+                      </td>
+                      <td className="py-2 text-center text-gray-300">{h.vuln_count}</td>
+                      <td className="py-2 text-center text-red-400">{h.critical}</td>
+                      <td className="py-2 text-center text-yellow-400">{h.exploitable}</td>
+                      <td className="py-2">
+                        {h.host_status && (
+                          <span className={`inline-block h-2 w-2 rounded-full ${h.host_status === "normal" ? "bg-green-400" : "bg-gray-500"}`} />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Vulnerability Status Breakdown */}
+        {overview?.by_status && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+            <h2 className="mb-4 text-sm font-medium text-gray-400">Vulnerability Status</h2>
+            <div className="space-y-2">
+              {[
+                { key: "OPEN", label: "Open", color: "bg-orange-500" },
+                { key: "IN_PROGRESS", label: "In Progress", color: "bg-blue-500" },
+                { key: "REMEDIATED", label: "Remediated", color: "bg-emerald-500" },
+                { key: "SUPPRESSED", label: "Suppressed", color: "bg-gray-500" },
+              ].map(s => {
+                const count = overview.by_status[s.key] || 0;
+                const total = Object.values(overview.by_status as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
+                return (
+                  <div key={s.key} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-300">{s.label}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-800">
+                        <div className={`h-full rounded-full ${s.color}`}
+                          style={{ width: `${Math.max(1, total ? (count / total) * 100 : 0)}%` }} />
+                      </div>
+                      <span className="w-16 text-right text-sm font-medium text-white">{count.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Connector Health */}
+        {overview?.connectors?.length > 0 && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+            <h2 className="mb-4 text-sm font-medium text-gray-400">Connector Health</h2>
+            <div className="space-y-2">
+              {overview.connectors.map((c: any) => (
+                <div key={c.type} className="flex items-center justify-between rounded-lg bg-gray-800/30 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${c.status === "SUCCESS" ? "bg-emerald-400" : c.status === "FAILED" ? "bg-red-400" : "bg-gray-500"}`} />
+                    <span className="text-sm text-white">{c.type}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    {c.records && <span>{c.records.toLocaleString()} records</span>}
+                    {c.last_sync && <span>{timeAgo(c.last_sync)}</span>}
+                    {!c.enabled && <span className="text-gray-600">disabled</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Source breakdown */}
+        {stats && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+            <h2 className="mb-4 text-sm font-medium text-gray-400">Vulnerabilities by Source</h2>
+            <div className="space-y-3">
+              {stats.by_source.map(s => (
+                <div key={s.source} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">{s.source}</span>
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-800">
+                      <div className="h-full rounded-full bg-emerald-500"
+                        style={{ width: `${Math.max(2, (s.count / stats.total_vulnerabilities) * 100)}%` }} />
+                    </div>
+                    <span className="w-16 text-right text-sm font-medium text-white">{s.count.toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick stats row */}
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+          <h2 className="mb-4 text-sm font-medium text-gray-400">Quick Stats</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <MiniStat label="Total Assets" value={(overview?.risk_distribution ? Object.values(overview.risk_distribution as Record<string,number>).reduce((a:number,b:number)=>a+b,0) : 0).toLocaleString()} icon={<Server className="h-4 w-4 text-gray-500" />} />
+            <MiniStat label="Active Users" value={(overview?.total_users || 0).toLocaleString()} icon={<Users className="h-4 w-4 text-gray-500" />} />
+            <MiniStat label="Connectors" value={(overview?.connectors?.length || 0).toString()} icon={<Plug className="h-4 w-4 text-gray-500" />} />
+            <MiniStat label="Automation Rules" value="—" icon={<TrendingUp className="h-4 w-4 text-gray-500" />} />
           </div>
         </div>
+      </div>
+      </>}
+    </div>
+  );
+}
 
-        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
-          <h2 className="mb-4 text-sm font-medium text-gray-400">By Source</h2>
-          <div className="space-y-3">
-            {stats.by_source.map((s) => (
-              <div key={s.source} className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">{s.source}</span>
-                <div className="flex items-center gap-3">
-                  <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-800">
-                    <div
-                      className="h-full rounded-full bg-emerald-500"
-                      style={{
-                        width: `${Math.max(2, (s.count / stats.total_vulnerabilities) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-16 text-right text-sm font-medium text-white">
-                    {s.count.toLocaleString()}
-                  </span>
-                </div>
+function ReportBuilder() {
+  // Sections
+  const [sections, setSections] = useState({
+    vulns: true, assets: true, risk: true, top_hosts: true, top_remediations: true, tickets: true,
+  });
+  // Filters
+  const [severities, setSeverities] = useState<string[]>(["CRITICAL", "HIGH", "MEDIUM", "LOW"]);
+  const [deviceTypes, setDeviceTypes] = useState<string[]>(["WORKSTATION", "SERVER", "NETWORK", "MOBILE"]);
+  const [exploitOnly, setExploitOnly] = useState(false);
+  const [kevOnly, setKevOnly] = useState(false);
+  const [topCount, setTopCount] = useState(5);
+  const [minRisk, setMinRisk] = useState(0);
+  // Output
+  const [format, setFormat] = useState("pdf");
+  const [generating, setGenerating] = useState(false);
+
+  const toggleArr = (arr: string[], item: string, setter: (v: string[]) => void) =>
+    setter(arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item]);
+  const toggle = (key: string) => setSections(s => ({ ...s, [key]: !s[key as keyof typeof s] }));
+
+  async function handleGenerate() {
+    setGenerating(true);
+    try {
+      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const token = typeof window !== "undefined" ? localStorage.getItem("getvul_token") || "dev-token" : "dev-token";
+      const params = new URLSearchParams({ format });
+      severities.forEach(s => params.append("severity", s));
+      deviceTypes.forEach(d => params.append("device_type", d));
+      if (exploitOnly) params.set("exploit_available", "true");
+      if (kevOnly) params.set("cisa_kev", "true");
+      params.set("top_count", String(topCount));
+      params.set("min_risk", String(minRisk));
+      // Pass sections
+      Object.entries(sections).forEach(([k, v]) => { if (v) params.append("section", k); });
+
+      const resp = await fetch(`${API}/api/v1/export/summary?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const ext = format === "pdf" ? "pdf" : format === "csv" ? "csv" : "txt";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `getvul_executive_report.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {} finally { setGenerating(false); }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Sections */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+        <h2 className="text-lg font-medium text-white mb-1">Report Sections</h2>
+        <p className="text-sm text-gray-400 mb-4">Select what to include in the report</p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {[
+            { key: "vulns", label: "Vulnerability Overview" },
+            { key: "assets", label: "Assets by Type" },
+            { key: "risk", label: "Risk Distribution" },
+            { key: "top_hosts", label: "Top Riskiest Hosts" },
+            { key: "top_remediations", label: "Top Remediations" },
+            { key: "tickets", label: "Ticket Status" },
+          ].map(s => (
+            <label key={s.key} className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition ${
+              sections[s.key as keyof typeof sections] ? "border-indigo-500 bg-indigo-500/10" : "border-gray-700 bg-gray-800"}`}>
+              <input type="checkbox" checked={sections[s.key as keyof typeof sections]}
+                onChange={() => toggle(s.key)} className="rounded border-gray-600" />
+              <span className="text-sm text-white">{s.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+        <h2 className="text-lg font-medium text-white mb-1">Filters</h2>
+        <p className="text-sm text-gray-400 mb-4">Narrow down what data the report covers</p>
+
+        <div className="space-y-4">
+          {/* Severity */}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300">Vulnerability Severities</label>
+            <div className="flex flex-wrap gap-2">
+              {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map(s => (
+                <button key={s} onClick={() => toggleArr(severities, s, setSeverities)}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+                    severities.includes(s) ? "border-indigo-500 bg-indigo-500/15 text-indigo-400" : "border-gray-700 bg-gray-900 text-gray-500"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Device types */}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300">Device Types</label>
+            <div className="flex flex-wrap gap-2">
+              {["WORKSTATION", "SERVER", "NETWORK", "MOBILE"].map(d => (
+                <button key={d} onClick={() => toggleArr(deviceTypes, d, setDeviceTypes)}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+                    deviceTypes.includes(d) ? "border-indigo-500 bg-indigo-500/15 text-indigo-400" : "border-gray-700 bg-gray-900 text-gray-500"}`}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {/* Exploit / KEV */}
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input type="checkbox" checked={exploitOnly} onChange={e => setExploitOnly(e.target.checked)} className="rounded border-gray-600" />
+              Exploitable only
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input type="checkbox" checked={kevOnly} onChange={e => setKevOnly(e.target.checked)} className="rounded border-gray-600" />
+              CISA KEV only
+            </label>
+
+            {/* Top N */}
+            <div>
+              <label className="mb-1 block text-xs text-gray-400">Top hosts/remediations</label>
+              <div className="flex gap-2">
+                {[3, 5, 10, 20].map(n => (
+                  <button key={n} onClick={() => setTopCount(n)}
+                    className={`rounded-md border px-2 py-1 text-xs ${topCount === n ? "border-indigo-500 bg-indigo-500/15 text-indigo-400" : "border-gray-700 bg-gray-900 text-gray-500"}`}>
+                    {n}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Min risk */}
+            <div>
+              <label className="mb-1 block text-xs text-gray-400">Min risk score</label>
+              <div className="flex gap-2">
+                {[0, 20, 50, 80].map(r => (
+                  <button key={r} onClick={() => setMinRisk(r)}
+                    className={`rounded-md border px-2 py-1 text-xs ${minRisk === r ? "border-indigo-500 bg-indigo-500/15 text-indigo-400" : "border-gray-700 bg-gray-900 text-gray-500"}`}>
+                    {r === 0 ? "Any" : `${r}+`}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatCard
-          icon={<Link2 className="h-5 w-5 text-emerald-400" />}
-          label="Correlated CVEs (2+ sources)"
-          value={stats.correlated_cves.toLocaleString()}
-        />
-        <StatCard
-          icon={<Clock className="h-5 w-5 text-blue-400" />}
-          label="Mean Time to Remediate"
-          value={stats.mttr_days ? `${stats.mttr_days} days` : "N/A"}
-        />
+      {/* Format + Generate */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">Format:</span>
+            {[
+              { id: "pdf", label: "PDF", icon: "📄" },
+              { id: "csv", label: "CSV", icon: "📊" },
+              { id: "txt", label: "Text", icon: "📝" },
+            ].map(f => (
+              <button key={f.id} onClick={() => setFormat(f.id)}
+                className={`rounded-lg border px-4 py-2 text-sm transition ${
+                  format === f.id ? "border-indigo-500 bg-indigo-500/15 text-indigo-400" : "border-gray-700 bg-gray-800 text-gray-400"}`}>
+                {f.icon} {f.label}
+              </button>
+            ))}
+          </div>
+
+          <button onClick={handleGenerate} disabled={generating || Object.values(sections).every(v => !v)}
+            className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+            {generating ? "Generating..." : "Generate Report"}
+          </button>
+        </div>
+
+        {/* Summary */}
+        <div className="mt-4 rounded-lg bg-gray-800/50 p-3 text-xs text-gray-500">
+          Report will include: {Object.entries(sections).filter(([,v]) => v).map(([k]) => k).join(", ")} |
+          Severities: {severities.join(", ") || "all"} |
+          Devices: {deviceTypes.join(", ") || "all"} |
+          {exploitOnly ? " Exploitable only |" : ""}{kevOnly ? " CISA KEV only |" : ""}
+          Top {topCount} | Min risk {minRisk}+ | Format: {format.toUpperCase()}
+        </div>
       </div>
     </div>
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
+function StatCard({ icon, label, value, sub, subColor, text }: {
+  icon: React.ReactNode; label: string; value: number | string; sub?: string; subColor?: string; text?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
@@ -195,7 +466,32 @@ function StatCard({
         {icon}
         <span className="text-sm text-gray-400">{label}</span>
       </div>
-      <p className="mt-3 text-2xl font-bold text-white">{value}</p>
+      <p className={`mt-3 ${text ? "text-lg" : "text-2xl"} font-bold text-white`}>
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </p>
+      {sub && <p className={`mt-1 text-xs ${subColor || "text-gray-500"}`}>{sub}</p>}
     </div>
   );
+}
+
+function MiniStat({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      {icon}
+      <div>
+        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-sm font-medium text-white">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function timeAgo(iso: string): string {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return "now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  return `${diffDays}d ago`;
 }

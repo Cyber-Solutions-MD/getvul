@@ -168,6 +168,53 @@ async def test_jamf(credentials: dict, config: dict) -> ConnectorTestResult:
     except Exception as e:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
+async def test_google_workspace(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Google Workspace Admin SDK access."""
+    token = credentials.get("access_token", "")
+    domain = config.get("domain", credentials.get("domain", ""))
+    if not token or not domain:
+        return ConnectorTestResult(success=False, message="Access token and domain are required")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            h = {"Authorization": f"Bearer {token}"}
+            resp = await client.get("https://admin.googleapis.com/admin/directory/v1/users",
+                                     headers=h, params={"domain": domain, "maxResults": 1})
+            if resp.status_code == 200:
+                total = resp.json().get("totalResults", "?")
+                return ConnectorTestResult(success=True, message=f"Connected to Google Workspace ({domain})",
+                                           details={"total_users": total})
+            return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
+async def test_azure_entra_id(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Azure Entra ID Graph API access."""
+    tenant_id = credentials.get("tenant_id", "")
+    client_id = credentials.get("client_id", "")
+    client_secret = credentials.get("client_secret", "")
+    if not all([tenant_id, client_id, client_secret]):
+        return ConnectorTestResult(success=False, message="Tenant ID, Client ID, and Client Secret are required")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+                                      data={"grant_type": "client_credentials", "client_id": client_id,
+                                            "client_secret": client_secret, "scope": "https://graph.microsoft.com/.default"})
+            if resp.status_code != 200:
+                return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
+            token = resp.json()["access_token"]
+
+            users_resp = await client.get("https://graph.microsoft.com/v1.0/users",
+                                           headers={"Authorization": f"Bearer {token}"}, params={"$top": 1, "$select": "id"})
+            groups_resp = await client.get("https://graph.microsoft.com/v1.0/groups",
+                                            headers={"Authorization": f"Bearer {token}"}, params={"$top": 1, "$select": "id"})
+            return ConnectorTestResult(success=True, message="Connected to Azure Entra ID",
+                                       details={"users_access": "✓" if users_resp.status_code == 200 else f"✗ ({users_resp.status_code})",
+                                                 "groups_access": "✓" if groups_resp.status_code == 200 else f"✗ ({groups_resp.status_code})"})
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
 async def test_asana(credentials: dict, config: dict) -> ConnectorTestResult:
     """Test Asana Personal Access Token."""
     token = credentials.get("access_token", "")
@@ -242,6 +289,8 @@ TESTERS = {
     "DEFENDER": test_defender,
     "WIZ": test_wiz,
     "JAMF": test_jamf,
+    "GOOGLE_WORKSPACE": test_google_workspace,
+    "AZURE_ENTRA_ID": test_azure_entra_id,
     "ASANA": test_asana,
     "HUMAANS": test_humaans,
 }

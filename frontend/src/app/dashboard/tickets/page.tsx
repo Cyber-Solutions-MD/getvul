@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import ExportButton from "@/components/ui/ExportButton";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const TOKEN = "dev-token";
-const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" };
+import { getAuthHeaders, API_BASE } from "@/lib/fetch";
+const headers = getAuthHeaders();
 
 const SEV_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -84,6 +85,7 @@ export default function TicketsPage() {
               {showCreateFlow ? "Close" : "+ New Ticket"}
             </button>
           )}
+          <ExportButton resource="tickets" />
           <button onClick={() => setShowSetup(true)}
             className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800">
             {isConfigured ? "Asana Settings" : "Configure Asana"}

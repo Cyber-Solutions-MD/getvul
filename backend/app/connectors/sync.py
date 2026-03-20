@@ -27,7 +27,7 @@ CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
 }
 
 # Special connectors that don't follow the standard vuln/cspm pattern
-SPECIAL_CONNECTORS = {"JAMF", "HUMAANS", "ASANA"}
+SPECIAL_CONNECTORS = {"JAMF", "HUMAANS", "ASANA", "GOOGLE_WORKSPACE", "AZURE_ENTRA_ID"}
 
 
 async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
@@ -44,6 +44,10 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
     if connector_config.connector_type == "HUMAANS":
         from app.connectors.humaans_sync import run_humaans_sync
         return await run_humaans_sync(db, connector_config)
+
+    if connector_config.connector_type in ("GOOGLE_WORKSPACE", "AZURE_ENTRA_ID"):
+        from app.connectors.directory_sync import run_directory_sync
+        return await run_directory_sync(db, connector_config)
 
     if connector_config.connector_type == "ASANA":
         # Asana is a ticketing connector — no data to sync, just config storage

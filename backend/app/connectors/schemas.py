@@ -108,6 +108,39 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         },
         notes="Create a Service Account in Wiz → Settings → Service Accounts with read-only permissions",
     ),
+    "GOOGLE_WORKSPACE": ConnectorTypeInfo(
+        id="GOOGLE_WORKSPACE",
+        name="Google Workspace",
+        description="SSO directory — sync users and groups from Google Workspace",
+        fields=[
+            {"name": "access_token", "label": "Admin OAuth Token or Service Account Token", "type": "password", "required": True},
+            {"name": "domain", "label": "Google Workspace Domain", "type": "text", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="admin.directory.user.readonly", access="Read", purpose="List all users in the domain"),
+            ConnectorPermission(scope="admin.directory.group.readonly", access="Read", purpose="List all groups"),
+            ConnectorPermission(scope="admin.directory.group.member.readonly", access="Read", purpose="List group members"),
+        ],
+        setup_url="https://admin.google.com/ac/owl/domainwidedelegation",
+        notes="Use a service account with domain-wide delegation, or generate an OAuth token with Admin SDK scopes from an admin account.",
+    ),
+    "AZURE_ENTRA_ID": ConnectorTypeInfo(
+        id="AZURE_ENTRA_ID",
+        name="Azure Entra ID",
+        description="SSO directory — sync users and groups from Microsoft Entra ID",
+        fields=[
+            {"name": "tenant_id", "label": "Azure Tenant ID", "type": "text", "required": True},
+            {"name": "client_id", "label": "App Client ID", "type": "text", "required": True},
+            {"name": "client_secret", "label": "App Client Secret", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="User.Read.All", access="Application", purpose="Read all user profiles"),
+            ConnectorPermission(scope="Group.Read.All", access="Application", purpose="Read all groups"),
+            ConnectorPermission(scope="GroupMember.Read.All", access="Application", purpose="Read group memberships"),
+        ],
+        setup_url="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps",
+        notes="Register an app in Azure Entra ID → API permissions → Add Microsoft Graph Application permissions.",
+    ),
     "ASANA": ConnectorTypeInfo(
         id="ASANA",
         name="Asana",

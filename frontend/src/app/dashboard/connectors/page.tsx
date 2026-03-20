@@ -30,6 +30,8 @@ const CONNECTOR_META: Record<string, { color: string }> = {
   NESSUS: { color: "text-green-400" },
   DEFENDER: { color: "text-blue-400" },
   WIZ: { color: "text-purple-400" },
+  GOOGLE_WORKSPACE: { color: "text-green-400" },
+  AZURE_ENTRA_ID: { color: "text-blue-400" },
   ASANA: { color: "text-orange-400" },
   HUMAANS: { color: "text-cyan-400" },
   JAMF: { color: "text-pink-400" },

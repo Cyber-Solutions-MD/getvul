@@ -76,6 +76,16 @@ async def dashboard_stats(
     return await get_dashboard_stats(db, user.tenant_id)
 
 
+@router.get("/overview")
+async def overview_stats(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    """Get enhanced dashboard overview — top hosts, tickets, connectors."""
+    from app.vulnerabilities.dashboard import get_overview_stats
+    return await get_overview_stats(db, user.tenant_id)
+
+
 # ── Saved Filters (must be before /{vuln_id} to avoid route conflicts) ──
 
 
@@ -203,6 +213,8 @@ async def update_status(
     updated = await update_vulnerability_status(db, user.tenant_id, vuln_id, body.status)
     if not updated:
         raise HTTPException(status_code=404, detail="Vulnerability not found")
+    from app.audit import audit
+    await audit(db, user, "vuln.status_update", "vulnerability", str(vuln_id), {"status": body.status})
     return {"message": "Status updated", "status": body.status}
 
 
@@ -214,10 +226,11 @@ async def bulk_status(
 ):
     """Bulk update status for multiple vulnerabilities. Requires Analyst role."""
     count = await bulk_update_status(db, user.tenant_id, body)
-    # Recompute risk scores if suppressing or reopening
     if body.status in ("SUPPRESSED", "OPEN"):
         from app.assets.risk_score import compute_risk_scores
         await compute_risk_scores(db, user.tenant_id)
+    from app.audit import audit
+    await audit(db, user, "vuln.bulk_status", "vulnerability", None, {"status": body.status, "count": count})
     return {"message": f"Updated {count} vulnerabilities", "count": count}
 
 
@@ -349,6 +362,9 @@ async def suppress_remediation(
     # Recompute risk scores for affected assets
     risk_stats = await compute_risk_scores(db, user.tenant_id)
 
+    from app.audit import audit as _audit
+    await _audit(db, user, "vuln.suppress", "remediation", remediation_id, {"suppressed": suppressed_count, "assets": len(affected_asset_ids)})
+
     await db.commit()
 
     return {
@@ -383,6 +399,10 @@ async def unsuppress_remediation(
     reopened_count = result.rowcount
 
     risk_stats = await compute_risk_scores(db, user.tenant_id)
+
+    from app.audit import audit as _audit
+    await _audit(db, user, "vuln.unsuppress", "remediation", remediation_id, {"reopened": reopened_count})
+
     await db.commit()
 
     return {

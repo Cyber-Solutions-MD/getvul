@@ -164,6 +164,8 @@ async def create_new_tickets(
             workspace_gid=workspace_gid,
         )
         await db.commit()
+        from app.audit import audit as _audit
+        await _audit(db, user, "ticket.create", "ticket", None, {"count": len(tickets), "provider": body.provider})
         return {"created": len(tickets), "tickets": tickets}
     finally:
         await asana_client.close()
