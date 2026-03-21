@@ -2,81 +2,97 @@
 
 ## What is GetVul?
 
-GetVul is a **unified vulnerability aggregation platform** that collects vulnerability and cloud security data from multiple enterprise security tools, normalizes it into a single database, and enables teams to take action through ticketing integrations.
-
-## Problem Statement
-
-Enterprise security teams typically run multiple vulnerability scanners and cloud security tools (CrowdStrike, Nessus, Defender, Wiz, etc.). Each tool has its own dashboard, data format, and severity rating. This fragmentation makes it difficult to:
-
-- Get a unified view of organizational risk
-- Correlate findings across tools (same CVE detected by multiple scanners)
-- Prioritize remediation effectively
-- Track remediation progress across tools
-- Report on overall security posture
-
-## Solution
-
-GetVul provides a **single pane of glass** by:
-
-1. **Aggregating** vulnerability data from multiple sources via connector integrations
-2. **Normalizing** findings into a common schema (CVE, severity, asset, status)
-3. **Correlating** duplicate findings across scanners for higher confidence
-4. **Enriching** with exploit intelligence (EPSS scores, CISA KEV, exploit availability)
-5. **Organizing** remediations by grouping vulnerabilities that share the same fix
-6. **Automating** ticket creation in Jira/GitHub for remediation workflows
+GetVul is a **unified vulnerability aggregation platform** that collects vulnerability and cloud security data from multiple enterprise security tools, normalizes it into a single database, enriches it with HR/MDM data, and enables teams to take action through automated ticketing and remediation workflows.
 
 ## Key Features
 
-### Unified Vulnerability Dashboard
-- Single view for vulnerabilities from 4+ security tools
-- Real-time background sync from security tools (configurable interval, default 15 min)
+### Vulnerability Management
+- Aggregate vulnerabilities from CrowdStrike Spotlight (+ Nessus, Defender, Wiz planned)
+- Normalize into common schema with CVE, severity, CVSS, exploit status, CISA KEV
 - Cross-source correlation (same CVE detected by multiple scanners)
-- Severity aggregation with CVSS v3 scoring
-- Exploit availability and CISA KEV enrichment
+- Computed risk scores per asset (piecewise log curve based on severity/exploit/KEV)
+- File path detection showing where vulnerable software is installed
+- Remediation grouping with ignore/restore capability
+- Saved search filters with automation rule creation
 
 ### Asset Intelligence
 - Automatic device classification (workstation, server, network, mobile)
-- Multi-source asset identification (CrowdStrike AID, Defender device ID, Nessus host ID, Wiz asset ID)
-- Per-asset vulnerability impact summary
-- MDM enrichment via Jamf for Apple devices
-- Risk scoring (0–100)
+- CrowdStrike enrichment: serial number, last login user, host status, model, file paths
+- Jamf Pro MDM enrichment: FileVault, SIP, Gatekeeper, building, department
+- Humaans HR enrichment: full name, email, GitHub, LinkedIn, Element handles, teams
+- Per-asset vulnerability impact summary with risk scoring
 
-### Intelligent Remediations
-- Group vulnerabilities by remediation action
-- Drill-down to affected hosts per remediation
-- Show all available remediations for a given host
-- Track remediation progress over time
+### Users Dashboard
+- Merged view of CrowdStrike devices + Humaans HR data
+- User search with device details, vuln counts, risk scores
+- Groups tab (synced from Google Workspace or Azure Entra ID)
+- Expandable rows showing all devices per user
 
-### Cloud Security Posture Management (CSPM)
-- Aggregate misconfigurations from cloud security tools
-- Categorize by compliance framework (CIS, SOC 2, PCI-DSS, etc.)
-- Map findings to specific cloud resources
-- Remediation guidance per finding
+### Ticketing & Automation
+- Asana integration: create/close/comment/delete tasks
+- Per-host tickets (all remediations for one host)
+- Per-remediation tickets (all affected hosts for one fix)
+- Automation rules with saved filter conditions
+- Configurable schedule (1h to 7 days), max ticket limits
+- Auto-assignment via Humaans email
+- SLA-based due dates (CRITICAL=3d, HIGH=14d, MEDIUM=30d, LOW=90d)
+- Bulk actions: close, comment, sync status, delete
+- Bidirectional sync: task completion in Asana → vuln remediated in GetVul
 
-### Multi-Tenant Support
-- Full tenant isolation via `tenant_id` on all records
-- Domain-based SSO mapping (email domain → tenant)
-- Role-based access control with 4 roles (Owner, Admin, Analyst, Viewer)
-- Per-tenant connector configuration
+### Authentication & Access Control
+- Email/password login with bcrypt hashing
+- SSO framework: Google Workspace + Azure Entra ID
+- SSO enforcement (requires configured IdP connector)
+- Configurable password policy (length, complexity, history)
+- RBAC: Owner > Admin > Analyst > Viewer
+- Per-user password login override when SSO enforced
+- JWT access tokens (15 min) + refresh tokens (7 days)
+- Auto-refresh on expiry with login redirect
 
-### Ticketing Automation
-- Rules-based ticket creation from vulnerabilities
-- Supports Jira Cloud and GitHub Issues
-- Bidirectional status sync with external ticketing systems
+### Settings & Administration
+- Editable org config (name, domain, slug, timezone, IdP)
+- User management (add from HR directory, edit, roles, delete, deactivate)
+- TLS/SSL certificate management (upload custom or generate self-signed)
+- Audit logging with syslog/SIEM forwarding (CEF format)
+- Password policy configuration
 
-## Supported Data Sources
+### Export & Reporting
+- CSV export on every table (vulnerabilities, assets, users, tickets, remediations)
+- Executive Report builder with configurable sections and filters
+- PDF, CSV, and TXT output formats
+- Filter by severity, device type, exploit/KEV, min risk, top N count
 
-| Source | Type | Data Collected |
-|--------|------|---------------|
-| CrowdStrike Falcon | EDR + Spotlight | Vulnerabilities, exploit status, device info, remediation guidance |
-| Nessus Professional | Vulnerability scanner | Scan results, plugin vulnerabilities, affected systems |
-| Microsoft Defender | Endpoint security | Machines, vulnerabilities, security recommendations |
-| Wiz | Cloud security (CSPM) | Cloud vulnerabilities, misconfigurations, resource inventory |
-| Jamf Pro | Apple MDM | Computer inventory, user assignments, device details |
+### Enhanced Dashboard
+- Vulnerability overview (total, open, critical, exploitable, KEV)
+- Asset risk distribution with breakdown by type
+- Top 10 riskiest hosts (clickable)
+- Connector health monitoring
+- Ticket status (open, resolved, overdue)
+- Executive Report builder tab
 
-## Supported Ticketing Systems
+## Supported Integrations
 
-| System | Integration |
-|--------|------------|
-| Jira Cloud | REST API v3 — create/update issues with CVE details |
-| GitHub Issues | GitHub API — create issues with labels and assignees |
+| Connector | Type | Status | Data |
+|-----------|------|--------|------|
+| CrowdStrike Falcon | Vulnerability scanner | Implemented | Vulns, devices, file paths, CSPM |
+| Jamf Pro | Apple MDM | Implemented | Device security, user assignments |
+| Humaans | HR platform | Implemented | Names, emails, GitHub/LinkedIn/Element, teams |
+| Asana | Ticketing | Implemented | Create/manage vulnerability tickets |
+| Google Workspace | SSO directory | Implemented | Users, groups |
+| Azure Entra ID | SSO directory | Implemented | Users, groups |
+| Nessus Professional | Vulnerability scanner | Planned | Scan results |
+| Microsoft Defender | Endpoint security | Planned | Machines, vulns |
+| Wiz | Cloud security | Planned | Cloud vulns, CSPM |
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 (async) |
+| Database | PostgreSQL 16 |
+| Cache | Redis 7 |
+| Reverse Proxy | Nginx with TLS termination |
+| Auth | JWT + bcrypt + OIDC (Google/Azure) |
+| Containers | Docker + Docker Compose |
+| IaC | Terraform (AWS, planned) |

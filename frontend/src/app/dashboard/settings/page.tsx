@@ -83,6 +83,9 @@ export default function SettingsPage() {
             </div>
             <ChangePasswordForm />
           </div>
+
+          {/* TLS Certificate */}
+          {isOwner && <TlsCertificatePanel />}
         </div>
       )}
 
@@ -607,6 +610,141 @@ function AuditLogPanel() {
             className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-40">Next</button>
         </div>
       )}
+    </div>
+  );
+}
+
+function TlsCertificatePanel() {
+  const [cert, setCert] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showUpload, setShowUpload] = useState(false);
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [certPem, setCertPem] = useState("");
+  const [keyPem, setKeyPem] = useState("");
+  const [hostname, setHostname] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    api("/api/v1/certificates").then(setCert).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const reload = () => { api("/api/v1/certificates").then(setCert).catch(() => {}); };
+
+  async function handleUpload() {
+    if (!certPem || !keyPem) return;
+    setSaving(true); setMsg("");
+    try {
+      const r = await api("/api/v1/certificates/upload", { method: "POST", body: JSON.stringify({ certificate: certPem, private_key: keyPem }) });
+      setMsg(r.error || r.message || "Saved"); setCertPem(""); setKeyPem(""); setShowUpload(false); reload();
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setSaving(false); }
+  }
+
+  async function handleGenerate() {
+    setSaving(true); setMsg("");
+    try {
+      const r = await api("/api/v1/certificates/self-signed", { method: "POST", body: JSON.stringify({ hostname: hostname || "getvul.local" }) });
+      setMsg(r.error || r.message || "Generated"); setShowGenerate(false); reload();
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setSaving(false); }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Remove the TLS certificate? HTTPS will stop working.")) return;
+    await api("/api/v1/certificates", { method: "DELETE" });
+    reload(); setMsg("Certificate removed");
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+      <h2 className="text-lg font-medium text-white mb-1">TLS / SSL Certificate</h2>
+      <p className="text-sm text-gray-400 mb-4">Configure HTTPS for secure access</p>
+
+      {cert?.installed ? (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="text-sm font-medium text-emerald-400">Certificate Installed</span>
+              {cert.self_signed && <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-400">Self-signed</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+              {cert.subject && <div>Subject: <span className="text-gray-300">{cert.subject}</span></div>}
+              {cert.issuer && <div>Issuer: <span className="text-gray-300">{cert.issuer}</span></div>}
+              {cert.valid_from && <div>Valid from: <span className="text-gray-300">{cert.valid_from}</span></div>}
+              {cert.valid_until && <div>Valid until: <span className="text-gray-300">{cert.valid_until}</span></div>}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowUpload(true)} className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800">Replace Certificate</button>
+            <button onClick={handleDelete} className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-500 hover:text-red-400">Remove</button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">No certificate installed. The app is accessible via HTTP only.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setShowUpload(true)}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500">
+              Upload Certificate
+            </button>
+            <button onClick={() => setShowGenerate(true)}
+              className="rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">
+              Generate Self-Signed
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Upload modal */}
+      {showUpload && (
+        <div className="mt-4 rounded-lg border border-gray-700 bg-gray-800 p-4 space-y-3">
+          <p className="text-sm font-medium text-white">Upload TLS Certificate</p>
+          <p className="text-xs text-gray-500">Paste the certificate and private key in PEM format. Supports certificates from Microsoft CA, Let's Encrypt, or any CA.</p>
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Certificate (PEM)</label>
+            <textarea value={certPem} onChange={e => setCertPem(e.target.value)} rows={4}
+              placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+              className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-xs text-white font-mono placeholder-gray-600 focus:border-indigo-500 focus:outline-none resize-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Private Key (PEM)</label>
+            <textarea value={keyPem} onChange={e => setKeyPem(e.target.value)} rows={4}
+              placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+              className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-xs text-white font-mono placeholder-gray-600 focus:border-indigo-500 focus:outline-none resize-none" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleUpload} disabled={saving || !certPem || !keyPem}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">
+              {saving ? "Uploading..." : "Upload"}
+            </button>
+            <button onClick={() => setShowUpload(false)} className="text-xs text-gray-500">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Generate self-signed */}
+      {showGenerate && (
+        <div className="mt-4 rounded-lg border border-gray-700 bg-gray-800 p-4 space-y-3">
+          <p className="text-sm font-medium text-white">Generate Self-Signed Certificate</p>
+          <p className="text-xs text-gray-500">For testing or internal use. Not trusted by browsers without manual import.</p>
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Hostname</label>
+            <input value={hostname} onChange={e => setHostname(e.target.value)} placeholder="getvul.local"
+              className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleGenerate} disabled={saving}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">
+              {saving ? "Generating..." : "Generate"}
+            </button>
+            <button onClick={() => setShowGenerate(false)} className="text-xs text-gray-500">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {msg && <p className={`mt-3 text-xs ${msg.startsWith("Error") ? "text-red-400" : "text-emerald-400"}`}>{msg}</p>}
     </div>
   );
 }

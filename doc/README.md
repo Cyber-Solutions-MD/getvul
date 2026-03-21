@@ -1,6 +1,6 @@
 # GetVul Documentation
 
-Comprehensive documentation for the GetVul vulnerability aggregation platform.
+Comprehensive documentation for the GetVul unified vulnerability management platform.
 
 ## Table of Contents
 
@@ -11,7 +11,19 @@ Comprehensive documentation for the GetVul vulnerability aggregation platform.
 | [Database Schema](database-schema.md) | All database models, relationships, and constraints |
 | [Backend API](backend-api.md) | FastAPI routes, services, and business logic |
 | [Frontend](frontend.md) | Next.js pages, components, and state management |
-| [Authentication](authentication.md) | SSO, JWT tokens, RBAC, and tenant isolation |
-| [Connectors & Integrations](connectors.md) | External integrations (CrowdStrike, Nessus, Defender, Wiz, Jamf, Jira, GitHub) |
-| [Deployment](deployment.md) | Docker, CI/CD, Terraform, and environment configuration |
-| [Security](security.md) | Security considerations, encryption, and access controls |
+| [Authentication](authentication.md) | Password + SSO auth, RBAC, SSO enforcement, password policy |
+| [Connectors & Integrations](connectors.md) | All 9 connectors (CrowdStrike, Jamf, Humaans, Asana, Google, Azure, etc.) |
+| [Ticketing](ticketing.md) | Asana ticketing, automation rules, saved filters |
+| [Deployment](deployment.md) | Docker, nginx/TLS, CI/CD, and environment configuration |
+| [Security](security.md) | Security considerations, encryption, audit logging, SIEM |
+
+## Quick Stats (as of March 2026)
+
+| Metric | Count |
+|--------|-------|
+| Backend Python files | 76 |
+| Frontend TSX files | 22 |
+| API endpoints | 86+ |
+| Database migrations | 16 |
+| Connector types | 9 |
+| Dashboard pages | 8 |

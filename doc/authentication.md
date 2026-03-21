@@ -1,139 +1,81 @@
 # Authentication & Authorization
 
-## SSO Login Flow
+## Authentication Methods
 
-GetVul uses OAuth 2.0 / OpenID Connect (OIDC) for single sign-on with Google Workspace and Microsoft Azure (Entra ID).
+### Email/Password
+- Registration: `POST /auth/register` (requires existing tenant domain)
+- Login: `POST /auth/login` → returns JWT access + refresh tokens
+- Password hashed with bcrypt
+- Password validated against tenant policy (length, complexity, history)
 
-```
-1. User clicks "Login with Google/Azure"
-       ↓
-2. Frontend calls GET /auth/login/{provider}
-       ↓
-3. Backend generates authorization_url with state token
-       ↓
-4. Frontend redirects user to provider's OAuth 2.0 consent screen
-       ↓
-5. User authenticates with Google/Azure
-       ↓
-6. Provider redirects to GET /auth/callback/{provider}?code=...&state=...
-       ↓
-7. Backend validates state, exchanges code for tokens
-       ↓
-8. Backend fetches user info (email, name, picture) from provider
-       ↓
-9. Backend looks up tenant by email domain
-       ↓
-10. Backend upserts user record in database
-       ↓
-11. Backend issues GetVul JWT tokens (access + refresh)
-       ↓
-12. Frontend stores tokens, adds to Authorization header
-```
+### SSO (Single Sign-On)
+- Google Workspace OIDC: `GET /auth/login/google` → redirect → callback
+- Azure Entra ID OIDC: `GET /auth/login/azure` → redirect → callback
+- Requires the corresponding directory connector to be configured first
+- SSO enforcement toggle: when enabled, password login disabled (with per-user override)
 
-## JWT Tokens
+### Token Management
+- Access tokens: 15 minutes (JWT, HS256)
+- Refresh tokens: 7 days
+- Auto-refresh: frontend automatically refreshes on 401
+- Token payload: user_id, tenant_id, email, role, jti
+- Refresh: `POST /auth/refresh` with refresh token
 
-### Access Token (15 minutes)
-```json
-{
-  "sub": "user-uuid",
-  "tenant_id": "tenant-uuid",
-  "email": "user@company.com",
-  "role": "ADMIN",
-  "jti": "unique-token-id",
-  "exp": 1710000000,
-  "iat": 1709999100
-}
-```
+## SSO Enforcement
 
-### Refresh Token (7 days)
-```json
-{
-  "sub": "user-uuid",
-  "tenant_id": "tenant-uuid",
-  "jti": "unique-token-id",
-  "exp": 1710604800,
-  "iat": 1709999100
-}
-```
+### Setup Flow
+1. Configure Google Workspace or Azure Entra ID connector in Connectors page
+2. Go to Settings → Authentication → select the IdP
+3. Enable "Enforce SSO" toggle
+4. All users must now login via SSO
 
-- **Algorithm:** HS256
-- **Signing key:** `JWT_SECRET_KEY` environment variable
-- **Token refresh:** `POST /auth/refresh` with refresh token returns new access token
-- **Revocation:** Optional Redis-based blocklist for invalidating tokens before expiry
+### Password Login Override
+- Owner can set `allow_password_login = true` per user in Settings → Users
+- These users can still use email/password even when SSO is enforced
+- Useful for admin accounts, service accounts, or emergency access
+
+### Backend Guard
+- API rejects `sso_enforced=true` if IdP is LOCAL
+- Switching IdP back to LOCAL auto-disables SSO enforcement
+
+## Password Policy
+
+Configurable per tenant in Settings → Authentication:
+
+| Setting | Options | Default |
+|---------|---------|---------|
+| Minimum length | 6, 8, 10, 12, 16 | 8 |
+| Require uppercase (A-Z) | on/off | off |
+| Require lowercase (a-z) | on/off | off |
+| Require digit (0-9) | on/off | off |
+| Require symbol (!@#$%) | on/off | off |
+| Password history | off, 3, 5, 10, 24 | off |
+
+Enforced on: registration, password change (by user or admin).
 
 ## Role-Based Access Control (RBAC)
 
-### Role Hierarchy
-
-| Role | Level | Description |
+| Role | Level | Permissions |
 |------|-------|-------------|
-| **OWNER** | 40 | Full tenant control. Can manage all settings and users. |
-| **ADMIN** | 30 | Manage connectors, settings, users. Can do everything except delete tenant. |
-| **ANALYST** | 20 | Update vulnerability statuses, create tickets. Read access to all data. |
-| **VIEWER** | 10 | Read-only access to dashboards, vulnerabilities, assets. |
-
-Higher roles inherit all permissions of lower roles.
-
-### Route Protection
-
-Routes are protected using FastAPI dependencies:
-
-```python
-@router.patch("/{id}/status")
-async def update_status(user=Depends(require_analyst)):  # Analyst+
-    ...
-
-@router.post("/")
-async def create_connector(user=Depends(require_admin)):  # Admin+
-    ...
-```
-
-### Permission Matrix
-
-| Action | Viewer | Analyst | Admin | Owner |
-|--------|--------|---------|-------|-------|
-| View dashboard & stats | Yes | Yes | Yes | Yes |
-| View vulnerabilities | Yes | Yes | Yes | Yes |
-| View assets | Yes | Yes | Yes | Yes |
-| View CSPM findings | Yes | Yes | Yes | Yes |
-| Update vuln status | — | Yes | Yes | Yes |
-| Bulk update statuses | — | Yes | Yes | Yes |
-| Create tickets | — | Yes | Yes | Yes |
-| Manage connectors | — | — | Yes | Yes |
-| Trigger sync | — | — | Yes | Yes |
-| Classify assets | — | — | Yes | Yes |
-| Manage users | — | — | Yes | Yes |
-| Tenant settings | — | — | — | Yes |
+| OWNER | 40 | Full control: settings, IdP, SSO, user management, certificates |
+| ADMIN | 30 | Connectors, user list, audit log, bulk actions |
+| ANALYST | 20 | Update vuln status, create tickets, manage rules, change own password |
+| VIEWER | 10 | Read-only access to all dashboards and data |
 
 ## Tenant Isolation
+- Every table has `tenant_id` foreign key
+- All queries scoped by authenticated user's tenant
+- One tenant per deployment (multi-tenant model exists but single-org enforced)
 
-- Every database table includes a `tenant_id` column
-- All queries are **automatically scoped** by the authenticated user's `tenant_id`
-- There is no way to access another tenant's data through the API
-- Tenants are identified by email domain during SSO (e.g., `@acme.com` → Acme tenant)
-- Each user belongs to exactly one tenant
+## API Endpoints
 
-## OIDC Provider Configuration
-
-### Google Workspace
-```env
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:8000/auth/callback/google
-```
-
-### Microsoft Azure (Entra ID)
-```env
-AZURE_CLIENT_ID=your-azure-client-id
-AZURE_CLIENT_SECRET=your-azure-client-secret
-AZURE_REDIRECT_URI=http://localhost:8000/auth/callback/azure
-```
-
-## Security Notes
-
-- Access tokens are intentionally short-lived (15 min) to limit exposure
-- Refresh tokens are longer-lived (7 days) for user convenience
-- The `state` parameter in OIDC flow prevents CSRF attacks
-- Token `jti` (JWT ID) enables individual token revocation via Redis blocklist
-- All sensitive operations require explicit role checks
-- Failed authentication returns generic error messages (no user enumeration)
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/auth/register` | POST | Public | Create account |
+| `/auth/login` | POST | Public | Password login |
+| `/auth/login/{provider}` | GET | Public | Initiate SSO |
+| `/auth/callback/{provider}` | GET | Public | SSO callback |
+| `/auth/refresh` | POST | Public | Refresh token |
+| `/auth/me` | GET | Bearer | Current user |
+| `/auth/change-password` | POST | Bearer | Change password |
+| `/auth/config` | GET | Public | Available auth methods |

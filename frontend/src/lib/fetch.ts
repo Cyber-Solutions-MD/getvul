@@ -12,6 +12,19 @@ export function getAuthHeaders(): Record<string, string> {
   };
 }
 
+/**
+ * Wrapper for fetch that auto-redirects to login on 401.
+ */
+export async function authedFetch(url: string, options?: RequestInit): Promise<Response> {
+  const resp = await fetch(url, { ...options, headers: { ...getAuthHeaders(), ...(options?.headers || {}) } });
+  if (resp.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    localStorage.removeItem("getvul_token");
+    localStorage.removeItem("getvul_refresh");
+    window.location.href = "/login";
+  }
+  return resp;
+}
+
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /**

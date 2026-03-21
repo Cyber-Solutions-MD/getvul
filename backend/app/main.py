@@ -193,6 +193,81 @@ async def export_resource(
 from datetime import datetime, timezone
 
 
+# ── Certificate management ──
+
+@app.get("/api/v1/certificates")
+async def get_certificate_info(user=Depends(get_current_user)):
+    """Get info about the installed TLS certificate."""
+    from app.certificates import get_cert_info
+    return get_cert_info()
+
+
+@app.post("/api/v1/certificates/upload")
+async def upload_certificate(
+    body: dict,
+    db=Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Upload a custom TLS certificate (PEM format)."""
+    from app.auth.rbac import ROLE_HIERARCHY
+    if ROLE_HIERARCHY.get(user.role.lower(), 0) < ROLE_HIERARCHY.get("owner", 4):
+        from fastapi import HTTPException as HE
+        raise HE(403, "Only owners can manage certificates")
+
+    cert_pem = body.get("certificate", "")
+    key_pem = body.get("private_key", "")
+    if not cert_pem or not key_pem:
+        from fastapi import HTTPException as HE
+        raise HE(400, "Certificate and private key are required (PEM format)")
+
+    from app.certificates import save_certificate
+    from app.audit import audit
+    result = save_certificate(cert_pem, key_pem)
+    await audit(db, user, "cert.upload", "certificate", None, {"subject": result.get("subject")})
+    await db.commit()
+    return result
+
+
+@app.post("/api/v1/certificates/self-signed")
+async def generate_self_signed_cert(
+    body: dict,
+    db=Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Generate a self-signed TLS certificate."""
+    from app.auth.rbac import ROLE_HIERARCHY
+    if ROLE_HIERARCHY.get(user.role.lower(), 0) < ROLE_HIERARCHY.get("owner", 4):
+        from fastapi import HTTPException as HE
+        raise HE(403, "Only owners can manage certificates")
+
+    from app.certificates import generate_self_signed
+    from app.audit import audit
+    hostname = body.get("hostname", "getvul.local")
+    result = generate_self_signed(hostname)
+    await audit(db, user, "cert.generate", "certificate", None, {"hostname": hostname, "type": "self-signed"})
+    await db.commit()
+    return result
+
+
+@app.delete("/api/v1/certificates")
+async def remove_certificate(
+    db=Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Remove the installed certificate."""
+    from app.auth.rbac import ROLE_HIERARCHY
+    if ROLE_HIERARCHY.get(user.role.lower(), 0) < ROLE_HIERARCHY.get("owner", 4):
+        from fastapi import HTTPException as HE
+        raise HE(403, "Only owners can manage certificates")
+
+    from app.certificates import delete_certificate
+    from app.audit import audit
+    result = delete_certificate()
+    await audit(db, user, "cert.delete", "certificate")
+    await db.commit()
+    return result
+
+
 # ── Dev-only routes ──
 if settings.environment == "development":
     from app.dev_routes import router as dev_router
