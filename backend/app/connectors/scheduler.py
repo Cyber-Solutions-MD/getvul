@@ -122,6 +122,16 @@ async def _scheduler_loop() -> None:
         except Exception as e:
             logger.error("ticket_rules_error", error=str(e))
 
+        # Run scheduled reports
+        try:
+            async with async_session_factory() as db:
+                from app.reports import run_due_reports
+                result = await run_due_reports(db)
+                if result.get("sent", 0) > 0:
+                    logger.info("scheduled_reports_sent", **result)
+        except Exception as e:
+            logger.error("scheduled_reports_error", error=str(e))
+
         # Check every 60 seconds
         await asyncio.sleep(60)
 

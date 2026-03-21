@@ -193,6 +193,62 @@ async def export_resource(
 from datetime import datetime, timezone
 
 
+# ── Scheduled Reports ──
+
+@app.get("/api/v1/reports")
+async def list_scheduled_reports(db=Depends(get_db), user=Depends(get_current_user)):
+    from app.reports import list_reports
+    return await list_reports(db, user.tenant_id)
+
+@app.post("/api/v1/reports")
+async def create_scheduled_report(body: dict, db=Depends(get_db), user=Depends(get_current_user)):
+    from app.reports import create_report
+    from app.audit import audit
+    result = await create_report(db, user.tenant_id, body)
+    await audit(db, user, "report.create", "report", result["id"], {"name": result["name"]})
+    await db.commit()
+    return result
+
+@app.patch("/api/v1/reports/{report_id}")
+async def update_scheduled_report(report_id: str, body: dict, db=Depends(get_db), user=Depends(get_current_user)):
+    import uuid as _uuid
+    from app.reports import update_report
+    result = await update_report(db, user.tenant_id, _uuid.UUID(report_id), body)
+    if not result:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Report not found")
+    await db.commit()
+    return result
+
+@app.delete("/api/v1/reports/{report_id}")
+async def delete_scheduled_report(report_id: str, db=Depends(get_db), user=Depends(get_current_user)):
+    import uuid as _uuid
+    from app.reports import delete_report
+    if not await delete_report(db, user.tenant_id, _uuid.UUID(report_id)):
+        from fastapi import HTTPException
+        raise HTTPException(404, "Report not found")
+    await db.commit()
+    return {"message": "Deleted"}
+
+@app.post("/api/v1/reports/{report_id}/send")
+async def send_report_now(report_id: str, db=Depends(get_db), user=Depends(get_current_user)):
+    """Manually trigger a scheduled report."""
+    import uuid as _uuid
+    from app.reports import ScheduledReport, _send_report
+    from sqlalchemy import select
+    r = (await db.execute(select(ScheduledReport).where(
+        ScheduledReport.id == _uuid.UUID(report_id), ScheduledReport.tenant_id == user.tenant_id
+    ))).scalar_one_or_none()
+    if not r:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Report not found")
+    await _send_report(db, r)
+    r.last_sent_at = datetime.now(timezone.utc)
+    r.last_send_status = "SUCCESS"
+    await db.commit()
+    return {"message": f"Report '{r.name}' generated", "format": r.format}
+
+
 # ── Certificate management ──
 
 @app.get("/api/v1/certificates")

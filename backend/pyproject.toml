@@ -20,6 +20,8 @@ dependencies = [
     "croniter>=3.0",
     "structlog>=24.0",
     "cryptography>=43.0",
+    "bcrypt>=4.0",
+    "fpdf2>=2.8",
 ]
 
 [project.optional-dependencies]

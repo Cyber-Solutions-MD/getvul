@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bug, AlertTriangle, ShieldAlert, Flame, Link2, Clock,
@@ -272,6 +272,14 @@ export default function DashboardPage() {
 }
 
 function ReportBuilder() {
+  // Saved/scheduled reports
+  const [reports, setReports] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+
+  const loadReports = useCallback(async () => {
+    try { setReports(await api("/api/v1/reports")); } catch {} finally { setLoadingReports(false); }
+  }, []);
+  useEffect(() => { loadReports(); }, [loadReports]);
   // Sections
   const [sections, setSections] = useState({
     vulns: true, assets: true, risk: true, top_hosts: true, top_remediations: true, tickets: true,
@@ -306,10 +314,40 @@ function ReportBuilder() {
       // Pass sections
       Object.entries(sections).forEach(([k, v]) => { if (v) params.append("section", k); });
 
-      const resp = await fetch(`${API}/api/v1/export/summary?${params}`, {
+      let resp = await fetch(`${API}/api/v1/export/summary?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!resp.ok) return;
+
+      // Auto-refresh on 401
+      if (resp.status === 401) {
+        const refresh = localStorage.getItem("getvul_refresh");
+        if (refresh) {
+          const rr = await fetch(`${API}/auth/refresh`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: refresh }),
+          });
+          if (rr.ok) {
+            const data = await rr.json();
+            localStorage.setItem("getvul_token", data.access_token);
+            resp = await fetch(`${API}/api/v1/export/summary?${params}`, {
+              headers: { Authorization: `Bearer ${data.access_token}` },
+            });
+          } else {
+            window.location.href = "/login";
+            return;
+          }
+        } else {
+          window.location.href = "/login";
+          return;
+        }
+      }
+
+      if (!resp.ok) {
+        const err = await resp.text().catch(() => "Unknown error");
+        alert(`Export failed: ${err}`);
+        return;
+      }
+
       const blob = await resp.blob();
       const ext = format === "pdf" ? "pdf" : format === "csv" ? "csv" : "txt";
       const url = URL.createObjectURL(blob);
@@ -318,7 +356,9 @@ function ReportBuilder() {
       a.download = `getvul_executive_report.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {} finally { setGenerating(false); }
+    } catch (e: any) {
+      alert(`Export error: ${e.message}`);
+    } finally { setGenerating(false); }
   }
 
   return (
@@ -453,6 +493,140 @@ function ReportBuilder() {
           Top {topCount} | Min risk {minRisk}+ | Format: {format.toUpperCase()}
         </div>
       </div>
+
+      {/* Save as Scheduled Report */}
+      <ScheduleReportSection
+        currentConfig={{
+          sections: Object.entries(sections).filter(([,v]) => v).map(([k]) => k),
+          filters: {
+            severity: severities, device_type: deviceTypes,
+            ...(exploitOnly ? { exploit_available: true } : {}),
+            ...(kevOnly ? { cisa_kev: true } : {}),
+            top_count: topCount, min_risk: minRisk,
+          },
+          format,
+        }}
+        reports={reports}
+        onReload={loadReports}
+      />
+    </div>
+  );
+}
+
+function ScheduleReportSection({ currentConfig, reports, onReload }: {
+  currentConfig: { sections: string[]; filters: any; format: string };
+  reports: any[];
+  onReload: () => void;
+}) {
+  const [showSave, setShowSave] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveSchedule, setSaveSchedule] = useState("weekly");
+  const [saveRecipients, setSaveRecipients] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSaveSchedule() {
+    if (!saveName.trim() || !saveRecipients.trim()) return;
+    setSaving(true);
+    try {
+      await api("/api/v1/reports", {
+        method: "POST",
+        body: JSON.stringify({
+          name: saveName,
+          schedule: saveSchedule,
+          format: currentConfig.format,
+          recipients: saveRecipients.split(",").map((e: string) => e.trim()).filter(Boolean),
+          sections: currentConfig.sections,
+          filters: currentConfig.filters,
+        }),
+      });
+      setSaveName(""); setSaveRecipients(""); setShowSave(false);
+      onReload();
+    } catch {} finally { setSaving(false); }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Save as scheduled */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-medium text-white">Schedule This Report</h3>
+            <p className="text-xs text-gray-500">Save the current configuration as a recurring scheduled report</p>
+          </div>
+          {!showSave && (
+            <button onClick={() => setShowSave(true)}
+              className="rounded-lg border border-indigo-500/50 bg-indigo-500/10 px-4 py-2 text-sm text-indigo-400 hover:bg-indigo-500/20">
+              + Schedule
+            </button>
+          )}
+        </div>
+
+        {showSave && (
+          <div className="space-y-3 border-t border-gray-700 pt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">Report Name</label>
+                <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Weekly Security Summary"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">Recipients (comma-separated)</label>
+                <input value={saveRecipients} onChange={e => setSaveRecipients(e.target.value)} placeholder="ciso@company.com"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400">Frequency:</span>
+              {["daily", "weekly", "monthly"].map(s => (
+                <button key={s} onClick={() => setSaveSchedule(s)}
+                  className={`rounded-md border px-3 py-1 text-xs capitalize ${saveSchedule === s ? "border-indigo-500 bg-indigo-500/15 text-indigo-400" : "border-gray-700 bg-gray-900 text-gray-500"}`}>
+                  {s}
+                </button>
+              ))}
+              <div className="ml-auto flex gap-2">
+                <button onClick={handleSaveSchedule} disabled={saving || !saveName.trim() || !saveRecipients.trim()}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">
+                  {saving ? "Saving..." : "Save Schedule"}
+                </button>
+                <button onClick={() => setShowSave(false)} className="text-xs text-gray-500">Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Existing scheduled reports */}
+      {reports.length > 0 && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+          <h3 className="text-sm font-medium text-white mb-3">Scheduled Reports ({reports.length})</h3>
+          <div className="space-y-2">
+            {reports.map((r: any) => (
+              <div key={r.id} className={`flex items-center justify-between rounded-lg border px-4 py-3 ${r.is_enabled ? "border-gray-700 bg-gray-800/50" : "border-gray-800 opacity-50"}`}>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${r.is_enabled ? "bg-emerald-400" : "bg-gray-500"}`} />
+                    <span className="text-sm text-white">{r.name}</span>
+                    <span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-400">{r.schedule}</span>
+                    <span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-400">{r.format?.toUpperCase()}</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-gray-500 ml-4">
+                    {(r.recipients || []).join(", ")}
+                    {r.last_sent_at && <span> · Last: {new Date(r.last_sent_at).toLocaleDateString()}</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={async () => { await api(`/api/v1/reports/${r.id}/send`, { method: "POST" }); onReload(); }}
+                    className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:text-white">Send</button>
+                  <button onClick={async () => { await api(`/api/v1/reports/${r.id}`, { method: "PATCH", body: JSON.stringify({ is_enabled: !r.is_enabled }) }); onReload(); }}
+                    className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:text-white">{r.is_enabled ? "Pause" : "Enable"}</button>
+                  <button onClick={async () => { if (confirm(`Delete "${r.name}"?`)) { await api(`/api/v1/reports/${r.id}`, { method: "DELETE" }); onReload(); }}}
+                    className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-red-400">Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

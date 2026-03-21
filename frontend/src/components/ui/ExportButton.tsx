@@ -26,9 +26,33 @@ export default function ExportButton({ resource, label, filters }: Props) {
         }
       }
 
-      const resp = await fetch(`${API}/api/v1/export/${resource}?${params}`, {
+      let resp = await fetch(`${API}/api/v1/export/${resource}?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      // Auto-refresh on 401
+      if (resp.status === 401) {
+        const refresh = typeof window !== "undefined" ? localStorage.getItem("getvul_refresh") : null;
+        if (refresh) {
+          const rr = await fetch(`${API}/auth/refresh`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: refresh }),
+          });
+          if (rr.ok) {
+            const data = await rr.json();
+            localStorage.setItem("getvul_token", data.access_token);
+            resp = await fetch(`${API}/api/v1/export/${resource}?${params}`, {
+              headers: { Authorization: `Bearer ${data.access_token}` },
+            });
+          } else {
+            window.location.href = "/login";
+            return;
+          }
+        } else {
+          window.location.href = "/login";
+          return;
+        }
+      }
 
       if (!resp.ok) return;
 

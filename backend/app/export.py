@@ -250,7 +250,7 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
     top_hosts_q = select(Asset.hostname, Asset.risk_score, Asset.device_category, Asset.assigned_user).where(*asset_where, Asset.risk_score.isnot(None)).order_by(Asset.risk_score.desc()).limit(top_count)
     top_hosts = (await db.execute(top_hosts_q)).all()
 
-    # Top N remediations by impact (filtered)
+    # Top N remediations by impact (filtered by device type)
     rem_q = (
         select(
             Vulnerability.remediation_action, Vulnerability.affected_product,
@@ -258,8 +258,16 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
             func.count(Vulnerability.id).label("vulns"),
             func.max(case((Vulnerability.severity == "CRITICAL", 4), (Vulnerability.severity == "HIGH", 3),
                           (Vulnerability.severity == "MEDIUM", 2), else_=1)).label("max_sev"),
-        ).where(*open_filter, Vulnerability.remediation_id.isnot(None))
-        .group_by(Vulnerability.remediation_action, Vulnerability.affected_product)
+        )
+        .join(Asset, Vulnerability.asset_id == Asset.id)
+        .where(*open_filter, Vulnerability.remediation_id.isnot(None))
+    )
+    if dev_filter:
+        rem_q = rem_q.where(Asset.device_category.in_(dev_filter))
+    if min_risk > 0:
+        rem_q = rem_q.where(Asset.risk_score >= min_risk)
+    rem_q = (
+        rem_q.group_by(Vulnerability.remediation_action, Vulnerability.affected_product)
         .order_by(func.count(func.distinct(Vulnerability.asset_id)).desc())
         .limit(top_count)
     )
@@ -443,8 +451,9 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
         row(label, f"{val:,}")
     pdf.ln(5)
 
-    # Top 5 hosts
-    section("Top 5 Riskiest Hosts")
+    n = len(d["top_hosts"])
+    # Top N hosts
+    section(f"Top {n} Riskiest Hosts")
     pdf.set_font("Helvetica", "B", 9)
     pdf.cell(55, 6, "  Hostname"); pdf.cell(20, 6, "Risk", align="R"); pdf.cell(35, 6, "Type"); pdf.cell(0, 6, "User", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 9)
@@ -453,8 +462,9 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
         pdf.cell(35, 5, f"  {h['type'] or '-'}"); pdf.cell(0, 5, h["user"] or "-", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(5)
 
-    # Top 5 remediations
-    section("Top 5 Remediations (by impact)")
+    nr = len(d["top_remediations"])
+    # Top N remediations
+    section(f"Top {nr} Remediations (by impact)")
     pdf.set_font("Helvetica", "B", 9)
     pdf.cell(45, 6, "  Product"); pdf.cell(20, 6, "Sev"); pdf.cell(15, 6, "Hosts", align="R"); pdf.cell(15, 6, "Vulns", align="R")
     pdf.cell(0, 6, "  Action", new_x="LMARGIN", new_y="NEXT")
