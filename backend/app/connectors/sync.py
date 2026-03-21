@@ -14,6 +14,9 @@ from app.assets.models import Asset
 from app.assets.risk_score import compute_risk_scores
 from app.connectors.base import BaseConnector, NormalizedMisconfiguration, NormalizedVulnerability
 from app.connectors.crowdstrike import CrowdStrikeConnector
+from app.connectors.nessus import NessusConnector
+from app.connectors.defender import DefenderConnector
+from app.connectors.wiz import WizConnector
 from app.connectors.service import get_decrypted_credentials
 from app.cspm.models import Misconfiguration
 from app.ticketing.models import ConnectorConfig, SyncLog
@@ -24,6 +27,9 @@ logger = structlog.get_logger()
 
 CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
     "CROWDSTRIKE": CrowdStrikeConnector,
+    "NESSUS": NessusConnector,
+    "DEFENDER": DefenderConnector,
+    "WIZ": WizConnector,
 }
 
 # Special connectors that don't follow the standard vuln/cspm pattern
@@ -157,6 +163,9 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
             last_seen_at=_last_seen_at,
             host_status=getattr(v, "host_status", None),
             crowdstrike_aid=getattr(v, "crowdstrike_aid", None),
+            defender_device_id=getattr(v, "defender_device_id", None),
+            wiz_asset_id=getattr(v, "wiz_asset_id", None),
+            nessus_host_id=getattr(v, "nessus_host_id", None),
         )
         db.add(asset)
         await db.flush()
@@ -192,6 +201,12 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
             asset.host_status = v.host_status
         if getattr(v, "crowdstrike_aid", None):
             asset.crowdstrike_aid = v.crowdstrike_aid
+        if getattr(v, "defender_device_id", None):
+            asset.defender_device_id = v.defender_device_id
+        if getattr(v, "wiz_asset_id", None):
+            asset.wiz_asset_id = v.wiz_asset_id
+        if getattr(v, "nessus_host_id", None):
+            asset.nessus_host_id = v.nessus_host_id
     return asset
 
 

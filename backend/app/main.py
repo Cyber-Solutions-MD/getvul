@@ -249,6 +249,59 @@ async def send_report_now(report_id: str, db=Depends(get_db), user=Depends(get_c
     return {"message": f"Report '{r.name}' generated", "format": r.format}
 
 
+# ── SMTP / Email ──
+
+@app.post("/api/v1/smtp/test")
+async def test_smtp(
+    body: dict,
+    db=Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Test SMTP connection with the provided config."""
+    from app.email import test_smtp_connection
+    cfg = body.get("smtp_config")
+    if not cfg:
+        # Use saved config from tenant
+        from sqlalchemy import select
+        from app.tenants.models import Tenant
+        tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+        cfg = tenant.smtp_config
+    if not cfg or not cfg.get("host"):
+        from fastapi import HTTPException
+        raise HTTPException(400, "No SMTP configuration provided")
+    return test_smtp_connection(cfg)
+
+
+@app.post("/api/v1/smtp/test-email")
+async def send_test_email(
+    body: dict,
+    db=Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Send a test email to verify SMTP config works end-to-end."""
+    from sqlalchemy import select
+    from app.tenants.models import Tenant
+    from app.email import send_email
+
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+    cfg = tenant.smtp_config
+    if not cfg or not cfg.get("host"):
+        from fastapi import HTTPException
+        raise HTTPException(400, "SMTP is not configured. Save SMTP settings first.")
+
+    recipient = body.get("to") or user.email
+    result = send_email(
+        smtp_config=cfg,
+        to=[recipient],
+        subject="GetVul — SMTP Test",
+        body=f"This is a test email from GetVul.\n\nIf you received this, your SMTP configuration is working correctly.\n\nSent by: {user.email}",
+    )
+    from app.audit import audit
+    await audit(db, user, "smtp.test", "email", None, {"to": recipient, "ok": result.get("ok")})
+    await db.commit()
+    return result
+
+
 # ── Certificate management ──
 
 @app.get("/api/v1/certificates")

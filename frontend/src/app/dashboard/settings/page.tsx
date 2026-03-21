@@ -75,17 +75,11 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
-            <h2 className="text-lg font-medium text-white mb-4">Your Account</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><span className="text-gray-500">Email</span><p className="text-white mt-1">{user?.email}</p></div>
-              <div><span className="text-gray-500">Role</span><p className="text-white mt-1">{user?.role}</p></div>
-            </div>
-            <ChangePasswordForm />
-          </div>
-
           {/* TLS Certificate */}
           {isOwner && <TlsCertificatePanel />}
+
+          {/* SMTP / Email */}
+          {isOwner && <SmtpConfig />}
         </div>
       )}
 
@@ -749,6 +743,163 @@ function TlsCertificatePanel() {
   );
 }
 
+function SmtpConfig() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("587");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
+  const [useTls, setUseTls] = useState(false);
+  const [useStarttls, setUseStarttls] = useState(true);
+
+  useEffect(() => {
+    api("/api/v1/tenant/settings")
+      .then(d => {
+        const cfg = d.smtp_config || {};
+        setEnabled(cfg.enabled || false);
+        setHost(cfg.host || "");
+        setPort(String(cfg.port || 587));
+        setUsername(cfg.username || "");
+        setPassword(cfg.password || "");
+        setFromEmail(cfg.from_email || "");
+        setUseTls(cfg.use_tls || false);
+        setUseStarttls(cfg.use_starttls !== false);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true); setMsg("");
+    try {
+      await api("/api/v1/tenant/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          smtp_config: { enabled, host, port: parseInt(port), username, password, from_email: fromEmail, use_tls: useTls, use_starttls: useStarttls },
+        }),
+      });
+      setMsg(enabled && host ? "SMTP configuration saved" : "SMTP disabled");
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setSaving(false); }
+  }
+
+  async function handleTest() {
+    setTesting(true); setMsg("");
+    try {
+      const r = await api("/api/v1/smtp/test", { method: "POST", body: JSON.stringify({}) });
+      setMsg(r.ok ? "Connection successful" : `Failed: ${r.error}`);
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setTesting(false); }
+  }
+
+  async function handleTestEmail() {
+    setTesting(true); setMsg("");
+    try {
+      const r = await api("/api/v1/smtp/test-email", { method: "POST", body: JSON.stringify({}) });
+      setMsg(r.ok ? "Test email sent — check your inbox" : `Failed: ${r.error}`);
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setTesting(false); }
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+      <h2 className="text-lg font-medium text-white mb-1">Email / SMTP</h2>
+      <p className="text-xs text-gray-500 mb-4">Configure SMTP to deliver scheduled reports and notifications by email</p>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
+          <div>
+            <p className="text-sm text-white font-medium">Enable Email Delivery</p>
+            <p className="text-xs text-gray-500">Scheduled reports will be emailed to configured recipients</p>
+          </div>
+          <button onClick={() => setEnabled(!enabled)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? "bg-indigo-600" : "bg-gray-700"}`}>
+            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+
+        {enabled && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">SMTP Host</label>
+                <input value={host} onChange={e => setHost(e.target.value)} placeholder="smtp.gmail.com"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">Port</label>
+                <input value={port} onChange={e => setPort(e.target.value)} placeholder="587"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">Username</label>
+                <input value={username} onChange={e => setUsername(e.target.value)} placeholder="apikey or email"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">Password / API Key</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">From Email</label>
+                <input value={fromEmail} onChange={e => setFromEmail(e.target.value)} placeholder="noreply@company.com"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">Encryption</label>
+                <select value={useTls ? "tls" : useStarttls ? "starttls" : "none"}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setUseTls(v === "tls");
+                    setUseStarttls(v === "starttls");
+                    if (v === "tls" && port === "587") setPort("465");
+                    if (v === "starttls" && port === "465") setPort("587");
+                  }}
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                  <option value="starttls">STARTTLS (port 587)</option>
+                  <option value="tls">Implicit TLS (port 465)</option>
+                  <option value="none">None (port 25)</option>
+                </select>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600">
+              Common providers: Gmail (smtp.gmail.com:587, use App Password), SendGrid (smtp.sendgrid.net:587, username: apikey),
+              Microsoft 365 (smtp.office365.com:587), Amazon SES (email-smtp.region.amazonaws.com:587)
+            </p>
+          </>
+        )}
+
+        {msg && <p className={`text-xs ${msg.includes("Error") || msg.includes("Failed") ? "text-red-400" : "text-emerald-400"}`}>{msg}</p>}
+
+        <div className="flex gap-2">
+          <button onClick={handleSave} disabled={saving}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+            {saving ? "Saving..." : "Save Configuration"}
+          </button>
+          {enabled && host && (
+            <>
+              <button onClick={handleTest} disabled={testing}
+                className="rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 disabled:opacity-50">
+                {testing ? "Testing..." : "Test Connection"}
+              </button>
+              <button onClick={handleTestEmail} disabled={testing}
+                className="rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 disabled:opacity-50">
+                Send Test Email
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OrgField({ label, field, value, editable, mono, onSave }: {
   label: string; field: string; value: string; editable: boolean; mono?: boolean;
   onSave: (v: string) => Promise<void>;
@@ -944,39 +1095,3 @@ function AddUserButton({ onAdded }: { onAdded: () => void }) {
   );
 }
 
-function ChangePasswordForm() {
-  const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState("");
-  const [newPass, setNewPass] = useState("");
-  const [msg, setMsg] = useState("");
-
-  if (!open) return (
-    <button onClick={() => setOpen(true)} className="mt-4 text-sm text-indigo-400 hover:text-indigo-300">Change password</button>
-  );
-
-  return (
-    <div className="mt-4 rounded-lg border border-gray-700 bg-gray-800 p-4 space-y-3">
-      <input type="password" value={current} onChange={e => setCurrent(e.target.value)} placeholder="Current password (if set)"
-        className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
-      <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="New password (min 8 chars)"
-        className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
-      {msg && <p className={`text-xs ${msg.startsWith("Error") ? "text-red-400" : "text-emerald-400"}`}>{msg}</p>}
-      <div className="flex gap-2">
-        <button onClick={async () => {
-          try {
-            await api("/auth/change-password", {
-              method: "POST",
-              body: JSON.stringify({ current_password: current || null, new_password: newPass }),
-            });
-            setMsg("Password updated");
-            setCurrent(""); setNewPass("");
-          } catch (e: any) { setMsg(`Error: ${e.message}`); }
-        }} disabled={newPass.length < 8}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">
-          Update
-        </button>
-        <button onClick={() => { setOpen(false); setMsg(""); }} className="text-xs text-gray-500">Cancel</button>
-      </div>
-    </div>
-  );
-}

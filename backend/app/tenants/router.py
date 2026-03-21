@@ -105,7 +105,18 @@ async def get_tenant_settings(
         "timezone": tenant.timezone,
         "password_policy": tenant.password_policy or {"min_length": 8, "require_uppercase": False, "require_lowercase": False, "require_digit": False, "require_symbol": False, "history_count": 0},
         "syslog_config": tenant.syslog_config,
+        "smtp_config": _safe_smtp(getattr(tenant, "smtp_config", None)),
     }
+
+
+def _safe_smtp(cfg: dict | None) -> dict | None:
+    """Return smtp_config with password masked for the frontend."""
+    if not cfg:
+        return None
+    safe = dict(cfg)
+    if safe.get("password"):
+        safe["password"] = "••••••••"
+    return safe
 
 
 @router.patch("/settings")
@@ -155,8 +166,17 @@ async def update_tenant_settings(
         else:
             disable_syslog()
 
-    # Audit log all changed fields
-    changed = {k: v for k, v in body.items() if k != "syslog_config" or (v and v.get("enabled"))}
+    if "smtp_config" in body:
+        from sqlalchemy.orm.attributes import flag_modified as _fm_smtp
+        new_smtp = body["smtp_config"]
+        # If password is masked, keep the existing one
+        if new_smtp and new_smtp.get("password") == "••••••••" and tenant.smtp_config:
+            new_smtp["password"] = tenant.smtp_config.get("password", "")
+        tenant.smtp_config = new_smtp
+        _fm_smtp(tenant, "smtp_config")
+
+    # Audit log all changed fields (mask smtp password)
+    changed = {k: v for k, v in body.items() if k not in ("syslog_config", "smtp_config") or (v and v.get("enabled"))}
     await audit(db, user, "settings.update", "tenant", str(tenant.id), changed)
 
     await db.commit()

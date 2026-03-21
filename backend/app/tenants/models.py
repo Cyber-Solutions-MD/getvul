@@ -37,6 +37,7 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     timezone: Mapped[str] = mapped_column(String(50), default="UTC", server_default="UTC")
     password_policy: Mapped[dict | None] = mapped_column(JSONB)
     syslog_config: Mapped[dict | None] = mapped_column(JSONB)
+    smtp_config: Mapped[dict | None] = mapped_column(JSONB)
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 

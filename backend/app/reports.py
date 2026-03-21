@@ -186,15 +186,45 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
     else:
         filepath.write_text(content)
 
+    # Send via email if SMTP is configured
+    email_result = None
+    if report.recipients:
+        from sqlalchemy import select as _sel
+        from app.tenants.models import Tenant
+        tenant = (await db.execute(_sel(Tenant).where(Tenant.id == report.tenant_id))).scalar_one_or_none()
+        smtp_cfg = tenant.smtp_config if tenant else None
+
+        if smtp_cfg and smtp_cfg.get("enabled") and smtp_cfg.get("host"):
+            from app.email import send_email
+            mime = {
+                "pdf": "application/pdf",
+                "csv": "text/csv",
+            }.get(report.format or "txt", "text/plain")
+
+            email_result = send_email(
+                smtp_config=smtp_cfg,
+                to=report.recipients,
+                subject=f"GetVul Report: {report.name}",
+                body=f"Attached is your scheduled report \"{report.name}\" ({report.schedule}).\n\nGenerated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+                attachment=content if isinstance(content, (bytes, bytearray)) else content.encode("utf-8"),
+                attachment_filename=filename,
+                attachment_mime=mime,
+            )
+
     # Log for audit
-    from app.audit import audit, AuditLog
-    # Create a minimal audit entry without a user context
+    from app.audit import AuditLog
     log = AuditLog(
         tenant_id=report.tenant_id,
         action="report.scheduled_send",
         resource_type="report",
         resource_id=str(report.id),
-        details={"name": report.name, "recipients": report.recipients, "file": filename},
+        details={
+            "name": report.name,
+            "recipients": report.recipients,
+            "file": filename,
+            "email_sent": email_result.get("ok") if email_result else False,
+            "email_error": email_result.get("error") if email_result and not email_result.get("ok") else None,
+        },
         created_at=datetime.now(timezone.utc),
     )
     db.add(log)
