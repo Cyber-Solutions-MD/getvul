@@ -140,16 +140,18 @@ jobs:
       - name: Start application stack
         run: |
           docker compose -f docker-compose.ci.yml up -d --build
-          echo "Waiting for backend to be healthy..."
+          echo "Waiting for backend..."
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-              echo "Backend is ready!"
-              break
-            fi
-            echo "  attempt $i/30..."
-            sleep 5
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then echo "Backend ready!"; break; fi
+            echo "  attempt $i/30..."; sleep 5
           done
           curl -sf http://localhost:8000/health || (docker compose -f docker-compose.ci.yml logs backend && exit 1)
+          echo "Waiting for frontend..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then echo "Frontend ready!"; break; fi
+            echo "  attempt $i/30..."; sleep 5
+          done
+          curl -sf http://localhost:3000 > /dev/null 2>&1 || echo "Frontend not ready — skipping frontend scan"
 
       - name: ZAP API Scan (OpenAPI)
         uses: zaproxy/action-api-scan@v0.9.0
@@ -163,6 +165,14 @@ jobs:
         uses: zaproxy/action-baseline@v0.14.0
         with:
           target: http://localhost:8000
+          cmd_options: "-a"
+          allow_issue_writing: false
+        continue-on-error: true
+
+      - name: ZAP Baseline Scan (Frontend)
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: http://localhost:3000
           cmd_options: "-a"
           allow_issue_writing: false
         continue-on-error: true

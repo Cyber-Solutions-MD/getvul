@@ -47,3 +47,16 @@ services:
       timeout: 3s
       retries: 15
       start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    command: npm run dev -- --port 3000
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://backend:8000"
+    depends_on:
+      backend:
+        condition: service_healthy
