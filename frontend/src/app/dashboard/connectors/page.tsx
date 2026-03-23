@@ -79,7 +79,7 @@ export default function ConnectorsPage() {
     if (syncingIds.size === 0) return;
     const interval = setInterval(async () => {
       let anyRunning = false;
-      for (const id of syncingIds) {
+      for (const id of Array.from(syncingIds)) {
         try {
           const status = await api<{ is_running: boolean }>(`/api/v1/connectors/${id}/sync-status`);
           if (status.is_running) { anyRunning = true; }
