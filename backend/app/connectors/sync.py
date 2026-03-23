@@ -17,6 +17,8 @@ from app.connectors.crowdstrike import CrowdStrikeConnector
 from app.connectors.nessus import NessusConnector
 from app.connectors.defender import DefenderConnector
 from app.connectors.wiz import WizConnector
+from app.connectors.qualys import QualysConnector
+from app.connectors.rapid7 import Rapid7Connector
 from app.connectors.service import get_decrypted_credentials
 from app.cspm.models import Misconfiguration
 from app.ticketing.models import ConnectorConfig, SyncLog
@@ -30,10 +32,12 @@ CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
     "NESSUS": NessusConnector,
     "DEFENDER": DefenderConnector,
     "WIZ": WizConnector,
+    "QUALYS": QualysConnector,
+    "RAPID7": Rapid7Connector,
 }
 
 # Special connectors that don't follow the standard vuln/cspm pattern
-SPECIAL_CONNECTORS = {"JAMF", "HUMAANS", "ASANA", "GOOGLE_WORKSPACE", "AZURE_ENTRA_ID"}
+SPECIAL_CONNECTORS = {"JAMF", "HUMAANS", "ASANA", "JIRA", "GOOGLE_WORKSPACE", "AZURE_ENTRA_ID", "OKTA", "INTUNE"}
 
 
 async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
@@ -55,7 +59,15 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         from app.connectors.directory_sync import run_directory_sync
         return await run_directory_sync(db, connector_config)
 
-    if connector_config.connector_type == "ASANA":
+    if connector_config.connector_type == "OKTA":
+        from app.connectors.okta_sync import run_okta_sync
+        return await run_okta_sync(db, connector_config)
+
+    if connector_config.connector_type == "INTUNE":
+        from app.connectors.intune_sync import run_intune_sync
+        return await run_intune_sync(db, connector_config)
+
+    if connector_config.connector_type in ("ASANA", "JIRA"):
         # Asana is a ticketing connector — no data to sync, just config storage
         log.status = "SUCCESS"
         log.finished_at = datetime.now(timezone.utc)

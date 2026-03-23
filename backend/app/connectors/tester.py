@@ -283,16 +283,173 @@ async def test_humaans(credentials: dict, config: dict) -> ConnectorTestResult:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
 
+async def test_qualys(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Qualys VMDR API access."""
+    url = config.get("base_url", credentials.get("url", "")).rstrip("/")
+    username = credentials.get("username", "")
+    password = credentials.get("password", "")
+    if not all([url, username, password]):
+        return ConnectorTestResult(success=False, message="URL, username and password are required")
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{url}/api/2.0/fo/asset/host/?action=list&truncation_limit=1",
+                auth=(username, password),
+                headers={"X-Requested-With": "GetVul", "Accept": "application/json"},
+            )
+        if resp.status_code == 200:
+            return ConnectorTestResult(success=True, message="Connected to Qualys VMDR")
+        elif resp.status_code == 401:
+            return ConnectorTestResult(success=False, message="Authentication failed — check username/password")
+        return ConnectorTestResult(success=False, message=f"HTTP {resp.status_code}: {resp.text[:300]}")
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
+async def test_rapid7(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Rapid7 InsightVM API access."""
+    url = config.get("base_url", credentials.get("url", "")).rstrip("/")
+    username = credentials.get("username", "")
+    password = credentials.get("password", "")
+    if not all([url, username, password]):
+        return ConnectorTestResult(success=False, message="Console URL, username and password are required")
+    try:
+        async with httpx.AsyncClient(timeout=15, verify=False) as client:
+            resp = await client.get(
+                f"{url}/api/3/assets?page=0&size=1",
+                auth=(username, password),
+                headers={"Accept": "application/json"},
+            )
+        if resp.status_code == 200:
+            total = resp.json().get("page", {}).get("totalResources", "?")
+            return ConnectorTestResult(success=True, message=f"Connected to InsightVM — {total} assets", details={"total_assets": total})
+        elif resp.status_code == 401:
+            return ConnectorTestResult(success=False, message="Authentication failed")
+        return ConnectorTestResult(success=False, message=f"HTTP {resp.status_code}")
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
+async def test_jira(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Jira Cloud/Server API access."""
+    import base64
+    url = config.get("base_url", credentials.get("url", "")).rstrip("/")
+    email = credentials.get("email", "")
+    token = credentials.get("api_token", "")
+    if not all([url, email, token]):
+        return ConnectorTestResult(success=False, message="Jira URL, email, and API token are required")
+    try:
+        auth_str = base64.b64encode(f"{email}:{token}".encode()).decode()
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{url}/rest/api/2/myself",
+                headers={"Authorization": f"Basic {auth_str}", "Accept": "application/json"},
+            )
+        if resp.status_code == 200:
+            data = resp.json()
+            # List projects
+            proj_resp = await httpx.AsyncClient(timeout=15).get(
+                f"{url}/rest/api/2/project",
+                headers={"Authorization": f"Basic {auth_str}", "Accept": "application/json"},
+            )
+            proj_count = len(proj_resp.json()) if proj_resp.status_code == 200 else "?"
+            return ConnectorTestResult(
+                success=True,
+                message=f"Authenticated as {data.get('displayName', data.get('name', email))}",
+                details={"user": data.get("displayName"), "email": data.get("emailAddress"), "projects": proj_count},
+            )
+        return ConnectorTestResult(success=False, message=f"Authentication failed: HTTP {resp.status_code}")
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
+async def test_okta(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Okta API access."""
+    domain = config.get("domain", credentials.get("domain", "")).strip().rstrip("/")
+    token = credentials.get("api_token", "")
+    if not domain or not token:
+        return ConnectorTestResult(success=False, message="Okta domain and API token are required")
+    # Normalize domain
+    if not domain.startswith("https://"):
+        domain = f"https://{domain}"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{domain}/api/v1/users?limit=1",
+                headers={"Authorization": f"SSWS {token}", "Accept": "application/json"},
+            )
+        if resp.status_code == 200:
+            # Get user count from a second call
+            groups_resp = await httpx.AsyncClient(timeout=15).get(
+                f"{domain}/api/v1/groups?limit=1",
+                headers={"Authorization": f"SSWS {token}", "Accept": "application/json"},
+            )
+            return ConnectorTestResult(
+                success=True,
+                message="Connected to Okta",
+                details={
+                    "users_access": "✓",
+                    "groups_access": "✓" if groups_resp.status_code == 200 else f"✗ ({groups_resp.status_code})",
+                },
+            )
+        return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
+async def test_intune(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test Microsoft Intune API access."""
+    tenant_id = credentials.get("tenant_id", "")
+    client_id = credentials.get("client_id", "")
+    client_secret = credentials.get("client_secret", "")
+    if not all([tenant_id, client_id, client_secret]):
+        return ConnectorTestResult(success=False, message="Tenant ID, Client ID, and Client Secret are required")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "scope": "https://graph.microsoft.com/.default",
+                },
+            )
+            if resp.status_code != 200:
+                return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
+            token = resp.json()["access_token"]
+
+            devices_resp = await client.get(
+                "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"$top": 1, "$select": "id,deviceName"},
+            )
+            return ConnectorTestResult(
+                success=True,
+                message="Connected to Microsoft Intune",
+                details={
+                    "devices_access": "✓" if devices_resp.status_code == 200 else f"✗ ({devices_resp.status_code})",
+                },
+            )
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
 TESTERS = {
     "CROWDSTRIKE": test_crowdstrike,
     "NESSUS": test_nessus,
     "DEFENDER": test_defender,
     "WIZ": test_wiz,
+    "QUALYS": test_qualys,
+    "RAPID7": test_rapid7,
     "JAMF": test_jamf,
     "GOOGLE_WORKSPACE": test_google_workspace,
     "AZURE_ENTRA_ID": test_azure_entra_id,
+    "OKTA": test_okta,
     "ASANA": test_asana,
+    "JIRA": test_jira,
     "HUMAANS": test_humaans,
+    "INTUNE": test_intune,
 }
 
 

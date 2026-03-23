@@ -40,7 +40,7 @@ async def find_matching_assets(
     db: AsyncSession, tenant_id: uuid.UUID, conditions: dict,
 ) -> list[Asset]:
     """Find assets matching the rule conditions."""
-    query = select(Asset).where(Asset.tenant_id == tenant_id)
+    query = select(Asset).where(Asset.tenant_id == tenant_id, Asset.is_ignored.is_(False))
 
     # Device category filter
     categories = conditions.get("device_category")

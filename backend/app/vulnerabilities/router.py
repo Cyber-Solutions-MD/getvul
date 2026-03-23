@@ -86,6 +86,47 @@ async def overview_stats(
     return await get_overview_stats(db, user.tenant_id)
 
 
+# ── SLA Tracking ──
+
+
+@router.get("/sla/metrics")
+async def sla_metrics(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    """Get SLA compliance metrics."""
+    from app.vulnerabilities.sla_service import get_sla_metrics
+    return await get_sla_metrics(db, user.tenant_id)
+
+
+@router.post("/sla/backfill")
+async def sla_backfill(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+):
+    """Backfill SLA due dates for vulns that don't have one."""
+    from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
+    result = await backfill_sla_due_dates(db, user.tenant_id)
+    breaches = await check_sla_breaches(db, user.tenant_id)
+    await db.commit()
+    return {**result, **breaches}
+
+
+@router.post("/sla/recalculate")
+async def sla_recalculate(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+):
+    """Recalculate all SLA due dates based on current config."""
+    from app.vulnerabilities.sla_service import recalculate_sla_due_dates, check_sla_breaches
+    result = await recalculate_sla_due_dates(db, user.tenant_id)
+    breaches = await check_sla_breaches(db, user.tenant_id)
+    from app.audit import audit
+    await audit(db, user, "sla.recalculate", "vulnerability", None, {**result, **breaches})
+    await db.commit()
+    return {**result, **breaches}
+
+
 # ── Saved Filters (must be before /{vuln_id} to avoid route conflicts) ──
 
 
@@ -216,6 +257,110 @@ async def update_status(
     from app.audit import audit
     await audit(db, user, "vuln.status_update", "vulnerability", str(vuln_id), {"status": body.status})
     return {"message": "Status updated", "status": body.status}
+
+
+@router.post("/cve/{cve_id}/ignore")
+async def ignore_cve(
+    cve_id: str,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+    body: dict = {},
+):
+    """Ignore a CVE — suppress all vulnerability instances of this CVE across all assets."""
+    from sqlalchemy import update as sql_update
+    from datetime import datetime, timezone
+    from app.assets.risk_score import compute_risk_scores
+
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        sql_update(Vulnerability)
+        .where(
+            Vulnerability.tenant_id == user.tenant_id,
+            Vulnerability.cve_id == cve_id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        )
+        .values(status="SUPPRESSED", updated_at=now)
+    )
+    count = result.rowcount
+    await compute_risk_scores(db, user.tenant_id)
+    from app.audit import audit
+    await audit(db, user, "vuln.ignore_cve", "vulnerability", cve_id, {"suppressed": count, "reason": body.get("reason", "")})
+    await db.commit()
+    return {"message": f"Ignored CVE {cve_id}", "suppressed": count, "cve_id": cve_id}
+
+
+@router.post("/cve/{cve_id}/unignore")
+async def unignore_cve(
+    cve_id: str,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+):
+    """Unignore a CVE — reopen all suppressed instances of this CVE."""
+    from sqlalchemy import update as sql_update
+    from datetime import datetime, timezone
+    from app.assets.risk_score import compute_risk_scores
+
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        sql_update(Vulnerability)
+        .where(
+            Vulnerability.tenant_id == user.tenant_id,
+            Vulnerability.cve_id == cve_id,
+            Vulnerability.status == "SUPPRESSED",
+        )
+        .values(status="OPEN", updated_at=now)
+    )
+    count = result.rowcount
+    await compute_risk_scores(db, user.tenant_id)
+    from app.audit import audit
+    await audit(db, user, "vuln.unignore_cve", "vulnerability", cve_id, {"reopened": count})
+    await db.commit()
+    return {"message": f"Restored CVE {cve_id}", "reopened": count, "cve_id": cve_id}
+
+
+@router.post("/bulk-ignore-cve")
+async def bulk_ignore_cve(
+    body: dict,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+):
+    """Bulk ignore/unignore CVEs."""
+    from sqlalchemy import update as sql_update
+    from datetime import datetime, timezone
+    from app.assets.risk_score import compute_risk_scores
+
+    cve_ids = body.get("cve_ids", [])
+    action = body.get("action", "ignore")  # "ignore" or "unignore"
+    if not cve_ids:
+        raise HTTPException(400, "No CVE IDs provided")
+
+    now = datetime.now(timezone.utc)
+    if action == "ignore":
+        result = await db.execute(
+            sql_update(Vulnerability)
+            .where(
+                Vulnerability.tenant_id == user.tenant_id,
+                Vulnerability.cve_id.in_(cve_ids),
+                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            )
+            .values(status="SUPPRESSED", updated_at=now)
+        )
+    else:
+        result = await db.execute(
+            sql_update(Vulnerability)
+            .where(
+                Vulnerability.tenant_id == user.tenant_id,
+                Vulnerability.cve_id.in_(cve_ids),
+                Vulnerability.status == "SUPPRESSED",
+            )
+            .values(status="OPEN", updated_at=now)
+        )
+    count = result.rowcount
+    await compute_risk_scores(db, user.tenant_id)
+    from app.audit import audit
+    await audit(db, user, f"vuln.bulk_{action}_cve", "vulnerability", None, {"cve_ids": cve_ids, "count": count})
+    await db.commit()
+    return {"message": f"{count} vulnerabilities {action}d across {len(cve_ids)} CVEs", "count": count}
 
 
 @router.post("/bulk-status")

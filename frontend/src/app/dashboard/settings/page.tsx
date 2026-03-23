@@ -75,6 +75,9 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* SLA Policy */}
+          {isOwner && <SlaConfig />}
+
           {/* TLS Certificate */}
           {isOwner && <TlsCertificatePanel />}
 
@@ -739,6 +742,84 @@ function TlsCertificatePanel() {
       )}
 
       {msg && <p className={`mt-3 text-xs ${msg.startsWith("Error") ? "text-red-400" : "text-emerald-400"}`}>{msg}</p>}
+    </div>
+  );
+}
+
+function SlaConfig() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [critical, setCritical] = useState(7);
+  const [high, setHigh] = useState(30);
+  const [medium, setMedium] = useState(90);
+  const [low, setLow] = useState(180);
+  const [info, setInfo] = useState(365);
+
+  useEffect(() => {
+    api("/api/v1/tenant/settings")
+      .then(d => {
+        const cfg = d.sla_config?.days || {};
+        setCritical(cfg.CRITICAL ?? 7);
+        setHigh(cfg.HIGH ?? 30);
+        setMedium(cfg.MEDIUM ?? 90);
+        setLow(cfg.LOW ?? 180);
+        setInfo(cfg.INFO ?? 365);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true); setMsg("");
+    try {
+      await api("/api/v1/tenant/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          sla_config: { days: { CRITICAL: critical, HIGH: high, MEDIUM: medium, LOW: low, INFO: info } },
+        }),
+      });
+      // Recalculate SLA due dates
+      const result = await api("/api/v1/vulnerabilities/sla/recalculate", { method: "POST" });
+      setMsg(`SLA policy saved. ${result.recalculated || 0} vulnerabilities updated.`);
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setSaving(false); }
+  }
+
+  if (loading) return null;
+
+  const fields = [
+    { label: "Critical", value: critical, set: setCritical, color: "border-red-500/30" },
+    { label: "High", value: high, set: setHigh, color: "border-orange-500/30" },
+    { label: "Medium", value: medium, set: setMedium, color: "border-yellow-500/30" },
+    { label: "Low", value: low, set: setLow, color: "border-blue-500/30" },
+    { label: "Info", value: info, set: setInfo, color: "border-gray-500/30" },
+  ];
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+      <h2 className="text-lg font-medium text-white mb-1">SLA Policy</h2>
+      <p className="text-xs text-gray-500 mb-4">Define remediation deadlines per severity level (days from first detection)</p>
+
+      <div className="grid grid-cols-5 gap-3 mb-4">
+        {fields.map(f => (
+          <div key={f.label} className={`rounded-lg border ${f.color} bg-gray-800 p-3`}>
+            <label className="mb-1 block text-xs text-gray-400">{f.label}</label>
+            <div className="flex items-center gap-1">
+              <input type="number" min={1} max={999} value={f.value}
+                onChange={e => f.set(Number(e.target.value))}
+                className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-white text-center focus:border-indigo-500 focus:outline-none" />
+              <span className="text-xs text-gray-500">days</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {msg && <p className={`text-xs mb-3 ${msg.includes("Error") ? "text-red-400" : "text-emerald-400"}`}>{msg}</p>}
+
+      <button onClick={handleSave} disabled={saving}
+        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+        {saving ? "Saving..." : "Save SLA Policy"}
+      </button>
     </div>
   );
 }

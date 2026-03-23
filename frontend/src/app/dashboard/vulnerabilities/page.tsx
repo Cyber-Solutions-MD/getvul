@@ -69,6 +69,7 @@ export default function VulnerabilitiesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showSuppressed, setShowSuppressed] = useState<"active" | "ignored" | "all">("active");
+  const [showIgnoredVulns, setShowIgnoredVulns] = useState<"active" | "ignored" | "all">("active");
   const [savedFilters, setSavedFilters] = useState<any[]>([]);
   const [showSaveFilter, setShowSaveFilter] = useState(false);
   const [saveFilterName, setSaveFilterName] = useState("");
@@ -93,10 +94,21 @@ export default function VulnerabilitiesPage() {
       p.delete("kev_only");
       if (filters.exploit_available !== null) p.set("exploit_available", String(filters.exploit_available));
       if (filters.cisa_kev !== null) p.set("cisa_kev", String(filters.cisa_kev));
+      // Apply ignored filter via status
+      if (showIgnoredVulns === "ignored") {
+        p.delete("status");
+        p.append("status", "SUPPRESSED");
+      } else if (showIgnoredVulns === "active") {
+        if (!filters.status.length) {
+          p.append("status", "OPEN");
+          p.append("status", "IN_PROGRESS");
+        }
+      }
+      // "all" leaves status as-is from filters
       setVulnData(await api<PaginatedVulns>(`/api/v1/vulnerabilities?${p}`));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [page, filters]);
+  }, [page, filters, showIgnoredVulns]);
 
   const fetchRemediations = useCallback(async () => {
     setLoading(true);
@@ -127,7 +139,7 @@ export default function VulnerabilitiesPage() {
     setRemHosts(null);
     setSelectedHostId(null);
     setHostRemediations(null);
-  }, [filters, tab, showSuppressed]);
+  }, [filters, tab, showSuppressed, showIgnoredVulns]);
 
   // ── Drill-downs (always pass current filters) ──
 
@@ -231,6 +243,25 @@ export default function VulnerabilitiesPage() {
     }
   }
 
+  async function handleBulkIgnoreCve(action: "ignore" | "unignore") {
+    if (selectedIds.size === 0) return;
+    // Collect unique CVE IDs from selected vulns
+    const cveIds = [...new Set((vulnData?.items || []).filter(v => selectedIds.has(v.id) && v.cve_id).map(v => v.cve_id!))];
+    if (!cveIds.length) return;
+    const msg = action === "ignore"
+      ? `Ignore ${cveIds.length} CVE(s)? All instances across all hosts will be suppressed.`
+      : `Restore ${cveIds.length} CVE(s)? All suppressed instances will be reopened.`;
+    if (!confirm(msg)) return;
+    try {
+      await api("/api/v1/vulnerabilities/bulk-ignore-cve", {
+        method: "POST",
+        body: JSON.stringify({ cve_ids: cveIds, action }),
+      });
+      setSelectedIds(new Set());
+      fetchVulns();
+    } catch (e: any) { alert(`Error: ${e.message}`); }
+  }
+
   function goBackToRemediations() {
     setSelectedRemediation(null);
     setRemHosts(null);
@@ -316,7 +347,25 @@ export default function VulnerabilitiesPage() {
       </div>
 
       {/* Bulk actions */}
-      {selectedIds.size > 0 && (
+      {selectedIds.size > 0 && tab === "vulnerabilities" && (
+        <div className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2">
+          <span className="text-sm text-gray-400">{selectedIds.size} selected</span>
+          {showIgnoredVulns === "ignored" ? (
+            <button onClick={() => handleBulkIgnoreCve("unignore")}
+              className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20">
+              Restore Selected CVEs
+            </button>
+          ) : (
+            <button onClick={() => handleBulkIgnoreCve("ignore")}
+              className="rounded-lg border border-orange-500/50 bg-orange-500/10 px-3 py-1.5 text-xs text-orange-400 hover:bg-orange-500/20">
+              Ignore Selected CVEs
+            </button>
+          )}
+          <BulkActions selectedCount={selectedIds.size} selectedIds={Array.from(selectedIds)}
+            onComplete={() => { setSelectedIds(new Set()); fetchVulns(); }} />
+        </div>
+      )}
+      {selectedIds.size > 0 && tab === "remediations" && (
         <BulkActions selectedCount={selectedIds.size} selectedIds={Array.from(selectedIds)}
           onComplete={() => { setSelectedIds(new Set()); fetchVulns(); }} />
       )}
@@ -327,12 +376,26 @@ export default function VulnerabilitiesPage() {
       ) : tab === "vulnerabilities" ? (
         /* ── Vulnerabilities tab ── */
         <>
+          <div className="flex items-center gap-2 mb-3">
+            {(["active", "ignored", "all"] as const).map(mode => (
+              <button key={mode} onClick={() => { setShowIgnoredVulns(mode); setPage(1); setSelectedIds(new Set()); }}
+                className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+                  showIgnoredVulns === mode
+                    ? "border-indigo-500 bg-indigo-500/15 text-indigo-400"
+                    : "border-gray-700 bg-gray-900 text-gray-500 hover:text-gray-300"
+                )}>
+                {mode === "active" ? "Active" : mode === "ignored" ? "Ignored" : "All"}
+              </button>
+            ))}
+          </div>
           <VulnTable
             vulnerabilities={vulnData?.items || []}
             selectedIds={selectedIds}
             onSelectToggle={(id) => setSelectedIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; })}
             onSelectAll={(ids) => setSelectedIds(ids.length ? new Set(ids) : new Set())}
             onHostClick={(assetId, hostname) => { setTab("remediations"); drillHost(assetId, hostname); }}
+            onRefresh={fetchVulns}
+            showIgnored={showIgnoredVulns}
           />
           {vulnData && vulnData.total_pages > 1 && (
             <Pagination page={vulnData.page} totalPages={vulnData.total_pages}
@@ -437,8 +500,8 @@ export default function VulnerabilitiesPage() {
                 <th className="px-3 py-3 text-right font-medium text-gray-400">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-800/50">
-                {(remData?.items || []).map((rem) => (
-                  <tr key={`${rem.remediation_id}-${rem.affected_product}`} className={cn(
+                {(remData?.items || []).map((rem, idx) => (
+                  <tr key={`${rem.remediation_id}-${rem.affected_product}-${idx}`} className={cn(
                     "hover:bg-gray-800/30 cursor-pointer group",
                     rem.is_suppressed && "opacity-50"
                   )}>

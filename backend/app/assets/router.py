@@ -25,11 +25,18 @@ async def list_assets(
     min_risk: int = Query(0, ge=0, le=100),
     sort_by: str = Query("risk_score", description="risk_score,hostname,os_name,device_category"),
     sort_dir: str = Query("desc", description="asc or desc"),
+    show_ignored: str = Query("active", description="active, ignored, or all"),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List assets with filtering, pagination, sorting."""
     query = select(Asset).where(Asset.tenant_id == user.tenant_id)
+
+    # Ignored filter
+    if show_ignored == "ignored":
+        query = query.where(Asset.is_ignored.is_(True))
+    elif show_ignored != "all":
+        query = query.where(Asset.is_ignored.is_(False))
 
     # Filters
     if search:
@@ -96,6 +103,9 @@ async def list_assets(
             "high": vcounts.high,
             "exploitable": vcounts.exploitable,
             "kev": vcounts.kev,
+            "is_ignored": a.is_ignored,
+            "ignored_at": a.ignored_at.isoformat() if a.ignored_at else None,
+            "ignored_reason": a.ignored_reason,
         })
 
     return {
@@ -113,7 +123,7 @@ async def asset_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Dashboard stats for assets."""
-    base = select(Asset).where(Asset.tenant_id == user.tenant_id)
+    base = select(Asset).where(Asset.tenant_id == user.tenant_id, Asset.is_ignored.is_(False))
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
 
@@ -239,6 +249,9 @@ async def get_asset(
         "humaans_timezone": (asset.mdm_details or {}).get("humaans_timezone"),
         # CrowdStrike
         "crowdstrike_aid": asset.crowdstrike_aid,
+        "is_ignored": asset.is_ignored,
+        "ignored_at": asset.ignored_at.isoformat() if asset.ignored_at else None,
+        "ignored_reason": asset.ignored_reason,
         "vuln_counts": {
             "total": vc.total, "critical": vc.critical, "high": vc.high,
             "medium": vc.medium, "low": vc.low, "exploitable": vc.exploitable, "kev": vc.kev,
@@ -259,6 +272,94 @@ async def get_asset(
             for v in vulns
         ],
     }
+
+
+@router.post("/{asset_id}/ignore")
+async def ignore_asset(
+    asset_id: str,
+    body: dict = {},
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark an asset as ignored — excludes from remediations and ticket creation."""
+    from datetime import datetime, timezone
+    from app.audit import audit
+
+    asset = (await db.execute(
+        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
+    )).scalar_one_or_none()
+    if not asset:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Asset not found")
+
+    asset.is_ignored = True
+    asset.ignored_at = datetime.now(timezone.utc)
+    asset.ignored_reason = body.get("reason", "")
+    await audit(db, user, "asset.ignore", "asset", str(asset.id), {"hostname": asset.hostname, "reason": asset.ignored_reason})
+    await db.commit()
+    return {"message": f"Asset '{asset.hostname}' ignored", "is_ignored": True}
+
+
+@router.post("/{asset_id}/unignore")
+async def unignore_asset(
+    asset_id: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Unignore an asset — restores it to active remediation and ticket creation."""
+    from app.audit import audit
+
+    asset = (await db.execute(
+        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
+    )).scalar_one_or_none()
+    if not asset:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Asset not found")
+
+    asset.is_ignored = False
+    asset.ignored_at = None
+    asset.ignored_reason = None
+    await audit(db, user, "asset.unignore", "asset", str(asset.id), {"hostname": asset.hostname})
+    await db.commit()
+    return {"message": f"Asset '{asset.hostname}' restored", "is_ignored": False}
+
+
+@router.post("/bulk-ignore")
+async def bulk_ignore_assets(
+    body: dict,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk ignore/unignore assets."""
+    from datetime import datetime, timezone
+    from app.audit import audit
+
+    asset_ids = body.get("asset_ids", [])
+    action = body.get("action", "ignore")  # "ignore" or "unignore"
+    reason = body.get("reason", "")
+
+    if not asset_ids:
+        from fastapi import HTTPException
+        raise HTTPException(400, "No asset IDs provided")
+
+    result = await db.execute(
+        select(Asset).where(Asset.id.in_(asset_ids), Asset.tenant_id == user.tenant_id)
+    )
+    assets = result.scalars().all()
+
+    for a in assets:
+        if action == "ignore":
+            a.is_ignored = True
+            a.ignored_at = datetime.now(timezone.utc)
+            a.ignored_reason = reason
+        else:
+            a.is_ignored = False
+            a.ignored_at = None
+            a.ignored_reason = None
+
+    await audit(db, user, f"asset.bulk_{action}", "asset", None, {"count": len(assets), "reason": reason})
+    await db.commit()
+    return {"message": f"{len(assets)} assets {action}d"}
 
 
 @router.post("/recompute-risk-scores")

@@ -3,7 +3,7 @@
 import enum
 import uuid
 
-from sqlalchemy import DateTime, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +37,11 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     wiz_asset_id: Mapped[str | None] = mapped_column(String(100))
     nessus_host_id: Mapped[str | None] = mapped_column(String(100))
     risk_score: Mapped[int | None] = mapped_column(Integer)
+
+    # Ignore status
+    is_ignored: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    ignored_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    ignored_reason: Mapped[str | None] = mapped_column(String(500))
 
     # Device classification
     device_category: Mapped[str | None] = mapped_column(String(30), index=True)

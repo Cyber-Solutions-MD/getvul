@@ -84,6 +84,59 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* SLA Compliance */}
+      {overview?.sla && overview.sla.open_with_sla > 0 && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-medium text-gray-400">SLA Compliance</h2>
+            <span className={`text-2xl font-bold ${
+              overview.sla.compliance_pct >= 90 ? "text-emerald-400" :
+              overview.sla.compliance_pct >= 70 ? "text-yellow-400" : "text-red-400"
+            }`}>
+              {overview.sla.compliance_pct}%
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+              <p className="text-xs text-gray-500">SLA Breached</p>
+              <p className="text-xl font-bold text-red-400">{overview.sla.breached}</p>
+            </div>
+            <div className="rounded-lg border border-orange-500/20 bg-orange-500/5 p-3">
+              <p className="text-xs text-gray-500">At Risk (72h)</p>
+              <p className="text-xl font-bold text-orange-400">{overview.sla.at_risk}</p>
+            </div>
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <p className="text-xs text-gray-500">Within SLA</p>
+              <p className="text-xl font-bold text-emerald-400">{overview.sla.within_sla}</p>
+            </div>
+            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
+              <p className="text-xs text-gray-500">Avg Days Left</p>
+              <p className="text-xl font-bold text-blue-400">{overview.sla.avg_days_remaining ?? "—"}</p>
+            </div>
+          </div>
+          {/* Breach by severity */}
+          {overview.sla.breached > 0 && overview.sla.breach_by_severity && (
+            <div className="mt-3 flex items-center gap-3 text-xs">
+              <span className="text-gray-500">Breached by severity:</span>
+              {Object.entries(overview.sla.breach_by_severity as Record<string, number>).map(([sev, count]) => (
+                <span key={sev} className={`rounded px-1.5 py-0.5 ${
+                  sev === "CRITICAL" ? "bg-red-500/20 text-red-400" :
+                  sev === "HIGH" ? "bg-orange-500/20 text-orange-400" :
+                  "bg-yellow-500/20 text-yellow-400"
+                }`}>{sev}: {count}</span>
+              ))}
+            </div>
+          )}
+          {/* SLA policy */}
+          <div className="mt-3 flex items-center gap-2 text-[10px] text-gray-600">
+            <span>SLA Policy:</span>
+            {Object.entries(overview.sla.sla_config as Record<string, number>).map(([sev, days]) => (
+              <span key={sev}>{sev}={days}d</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 

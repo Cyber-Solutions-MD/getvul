@@ -18,6 +18,7 @@ logger = structlog.get_logger()
 # Track running tasks
 _running_syncs: dict[str, asyncio.Task] = {}
 _scheduler_task: asyncio.Task | None = None
+_last_ticket_sync: datetime | None = None
 
 
 async def _run_single_sync(connector_id: str, tenant_id: str) -> None:
@@ -131,6 +132,34 @@ async def _scheduler_loop() -> None:
                     logger.info("scheduled_reports_sent", **result)
         except Exception as e:
             logger.error("scheduled_reports_error", error=str(e))
+
+        # SLA breach check (runs every loop — lightweight query)
+        try:
+            async with async_session_factory() as db:
+                from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
+                from sqlalchemy import select as _sel
+                from app.tenants.models import Tenant as _T
+                tenants = (await db.execute(_sel(_T).where(_T.is_active.is_(True)))).scalars().all()
+                for t in tenants:
+                    await backfill_sla_due_dates(db, t.id)
+                    await check_sla_breaches(db, t.id)
+                await db.commit()
+        except Exception as e:
+            logger.error("sla_check_error", error=str(e))
+
+        # Daily ticket status sync (every 24 hours)
+        global _last_ticket_sync
+        try:
+            now = datetime.now(timezone.utc)
+            if _last_ticket_sync is None or (now - _last_ticket_sync).total_seconds() >= 86400:
+                async with async_session_factory() as db:
+                    from app.ticketing.daily_sync import run_daily_ticket_sync
+                    result = await run_daily_ticket_sync(db)
+                    if result.get("comments_added", 0) > 0 or result.get("resolved", 0) > 0:
+                        logger.info("daily_ticket_sync_completed", **result)
+                _last_ticket_sync = now
+        except Exception as e:
+            logger.error("daily_ticket_sync_error", error=str(e))
 
         # Check every 60 seconds
         await asyncio.sleep(60)

@@ -186,6 +186,96 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         setup_url="https://learn.jamf.com/en-US/bundle/jamf-pro-documentation/page/API_Roles_and_Clients.html",
         notes="Create API Role with Read Computers + Read Users, then create API Client assigned to that role",
     ),
+    "JIRA": ConnectorTypeInfo(
+        id="JIRA",
+        name="Jira",
+        description="Create and track vulnerability remediation issues in Jira Cloud or Server",
+        fields=[
+            {"name": "url", "label": "Jira URL", "type": "text", "required": True},
+            {"name": "email", "label": "Email", "type": "text", "required": True},
+            {"name": "api_token", "label": "API Token", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="Browse Projects", access="Read", purpose="List projects for ticket assignment"),
+            ConnectorPermission(scope="Create Issues", access="Write", purpose="Create vulnerability tickets"),
+            ConnectorPermission(scope="Edit Issues", access="Write", purpose="Update and transition ticket status"),
+        ],
+        setup_url="https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/",
+        notes="Generate an API token at id.atlassian.com → Security → API Tokens. Use your Atlassian account email and the token as password.",
+    ),
+    "QUALYS": ConnectorTypeInfo(
+        id="QUALYS",
+        name="Qualys VMDR",
+        description="Enterprise vulnerability management, detection and response",
+        fields=[
+            {"name": "url", "label": "Qualys API URL", "type": "text", "required": True},
+            {"name": "username", "label": "Username", "type": "text", "required": True},
+            {"name": "password", "label": "Password", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="Host Assets", access="Read", purpose="Fetch managed assets and host details"),
+            ConnectorPermission(scope="Vulnerabilities", access="Read", purpose="Fetch vulnerability detections"),
+            ConnectorPermission(scope="Knowledge Base", access="Read", purpose="Resolve QID to CVE and remediation info"),
+        ],
+        setup_url="https://www.qualys.com/docs/qualys-api-vmpc-user-guide.pdf",
+        base_urls={
+            "US-1": "https://qualysapi.qualys.com",
+            "US-2": "https://qualysapi.qg2.apps.qualys.com",
+            "US-3": "https://qualysapi.qg3.apps.qualys.com",
+            "EU-1": "https://qualysapi.qualys.eu",
+            "EU-2": "https://qualysapi.qg2.apps.qualys.eu",
+            "IN-1": "https://qualysapi.qg1.apps.qualys.in",
+        },
+        notes="Use a reader account or API-only user. API URL depends on your Qualys platform (US/EU/IN).",
+    ),
+    "OKTA": ConnectorTypeInfo(
+        id="OKTA",
+        name="Okta",
+        description="Identity provider — SSO authentication and user/group directory sync via SCIM",
+        fields=[
+            {"name": "domain", "label": "Okta Domain", "type": "text", "required": True},
+            {"name": "api_token", "label": "API Token", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="okta.users.read", access="Read", purpose="List all users in the directory"),
+            ConnectorPermission(scope="okta.groups.read", access="Read", purpose="List groups and memberships"),
+        ],
+        setup_url="https://developer.okta.com/docs/guides/create-an-api-token/main/",
+        notes="Create an API token in Okta Admin → Security → API → Tokens. Domain format: your-org.okta.com",
+    ),
+    "INTUNE": ConnectorTypeInfo(
+        id="INTUNE",
+        name="Microsoft Intune",
+        description="Endpoint management — enrich assets with device compliance, OS details, and user assignments",
+        fields=[
+            {"name": "tenant_id", "label": "Azure Tenant ID", "type": "text", "required": True},
+            {"name": "client_id", "label": "App Client ID", "type": "text", "required": True},
+            {"name": "client_secret", "label": "App Client Secret", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="DeviceManagementManagedDevices.Read.All", access="Application", purpose="Read managed device inventory"),
+            ConnectorPermission(scope="User.Read.All", access="Application", purpose="Resolve device owners"),
+        ],
+        setup_url="https://learn.microsoft.com/en-us/mem/intune/developer/intune-graph-apis",
+        notes="Register an app in Azure Entra ID with Microsoft Graph Application permissions for Intune device read.",
+    ),
+    "RAPID7": ConnectorTypeInfo(
+        id="RAPID7",
+        name="Rapid7 InsightVM",
+        description="Vulnerability management with risk-based prioritization and live dashboards",
+        fields=[
+            {"name": "url", "label": "InsightVM Console URL", "type": "text", "required": True},
+            {"name": "username", "label": "Username", "type": "text", "required": True},
+            {"name": "password", "label": "Password", "type": "password", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(scope="Assets", access="Read", purpose="Fetch asset inventory"),
+            ConnectorPermission(scope="Vulnerabilities", access="Read", purpose="Fetch vulnerability findings per asset"),
+            ConnectorPermission(scope="Solutions", access="Read", purpose="Resolve remediation steps"),
+        ],
+        setup_url="https://help.rapid7.com/insightvm/en-us/api/index.html",
+        notes="Use the InsightVM Security Console API (v3). URL is your console address, e.g. https://insightvm.company.com:3780",
+    ),
 }
 
 

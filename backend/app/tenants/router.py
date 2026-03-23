@@ -106,6 +106,7 @@ async def get_tenant_settings(
         "password_policy": tenant.password_policy or {"min_length": 8, "require_uppercase": False, "require_lowercase": False, "require_digit": False, "require_symbol": False, "history_count": 0},
         "syslog_config": tenant.syslog_config,
         "smtp_config": _safe_smtp(getattr(tenant, "smtp_config", None)),
+        "sla_config": getattr(tenant, "sla_config", None),
     }
 
 
@@ -165,6 +166,11 @@ async def update_tenant_settings(
             )
         else:
             disable_syslog()
+
+    if "sla_config" in body:
+        from sqlalchemy.orm.attributes import flag_modified as _fm_sla
+        tenant.sla_config = body["sla_config"]
+        _fm_sla(tenant, "sla_config")
 
     if "smtp_config" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm_smtp

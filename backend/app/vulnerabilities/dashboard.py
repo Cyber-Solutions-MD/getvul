@@ -111,8 +111,13 @@ async def get_overview_stats(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
         select(func.count(User.id)).where(User.tenant_id == tenant_id, User.is_active.is_(True))
     )).scalar_one()
 
+    # SLA metrics
+    from app.vulnerabilities.sla_service import get_sla_metrics
+    sla = await get_sla_metrics(db, tenant_id)
+
     return {
         "top_risky_hosts": top_hosts,
+        "sla": sla,
         "tickets": {
             "total": ticket_total,
             "open": ticket_open,

@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-const API = "http://localhost:8000";
-const TOKEN = "dev-token";
-const headers = { Authorization: `Bearer ${TOKEN}` };
+import { api } from "@/lib/api";
 
 const CATEGORY_ICONS: Record<string, string> = {
   WORKSTATION: "🖥️",
@@ -47,14 +44,13 @@ export default function AssetsPage() {
   const [minRisk, setMinRisk] = useState(0);
   const [sortBy, setSortBy] = useState("risk_score");
   const [sortDir, setSortDir] = useState("desc");
+  const [showIgnored, setShowIgnored] = useState("active");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [classifying, setClassifying] = useState(false);
   const pageSize = 25;
 
   const fetchStats = useCallback(async () => {
-    try {
-      const r = await fetch(`${API}/api/v1/assets/stats`, { headers });
-      if (r.ok) setStats(await r.json());
-    } catch {}
+    try { setStats(await api("/api/v1/assets/stats")); } catch {}
   }, []);
 
   const fetchAssets = useCallback(async () => {
@@ -63,21 +59,19 @@ export default function AssetsPage() {
       page_size: String(pageSize),
       sort_by: sortBy,
       sort_dir: sortDir,
+      show_ignored: showIgnored,
     });
     if (search) params.set("search", search);
     if (category) params.set("device_category", category);
     if (minRisk > 0) params.set("min_risk", String(minRisk));
 
     try {
-      const r = await fetch(`${API}/api/v1/assets?${params}`, { headers });
-      if (r.ok) {
-        const data = await r.json();
-        setAssets(data.items || []);
-        setTotal(data.total || 0);
-        setPages(data.pages || 0);
-      }
+      const data = await api(`/api/v1/assets?${params}`);
+      setAssets(data.items || []);
+      setTotal(data.total || 0);
+      setPages(data.pages || 0);
     } catch {}
-  }, [page, search, category, minRisk, sortBy, sortDir]);
+  }, [page, search, category, minRisk, sortBy, sortDir, showIgnored]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
@@ -85,13 +79,47 @@ export default function AssetsPage() {
   const handleClassify = async () => {
     setClassifying(true);
     try {
-      const r = await fetch(`${API}/api/v1/assets/classify`, { method: "POST", headers });
-      if (r.ok) {
-        await fetchStats();
-        await fetchAssets();
-      }
+      await api("/api/v1/assets/classify", { method: "POST" });
+      await fetchStats();
+      await fetchAssets();
     } catch {}
     setClassifying(false);
+  };
+
+  const handleIgnore = async (assetId: string) => {
+    await api(`/api/v1/assets/${assetId}/ignore`, { method: "POST", body: JSON.stringify({}) });
+    fetchAssets(); fetchStats();
+  };
+
+  const handleUnignore = async (assetId: string) => {
+    await api(`/api/v1/assets/${assetId}/unignore`, { method: "POST" });
+    fetchAssets(); fetchStats();
+  };
+
+  const handleBulkAction = async (action: "ignore" | "unignore") => {
+    if (selected.size === 0) return;
+    await api("/api/v1/assets/bulk-ignore", {
+      method: "POST",
+      body: JSON.stringify({ asset_ids: Array.from(selected), action }),
+    });
+    setSelected(new Set());
+    fetchAssets(); fetchStats();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === assets.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(assets.map(a => a.id)));
+    }
   };
 
   const handleSort = (col: string) => {
@@ -113,13 +141,31 @@ export default function AssetsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Asset Inventory</h1>
-        <button
-          onClick={handleClassify}
-          disabled={classifying}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {classifying ? "Classifying..." : "🔄 Classify Devices"}
-        </button>
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <>
+              <span className="text-sm text-gray-400">{selected.size} selected</span>
+              {showIgnored === "ignored" ? (
+                <button onClick={() => handleBulkAction("unignore")}
+                  className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-sm text-emerald-400 hover:bg-emerald-500/20">
+                  Restore Selected
+                </button>
+              ) : (
+                <button onClick={() => handleBulkAction("ignore")}
+                  className="rounded-lg border border-orange-500/50 bg-orange-500/10 px-3 py-1.5 text-sm text-orange-400 hover:bg-orange-500/20">
+                  Ignore Selected
+                </button>
+              )}
+            </>
+          )}
+          <button
+            onClick={handleClassify}
+            disabled={classifying}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {classifying ? "Classifying..." : "Classify Devices"}
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -180,6 +226,18 @@ export default function AssetsPage() {
           <option value={50}>High (50+)</option>
           <option value={20}>Medium (20+)</option>
         </select>
+
+        {/* Ignored filter */}
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-gray-700 bg-gray-800 p-0.5">
+          {(["active", "ignored", "all"] as const).map(v => (
+            <button key={v} onClick={() => { setShowIgnored(v); setPage(1); setSelected(new Set()); }}
+              className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition ${
+                showIgnored === v ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-white"
+              }`}>
+              {v === "active" ? "Active" : v === "ignored" ? "Ignored" : "All"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -187,6 +245,11 @@ export default function AssetsPage() {
         <table className="w-full text-sm text-left">
           <thead className="border-b border-gray-700 bg-gray-800 text-gray-400">
             <tr>
+              <th className="px-3 py-3 w-8">
+                <input type="checkbox" checked={assets.length > 0 && selected.size === assets.length}
+                  onChange={toggleSelectAll}
+                  className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-700 text-indigo-500" />
+              </th>
               <th className="cursor-pointer px-4 py-3" onClick={() => handleSort("hostname")}>
                 Hostname{sortArrow("hostname")}
               </th>
@@ -203,22 +266,32 @@ export default function AssetsPage() {
               <th className="px-4 py-3 text-right">High</th>
               <th className="px-4 py-3 text-right">Exploit</th>
               <th className="px-4 py-3 text-right">KEV</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
             {assets.map((a) => (
               <tr
                 key={a.id}
-                className="cursor-pointer bg-gray-900 hover:bg-gray-800 transition"
-                onClick={() => window.location.href = `/dashboard/assets/${a.id}`}
+                className={`transition ${a.is_ignored ? "bg-gray-900/50 opacity-60" : "bg-gray-900 hover:bg-gray-800"}`}
               >
-                <td className="px-4 py-3">
-                  <div className="font-medium text-white">{a.hostname}</div>
+                <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selected.has(a.id)}
+                    onChange={() => toggleSelect(a.id)}
+                    className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-700 text-indigo-500" />
+                </td>
+                <td className="px-4 py-3 cursor-pointer" onClick={() => window.location.href = `/dashboard/assets/${a.id}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white">{a.hostname}</span>
+                    {a.is_ignored && (
+                      <span className="rounded bg-orange-500/20 border border-orange-500/30 px-1.5 py-0.5 text-[10px] text-orange-400">IGNORED</span>
+                    )}
+                  </div>
                   {a.assigned_user && (
                     <div className="text-xs text-gray-500">{a.assigned_user}</div>
                   )}
                 </td>
-                <td className="px-4 py-3 text-gray-300">
+                <td className="px-4 py-3 text-gray-300 cursor-pointer" onClick={() => window.location.href = `/dashboard/assets/${a.id}`}>
                   {a.os_name} {a.os_version && <span className="text-gray-500">{a.os_version}</span>}
                 </td>
                 <td className="px-4 py-3">
@@ -228,7 +301,7 @@ export default function AssetsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    {Object.keys(a.seen_by_sources || {}).map((s) => (
+                    {(Array.isArray(a.seen_by_sources) ? a.seen_by_sources : Object.keys(a.seen_by_sources || {})).map((s: string) => (
                       <span key={s} className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300">
                         {s.toUpperCase().slice(0, 3)}
                       </span>
@@ -256,14 +329,27 @@ export default function AssetsPage() {
                   {a.exploitable > 0 && <span className="text-yellow-400">{a.exploitable}</span>}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {a.kev > 0 && <span className="text-red-300">🚨 {a.kev}</span>}
+                  {a.kev > 0 && <span className="text-red-300">{a.kev}</span>}
+                </td>
+                <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                  {a.is_ignored ? (
+                    <button onClick={() => handleUnignore(a.id)}
+                      className="rounded border border-emerald-500/30 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/10">
+                      Restore
+                    </button>
+                  ) : (
+                    <button onClick={() => handleIgnore(a.id)}
+                      className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-orange-400 hover:border-orange-500/30">
+                      Ignore
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
             {assets.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                  No assets found matching your filters
+                <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
+                  {showIgnored === "ignored" ? "No ignored assets" : "No assets found matching your filters"}
                 </td>
               </tr>
             )}
@@ -283,14 +369,14 @@ export default function AssetsPage() {
               disabled={page === 1}
               className="rounded-lg border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-30"
             >
-              ← Prev
+              Prev
             </button>
             <button
               onClick={() => setPage((p) => Math.min(pages, p + 1))}
               disabled={page === pages}
               className="rounded-lg border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-30"
             >
-              Next →
+              Next
             </button>
           </div>
         </div>

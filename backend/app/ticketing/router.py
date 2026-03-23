@@ -583,3 +583,17 @@ async def run_rule_now(
         return run_result
     finally:
         await asana_client.close()
+
+
+@router.post("/sync-status")
+async def trigger_ticket_sync(
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Manually trigger ticket status sync — checks all open tickets and posts progress comments."""
+    from app.ticketing.daily_sync import run_daily_ticket_sync
+    result = await run_daily_ticket_sync(db)
+    from app.audit import audit
+    await audit(db, user, "ticket.sync_status", "ticket", None, result)
+    await db.commit()
+    return result

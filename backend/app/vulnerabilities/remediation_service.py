@@ -70,10 +70,11 @@ async def get_remediations_grouped(
             else_=0,
         )).label("max_severity_rank"),
         func.count().filter(Vulnerability.status == "SUPPRESSED").label("suppressed_count"),
-    ).where(
+    ).join(Asset, Vulnerability.asset_id == Asset.id).where(
         _base_open_vulns(tenant_id, show_suppressed=show_suppressed),
         Vulnerability.remediation_id.isnot(None),
         Vulnerability.remediation_id != "",
+        Asset.is_ignored.is_(False),
     ).group_by(
         Vulnerability.remediation_id,
         Vulnerability.remediation_action,
@@ -137,6 +138,7 @@ async def get_hosts_for_remediation(
         .where(
             _base_open_vulns(tenant_id),
             Vulnerability.remediation_id == remediation_id,
+            Asset.is_ignored.is_(False),
         )
         .order_by(
             case(

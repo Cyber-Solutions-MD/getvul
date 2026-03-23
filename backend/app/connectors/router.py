@@ -31,6 +31,24 @@ from app.dependencies import DBSession
 router = APIRouter()
 
 
+CONNECTOR_CATEGORIES = {
+    "CROWDSTRIKE": "vulnerability_scanner",
+    "NESSUS": "vulnerability_scanner",
+    "DEFENDER": "vulnerability_scanner",
+    "WIZ": "vulnerability_scanner",
+    "QUALYS": "vulnerability_scanner",
+    "RAPID7": "vulnerability_scanner",
+    "ASANA": "ticketing",
+    "JIRA": "ticketing",
+    "GOOGLE_WORKSPACE": "identity_provider",
+    "AZURE_ENTRA_ID": "identity_provider",
+    "OKTA": "identity_provider",
+    "HUMAANS": "enrichment",
+    "JAMF": "enrichment",
+    "INTUNE": "enrichment",
+}
+
+
 @router.get("/types")
 async def get_connector_types():
     """Return connector types in the format the frontend expects."""
@@ -60,6 +78,7 @@ async def get_connector_types():
             "setup_url": v.setup_url if hasattr(v, "setup_url") else "",
             "base_urls": dict(v.base_urls) if hasattr(v, "base_urls") else {},
             "notes": v.notes if hasattr(v, "notes") else "",
+            "category": CONNECTOR_CATEGORIES.get(k, "other"),
         })
     return result
 

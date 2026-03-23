@@ -71,6 +71,8 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     remediated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sla_breached: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     asset: Mapped["Asset"] = relationship("Asset", back_populates="vulnerabilities")
 
