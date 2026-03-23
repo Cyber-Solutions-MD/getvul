@@ -39,5 +39,4 @@ class Settings(BaseSettings):
     secrets_manager_prefix: str = "getvul/"
 
 
-
 settings = Settings()
