@@ -13,6 +13,7 @@ const nextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
           { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           {
             key: "Content-Security-Policy",
             value: [
@@ -23,6 +24,9 @@ const nextConfig = {
               "font-src 'self' data:",
               "connect-src 'self' http://localhost:8000 https://*.getvul.app",
               "frame-ancestors 'none'",
+              "form-action 'self'",
+              "base-uri 'self'",
+              "object-src 'none'",
             ].join("; "),
           },
         ],
