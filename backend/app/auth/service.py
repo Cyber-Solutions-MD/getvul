@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +52,7 @@ async def upsert_user(
             avatar_url=userinfo.picture,
             role=UserRole.OWNER if is_first_user else UserRole.VIEWER,
             idp_subject=userinfo.subject,
-            last_login_at=datetime.now(timezone.utc),
+            last_login_at=datetime.now(UTC),
         )
         db.add(user)
     else:
@@ -60,7 +60,7 @@ async def upsert_user(
         user.display_name = userinfo.name or user.display_name
         user.avatar_url = userinfo.picture or user.avatar_url
         user.idp_subject = userinfo.subject
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(UTC)
 
     await db.flush()
     return user

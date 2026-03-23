@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import select
@@ -19,7 +18,7 @@ logger = structlog.get_logger()
 
 async def run_directory_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
     """Run a directory sync — fetches users and groups from IdP."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     log = SyncLog(
         connector_id=connector_config.id,
@@ -43,14 +42,14 @@ async def run_directory_sync(db: AsyncSession, connector_config: ConnectorConfig
         else:
             log.status = "FAILED"
             log.error_message = f"Unknown directory connector: {connector_type}"
-            log.finished_at = datetime.now(timezone.utc)
+            log.finished_at = datetime.now(UTC)
             return log
 
         authed = await connector.authenticate(credentials, config)
         if not authed:
             log.status = "FAILED"
             log.error_message = "Authentication failed"
-            log.finished_at = datetime.now(timezone.utc)
+            log.finished_at = datetime.now(UTC)
             return log
 
         # Fetch users
@@ -128,7 +127,7 @@ async def run_directory_sync(db: AsyncSession, connector_config: ConnectorConfig
             "total_group_memberships": sum(len(v) for v in groups_map.values()),
         }
 
-        connector_config.last_sync_at = datetime.now(timezone.utc)
+        connector_config.last_sync_at = datetime.now(UTC)
         connector_config.last_sync_status = "SUCCESS"
         connector_config.last_sync_record_count = len(idp_users)
 
@@ -138,7 +137,7 @@ async def run_directory_sync(db: AsyncSession, connector_config: ConnectorConfig
         log.error_message = str(e)[:2000]
         connector_config.last_sync_status = "FAILED"
     finally:
-        log.finished_at = datetime.now(timezone.utc)
+        log.finished_at = datetime.now(UTC)
         if 'connector' in locals():
             await connector.close()
 

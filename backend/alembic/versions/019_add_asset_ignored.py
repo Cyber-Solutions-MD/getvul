@@ -4,8 +4,9 @@ Revision ID: 019_asset_ignored
 Revises: 018_smtp_config
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "019_asset_ignored"
 down_revision = "018_smtp_config"

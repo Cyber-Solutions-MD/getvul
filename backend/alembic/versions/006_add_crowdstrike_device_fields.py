@@ -7,8 +7,9 @@ Revision ID: 006_add_crowdstrike_device_fields
 Revises: 005_add_device_category_jamf
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "006_add_cs_device_fields"
 down_revision = "005_add_device_category_jamf"

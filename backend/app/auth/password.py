@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import bcrypt
 import structlog
@@ -124,7 +124,7 @@ async def register_user(
         role=role,
         password_hash=hash_password(password),
         allow_password_login=True,
-        last_login_at=datetime.now(timezone.utc),
+        last_login_at=datetime.now(UTC),
     )
     db.add(user)
     await db.flush()
@@ -173,7 +173,7 @@ async def login_with_password(
         return {"error": "Invalid email or password"}
 
     # Update last login
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
 
     logger.info("password_login", email=email)
 
@@ -201,9 +201,8 @@ async def change_password(
         return {"error": err}
 
     # If user has a current password, verify it
-    if user.password_hash and current_password:
-        if not verify_password(current_password, user.password_hash):
-            return {"error": "Current password is incorrect"}
+    if user.password_hash and current_password and not verify_password(current_password, user.password_hash):
+        return {"error": "Current password is incorrect"}
 
     # Check password history
     history_count = policy.get("history_count", 0)

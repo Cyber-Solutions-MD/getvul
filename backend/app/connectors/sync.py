@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import select
@@ -14,12 +14,12 @@ from app.assets.models import Asset
 from app.assets.risk_score import compute_risk_scores
 from app.connectors.base import BaseConnector, NormalizedMisconfiguration, NormalizedVulnerability
 from app.connectors.crowdstrike import CrowdStrikeConnector
-from app.connectors.nessus import NessusConnector
 from app.connectors.defender import DefenderConnector
-from app.connectors.wiz import WizConnector
+from app.connectors.nessus import NessusConnector
 from app.connectors.qualys import QualysConnector
 from app.connectors.rapid7 import Rapid7Connector
 from app.connectors.service import get_decrypted_credentials
+from app.connectors.wiz import WizConnector
 from app.cspm.models import Misconfiguration
 from app.ticketing.models import ConnectorConfig, SyncLog
 from app.vulnerabilities.correlation_service import run_correlations
@@ -41,7 +41,7 @@ SPECIAL_CONNECTORS = {"JAMF", "HUMAANS", "ASANA", "JIRA", "GOOGLE_WORKSPACE", "A
 
 
 async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     log = SyncLog(connector_id=connector_config.id, tenant_id=connector_config.tenant_id, status="RUNNING", started_at=now)
     db.add(log)
     await db.flush()
@@ -70,7 +70,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
     if connector_config.connector_type in ("ASANA", "JIRA"):
         # Asana is a ticketing connector — no data to sync, just config storage
         log.status = "SUCCESS"
-        log.finished_at = datetime.now(timezone.utc)
+        log.finished_at = datetime.now(UTC)
         log.details = {"message": "Asana is a ticketing connector, no data sync needed"}
         return log
 
@@ -78,7 +78,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
     if not connector_cls:
         log.status = "FAILED"
         log.error_message = f"Unknown connector: {connector_config.connector_type}"
-        log.finished_at = datetime.now(timezone.utc)
+        log.finished_at = datetime.now(UTC)
         return log
 
     connector = connector_cls()
@@ -89,7 +89,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         if not authed:
             log.status = "FAILED"
             log.error_message = "Authentication failed"
-            log.finished_at = datetime.now(timezone.utc)
+            log.finished_at = datetime.now(UTC)
             return log
 
         vulns = await connector.fetch_vulnerabilities()
@@ -117,7 +117,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         log.details = {"vulns_fetched": len(vulns), "vulns_created": vc, "vulns_updated": vu,
                        "misconfigs_fetched": len(misconfigs), "misconfigs_created": mc,
                        "correlations": corr_stats, "risk_scores": risk_stats}
-        connector_config.last_sync_at = datetime.now(timezone.utc)
+        connector_config.last_sync_at = datetime.now(UTC)
         connector_config.last_sync_status = "SUCCESS"
         connector_config.last_sync_record_count = log.records_fetched
 
@@ -127,7 +127,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         log.error_message = str(e)[:2000]
         connector_config.last_sync_status = "FAILED"
     finally:
-        log.finished_at = datetime.now(timezone.utc)
+        log.finished_at = datetime.now(UTC)
         if hasattr(connector, "close"):
             await connector.close()
 
@@ -234,7 +234,7 @@ def _parse_ts(val: str | None) -> datetime | None:
 
 async def _upsert_vulnerability(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVulnerability,
                                  asset_id: uuid.UUID, source: str) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(select(Vulnerability).where(
         Vulnerability.tenant_id == tenant_id, Vulnerability.cve_id == v.cve_id,
         Vulnerability.asset_id == asset_id, Vulnerability.source == source,
@@ -275,7 +275,7 @@ async def _upsert_vulnerability(db: AsyncSession, tenant_id: uuid.UUID, v: Norma
 
 
 async def _upsert_misconfiguration(db: AsyncSession, tenant_id: uuid.UUID, m: NormalizedMisconfiguration, source: str) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(select(Misconfiguration).where(
         Misconfiguration.tenant_id == tenant_id, Misconfiguration.rule_id == m.rule_id,
         Misconfiguration.resource_id == m.resource_id, Misconfiguration.source == source,

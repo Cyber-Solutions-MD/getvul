@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Select, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.cspm.models import Misconfiguration
 from app.cspm.schemas import (
     BulkMisconfigStatusUpdate,
-    CSPMDashboardStats,
     CategoryCount,
+    CSPMDashboardStats,
     MisconfigFilter,
     MisconfigResponse,
     MisconfigSummary,
@@ -92,7 +92,7 @@ async def get_misconfiguration(
 async def update_misconfig_status(
     db: AsyncSession, tenant_id: uuid.UUID, misconfig_id: uuid.UUID, new_status: str,
 ) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     values: dict = {"status": new_status, "updated_at": now}
     if new_status == "REMEDIATED":
         values["remediated_at"] = now
@@ -107,7 +107,7 @@ async def update_misconfig_status(
 async def bulk_update_misconfig_status(
     db: AsyncSession, tenant_id: uuid.UUID, body: BulkMisconfigStatusUpdate,
 ) -> int:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     values: dict = {"status": body.status, "updated_at": now}
     if body.status == "REMEDIATED":
         values["remediated_at"] = now

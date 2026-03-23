@@ -4,8 +4,9 @@ Revision ID: 004_add_remediation_fields
 Revises: 003_widen_credentials_column
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "004_add_remediation_fields"
 down_revision = "003_widen_credentials_column"

@@ -124,7 +124,7 @@ class Rapid7Connector(BaseConnector):
         results: list[NormalizedVulnerability] = []
 
         assets = await self._fetch_assets()
-        asset_map: dict[int, dict] = {a["id"]: a for a in assets}
+        {a["id"]: a for a in assets}
 
         for idx, asset in enumerate(assets, 1):
             asset_id: int = asset["id"]

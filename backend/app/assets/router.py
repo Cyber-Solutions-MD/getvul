@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, case, text, update
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.assets.classification import classify_asset
+from app.assets.models import Asset
 from app.auth.dependencies import get_current_user, require_role
 from app.db.session import get_db
-from app.assets.models import Asset
-from app.assets.classification import classify_asset
 from app.vulnerabilities.models import Vulnerability
 
 router = APIRouter(prefix="", tags=["Assets"])
@@ -61,13 +63,10 @@ async def list_assets(
     total = (await db.execute(count_q)).scalar() or 0
 
     # Sort (allowlist to prevent SQL injection via column name)
-    ALLOWED_SORT = {"risk_score", "hostname", "os_name", "device_category"}
-    safe_sort_by = sort_by if sort_by in ALLOWED_SORT else "risk_score"
+    allowed_sort = {"risk_score", "hostname", "os_name", "device_category"}
+    safe_sort_by = sort_by if sort_by in allowed_sort else "risk_score"
     sort_col = getattr(Asset, safe_sort_by)
-    if sort_dir == "asc":
-        query = query.order_by(sort_col.asc())
-    else:
-        query = query.order_by(sort_col.desc())
+    query = query.order_by(sort_col.asc()) if sort_dir == "asc" else query.order_by(sort_col.desc())
 
     # Paginate — clamp to safe integer range to satisfy SAST taint analysis
     safe_page = max(1, min(int(page), 10000))
@@ -83,8 +82,8 @@ async def list_assets(
             func.count().label("total"),
             func.count().filter(Vulnerability.severity == "CRITICAL").label("critical"),
             func.count().filter(Vulnerability.severity == "HIGH").label("high"),
-            func.count().filter(Vulnerability.exploit_available == True).label("exploitable"),
-            func.count().filter(Vulnerability.cisa_kev == True).label("kev"),
+            func.count().filter(Vulnerability.exploit_available).label("exploitable"),
+            func.count().filter(Vulnerability.cisa_kev).label("kev"),
         ).where(Vulnerability.asset_id == a.id)
         vcounts = (await db.execute(vuln_q)).one()
 
@@ -193,8 +192,8 @@ async def get_asset(
         func.count().filter(Vulnerability.severity == "HIGH").label("high"),
         func.count().filter(Vulnerability.severity == "MEDIUM").label("medium"),
         func.count().filter(Vulnerability.severity == "LOW").label("low"),
-        func.count().filter(Vulnerability.exploit_available == True).label("exploitable"),
-        func.count().filter(Vulnerability.cisa_kev == True).label("kev"),
+        func.count().filter(Vulnerability.exploit_available).label("exploitable"),
+        func.count().filter(Vulnerability.cisa_kev).label("kev"),
     ).where(Vulnerability.asset_id == asset.id)
     vc = (await db.execute(vuln_q)).one()
 
@@ -281,14 +280,17 @@ async def get_asset(
 @router.post("/{asset_id}/ignore")
 async def ignore_asset(
     asset_id: str,
-    body: dict = {},
+    body: dict = None,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Mark an asset as ignored — excludes from remediations and ticket creation."""
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from app.audit import audit
 
+    if body is None:
+        body = {}
     asset = (await db.execute(
         select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
     )).scalar_one_or_none()
@@ -297,7 +299,7 @@ async def ignore_asset(
         raise HTTPException(404, "Asset not found")
 
     asset.is_ignored = True
-    asset.ignored_at = datetime.now(timezone.utc)
+    asset.ignored_at = datetime.now(UTC)
     asset.ignored_reason = body.get("reason", "")
     await audit(db, user, "asset.ignore", "asset", str(asset.id), {"hostname": asset.hostname, "reason": asset.ignored_reason})
     await db.commit()
@@ -335,7 +337,8 @@ async def bulk_ignore_assets(
     db: AsyncSession = Depends(get_db),
 ):
     """Bulk ignore/unignore assets."""
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from app.audit import audit
 
     asset_ids = body.get("asset_ids", [])
@@ -354,7 +357,7 @@ async def bulk_ignore_assets(
     for a in assets:
         if action == "ignore":
             a.is_ignored = True
-            a.ignored_at = datetime.now(timezone.utc)
+            a.ignored_at = datetime.now(UTC)
             a.ignored_reason = reason
         else:
             a.is_ignored = False

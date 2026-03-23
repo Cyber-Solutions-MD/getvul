@@ -4,9 +4,10 @@ Revision ID: 009_link_rules_filters
 Revises: 008_add_saved_filters
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "009_link_rules_filters"
 down_revision = "008_add_saved_filters"

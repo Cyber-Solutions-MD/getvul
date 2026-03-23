@@ -11,6 +11,7 @@ Authentication uses Azure AD OAuth2 client_credentials flow.
 from __future__ import annotations
 
 import asyncio
+
 import httpx
 import structlog
 
@@ -264,7 +265,7 @@ class DefenderConnector(BaseConnector):
         health_status = machine.get("healthStatus", "")
 
         # Machine tags for potential classification
-        machine_tags = machine.get("machineTags", []) or []
+        machine.get("machineTags", []) or []
 
         return NormalizedVulnerability(
             cve_id=cve_id,

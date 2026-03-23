@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 
-
 # ── CrowdStrike product_type_desc mapping ──
 CS_TYPE_MAP = {
     "workstation": "WORKSTATION",

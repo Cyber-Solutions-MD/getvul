@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import func, select
@@ -21,7 +22,7 @@ logger = structlog.get_logger()
 
 async def run_jamf_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
     """Run a JAMF sync — fetches computers and enriches asset inventory."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     log = SyncLog(
         connector_id=connector_config.id,
@@ -38,7 +39,7 @@ async def run_jamf_sync(db: AsyncSession, connector_config: ConnectorConfig) -> 
     if not base_url:
         log.status = "FAILED"
         log.error_message = "Base URL is required for Jamf Pro"
-        log.finished_at = datetime.now(timezone.utc)
+        log.finished_at = datetime.now(UTC)
         return log
 
     connector = JamfConnector(
@@ -52,7 +53,7 @@ async def run_jamf_sync(db: AsyncSession, connector_config: ConnectorConfig) -> 
         if not authed:
             log.status = "FAILED"
             log.error_message = "JAMF authentication failed"
-            log.finished_at = datetime.now(timezone.utc)
+            log.finished_at = datetime.now(UTC)
             return log
 
         computers = await connector.fetch_computers()
@@ -71,7 +72,7 @@ async def run_jamf_sync(db: AsyncSession, connector_config: ConnectorConfig) -> 
         log.records_updated = updated
         log.details = {"computers_fetched": len(computers), "created": created, "updated": updated}
 
-        connector_config.last_sync_at = datetime.now(timezone.utc)
+        connector_config.last_sync_at = datetime.now(UTC)
         connector_config.last_sync_status = "SUCCESS"
         connector_config.last_sync_record_count = len(computers)
 
@@ -81,7 +82,7 @@ async def run_jamf_sync(db: AsyncSession, connector_config: ConnectorConfig) -> 
         log.error_message = str(e)[:2000]
         connector_config.last_sync_status = "FAILED"
     finally:
-        log.finished_at = datetime.now(timezone.utc)
+        log.finished_at = datetime.now(UTC)
 
     return log
 
@@ -139,10 +140,8 @@ async def _upsert_jamf_device(
     # Parse last checkin timestamp
     last_checkin = None
     if comp.get("last_checkin"):
-        try:
+        with contextlib.suppress(ValueError, AttributeError):
             last_checkin = datetime.fromisoformat(comp["last_checkin"].replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
-            pass
 
     if asset is None:
         asset = Asset(

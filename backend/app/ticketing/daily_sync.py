@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import case, func, select
@@ -185,7 +185,6 @@ async def _build_status_comment(db: AsyncSession, vuln_ids: list[uuid.UUID]) -> 
 
 async def _sync_asana_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> dict:
     """Sync all open Asana tickets for a tenant."""
-    from app.ticketing.asana_client import AsanaClient
 
     result = await db.execute(
         select(Ticket).where(
@@ -218,14 +217,14 @@ async def _sync_asana_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) ->
 
         if task.get("completed"):
             ticket.external_status = "completed"
-            ticket.resolved_at = datetime.now(timezone.utc)
+            ticket.resolved_at = datetime.now(UTC)
             resolved += 1
             vuln = (await db.execute(
                 select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id)
             )).scalar_one_or_none()
             if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
                 vuln.status = "REMEDIATED"
-                vuln.remediated_at = datetime.now(timezone.utc)
+                vuln.remediated_at = datetime.now(UTC)
         else:
             ticket.external_status = "open"
 
@@ -246,7 +245,7 @@ async def _sync_asana_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) ->
         if status["should_close"]:
             await client.update_task(task_gid, completed=True)
             await client.add_comment(task_gid, status["comment_text"])
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             for t in tlist:
                 t.external_status = "completed"
                 t.resolved_at = now
@@ -307,14 +306,14 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
 
         if status_category == "done" or jira_status.lower() in ("done", "closed", "resolved", "completed"):
             ticket.external_status = jira_status.lower()
-            ticket.resolved_at = datetime.now(timezone.utc)
+            ticket.resolved_at = datetime.now(UTC)
             resolved += 1
             vuln = (await db.execute(
                 select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id)
             )).scalar_one_or_none()
             if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
                 vuln.status = "REMEDIATED"
-                vuln.remediated_at = datetime.now(timezone.utc)
+                vuln.remediated_at = datetime.now(UTC)
         else:
             ticket.external_status = jira_status.lower()
 
@@ -335,7 +334,7 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
         if status["should_close"]:
             # Add comment and try to transition to Done
             await client.update_issue(issue_key, comment=status["comment_text"], status="Done")
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             for t in tlist:
                 t.external_status = "done"
                 t.resolved_at = now

@@ -8,12 +8,12 @@ Provides a unified view of users and their devices, combining:
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import String, case, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.assets.models import Asset
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db
-from app.assets.models import Asset
 from app.vulnerabilities.models import Vulnerability
 
 router = APIRouter(prefix="", tags=["Users"])

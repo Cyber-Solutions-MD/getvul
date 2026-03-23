@@ -4,9 +4,10 @@ Revision ID: 018_smtp_config
 Revises: 017_scheduled_reports
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "018_smtp_config"
 down_revision = "017_scheduled_reports"

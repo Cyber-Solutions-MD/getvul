@@ -4,9 +4,10 @@ Revision ID: 017_scheduled_reports
 Revises: 016_add_password_policy
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "017_scheduled_reports"
 down_revision = "016_add_password_policy"

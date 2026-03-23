@@ -1,19 +1,18 @@
 """Microsoft Intune MDM sync — fetches managed devices and enriches Asset records."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import structlog
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.ticketing.models import ConnectorConfig, SyncLog
-from app.connectors.service import get_decrypted_credentials
-from app.assets.models import Asset
 from app.assets.classification import classify_asset_from_data
+from app.assets.models import Asset
+from app.connectors.service import get_decrypted_credentials
+from app.ticketing.models import ConnectorConfig, SyncLog
 
 logger = structlog.get_logger(__name__)
 
@@ -71,7 +70,7 @@ def _parse_iso(value: str | None) -> datetime | None:
         return None
     try:
         dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt.astimezone(timezone.utc)
+        return dt.astimezone(UTC)
     except (ValueError, TypeError):
         return None
 
@@ -127,7 +126,7 @@ async def run_intune_sync(
     sync_log = SyncLog(
         connector_config_id=connector_config.id,
         status="running",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         records_fetched=0,
         records_created=0,
         records_updated=0,
@@ -177,7 +176,7 @@ async def run_intune_sync(
                 sync_log.records_created += 1
 
         sync_log.status = "success"
-        sync_log.finished_at = datetime.now(timezone.utc)
+        sync_log.finished_at = datetime.now(UTC)
         await db.flush()
         logger.info(
             "intune_sync_complete",
@@ -189,7 +188,7 @@ async def run_intune_sync(
     except Exception as exc:
         sync_log.status = "error"
         sync_log.error_message = str(exc)[:2000]
-        sync_log.finished_at = datetime.now(timezone.utc)
+        sync_log.finished_at = datetime.now(UTC)
         await db.flush()
         logger.error("intune_sync_failed", error=str(exc))
 

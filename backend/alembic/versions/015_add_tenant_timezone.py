@@ -4,8 +4,9 @@ Revision ID: 015_add_timezone
 Revises: 014_add_syslog_config
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "015_add_timezone"
 down_revision = "014_add_syslog_config"

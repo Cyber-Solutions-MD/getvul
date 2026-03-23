@@ -3,24 +3,25 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import case, distinct, func, select
 
+from app.assets.models import Asset
 from app.auth.rbac import require_analyst, require_viewer
 from app.auth.schemas import CurrentUser
-from app.dependencies import AuthenticatedUser, DBSession
+from app.dependencies import DBSession
 from app.pagination import PaginatedResponse, PaginationParams
-from sqlalchemy import distinct, select, func, case
-from app.assets.models import Asset
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
     DashboardStats,
     VulnerabilityFilter,
     VulnerabilityResponse,
-    VulnerabilitySummary,
     VulnerabilityStatusUpdate,
+    VulnerabilitySummary,
 )
 from app.vulnerabilities.service import (
     bulk_update_status,
@@ -118,7 +119,7 @@ async def sla_recalculate(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     """Recalculate all SLA due dates based on current config."""
-    from app.vulnerabilities.sla_service import recalculate_sla_due_dates, check_sla_breaches
+    from app.vulnerabilities.sla_service import check_sla_breaches, recalculate_sla_due_dates
     result = await recalculate_sla_due_dates(db, user.tenant_id)
     breaches = await check_sla_breaches(db, user.tenant_id)
     from app.audit import audit
@@ -198,9 +199,10 @@ async def create_rule_from_filter(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     """Create a ticket automation rule from a saved filter."""
-    from app.vulnerabilities.saved_filters import SavedFilter
-    from app.ticketing.models import TicketRule
     from sqlalchemy import select as sel
+
+    from app.ticketing.models import TicketRule
+    from app.vulnerabilities.saved_filters import SavedFilter
 
     sf = (await db.execute(sel(SavedFilter).where(SavedFilter.id == filter_id, SavedFilter.tenant_id == user.tenant_id))).scalar_one_or_none()
     if not sf:
@@ -264,14 +266,18 @@ async def ignore_cve(
     cve_id: str,
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_analyst)],
-    body: dict = {},
+    body: dict = None,
 ):
     """Ignore a CVE — suppress all vulnerability instances of this CVE across all assets."""
+    from datetime import datetime
+
     from sqlalchemy import update as sql_update
-    from datetime import datetime, timezone
+
     from app.assets.risk_score import compute_risk_scores
 
-    now = datetime.now(timezone.utc)
+    if body is None:
+        body = {}
+    now = datetime.now(UTC)
     result = await db.execute(
         sql_update(Vulnerability)
         .where(
@@ -296,11 +302,13 @@ async def unignore_cve(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     """Unignore a CVE — reopen all suppressed instances of this CVE."""
+    from datetime import datetime
+
     from sqlalchemy import update as sql_update
-    from datetime import datetime, timezone
+
     from app.assets.risk_score import compute_risk_scores
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(
         sql_update(Vulnerability)
         .where(
@@ -325,8 +333,10 @@ async def bulk_ignore_cve(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     """Bulk ignore/unignore CVEs."""
+    from datetime import datetime
+
     from sqlalchemy import update as sql_update
-    from datetime import datetime, timezone
+
     from app.assets.risk_score import compute_risk_scores
 
     raw_cve_ids = body.get("cve_ids", [])
@@ -338,7 +348,7 @@ async def bulk_ignore_cve(
     if not cve_ids:
         raise HTTPException(400, "No valid CVE IDs provided")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if action == "ignore":
         result = await db.execute(
             sql_update(Vulnerability)
@@ -479,8 +489,10 @@ async def suppress_remediation(
     Marks all OPEN/IN_PROGRESS vulns with this remediation_id as SUPPRESSED,
     then recomputes risk scores for affected assets.
     """
+    from datetime import datetime
+
     from sqlalchemy import update
-    from datetime import datetime, timezone
+
     from app.assets.risk_score import compute_risk_scores
 
     # Find affected asset IDs before suppressing
@@ -496,7 +508,7 @@ async def suppress_remediation(
     affected_asset_ids = [r[0] for r in (await db.execute(affected_assets_q)).all()]
 
     # Suppress all vulns with this remediation_id
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(
         update(Vulnerability)
         .where(
@@ -531,11 +543,13 @@ async def unsuppress_remediation(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     """Unsuppress all vulnerabilities linked to a remediation (reopen them)."""
+    from datetime import datetime
+
     from sqlalchemy import update
-    from datetime import datetime, timezone
+
     from app.assets.risk_score import compute_risk_scores
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(
         update(Vulnerability)
         .where(

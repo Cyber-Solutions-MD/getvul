@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import structlog
@@ -78,10 +78,7 @@ async def _request_with_retry(
             return response
 
         reset_epoch = response.headers.get("X-Rate-Limit-Reset")
-        if reset_epoch:
-            wait = max(int(reset_epoch) - int(time.time()), 1)
-        else:
-            wait = 2 ** attempt
+        wait = max(int(reset_epoch) - int(time.time()), 1) if reset_epoch else 2 ** attempt
 
         logger.warning(
             "okta_rate_limited",
@@ -116,7 +113,7 @@ async def run_okta_sync(
         connector_config_id=connector_config.id,
         tenant_id=tenant_id,
         status="RUNNING",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         details={},
     )
     db.add(sync_log)
@@ -247,7 +244,7 @@ async def run_okta_sync(
 
         # -- Finalize sync log ---------------------------------------------
         sync_log.status = "SUCCESS"
-        sync_log.finished_at = datetime.now(timezone.utc)
+        sync_log.finished_at = datetime.now(UTC)
         sync_log.details = {
             "users_synced": users_synced,
             "groups_synced": groups_synced,
@@ -260,7 +257,7 @@ async def run_okta_sync(
 
     except Exception as exc:
         sync_log.status = "FAILED"
-        sync_log.finished_at = datetime.now(timezone.utc)
+        sync_log.finished_at = datetime.now(UTC)
         sync_log.details = {"error": str(exc)}
         log.error("okta_sync_failed", error=str(exc))
 

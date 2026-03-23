@@ -8,13 +8,13 @@ import logging
 import httpx
 from sqlalchemy import select
 
+from app.assets.classification import classify_asset_from_data
 from app.assets.models import Asset
-from app.vulnerabilities.models import Vulnerability  # noqa: F401
-from app.tenants.models import Tenant, User  # noqa: F401
 from app.connectors.service import get_decrypted_credentials
 from app.db.session import async_session_factory
+from app.tenants.models import Tenant, User  # noqa: F401
 from app.ticketing.models import ConnectorConfig
-from app.assets.classification import classify_asset_from_data
+from app.vulnerabilities.models import Vulnerability  # noqa: F401
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

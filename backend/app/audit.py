@@ -14,7 +14,7 @@ import logging
 import logging.handlers
 import socket
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, select
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -129,7 +129,7 @@ async def audit(
 
     Also forwards to syslog if configured.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     try:
         log = AuditLog(
             tenant_id=user.tenant_id if user else uuid.UUID(int=0),

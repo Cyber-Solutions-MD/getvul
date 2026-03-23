@@ -4,9 +4,10 @@ Revision ID: 016_add_password_policy
 Revises: 015_add_timezone
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "016_add_password_policy"
 down_revision = "015_add_timezone"

@@ -4,9 +4,10 @@ Revision ID: 008_add_saved_filters
 Revises: 007_ticket_rule_schedule
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "008_add_saved_filters"
 down_revision = "007_ticket_rule_schedule"

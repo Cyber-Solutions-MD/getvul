@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Select, and_, case, distinct, func, or_, select, update
+from sqlalchemy import Select, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 from app.assets.models import Asset
 from app.pagination import PaginatedResponse, PaginationParams
@@ -50,10 +49,10 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: VulnerabilityFi
             )
         )
     if filters.age_days_min is not None:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=filters.age_days_min)
+        cutoff = datetime.now(UTC) - timedelta(days=filters.age_days_min)
         query = query.where(Vulnerability.first_detected_at <= cutoff)
     if filters.age_days_max is not None:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=filters.age_days_max)
+        cutoff = datetime.now(UTC) - timedelta(days=filters.age_days_max)
         query = query.where(Vulnerability.first_detected_at >= cutoff)
 
     return query
@@ -178,7 +177,7 @@ async def update_vulnerability_status(
     db: AsyncSession, tenant_id: uuid.UUID, vuln_id: uuid.UUID, new_status: str,
 ) -> bool:
     """Update status of a single vulnerability."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     values: dict = {"status": new_status, "updated_at": now}
     if new_status == "REMEDIATED":
         values["remediated_at"] = now
@@ -195,7 +194,7 @@ async def bulk_update_status(
     db: AsyncSession, tenant_id: uuid.UUID, body: BulkStatusUpdate,
 ) -> int:
     """Bulk update status for multiple vulnerabilities."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     values: dict = {"status": body.status, "updated_at": now}
     if body.status == "REMEDIATED":
         values["remediated_at"] = now
@@ -268,7 +267,7 @@ async def get_dashboard_stats(
     ).where(
         Vulnerability.tenant_id == tenant_id,
         Vulnerability.status == "REMEDIATED",
-        Vulnerability.remediated_at >= datetime.now(timezone.utc) - timedelta(days=90),
+        Vulnerability.remediated_at >= datetime.now(UTC) - timedelta(days=90),
     )
     mttr = (await db.execute(mttr_q)).scalar_one()
 

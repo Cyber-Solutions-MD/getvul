@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import wraps
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status

@@ -203,6 +203,7 @@ async def auth_config(
     Tells the frontend which login methods are available.
     """
     from sqlalchemy import select
+
     from app.tenants.models import Tenant
 
     config = {

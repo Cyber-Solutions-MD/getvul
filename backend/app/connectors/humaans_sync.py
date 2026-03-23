@@ -11,13 +11,11 @@ Stores all Humaans people in a JSONB cache on the sync log for the users API.
 
 from __future__ import annotations
 
-import json
-import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -31,7 +29,7 @@ logger = structlog.get_logger()
 
 async def run_humaans_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
     """Run a Humaans sync — fetches people and enriches matching assets."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     log = SyncLog(
         connector_id=connector_config.id,
@@ -49,7 +47,7 @@ async def run_humaans_sync(db: AsyncSession, connector_config: ConnectorConfig) 
         if not authed:
             log.status = "FAILED"
             log.error_message = "Humaans authentication failed"
-            log.finished_at = datetime.now(timezone.utc)
+            log.finished_at = datetime.now(UTC)
             return log
 
         people = await connector.fetch_people_with_devices()
@@ -76,7 +74,7 @@ async def run_humaans_sync(db: AsyncSession, connector_config: ConnectorConfig) 
             "people_unmatched": unmatched,
         }
 
-        connector_config.last_sync_at = datetime.now(timezone.utc)
+        connector_config.last_sync_at = datetime.now(UTC)
         connector_config.last_sync_status = "SUCCESS"
         connector_config.last_sync_record_count = len(people)
 
@@ -86,7 +84,7 @@ async def run_humaans_sync(db: AsyncSession, connector_config: ConnectorConfig) 
         log.error_message = str(e)[:2000]
         connector_config.last_sync_status = "FAILED"
     finally:
-        log.finished_at = datetime.now(timezone.utc)
+        log.finished_at = datetime.now(UTC)
         await connector.close()
 
     return log
@@ -115,7 +113,7 @@ async def _find_matching_assets(
 
     # Full name variants for hostname matching
     first_lower = (person.first_name or "").lower().strip()
-    last_lower = (person.last_name or "").lower().strip()
+    (person.last_name or "").lower().strip()
 
     if not candidates:
         return []

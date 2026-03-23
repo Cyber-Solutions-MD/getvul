@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from sqlalchemy import String, case, func, select
@@ -45,17 +45,17 @@ def _build_task_description(vuln: Vulnerability, hostname: str | None) -> str:
     ]
 
     if vuln.exploit_available:
-        lines.append(f"  Exploit Available: Yes")
+        lines.append("  Exploit Available: Yes")
     if vuln.cisa_kev:
-        lines.append(f"  CISA KEV: Yes")
+        lines.append("  CISA KEV: Yes")
     if vuln.cvss_v3_score:
         lines.append(f"  CVSS: {vuln.cvss_v3_score}")
 
-    lines.append(f"")
+    lines.append("")
     lines.append(f"Remediation: {remediation}")
 
     if vuln.cve_id:
-        lines.append(f"")
+        lines.append("")
         lines.append(f"NVD: https://nvd.nist.gov/vuln/detail/{vuln.cve_id}")
 
     return "\n".join(lines)
@@ -106,10 +106,10 @@ async def create_tickets(
 
         # Determine due date
         if request.due_days:
-            due_on = (datetime.now(timezone.utc) + timedelta(days=request.due_days)).strftime("%Y-%m-%d")
+            due_on = (datetime.now(UTC) + timedelta(days=request.due_days)).strftime("%Y-%m-%d")
         else:
             sla_days = SEVERITY_SLA_DAYS.get(sev, 30)
-            due_on = (datetime.now(timezone.utc) + timedelta(days=sla_days)).strftime("%Y-%m-%d")
+            due_on = (datetime.now(UTC) + timedelta(days=sla_days)).strftime("%Y-%m-%d")
 
         # Resolve assignee
         assignee = request.assignee
@@ -141,7 +141,7 @@ async def create_tickets(
             continue
 
         # Save ticket record
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ticket = Ticket(
             tenant_id=tenant_id,
             vulnerability_id=vuln_id,
@@ -211,8 +211,8 @@ def _build_host_task_description(
         action = rem.get("remediation_action") or "No remediation info"
         product = rem.get("product") or rem.get("affected_product") or "Unknown"
         sev = rem.get("max_severity") or "MEDIUM"
-        count = rem.get("vuln_count", 1)
-        lines.append(f"")
+        rem.get("vuln_count", 1)
+        lines.append("")
         lines.append(f"━━━ {i}. [{sev}] {product} ━━━")
         lines.append(f"  Action: {action}")
 
@@ -333,10 +333,10 @@ async def create_host_ticket(
 
     # Due date based on highest severity
     if request.due_days:
-        due_on = (datetime.now(timezone.utc) + timedelta(days=request.due_days)).strftime("%Y-%m-%d")
+        due_on = (datetime.now(UTC) + timedelta(days=request.due_days)).strftime("%Y-%m-%d")
     else:
         sla_days = SEVERITY_SLA_DAYS.get(max_severity, 30)
-        due_on = (datetime.now(timezone.utc) + timedelta(days=sla_days)).strftime("%Y-%m-%d")
+        due_on = (datetime.now(UTC) + timedelta(days=sla_days)).strftime("%Y-%m-%d")
 
     # Build task
     hostname = asset.hostname or "unknown"
@@ -358,7 +358,7 @@ async def create_host_ticket(
         return {"error": "Failed to create Asana task"}
 
     # Save ticket records — one per vuln so we can track resolution
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ticket_ids = []
     for v in vulns:
         # Skip if ticket already exists
@@ -512,9 +512,9 @@ async def create_remediation_ticket(
 
     # Due date
     if due_days:
-        due_on = (datetime.now(timezone.utc) + timedelta(days=due_days)).strftime("%Y-%m-%d")
+        due_on = (datetime.now(UTC) + timedelta(days=due_days)).strftime("%Y-%m-%d")
     else:
-        due_on = (datetime.now(timezone.utc) + timedelta(days=SEVERITY_SLA_DAYS.get(max_sev, 30))).strftime("%Y-%m-%d")
+        due_on = (datetime.now(UTC) + timedelta(days=SEVERITY_SLA_DAYS.get(max_sev, 30))).strftime("%Y-%m-%d")
 
     task_name = f"[{max_sev}] {product}: {remediation_action[:80]} — {len(hosts)} hosts"
 
@@ -530,10 +530,10 @@ async def create_remediation_ticket(
         return {"error": "Failed to create Asana task"}
 
     # Save ticket records
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     linked = 0
     seen_vuln_ids: set = set()
-    for vuln, hostname, _, _ in rows:
+    for vuln, _hostname, _, _ in rows:
         # Skip duplicate vuln IDs within the same remediation
         if vuln.id in seen_vuln_ids:
             continue
@@ -763,7 +763,7 @@ async def sync_ticket_status(
 
         if task.get("completed"):
             ticket.external_status = "completed"
-            ticket.resolved_at = datetime.now(timezone.utc)
+            ticket.resolved_at = datetime.now(UTC)
             resolved += 1
             # Mark vulnerability as remediated
             vuln_result = await db.execute(
@@ -772,7 +772,7 @@ async def sync_ticket_status(
             vuln = vuln_result.scalar_one_or_none()
             if vuln and vuln.status != "REMEDIATED":
                 vuln.status = "REMEDIATED"
-                vuln.remediated_at = datetime.now(timezone.utc)
+                vuln.remediated_at = datetime.now(UTC)
         else:
             ticket.external_status = "open"
 
@@ -808,7 +808,7 @@ async def sync_ticket_status(
 
         # Auto-close: if no open vulns remain, complete the Asana task
         if still_open == 0 and total > 0 and task_gid not in commented_tasks:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             # Complete the Asana task
             await asana_client.update_task(task_gid, completed=True)
             await asana_client.add_comment(task_gid,
@@ -848,8 +848,8 @@ async def sync_ticket_status(
             remaining = (await db.execute(remaining_q)).all()
 
             comment_lines = [
-                f"📊 Progress update from GetVul:",
-                f"",
+                "📊 Progress update from GetVul:",
+                "",
                 f"✅ Remediated: {remediated}/{total}",
             ]
             if suppressed > 0:
@@ -892,7 +892,7 @@ async def close_ticket(
     if not tickets:
         return {"error": "Ticket not found"}
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Complete the Asana task
     task_gid = tickets[0].external_ticket_id.split(":")[0]

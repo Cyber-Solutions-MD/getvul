@@ -5,15 +5,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.auth.router import router as auth_router
-from app.vulnerabilities.router import router as vuln_router
 from app.assets.router import router as asset_router
-from app.tenants.router import router as tenant_router
+from app.auth.router import router as auth_router
+from app.config import settings
 from app.connectors.router import router as connector_router
 from app.cspm.router import router as cspm_router
-from app.users.router import router as users_router
+from app.tenants.router import router as tenant_router
 from app.ticketing.router import router as tickets_router
-from app.config import settings
+from app.users.router import router as users_router
+from app.vulnerabilities.router import router as vuln_router
 
 
 @asynccontextmanager
@@ -26,8 +26,9 @@ async def lifespan(app: FastAPI):
 
     # Load syslog config from first tenant (if configured)
     try:
-        from app.db.session import async_session_factory
         from sqlalchemy import select
+
+        from app.db.session import async_session_factory
         async with async_session_factory() as db:
             from app.tenants.models import Tenant
             tenant = (await db.execute(select(Tenant).limit(1))).scalar_one_or_none()
@@ -83,6 +84,7 @@ async def health_check():
 
 from fastapi import Depends, Query
 from fastapi.responses import StreamingResponse
+
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db
 
@@ -104,11 +106,15 @@ async def export_resource(
     min_risk: int = Query(0),
 ):
     """Export data. Resources: vulnerabilities, assets, users, tickets, remediations, summary."""
-    from app.export import (
-        export_vulnerabilities_csv, export_assets_csv, export_users_csv,
-        export_tickets_csv, export_remediations_csv, generate_executive_summary,
-    )
     from app.audit import audit
+    from app.export import (
+        export_assets_csv,
+        export_remediations_csv,
+        export_tickets_csv,
+        export_users_csv,
+        export_vulnerabilities_csv,
+        generate_executive_summary,
+    )
 
     filters = {"format": format}
     if severity: filters["severity"] = severity
@@ -190,8 +196,7 @@ async def export_resource(
     )
 
 
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime, timezone
 
 # ── Scheduled Reports ──
 
@@ -202,8 +207,8 @@ async def list_scheduled_reports(db=Depends(get_db), user=Depends(get_current_us
 
 @app.post("/api/v1/reports")
 async def create_scheduled_report(body: dict, db=Depends(get_db), user=Depends(get_current_user)):
-    from app.reports import create_report
     from app.audit import audit
+    from app.reports import create_report
     result = await create_report(db, user.tenant_id, body)
     await audit(db, user, "report.create", "report", result["id"], {"name": result["name"]})
     await db.commit()
@@ -212,6 +217,7 @@ async def create_scheduled_report(body: dict, db=Depends(get_db), user=Depends(g
 @app.patch("/api/v1/reports/{report_id}")
 async def update_scheduled_report(report_id: str, body: dict, db=Depends(get_db), user=Depends(get_current_user)):
     import uuid as _uuid
+
     from app.reports import update_report
     result = await update_report(db, user.tenant_id, _uuid.UUID(report_id), body)
     if not result:
@@ -223,6 +229,7 @@ async def update_scheduled_report(report_id: str, body: dict, db=Depends(get_db)
 @app.delete("/api/v1/reports/{report_id}")
 async def delete_scheduled_report(report_id: str, db=Depends(get_db), user=Depends(get_current_user)):
     import uuid as _uuid
+
     from app.reports import delete_report
     if not await delete_report(db, user.tenant_id, _uuid.UUID(report_id)):
         from fastapi import HTTPException
@@ -234,8 +241,10 @@ async def delete_scheduled_report(report_id: str, db=Depends(get_db), user=Depen
 async def send_report_now(report_id: str, db=Depends(get_db), user=Depends(get_current_user)):
     """Manually trigger a scheduled report."""
     import uuid as _uuid
-    from app.reports import ScheduledReport, _send_report
+
     from sqlalchemy import select
+
+    from app.reports import ScheduledReport, _send_report
     r = (await db.execute(select(ScheduledReport).where(
         ScheduledReport.id == _uuid.UUID(report_id), ScheduledReport.tenant_id == user.tenant_id
     ))).scalar_one_or_none()
@@ -243,7 +252,7 @@ async def send_report_now(report_id: str, db=Depends(get_db), user=Depends(get_c
         from fastapi import HTTPException
         raise HTTPException(404, "Report not found")
     await _send_report(db, r)
-    r.last_sent_at = datetime.now(timezone.utc)
+    r.last_sent_at = datetime.now(UTC)
     r.last_send_status = "SUCCESS"
     await db.commit()
     return {"message": f"Report '{r.name}' generated", "format": r.format}
@@ -263,6 +272,7 @@ async def test_smtp(
     if not cfg:
         # Use saved config from tenant
         from sqlalchemy import select
+
         from app.tenants.models import Tenant
         tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
         cfg = tenant.smtp_config
@@ -280,8 +290,9 @@ async def send_test_email(
 ):
     """Send a test email to verify SMTP config works end-to-end."""
     from sqlalchemy import select
-    from app.tenants.models import Tenant
+
     from app.email import send_email
+    from app.tenants.models import Tenant
 
     tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
     cfg = tenant.smtp_config
@@ -329,8 +340,8 @@ async def upload_certificate(
         from fastapi import HTTPException as HE
         raise HE(400, "Certificate and private key are required (PEM format)")
 
-    from app.certificates import save_certificate
     from app.audit import audit
+    from app.certificates import save_certificate
     result = save_certificate(cert_pem, key_pem)
     await audit(db, user, "cert.upload", "certificate", None, {"subject": result.get("subject")})
     await db.commit()
@@ -349,8 +360,8 @@ async def generate_self_signed_cert(
         from fastapi import HTTPException as HE
         raise HE(403, "Only owners can manage certificates")
 
-    from app.certificates import generate_self_signed
     from app.audit import audit
+    from app.certificates import generate_self_signed
     hostname = body.get("hostname", "getvul.local")
     result = generate_self_signed(hostname)
     await audit(db, user, "cert.generate", "certificate", None, {"hostname": hostname, "type": "self-signed"})
@@ -369,8 +380,8 @@ async def remove_certificate(
         from fastapi import HTTPException as HE
         raise HE(403, "Only owners can manage certificates")
 
-    from app.certificates import delete_certificate
     from app.audit import audit
+    from app.certificates import delete_certificate
     result = delete_certificate()
     await audit(db, user, "cert.delete", "certificate")
     await db.commit()

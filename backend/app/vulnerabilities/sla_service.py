@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.tenants.models import Tenant
@@ -85,7 +85,7 @@ async def recalculate_sla_due_dates(db: AsyncSession, tenant_id: uuid.UUID) -> d
 
 async def check_sla_breaches(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     """Mark vulns as breached if past their SLA due date."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Mark newly breached
     result = await db.execute(
@@ -117,7 +117,7 @@ async def check_sla_breaches(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
 
 async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     """Get comprehensive SLA compliance metrics."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Get tenant SLA config for display
     tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()

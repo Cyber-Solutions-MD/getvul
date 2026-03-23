@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.sync import run_sync
 from app.db.session import async_session_factory
@@ -86,7 +85,7 @@ async def _scheduler_loop() -> None:
                 )
                 connectors = result.scalars().all()
 
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
 
                 for connector in connectors:
                     # Skip if already running
@@ -136,10 +135,11 @@ async def _scheduler_loop() -> None:
         # SLA breach check (runs every loop — lightweight query)
         try:
             async with async_session_factory() as db:
+                from sqlalchemy import select as _sel  # noqa: N814
+
+                from app.tenants.models import Tenant as TenantModel
                 from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
-                from sqlalchemy import select as _sel
-                from app.tenants.models import Tenant as _T
-                tenants = (await db.execute(_sel(_T).where(_T.is_active.is_(True)))).scalars().all()
+                tenants = (await db.execute(_sel(TenantModel).where(_T.is_active.is_(True)))).scalars().all()
                 for t in tenants:
                     await backfill_sla_due_dates(db, t.id)
                     await check_sla_breaches(db, t.id)
@@ -150,7 +150,7 @@ async def _scheduler_loop() -> None:
         # Daily ticket status sync (every 24 hours)
         global _last_ticket_sync
         try:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             if _last_ticket_sync is None or (now - _last_ticket_sync).total_seconds() >= 86400:
                 async with async_session_factory() as db:
                     from app.ticketing.daily_sync import run_daily_ticket_sync

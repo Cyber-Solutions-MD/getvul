@@ -4,8 +4,9 @@ Revision ID: 003_widen_credentials_column
 Revises: 002_add_misconfigurations
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "003_widen_credentials_column"
 down_revision = "002_add_misconfigurations"

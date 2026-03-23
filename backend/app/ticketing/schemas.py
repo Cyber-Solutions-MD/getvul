@@ -7,7 +7,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-
 # ── Ticket responses ──
 
 class TicketResponse(BaseModel):

@@ -57,7 +57,7 @@ class BaseOIDCProvider:
             "access_type": "offline",
             "prompt": "consent",
         }
-        query = "&".join(f"{k}={httpx.QueryParams({k: v})}" for k, v in params.items())
+        "&".join(f"{k}={httpx.QueryParams({k: v})}" for k, v in params.items())
         # Use httpx to build clean query string
         return f"{self.authorization_url}?{httpx.QueryParams(params)}"
 

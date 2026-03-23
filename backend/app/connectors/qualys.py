@@ -398,10 +398,7 @@ def _xml_to_dict(element: ET.Element) -> dict[str, Any]:
     for child in element:
         tag = child.tag
         child_data: Any
-        if len(child):
-            child_data = _xml_to_dict(child)
-        else:
-            child_data = (child.text or "").strip()
+        child_data = _xml_to_dict(child) if len(child) else (child.text or "").strip()
 
         if tag in result:
             existing = result[tag]

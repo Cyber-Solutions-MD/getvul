@@ -4,9 +4,10 @@ Revision ID: 005_add_device_category_jamf
 Revises: 004_add_remediation_fields
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "005_add_device_category_jamf"
 down_revision = "004_add_remediation_fields"

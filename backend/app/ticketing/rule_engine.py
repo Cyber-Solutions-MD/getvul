@@ -20,17 +20,17 @@ Rule action:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
 from app.ticketing.asana_client import AsanaClient
 from app.ticketing.models import Ticket, TicketRule
-from app.ticketing.service import create_host_ticket, create_remediation_ticket
 from app.ticketing.schemas import HostTicketCreateRequest
+from app.ticketing.service import create_host_ticket, create_remediation_ticket
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
@@ -258,7 +258,7 @@ async def run_all_due_rules(db: AsyncSession) -> dict:
     from app.connectors.service import get_decrypted_credentials
     from app.ticketing.models import ConnectorConfig
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Get all enabled rules
     rules = (await db.execute(

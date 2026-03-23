@@ -3,18 +3,18 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.config import settings
-from app.db.base import Base
-
-from app.tenants.models import Tenant, User  # noqa: F401
+from alembic import context
 from app.assets.models import Asset  # noqa: F401
-from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation  # noqa: F401
-from app.ticketing.models import ConnectorConfig, SyncLog, Ticket, TicketRule  # noqa: F401
+from app.config import settings
 from app.cspm.models import Misconfiguration  # noqa: F401
+from app.db.base import Base
+from app.tenants.models import Tenant, User  # noqa: F401
+from app.ticketing.models import ConnectorConfig, SyncLog, Ticket, TicketRule  # noqa: F401
+from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation  # noqa: F401
+
 config = context.config
 
 if config.config_file_name is not None:

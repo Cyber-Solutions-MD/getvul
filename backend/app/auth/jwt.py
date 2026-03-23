@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from jose import JWTError, jwt
 
@@ -39,7 +39,7 @@ def create_access_token(
     role: str,
 ) -> str:
     """Create a short-lived access token (15 min default)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.jwt_access_token_expire_minutes)
 
     payload = {
@@ -61,7 +61,7 @@ def create_refresh_token(
     tenant_id: str,
 ) -> str:
     """Create a long-lived refresh token (7 days default)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(days=settings.jwt_refresh_token_expire_days)
 
     payload = {

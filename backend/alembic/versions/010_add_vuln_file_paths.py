@@ -4,9 +4,10 @@ Revision ID: 010_add_file_paths
 Revises: 009_link_rules_filters
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "010_add_file_paths"
 down_revision = "009_link_rules_filters"

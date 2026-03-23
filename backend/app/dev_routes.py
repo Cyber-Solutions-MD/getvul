@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import delete, text
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -22,9 +22,10 @@ async def seed(db: AsyncSession = Depends(get_db)):
 async def run_correlations_endpoint(db: AsyncSession = Depends(get_db)):
     """Run the correlation engine for the demo tenant. Dev only."""
     from sqlalchemy import select
+
+    from app.assets.risk_score import compute_risk_scores
     from app.tenants.models import Tenant
     from app.vulnerabilities.correlation_service import run_correlations
-    from app.assets.risk_score import compute_risk_scores
 
     tenant = (await db.execute(select(Tenant).limit(1))).scalar_one_or_none()
     if not tenant:
@@ -49,11 +50,11 @@ async def clear_test_data(db: AsyncSession = Depends(get_db)):
     This removes the demo tenant, its users, and ALL vulnerabilities/assets/misconfigs
     that belong to it. Then re-creates a minimal tenant + user for dev-token auth.
     """
-    from app.tenants.models import Tenant, User
-    from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
     from app.assets.models import Asset
     from app.cspm.models import Misconfiguration
-    from app.ticketing.models import Ticket, TicketRule, SyncLog
+    from app.tenants.models import Tenant, User
+    from app.ticketing.models import SyncLog, Ticket, TicketRule
+    from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
 
     # Delete everything in order (respecting FK constraints)
     await db.execute(delete(SyncLog))
@@ -95,8 +96,9 @@ async def clear_test_data(db: AsyncSession = Depends(get_db)):
     await db.flush()
 
     # Re-associate existing connector configs with the new tenant
+    from sqlalchemy import update
+
     from app.ticketing.models import ConnectorConfig
-    from sqlalchemy import select, update
 
     await db.execute(
         update(ConnectorConfig).values(tenant_id=tenant.id)

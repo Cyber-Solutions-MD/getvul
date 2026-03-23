@@ -4,9 +4,10 @@ Revision ID: 013_add_audit_log
 Revises: 012_add_user_groups
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "013_add_audit_log"
 down_revision = "012_add_user_groups"

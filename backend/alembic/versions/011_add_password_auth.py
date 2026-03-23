@@ -7,8 +7,9 @@ Revision ID: 011_add_password_auth
 Revises: 010_add_file_paths
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "011_add_password_auth"
 down_revision = "010_add_file_paths"

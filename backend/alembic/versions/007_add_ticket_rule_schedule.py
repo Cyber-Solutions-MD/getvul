@@ -4,8 +4,9 @@ Revision ID: 007_ticket_rule_schedule
 Revises: 006_add_cs_device_fields
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "007_ticket_rule_schedule"
 down_revision = "006_add_cs_device_fields"

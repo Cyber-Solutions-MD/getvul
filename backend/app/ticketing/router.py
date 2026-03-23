@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
+import contextlib
 import uuid
-from typing import Annotated
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +22,6 @@ from app.ticketing.schemas import (
     TicketRuleCreate,
     TicketRuleResponse,
     TicketRuleUpdate,
-    TicketStats,
 )
 from app.ticketing.service import (
     close_ticket,
@@ -51,8 +50,9 @@ async def _get_asana_client(
 ) -> tuple[AsanaClient, str, str]:
     """Get an AsanaClient from the ASANA connector config. Does NOT require workspace to be set."""
     from sqlalchemy import select
-    from app.ticketing.models import ConnectorConfig
+
     from app.connectors.service import get_decrypted_credentials
+    from app.ticketing.models import ConnectorConfig
 
     result = await db.execute(
         select(ConnectorConfig).where(
@@ -108,7 +108,8 @@ async def list_assignees(
     user=Depends(get_current_user),
 ):
     """List available assignees — users with Humaans emails from enriched assets."""
-    from sqlalchemy import select, distinct
+    from sqlalchemy import select
+
     from app.assets.models import Asset
 
     email_col = Asset.mdm_details["humaans_email"].astext
@@ -232,11 +233,12 @@ async def bulk_ticket_action(
     if not urls:
         raise HTTPException(400, "No tickets selected")
 
+
     from sqlalchemy import select
+
     from app.ticketing.models import Ticket
     from app.ticketing.service import close_ticket
     from app.vulnerabilities.models import Vulnerability
-    from datetime import datetime, timezone
 
     results = {"processed": 0, "errors": 0}
 
@@ -298,10 +300,8 @@ async def bulk_ticket_action(
                     # Delete Asana task (once per unique task)
                     task_gid = t.external_ticket_id.split(":")[0]
                     if task_gid not in deleted_tasks:
-                        try:
+                        with contextlib.suppress(Exception):
                             await asana_client.client.delete(f"/tasks/{task_gid}")
-                        except Exception:
-                            pass
                         deleted_tasks.add(task_gid)
                     # Reopen vulns that were changed by this ticket
                     vuln = (await db.execute(
@@ -357,10 +357,11 @@ async def get_asana_config(
 ):
     """Fast check: returns current Asana config from DB only (no API calls)."""
     from sqlalchemy import select as sel
-    from app.ticketing.models import ConnectorConfig as CC
+
+    from app.ticketing.models import ConnectorConfig as ConnConfig
 
     result = await db.execute(
-        sel(CC).where(CC.tenant_id == user.tenant_id, CC.connector_type == "ASANA")
+        sel(ConnConfig).where(CC.tenant_id == user.tenant_id, CC.connector_type == "ASANA")
     )
     connector = result.scalar_one_or_none()
     if not connector:
@@ -427,6 +428,7 @@ async def update_asana_config(
 ):
     """Update the Asana workspace/project selection on the connector."""
     from sqlalchemy import select
+
     from app.ticketing.models import ConnectorConfig
 
     result = await db.execute(
@@ -462,6 +464,7 @@ async def list_rules(
 ):
     """List all ticket rules."""
     from sqlalchemy import select
+
     from app.ticketing.models import TicketRule
 
     result = await db.execute(
@@ -478,9 +481,9 @@ async def create_rule(
     user: CurrentUser = Depends(require_analyst),
 ):
     """Create a new ticket rule."""
-    from app.ticketing.models import TicketRule
-
     import uuid as _uuid
+
+    from app.ticketing.models import TicketRule
     rule = TicketRule(
         tenant_id=user.tenant_id,
         name=body.name,
@@ -506,8 +509,9 @@ async def update_rule(
 ):
     """Update a ticket rule."""
     from sqlalchemy import select
-    from app.ticketing.models import TicketRule
     from sqlalchemy.orm.attributes import flag_modified
+
+    from app.ticketing.models import TicketRule
 
     result = await db.execute(
         select(TicketRule).where(TicketRule.id == rule_id, TicketRule.tenant_id == user.tenant_id)
@@ -541,6 +545,7 @@ async def delete_rule(
 ):
     """Delete a ticket rule."""
     from sqlalchemy import select
+
     from app.ticketing.models import TicketRule
 
     result = await db.execute(
@@ -562,6 +567,7 @@ async def run_rule_now(
 ):
     """Run a rule immediately (manual trigger)."""
     from sqlalchemy import select
+
     from app.ticketing.models import TicketRule
     from app.ticketing.rule_engine import run_rule
 
@@ -575,8 +581,8 @@ async def run_rule_now(
     asana_client, workspace_gid, project_gid = await _get_asana_client_from_connector(db, user.tenant_id)
     try:
         run_result = await run_rule(db, rule, asana_client, workspace_gid, project_gid)
-        from datetime import datetime, timezone
-        rule.last_run_at = datetime.now(timezone.utc)
+        from datetime import datetime
+        rule.last_run_at = datetime.now(UTC)
         rule.last_run_status = "SUCCESS"
         rule.last_run_tickets_created = run_result["created"]
         await db.commit()

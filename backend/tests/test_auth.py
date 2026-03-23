@@ -1,7 +1,7 @@
 """Tests for the auth system — JWT, RBAC, endpoints."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from jose import jwt
@@ -10,7 +10,6 @@ from app.auth.jwt import create_access_token, create_refresh_token, decode_token
 from app.auth.rbac import ROLE_HIERARCHY, _check_role
 from app.auth.schemas import CurrentUser
 from app.config import settings
-
 
 # ── JWT Tests ──
 
@@ -57,8 +56,8 @@ class TestJWT:
             "role": "VIEWER",
             "type": "access",
             "jti": str(uuid.uuid4()),
-            "iat": datetime.now(timezone.utc) - timedelta(hours=2),
-            "exp": datetime.now(timezone.utc) - timedelta(hours=1),
+            "iat": datetime.now(UTC) - timedelta(hours=2),
+            "exp": datetime.now(UTC) - timedelta(hours=1),
         }
         token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
         with pytest.raises(JWTError):
@@ -75,7 +74,7 @@ class TestJWT:
         )
         # Tamper: decode with wrong secret
         with pytest.raises(JWTError):
-            jwt.decode(token, "wrong-secret", algorithms=[settings.jwt_algorithm])
+            jwt.decode(token, "wrong-secret", algorithms=[settings.jwt_algorithm])  # nosemgrep: python-pyjwt-hardcoded-secret
 
 
 # ── RBAC Tests ──

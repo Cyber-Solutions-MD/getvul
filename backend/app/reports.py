@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, select
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -50,7 +50,7 @@ async def create_report(db: AsyncSession, tenant_id: uuid.UUID, data: dict) -> d
         sections=data.get("sections", ["vulns", "assets", "risk", "top_hosts", "top_remediations", "tickets"]),
         filters=data.get("filters", {}),
         is_enabled=data.get("is_enabled", True),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db.add(r)
     await db.flush()
@@ -72,7 +72,7 @@ async def update_report(db: AsyncSession, tenant_id: uuid.UUID, report_id: uuid.
         for k in ["recipients", "sections", "filters"]:
             if k in data:
                 flag_modified(r, k)
-    r.updated_at = datetime.now(timezone.utc)
+    r.updated_at = datetime.now(UTC)
     return _to_dict(r)
 
 
@@ -104,7 +104,7 @@ async def run_due_reports(db: AsyncSession) -> dict:
     import structlog
     logger = structlog.get_logger()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     reports = (await db.execute(
         select(ScheduledReport).where(ScheduledReport.is_enabled.is_(True))
     )).scalars().all()
@@ -138,13 +138,11 @@ def _is_due(report: ScheduledReport, now: datetime) -> bool:
 
     elapsed_hours = (now - report.last_sent_at).total_seconds() / 3600
 
-    if report.schedule == "daily" and elapsed_hours >= 23:
-        return True
-    if report.schedule == "weekly" and elapsed_hours >= 167:  # ~7 days
-        return True
-    if report.schedule == "monthly" and elapsed_hours >= 719:  # ~30 days
-        return True
-    return False
+    return (
+        (report.schedule == "daily" and elapsed_hours >= 23)
+        or (report.schedule == "weekly" and elapsed_hours >= 167)
+        or (report.schedule == "monthly" and elapsed_hours >= 719)
+    )
 
 
 async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
@@ -178,7 +176,7 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
     report_dir.mkdir(exist_ok=True)
 
     ext = report.format or "txt"
-    filename = f"{report.name.replace(' ', '_')}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.{ext}"
+    filename = f"{report.name.replace(' ', '_')}_{datetime.now(UTC).strftime('%Y%m%d')}.{ext}"
     filepath = report_dir / filename
 
     if isinstance(content, (bytes, bytearray)):
@@ -190,6 +188,7 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
     email_result = None
     if report.recipients:
         from sqlalchemy import select as _sel
+
         from app.tenants.models import Tenant
         tenant = (await db.execute(_sel(Tenant).where(Tenant.id == report.tenant_id))).scalar_one_or_none()
         smtp_cfg = tenant.smtp_config if tenant else None
@@ -205,7 +204,7 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
                 smtp_config=smtp_cfg,
                 to=report.recipients,
                 subject=f"GetVul Report: {report.name}",
-                body=f"Attached is your scheduled report \"{report.name}\" ({report.schedule}).\n\nGenerated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+                body=f"Attached is your scheduled report \"{report.name}\" ({report.schedule}).\n\nGenerated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
                 attachment=content if isinstance(content, (bytes, bytearray)) else content.encode("utf-8"),
                 attachment_filename=filename,
                 attachment_mime=mime,
@@ -225,6 +224,6 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
             "email_sent": email_result.get("ok") if email_result else False,
             "email_error": email_result.get("error") if email_result and not email_result.get("ok") else None,
         },
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db.add(log)

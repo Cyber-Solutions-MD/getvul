@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -202,7 +202,7 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
     """Collect all data needed for the executive summary."""
     f = filters or {}
     tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     sev_filter = f.get("severity")
     dev_filter = f.get("device_type")
@@ -297,7 +297,7 @@ async def generate_executive_summary(db: AsyncSession, tenant_id: uuid.UUID, fil
     sec = d.get("sections", [])
     n = len(d["top_hosts"])
 
-    lines = [f"{'='*70}", f"  GETVUL EXECUTIVE SUMMARY REPORT", f"  Organization: {d['org']}",
+    lines = [f"{'='*70}", "  GETVUL EXECUTIVE SUMMARY REPORT", f"  Organization: {d['org']}",
              f"  Generated: {d['generated'].strftime('%Y-%m-%d %H:%M UTC')}", f"{'='*70}"]
 
     if "vulns" in sec:

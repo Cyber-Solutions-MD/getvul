@@ -9,13 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.rbac import require_admin
 from app.auth.schemas import CurrentUser
+from app.connectors.scheduler import is_sync_running, trigger_background_sync
 from app.connectors.schemas import (
     CONNECTOR_TYPES,
     ConnectorConfigResponse,
     ConnectorCreate,
     ConnectorTestRequest,
     ConnectorTestResult,
-    ConnectorTypeInfo,
     ConnectorUpdate,
 )
 from app.connectors.service import (
@@ -25,7 +25,6 @@ from app.connectors.service import (
     update_connector,
 )
 from app.connectors.tester import test_connector
-from app.connectors.scheduler import trigger_background_sync, is_sync_running
 from app.dependencies import DBSession
 
 router = APIRouter()
@@ -140,6 +139,7 @@ async def trigger_sync(
 ):
     """Trigger a sync in the background. Returns immediately."""
     from sqlalchemy import select
+
     from app.ticketing.models import ConnectorConfig
 
     result = await db.execute(
@@ -170,6 +170,7 @@ async def get_sync_status(
 ):
     """Check if a sync is currently running and get last sync info."""
     from sqlalchemy import select
+
     from app.ticketing.models import ConnectorConfig
 
     result = await db.execute(

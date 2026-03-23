@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.assets.models import Asset
 from app.tenants.models import Tenant, User
 from app.vulnerabilities.models import Vulnerability
-
 
 SAMPLE_CVES = [
     ("CVE-2024-3094", "xz-utils", "5.6.0", "5.6.2", 10.0, "CRITICAL"),
@@ -126,7 +125,7 @@ async def seed_database(db: AsyncSession) -> dict:
     # Create vulnerabilities using savepoints for each insert
     vuln_count = 0
     skipped = 0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Phase 1: Create multi-source correlated vulnerabilities.
     # Pick 10 high-profile CVEs and assign them to specific assets from 2-3 sources each.
@@ -224,8 +223,8 @@ async def seed_database(db: AsyncSession) -> dict:
     await db.commit()
 
     # Phase 3: Run correlation engine and risk score computation
-    from app.vulnerabilities.correlation_service import run_correlations
     from app.assets.risk_score import compute_risk_scores
+    from app.vulnerabilities.correlation_service import run_correlations
 
     corr_stats = await run_correlations(db, tenant.id)
     risk_stats = await compute_risk_scores(db, tenant.id)
@@ -295,7 +294,7 @@ async def seed_cspm_data(db: AsyncSession, tenant_id: uuid.UUID) -> int:
     from app.cspm.models import Misconfiguration
 
     count = 0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for _ in range(200):
         rule_id, rule_name, category, severity, res_type, cloud = random.choice(SAMPLE_MISCONFIGS)

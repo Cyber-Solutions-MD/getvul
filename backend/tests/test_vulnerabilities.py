@@ -1,6 +1,5 @@
 """Tests for vulnerability schemas and pagination."""
 
-import uuid
 
 from app.pagination import PaginatedResponse, PaginationParams
 from app.vulnerabilities.schemas import (
@@ -8,7 +7,6 @@ from app.vulnerabilities.schemas import (
     SeverityCount,
     SourceCount,
     VulnerabilityFilter,
-    VulnerabilitySummary,
 )
 
 

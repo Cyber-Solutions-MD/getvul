@@ -7,7 +7,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
 from app.auth.rbac import require_admin, require_owner
@@ -313,8 +312,6 @@ async def list_groups(
     user: Annotated[CurrentUser, Depends(require_admin)],
 ):
     """List all groups and their member counts."""
-    from sqlalchemy import func
-    from sqlalchemy.dialects.postgresql import JSONB
 
     # Get all unique groups across users
     result = await db.execute(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 import structlog
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +36,6 @@ async def run_correlations(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     groups = await _find_correlated_groups(db, tenant_id)
 
     created = 0
-    updated = 0
 
     for key, source_vulns in groups.items():
         cve_id, asset_id = key

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
-from app.ticketing.models import ConnectorConfig, SyncLog, Ticket
+from app.ticketing.models import ConnectorConfig, Ticket
 from app.vulnerabilities.models import Vulnerability
 
 
@@ -42,7 +42,7 @@ async def get_overview_stats(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     ]
 
     # Ticket stats
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ticket_total = (await db.execute(
         select(func.count(func.distinct(Ticket.external_ticket_url))).where(Ticket.tenant_id == tenant_id)
     )).scalar_one()

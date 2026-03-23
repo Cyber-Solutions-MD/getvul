@@ -242,10 +242,7 @@ def _check_exploit_available(vuln: dict[str, Any]) -> bool:
 
     # Check the description text
     description = str(vuln.get("description", "")).lower()
-    if "exploitable" in description or "exploit available" in description:
-        return True
-
-    return False
+    return bool("exploitable" in description or "exploit available" in description)
 
 
 def _normalize_vuln(

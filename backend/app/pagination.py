@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -20,7 +20,7 @@ class PaginationParams(BaseModel):
         return (self.page - 1) * self.page_size
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Standard paginated response wrapper."""
 
     items: list[T]
@@ -30,7 +30,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     total_pages: int
 
     @classmethod
-    def create(cls, items: list[T], total: int, params: PaginationParams) -> "PaginatedResponse[T]":
+    def create(cls, items: list[T], total: int, params: PaginationParams) -> PaginatedResponse[T]:
         total_pages = max(1, -(-total // params.page_size))  # ceiling division
         return cls(
             items=items,

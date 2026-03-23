@@ -15,6 +15,7 @@ Remediation: resolved from apps[].remediation.ids via /spotlight/entities/remedi
 from __future__ import annotations
 
 import asyncio
+
 import httpx
 import structlog
 
@@ -416,7 +417,7 @@ class CrowdStrikeConnector(BaseConnector):
                     await asyncio.sleep(5); continue
                 resp.raise_for_status()
                 data = resp.json()
-            except:
+            except Exception:
                 break
             resources = data.get("resources") or []
             if not resources:
