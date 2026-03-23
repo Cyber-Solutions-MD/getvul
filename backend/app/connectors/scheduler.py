@@ -140,7 +140,7 @@ async def _scheduler_loop() -> None:
                 from app.tenants.models import Tenant as TenantModel
                 from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
 
-                tenants = (await db.execute(_sel(TenantModel).where(_T.is_active.is_(True)))).scalars().all()
+                tenants = (await db.execute(_sel(TenantModel).where(TenantModel.is_active.is_(True)))).scalars().all()
                 for t in tenants:
                     await backfill_sla_due_dates(db, t.id)
                     await check_sla_breaches(db, t.id)
@@ -162,6 +162,18 @@ async def _scheduler_loop() -> None:
                 _last_ticket_sync = now
         except Exception as e:
             logger.error("daily_ticket_sync_error", error=str(e))
+
+        # Daily snapshot capture (runs with ticket sync — once per 24h)
+        try:
+            if _last_ticket_sync == now:  # just ran ticket sync = daily trigger
+                async with async_session_factory() as db:
+                    from app.vulnerabilities.trends import capture_all_snapshots
+
+                    snap_result = await capture_all_snapshots(db)
+                    if snap_result.get("captured", 0) > 0:
+                        logger.info("daily_snapshots_captured", **snap_result)
+        except Exception as e:
+            logger.error("daily_snapshot_error", error=str(e))
 
         # Check every 60 seconds
         await asyncio.sleep(60)

@@ -14,18 +14,22 @@ export default function DashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [overview, setOverview] = useState<any>(null);
+  const [trends, setTrends] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "report">("overview");
+  const [trendDays, setTrendDays] = useState(30);
 
   useEffect(() => {
     Promise.all([
       api<DashboardStats>("/api/v1/vulnerabilities/stats").catch(() => null),
       api("/api/v1/vulnerabilities/overview").catch(() => null),
-    ]).then(([s, o]) => {
+      api(`/api/v1/vulnerabilities/trends?days=${trendDays}`).catch(() => null),
+    ]).then(([s, o, t]) => {
       setStats(s);
       setOverview(o);
+      setTrends(t);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [trendDays]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>;
 
@@ -134,6 +138,66 @@ export default function DashboardPage() {
               <span key={sev}>{sev}={days}d</span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Trend Analytics */}
+      {trends?.vuln_trends?.timeline?.length > 0 && (
+        <div className="space-y-6">
+          {/* Period selector */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-gray-400">Vulnerability Trends</h2>
+            <div className="flex items-center gap-1 rounded-lg border border-gray-700 bg-gray-800 p-0.5">
+              {[7, 30, 90].map(d => (
+                <button key={d} onClick={() => setTrendDays(d)}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition ${trendDays === d ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                  {d}d
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* New vs Resolved chart */}
+            <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-gray-400">New vs Resolved</h3>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400" />New: {trends.vuln_trends.totals.new.toLocaleString()}</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />Resolved: {trends.vuln_trends.totals.resolved.toLocaleString()}</span>
+                </div>
+              </div>
+              <BarChart data={trends.vuln_trends.timeline} />
+            </div>
+
+            {/* Severity trend */}
+            <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+              <h3 className="text-sm font-medium text-gray-400 mb-4">New Vulns by Severity</h3>
+              <SeverityChart data={trends.vuln_trends.timeline} />
+            </div>
+          </div>
+
+          {/* MTTR Trend */}
+          {trends.mttr_trend?.length > 1 && (
+            <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+              <h3 className="text-sm font-medium text-gray-400 mb-4">Mean Time to Remediate (Weekly)</h3>
+              <MttrChart data={trends.mttr_trend} />
+            </div>
+          )}
+
+          {/* Snapshot trend (if available) */}
+          {trends.risk_trend?.length > 1 && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+                <h3 className="text-sm font-medium text-gray-400 mb-4">Open Vulnerabilities Over Time</h3>
+                <LineChart data={trends.risk_trend} dataKey="open_vulns" color="text-orange-400" />
+              </div>
+              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+                <h3 className="text-sm font-medium text-gray-400 mb-4">Average Risk Score</h3>
+                <LineChart data={trends.risk_trend} dataKey="avg_risk" color="text-red-400" />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -708,6 +772,122 @@ function MiniStat({ label, value, icon }: { label: string; value: string; icon: 
       <div>
         <p className="text-xs text-gray-500">{label}</p>
         <p className="text-sm font-medium text-white">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Trend Chart Components (pure CSS, no chart library) ──
+
+function BarChart({ data }: { data: { date: string; new: number; resolved: number }[] }) {
+  const maxVal = Math.max(...data.map(d => Math.max(d.new, d.resolved)), 1);
+  const showEvery = data.length > 14 ? Math.ceil(data.length / 7) : 1;
+
+  return (
+    <div className="flex items-end gap-px h-32">
+      {data.map((d, i) => (
+        <div key={d.date} className="flex-1 flex flex-col items-center gap-px group relative" title={`${d.date}: +${d.new} new, -${d.resolved} resolved`}>
+          <div className="w-full flex flex-col-reverse gap-px">
+            <div className="w-full rounded-t bg-red-400/80" style={{ height: `${Math.max(1, (d.new / maxVal) * 100)}px` }} />
+          </div>
+          <div className="w-full flex flex-col gap-px">
+            <div className="w-full rounded-b bg-emerald-400/80" style={{ height: `${Math.max(0, (d.resolved / maxVal) * 100)}px` }} />
+          </div>
+          {i % showEvery === 0 && (
+            <span className="text-[8px] text-gray-600 mt-1 whitespace-nowrap">{d.date.slice(5)}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SeverityChart({ data }: { data: { date: string; by_severity: Record<string, number> }[] }) {
+  const maxVal = Math.max(...data.map(d => Object.values(d.by_severity).reduce((a, b) => a + b, 0)), 1);
+  const colors = { CRITICAL: "bg-red-500", HIGH: "bg-orange-500", MEDIUM: "bg-yellow-500", LOW: "bg-blue-500" };
+  const showEvery = data.length > 14 ? Math.ceil(data.length / 7) : 1;
+
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-2 text-[10px]">
+        {Object.entries(colors).map(([sev, color]) => (
+          <span key={sev} className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${color}`} />{sev}</span>
+        ))}
+      </div>
+      <div className="flex items-end gap-px h-28">
+        {data.map((d, i) => {
+          const total = Object.values(d.by_severity).reduce((a, b) => a + b, 0);
+          return (
+            <div key={d.date} className="flex-1 flex flex-col justify-end" title={`${d.date}: ${JSON.stringify(d.by_severity)}`}>
+              <div className="flex flex-col-reverse">
+                {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map(sev => {
+                  const val = d.by_severity[sev] || 0;
+                  if (val === 0) return null;
+                  return <div key={sev} className={`w-full ${colors[sev]}`} style={{ height: `${Math.max(1, (val / maxVal) * 100)}px` }} />;
+                })}
+              </div>
+              {i % showEvery === 0 && (
+                <span className="text-[8px] text-gray-600 mt-1 text-center">{d.date.slice(5)}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MttrChart({ data }: { data: { week: string; mttr_days: number | null; count: number }[] }) {
+  const values = data.filter(d => d.mttr_days != null).map(d => d.mttr_days!);
+  const maxVal = Math.max(...values, 1);
+
+  return (
+    <div className="flex items-end gap-2 h-24">
+      {data.map(d => (
+        <div key={d.week} className="flex-1 flex flex-col items-center gap-1 group" title={`Week of ${d.week}: ${d.mttr_days ?? "—"}d avg (${d.count} vulns)`}>
+          <span className="text-[9px] text-gray-500 opacity-0 group-hover:opacity-100">{d.mttr_days != null ? `${d.mttr_days}d` : ""}</span>
+          <div className="w-full rounded-t bg-blue-400/70" style={{ height: `${d.mttr_days != null ? Math.max(2, (d.mttr_days / maxVal) * 80) : 0}px` }} />
+          <span className="text-[8px] text-gray-600">{d.week?.slice(5) || ""}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LineChart({ data, dataKey, color }: { data: { date: string; [key: string]: any }[]; dataKey: string; color: string }) {
+  const values = data.map(d => Number(d[dataKey]) || 0);
+  const maxVal = Math.max(...values, 1);
+  const minVal = Math.min(...values);
+  const range = maxVal - minVal || 1;
+  const showEvery = data.length > 30 ? Math.ceil(data.length / 10) : data.length > 14 ? 3 : 1;
+
+  // Build SVG path
+  const h = 80;
+  const w = data.length > 0 ? 100 : 0;
+  const points = values.map((v, i) => {
+    const x = (i / Math.max(values.length - 1, 1)) * w;
+    const y = h - ((v - minVal) / range) * (h - 10) - 5;
+    return `${x},${y}`;
+  });
+  const pathD = points.length > 0 ? `M ${points.join(" L ")}` : "";
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-lg font-bold ${color}`}>{values.length > 0 ? values[values.length - 1] : "—"}</span>
+        {values.length >= 2 && (
+          <span className={`text-xs ${values[values.length - 1] > values[0] ? "text-red-400" : "text-emerald-400"}`}>
+            {values[values.length - 1] > values[0] ? "↑" : "↓"} {Math.abs(values[values.length - 1] - values[0])} vs {data.length}d ago
+          </span>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-20" preserveAspectRatio="none">
+        <path d={pathD} fill="none" stroke="currentColor" strokeWidth="1.5" className={color} />
+      </svg>
+      <div className="flex justify-between text-[8px] text-gray-600 mt-1">
+        {data.filter((_, i) => i % showEvery === 0 || i === data.length - 1).map(d => (
+          <span key={d.date}>{d.date.slice(5)}</span>
+        ))}
       </div>
     </div>
   );

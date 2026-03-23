@@ -88,6 +88,21 @@ async def overview_stats(
     return await get_overview_stats(db, user.tenant_id)
 
 
+# ── Trend Analytics ──
+
+
+@router.get("/trends")
+async def trend_analytics(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+    days: int = Query(30, ge=7, le=365),
+):
+    """Get trend data — vuln timeline, MTTR trend, risk score history."""
+    from app.vulnerabilities.trends import get_all_trends
+
+    return await get_all_trends(db, user.tenant_id, days)
+
+
 # ── SLA Tracking ──
 
 
