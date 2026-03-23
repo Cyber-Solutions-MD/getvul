@@ -378,7 +378,7 @@ async def get_asana_config(
 
     from app.ticketing.models import ConnectorConfig as ConnConfig
 
-    result = await db.execute(sel(ConnConfig).where(CC.tenant_id == user.tenant_id, CC.connector_type == "ASANA"))
+    result = await db.execute(sel(ConnConfig).where(ConnConfig.tenant_id == user.tenant_id, ConnConfig.connector_type == "ASANA"))
     connector = result.scalar_one_or_none()
     if not connector:
         return {"configured": False, "workspace_gid": None, "project_gid": None}
