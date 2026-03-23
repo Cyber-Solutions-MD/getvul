@@ -119,7 +119,7 @@ jobs:
         run: terraform validate
 
   security:
-    name: Security Scan
+    name: Security Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,3 +130,15 @@ jobs:
           scan-ref: .
           severity: CRITICAL,HIGH
           exit-code: 1
+
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
+        run: semgrep scan --config p/default --config p/owasp-top-ten --config p/secrets --config p/dockerfile --error .
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
