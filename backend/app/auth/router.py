@@ -219,9 +219,12 @@ async def auth_config(
 
     tenant = None
     if tenant_slug:
-        tenant = (
-            await db.execute(select(Tenant).where(Tenant.slug == tenant_slug, Tenant.is_active.is_(True)))
-        ).scalar_one_or_none()
+        # Sanitize: strip null bytes and control characters that crash PostgreSQL
+        safe_slug = tenant_slug.replace("\x00", "").strip()[:63]
+        if safe_slug:
+            tenant = (
+                await db.execute(select(Tenant).where(Tenant.slug == safe_slug, Tenant.is_active.is_(True)))
+            ).scalar_one_or_none()
 
     if tenant:
         config["tenant_name"] = tenant.name
