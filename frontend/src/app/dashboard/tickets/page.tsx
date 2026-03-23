@@ -2,10 +2,22 @@
 
 import { useEffect, useState, useCallback } from "react";
 import ExportButton from "@/components/ui/ExportButton";
+import { api } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-import { getAuthHeaders, API_BASE } from "@/lib/fetch";
-const headers = getAuthHeaders();
+
+/** Raw fetch with auth headers — for cases where we need the Response object */
+async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("getvul_token") || "" : "";
+  return fetch(`${API}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(options?.headers || {}),
+    },
+  });
+}
 
 const SEV_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -33,19 +45,18 @@ export default function TicketsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [ticketsResp, statsResp, configResp] = await Promise.all([
-        fetch(`${API}/api/v1/tickets?page=${page}&page_size=25${statusFilter ? `&status=${statusFilter}` : ""}`, { headers }),
-        fetch(`${API}/api/v1/tickets/stats`, { headers }),
-        fetch(`${API}/api/v1/tickets/asana/config`, { headers }),  // fast DB-only check
+      const [ticketsData, statsData, configData] = await Promise.all([
+        api(`/api/v1/tickets?page=${page}&page_size=25${statusFilter ? `&status=${statusFilter}` : ""}`).catch(() => null),
+        api("/api/v1/tickets/stats").catch(() => null),
+        api("/api/v1/tickets/asana/config").catch(() => null),
       ]);
-      if (ticketsResp.ok) {
-        const d = await ticketsResp.json();
-        setTickets(d.items || []);
-        setTotal(d.total || 0);
-        setPages(d.pages || 0);
+      if (ticketsData) {
+        setTickets(ticketsData.items || []);
+        setTotal(ticketsData.total || 0);
+        setPages(ticketsData.pages || 0);
       }
-      if (statsResp.ok) setStats(await statsResp.json());
-      if (configResp.ok) setAsanaConfig(await configResp.json());
+      if (statsData) setStats(statsData);
+      if (configData) setAsanaConfig(configData);
     } catch (e) {
       console.error("Failed to load tickets:", e);
     } finally {
@@ -58,7 +69,7 @@ export default function TicketsPage() {
   async function handleSyncStatus() {
     setSyncing(true);
     try {
-      await fetch(`${API}/api/v1/tickets/sync-status`, { method: "POST", headers });
+      await api("/api/v1/tickets/sync-status", { method: "POST" });
       await load();
     } catch {} finally { setSyncing(false); }
   }
@@ -164,8 +175,8 @@ export default function TicketsPage() {
             if (action === "delete" && !confirm(`Delete ${selectedUrls.size} ticket(s)? This removes them from GetVul (Asana tasks remain).`)) return;
             setBulkLoading(true);
             try {
-              await fetch(`${API}/api/v1/tickets/bulk-action`, {
-                method: "POST", headers,
+              await apiFetch(`/api/v1/tickets/bulk-action`, {
+                method: "POST", 
                 body: JSON.stringify({ ticket_urls: Array.from(selectedUrls), action }),
               });
               setSelectedUrls(new Set());
@@ -182,8 +193,8 @@ export default function TicketsPage() {
           onSubmit={async (text) => {
             setBulkLoading(true);
             try {
-              await fetch(`${API}/api/v1/tickets/bulk-action`, {
-                method: "POST", headers,
+              await apiFetch(`/api/v1/tickets/bulk-action`, {
+                method: "POST", 
                 body: JSON.stringify({ ticket_urls: Array.from(selectedUrls), action: "comment", comment: text }),
               });
               setSelectedUrls(new Set());
@@ -319,7 +330,7 @@ function AsanaSetupModal({ config, onClose, onSaved }: { config: any; onClose: (
   useEffect(() => {
     (async () => {
       try {
-        const resp = await fetch(`${API}/api/v1/tickets/asana/setup`, { headers });
+        const resp = await apiFetch(`/api/v1/tickets/asana/setup`, {});
         if (resp.ok) {
           const data = await resp.json();
           setWorkspaces(data.workspaces || []);
@@ -336,10 +347,10 @@ function AsanaSetupModal({ config, onClose, onSaved }: { config: any; onClose: (
     setProjectGid("");
     setLoadingProjects(true);
     try {
-      await fetch(`${API}/api/v1/tickets/asana/config`, {
-        method: "PATCH", headers, body: JSON.stringify({ workspace_gid: gid }),
+      await apiFetch(`/api/v1/tickets/asana/config`, {
+        method: "PATCH",  body: JSON.stringify({ workspace_gid: gid }),
       });
-      const resp = await fetch(`${API}/api/v1/tickets/asana/setup`, { headers });
+      const resp = await apiFetch(`/api/v1/tickets/asana/setup`, {});
       if (resp.ok) {
         const data = await resp.json();
         setProjects(data.projects || []);
@@ -350,8 +361,8 @@ function AsanaSetupModal({ config, onClose, onSaved }: { config: any; onClose: (
   async function handleSave() {
     setSaving(true);
     try {
-      await fetch(`${API}/api/v1/tickets/asana/config`, {
-        method: "PATCH", headers,
+      await apiFetch(`/api/v1/tickets/asana/config`, {
+        method: "PATCH", 
         body: JSON.stringify({ workspace_gid: workspaceGid, project_gid: projectGid }),
       });
       onSaved();
@@ -420,7 +431,7 @@ function HostTicketFlow({ onCreated }: { onCreated: () => void }) {
       try {
         const resp = await fetch(
           `${API}/api/v1/assets?page_size=50&min_risk=${minRisk}&sort_by=risk_score&sort_dir=desc&device_category=WORKSTATION`,
-          { headers }
+          {}
         );
         if (resp.ok) {
           const data = await resp.json();
@@ -434,8 +445,8 @@ function HostTicketFlow({ onCreated }: { onCreated: () => void }) {
     setCreating(host.id);
     setResult(null);
     try {
-      const resp = await fetch(`${API}/api/v1/tickets/host`, {
-        method: "POST", headers,
+      const resp = await apiFetch(`/api/v1/tickets/host`, {
+        method: "POST", 
         body: JSON.stringify({ asset_id: host.id, provider: "ASANA", project_key: "" }),
       });
       const data = await resp.json();
@@ -536,7 +547,7 @@ function RulesPanel() {
 
   const loadRules = useCallback(async () => {
     try {
-      const resp = await fetch(`${API}/api/v1/tickets/rules`, { headers });
+      const resp = await apiFetch(`/api/v1/tickets/rules`, {});
       if (resp.ok) setRules(await resp.json());
     } catch {} finally { setLoading(false); }
   }, []);
@@ -544,20 +555,20 @@ function RulesPanel() {
   useEffect(() => { loadRules(); }, [loadRules]);
 
   async function handleToggle(rule: any) {
-    await fetch(`${API}/api/v1/tickets/rules/${rule.id}`, {
-      method: "PATCH", headers, body: JSON.stringify({ is_enabled: !rule.is_enabled }),
+    await apiFetch(`/api/v1/tickets/rules/${rule.id}`, {
+      method: "PATCH",  body: JSON.stringify({ is_enabled: !rule.is_enabled }),
     });
     loadRules();
   }
 
   async function handleDelete(rule: any) {
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
-    await fetch(`${API}/api/v1/tickets/rules/${rule.id}`, { method: "DELETE", headers });
+    await apiFetch(`/api/v1/tickets/rules/${rule.id}`, { method: "DELETE" });
     loadRules();
   }
 
   async function handleRun(rule: any) {
-    const resp = await fetch(`${API}/api/v1/tickets/rules/${rule.id}/run`, { method: "POST", headers });
+    const resp = await apiFetch(`/api/v1/tickets/rules/${rule.id}/run`, { method: "POST" });
     const result = await resp.json();
     alert(`Rule executed: ${result.matched} hosts matched, ${result.created} tickets created, ${result.skipped} skipped`);
     loadRules();
@@ -646,9 +657,9 @@ function CreateRuleModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/api/v1/tickets/assignees`, { headers })
+    apiFetch(`/api/v1/tickets/assignees`, {})
       .then(r => r.json()).then(setAssignees).catch(() => {});
-    fetch(`${API}/api/v1/vulnerabilities/saved-filters`, { headers })
+    apiFetch(`/api/v1/vulnerabilities/saved-filters`, {})
       .then(r => r.json()).then(d => setSavedFilters(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
@@ -669,8 +680,8 @@ function CreateRuleModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
     setSaving(true);
     try {
-      await fetch(`${API}/api/v1/tickets/rules`, {
-        method: "POST", headers,
+      await apiFetch(`/api/v1/tickets/rules`, {
+        method: "POST", 
         body: JSON.stringify({
           name,
           saved_filter_id: selectedFilterId,
@@ -781,9 +792,9 @@ function EditRuleModal({ rule, onClose, onSaved }: { rule: any; onClose: () => v
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/api/v1/tickets/assignees`, { headers })
+    apiFetch(`/api/v1/tickets/assignees`, {})
       .then(r => r.json()).then(setAssignees).catch(() => {});
-    fetch(`${API}/api/v1/vulnerabilities/saved-filters`, { headers })
+    apiFetch(`/api/v1/vulnerabilities/saved-filters`, {})
       .then(r => r.json()).then(d => setSavedFilters(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
@@ -803,8 +814,8 @@ function EditRuleModal({ rule, onClose, onSaved }: { rule: any; onClose: () => v
     if (f.search) conditions.search = f.search;
 
     try {
-      await fetch(`${API}/api/v1/tickets/rules/${rule.id}`, {
-        method: "PATCH", headers,
+      await apiFetch(`/api/v1/tickets/rules/${rule.id}`, {
+        method: "PATCH", 
         body: JSON.stringify({
           name,
           conditions,
@@ -1089,8 +1100,8 @@ function CloseTicketButton({ url, onDone }: { url: string; onDone: () => void })
     if (!confirm("Close this ticket? The Asana task will be marked complete and all linked vulnerabilities will be marked as remediated.")) return;
     setLoading(true);
     try {
-      await fetch(`${API}/api/v1/tickets/close`, {
-        method: "POST", headers,
+      await apiFetch(`/api/v1/tickets/close`, {
+        method: "POST", 
         body: JSON.stringify({ external_ticket_url: url }),
       });
       onDone();
