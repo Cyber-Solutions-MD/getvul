@@ -329,10 +329,14 @@ async def bulk_ignore_cve(
     from datetime import datetime, timezone
     from app.assets.risk_score import compute_risk_scores
 
-    cve_ids = body.get("cve_ids", [])
+    raw_cve_ids = body.get("cve_ids", [])
     action = body.get("action", "ignore")  # "ignore" or "unignore"
-    if not cve_ids:
+    if not raw_cve_ids:
         raise HTTPException(400, "No CVE IDs provided")
+    # Validate: only allow string CVE IDs, max 50 chars each, strip whitespace
+    cve_ids = [str(c).strip()[:50] for c in raw_cve_ids if isinstance(c, str) and c.strip()]
+    if not cve_ids:
+        raise HTTPException(400, "No valid CVE IDs provided")
 
     now = datetime.now(timezone.utc)
     if action == "ignore":

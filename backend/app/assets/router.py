@@ -60,15 +60,18 @@ async def list_assets(
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar() or 0
 
-    # Sort
-    sort_col = getattr(Asset, sort_by, Asset.risk_score)
+    # Sort (allowlist to prevent SQL injection via column name)
+    ALLOWED_SORT = {"risk_score", "hostname", "os_name", "device_category"}
+    safe_sort_by = sort_by if sort_by in ALLOWED_SORT else "risk_score"
+    sort_col = getattr(Asset, safe_sort_by)
     if sort_dir == "asc":
         query = query.order_by(sort_col.asc())
     else:
         query = query.order_by(sort_col.desc())
 
-    # Paginate
-    query = query.offset((page - 1) * page_size).limit(page_size)
+    # Paginate (page/page_size validated by FastAPI Query constraints)
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     assets = result.scalars().all()
 
