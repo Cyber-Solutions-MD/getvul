@@ -41,22 +41,48 @@ MOBILE_PATTERNS = [
 
 # OS-based classification
 SERVER_OS = [
-    "windows server", "ubuntu server", "rhel", "centos", "debian",
-    "amazon linux", "suse", "oracle linux", "rocky", "alma",
+    "windows server",
+    "ubuntu server",
+    "rhel",
+    "centos",
+    "debian",
+    "amazon linux",
+    "suse",
+    "oracle linux",
+    "rocky",
+    "alma",
 ]
 
 WORKSTATION_OS = [
-    "macos", "mac os", "sequoia", "ventura", "sonoma", "monterey", "big sur", "catalina",
-    "windows 10", "windows 11", "windows 7", "windows 8",
-    "ubuntu desktop", "fedora", "mint", "pop!_os", "elementary",
+    "macos",
+    "mac os",
+    "sequoia",
+    "ventura",
+    "sonoma",
+    "monterey",
+    "big sur",
+    "catalina",
+    "windows 10",
+    "windows 11",
+    "windows 7",
+    "windows 8",
+    "ubuntu desktop",
+    "fedora",
+    "mint",
+    "pop!_os",
+    "elementary",
 ]
 
 MOBILE_OS = [
-    "ios", "ipados", "android",
+    "ios",
+    "ipados",
+    "android",
 ]
 
 
-def classify_device(hostname: str | None, os_name: str | None, os_version: str | None, platform: str | None = None) -> str:
+def classify_device(
+    hostname: str | None, os_name: str | None, os_version: str | None, platform: str | None = None
+) -> str:
     """Classify a device into WORKSTATION, SERVER, NETWORK, MOBILE, or OTHER."""
     h = (hostname or "").lower()
     os_full = f"{os_name or ''} {os_version or ''}".lower().strip()
@@ -109,9 +135,7 @@ def classify_device(hostname: str | None, os_name: str | None, os_version: str |
 
 async def classify_all_assets(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     """Reclassify all assets in a tenant. Returns counts by category."""
-    result = await db.execute(
-        select(Asset).where(Asset.tenant_id == tenant_id)
-    )
+    result = await db.execute(select(Asset).where(Asset.tenant_id == tenant_id))
     assets = result.scalars().all()
 
     counts: dict[str, int] = {}

@@ -95,14 +95,16 @@ class GoogleWorkspaceConnector:
                     dept = orgs[0].get("department", "")
                     title = orgs[0].get("title", "")
 
-                users.append(GoogleUser(
-                    email=u.get("primaryEmail", ""),
-                    name=f"{name_obj.get('givenName', '')} {name_obj.get('familyName', '')}".strip(),
-                    department=dept or None,
-                    job_title=title or None,
-                    is_active=not u.get("suspended", False),
-                    avatar_url=u.get("thumbnailPhotoUrl"),
-                ))
+                users.append(
+                    GoogleUser(
+                        email=u.get("primaryEmail", ""),
+                        name=f"{name_obj.get('givenName', '')} {name_obj.get('familyName', '')}".strip(),
+                        department=dept or None,
+                        job_title=title or None,
+                        is_active=not u.get("suspended", False),
+                        avatar_url=u.get("thumbnailPhotoUrl"),
+                    )
+                )
 
             page_token = data.get("nextPageToken")
             if not page_token:

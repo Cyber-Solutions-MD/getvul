@@ -300,8 +300,6 @@ def _normalize_vuln(
         for cve in cves:
             results.append(NormalizedVulnerability(cve_id=cve, **base))
     else:
-        results.append(
-            NormalizedVulnerability(cve_id=f"NESSUS-{plugin_id}", **base)
-        )
+        results.append(NormalizedVulnerability(cve_id=f"NESSUS-{plugin_id}", **base))
 
     return results

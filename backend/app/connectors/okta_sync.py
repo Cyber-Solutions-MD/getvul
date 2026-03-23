@@ -27,6 +27,7 @@ RATE_LIMIT_MAX_RETRIES = 5
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _auth_headers(api_token: str) -> dict[str, str]:
     return {
         "Authorization": f"SSWS {api_token}",
@@ -78,7 +79,7 @@ async def _request_with_retry(
             return response
 
         reset_epoch = response.headers.get("X-Rate-Limit-Reset")
-        wait = max(int(reset_epoch) - int(time.time()), 1) if reset_epoch else 2 ** attempt
+        wait = max(int(reset_epoch) - int(time.time()), 1) if reset_epoch else 2**attempt
 
         logger.warning(
             "okta_rate_limited",
@@ -95,6 +96,7 @@ async def _request_with_retry(
 # ---------------------------------------------------------------------------
 # Main sync entry-point
 # ---------------------------------------------------------------------------
+
 
 async def run_okta_sync(
     db: AsyncSession,
@@ -152,7 +154,7 @@ async def run_okta_sync(
                 active_users[ou["id"]] = {
                     "okta_id": ou["id"],
                     "email": email,
-                    "display_name": f'{profile.get("firstName", "")} {profile.get("lastName", "")}'.strip(),
+                    "display_name": f"{profile.get('firstName', '')} {profile.get('lastName', '')}".strip(),
                     "department": profile.get("department"),
                     "job_title": profile.get("title"),
                     "mobile_phone": profile.get("mobilePhone"),
@@ -166,9 +168,7 @@ async def run_okta_sync(
                     User.email.in_([u["email"] for u in active_users.values()]),
                 )
             )
-            existing_users: dict[str, User] = {
-                u.email.lower(): u for u in existing_q.scalars().all()
-            }
+            existing_users: dict[str, User] = {u.email.lower(): u for u in existing_q.scalars().all()}
 
             okta_id_to_email: dict[str, str] = {}
 

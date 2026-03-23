@@ -37,9 +37,8 @@ async def get_current_user(
     # Dev mode: accept "dev-token" and return the first owner user
     if settings.environment == "development" and token == "dev-token":
         from app.tenants.models import User
-        result = await db.execute(
-            select(User).where(User.role == "OWNER", User.is_active.is_(True)).limit(1)
-        )
+
+        result = await db.execute(select(User).where(User.role == "OWNER", User.is_active.is_(True)).limit(1))
         user = result.scalar_one_or_none()
         if user:
             return CurrentUser(
@@ -85,7 +84,7 @@ def require_role(minimum_role: str):
     from fastapi import Depends, HTTPException
 
     async def _check(user=Depends(get_current_user)):
-        user_level = ROLE_HIERARCHY.get(user.role.lower() if hasattr(user.role, 'lower') else str(user.role).lower(), 0)
+        user_level = ROLE_HIERARCHY.get(user.role.lower() if hasattr(user.role, "lower") else str(user.role).lower(), 0)
         required_level = ROLE_HIERARCHY.get(minimum_role.lower(), 0)
         if user_level < required_level:
             raise HTTPException(403, f"Requires {minimum_role} role or higher")

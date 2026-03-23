@@ -36,13 +36,10 @@ async def list_users(
     Assets are grouped by user to show each person's devices.
     """
     # Build base query: only assets enriched by Humaans (have humaans_person_id)
-    query = (
-        select(Asset)
-        .where(
-            Asset.tenant_id == user.tenant_id,
-            Asset.assigned_user.isnot(None),
-            Asset.mdm_details["humaans_person_id"].astext.isnot(None),
-        )
+    query = select(Asset).where(
+        Asset.tenant_id == user.tenant_id,
+        Asset.assigned_user.isnot(None),
+        Asset.mdm_details["humaans_person_id"].astext.isnot(None),
     )
 
     # Search filter
@@ -111,19 +108,21 @@ async def list_users(
         if a.assigned_user and (not entry["name"] or entry["name"] == a.last_login_user):
             entry["name"] = a.assigned_user
 
-        entry["devices"].append({
-            "id": str(a.id),
-            "hostname": a.hostname,
-            "os_name": a.os_name,
-            "os_version": a.os_version,
-            "model": a.model,
-            "serial_number": a.serial_number,
-            "device_category": a.device_category or "OTHER",
-            "risk_score": a.risk_score or 0,
-            "host_status": a.host_status,
-            "last_seen_at": a.last_seen_at.isoformat() if a.last_seen_at else None,
-            "last_login_user": a.last_login_user,
-        })
+        entry["devices"].append(
+            {
+                "id": str(a.id),
+                "hostname": a.hostname,
+                "os_name": a.os_name,
+                "os_version": a.os_version,
+                "model": a.model,
+                "serial_number": a.serial_number,
+                "device_category": a.device_category or "OTHER",
+                "risk_score": a.risk_score or 0,
+                "host_status": a.host_status,
+                "last_seen_at": a.last_seen_at.isoformat() if a.last_seen_at else None,
+                "last_login_user": a.last_login_user,
+            }
+        )
         entry["max_risk_score"] = max(entry["max_risk_score"], a.risk_score or 0)
         entry["device_count"] += 1
 
@@ -175,7 +174,7 @@ async def list_users(
     # Paginate
     total = len(users)
     start = (page - 1) * page_size
-    paginated = users[start:start + page_size]
+    paginated = users[start : start + page_size]
 
     return {
         "items": paginated,

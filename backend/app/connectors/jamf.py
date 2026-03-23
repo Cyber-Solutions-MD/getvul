@@ -65,7 +65,9 @@ class JamfConnector(BaseConnector):
                 has_computers = resp.status_code == 200
                 return {
                     "success": has_computers,
-                    "message": "Successfully connected to Jamf Pro" if has_computers else "Connected but cannot read computers",
+                    "message": "Successfully connected to Jamf Pro"
+                    if has_computers
+                    else "Connected but cannot read computers",
                     "scopes": {
                         "Computers": has_computers,
                     },
@@ -110,24 +112,27 @@ class JamfConnector(BaseConnector):
                     user_loc = comp.get("userAndLocation", {})
                     security = comp.get("security", {})
 
-                    computers.append({
-                        "jamf_id": str(comp.get("id", "")),
-                        "name": general.get("name", ""),
-                        "serial_number": hardware.get("serialNumber", ""),
-                        "model": hardware.get("model", ""),
-                        "os_name": os_info.get("name", ""),
-                        "os_version": os_info.get("version", ""),
-                        "ip_address": general.get("lastIpAddress", ""),
-                        "mac_address": general.get("macAddress", ""),
-                        "assigned_user": user_loc.get("username", ""),
-                        "last_login_user": general.get("lastLoggedInUsernameBinary", ""),
-                        "department": user_loc.get("department", ""),
-                        "building": user_loc.get("building", ""),
-                        "last_checkin": general.get("lastContactTime", ""),
-                        "filevault_enabled": security.get("fileVault2Status", "") == "ALL_ENCRYPTED",
-                        "sip_enabled": security.get("sipStatus", "") == "ENABLED",
-                        "gatekeeper_enabled": security.get("gatekeeperStatus", "") == "APP_STORE_AND_IDENTIFIED_DEVELOPERS",
-                    })
+                    computers.append(
+                        {
+                            "jamf_id": str(comp.get("id", "")),
+                            "name": general.get("name", ""),
+                            "serial_number": hardware.get("serialNumber", ""),
+                            "model": hardware.get("model", ""),
+                            "os_name": os_info.get("name", ""),
+                            "os_version": os_info.get("version", ""),
+                            "ip_address": general.get("lastIpAddress", ""),
+                            "mac_address": general.get("macAddress", ""),
+                            "assigned_user": user_loc.get("username", ""),
+                            "last_login_user": general.get("lastLoggedInUsernameBinary", ""),
+                            "department": user_loc.get("department", ""),
+                            "building": user_loc.get("building", ""),
+                            "last_checkin": general.get("lastContactTime", ""),
+                            "filevault_enabled": security.get("fileVault2Status", "") == "ALL_ENCRYPTED",
+                            "sip_enabled": security.get("sipStatus", "") == "ENABLED",
+                            "gatekeeper_enabled": security.get("gatekeeperStatus", "")
+                            == "APP_STORE_AND_IDENTIFIED_DEVELOPERS",
+                        }
+                    )
 
                 total = data.get("totalCount", 0)
                 if (page + 1) * page_size >= total:

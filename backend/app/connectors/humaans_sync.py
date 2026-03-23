@@ -34,7 +34,8 @@ async def run_humaans_sync(db: AsyncSession, connector_config: ConnectorConfig) 
     log = SyncLog(
         connector_id=connector_config.id,
         tenant_id=connector_config.tenant_id,
-        status="RUNNING", started_at=now,
+        status="RUNNING",
+        started_at=now,
     )
     db.add(log)
     await db.flush()
@@ -91,7 +92,9 @@ async def run_humaans_sync(db: AsyncSession, connector_config: ConnectorConfig) 
 
 
 async def _find_matching_assets(
-    db: AsyncSession, tenant_id: uuid.UUID, person: HumaansPerson,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    person: HumaansPerson,
 ) -> list[Asset]:
     """Find assets that belong to this person using multiple matching strategies."""
     # Build a set of candidate usernames from the Humaans person
@@ -189,14 +192,11 @@ def _enrich_asset(asset: Asset, person: HumaansPerson) -> None:
     if person.timezone:
         humaans_data["humaans_timezone"] = person.timezone
     if person.remote_city or person.remote_country:
-        humaans_data["humaans_location"] = ", ".join(
-            filter(None, [person.remote_city, person.remote_country])
-        )
+        humaans_data["humaans_location"] = ", ".join(filter(None, [person.remote_city, person.remote_country]))
     # Store device names from Humaans equipment
     if person.devices:
         humaans_data["humaans_devices"] = [
-            {"name": d.name, "serial": d.serial_number, "type": d.equipment_type}
-            for d in person.devices
+            {"name": d.name, "serial": d.serial_number, "type": d.equipment_type} for d in person.devices
         ]
     asset.mdm_details = humaans_data
     flag_modified(asset, "mdm_details")

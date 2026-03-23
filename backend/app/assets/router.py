@@ -42,9 +42,7 @@ async def list_assets(
 
     # Filters
     if search:
-        query = query.where(
-            (Asset.hostname.ilike(f"%{search}%")) | (Asset.os_name.ilike(f"%{search}%"))
-        )
+        query = query.where((Asset.hostname.ilike(f"%{search}%")) | (Asset.os_name.ilike(f"%{search}%")))
     if device_category:
         categories = [c.strip().upper() for c in device_category.split(",") if c.strip()]
         if categories:
@@ -87,29 +85,31 @@ async def list_assets(
         ).where(Vulnerability.asset_id == a.id)
         vcounts = (await db.execute(vuln_q)).one()
 
-        items.append({
-            "id": str(a.id),
-            "hostname": a.hostname,
-            "os_name": a.os_name,
-            "os_version": a.os_version,
-            "device_category": a.device_category or "OTHER",
-            "risk_score": a.risk_score or 0,
-            "seen_by_sources": a.seen_by_sources or {},
-            "assigned_user": a.assigned_user,
-            "department": a.department,
-            "model": a.model,
-            "serial_number": a.serial_number,
-            "managed_by": a.managed_by,
-            "ip_addresses": a.ip_addresses or [],
-            "total_vulns": vcounts.total,
-            "critical": vcounts.critical,
-            "high": vcounts.high,
-            "exploitable": vcounts.exploitable,
-            "kev": vcounts.kev,
-            "is_ignored": a.is_ignored,
-            "ignored_at": a.ignored_at.isoformat() if a.ignored_at else None,
-            "ignored_reason": a.ignored_reason,
-        })
+        items.append(
+            {
+                "id": str(a.id),
+                "hostname": a.hostname,
+                "os_name": a.os_name,
+                "os_version": a.os_version,
+                "device_category": a.device_category or "OTHER",
+                "risk_score": a.risk_score or 0,
+                "seen_by_sources": a.seen_by_sources or {},
+                "assigned_user": a.assigned_user,
+                "department": a.department,
+                "model": a.model,
+                "serial_number": a.serial_number,
+                "managed_by": a.managed_by,
+                "ip_addresses": a.ip_addresses or [],
+                "total_vulns": vcounts.total,
+                "critical": vcounts.critical,
+                "high": vcounts.high,
+                "exploitable": vcounts.exploitable,
+                "kev": vcounts.kev,
+                "is_ignored": a.is_ignored,
+                "ignored_at": a.ignored_at.isoformat() if a.ignored_at else None,
+                "ignored_reason": a.ignored_reason,
+            }
+        )
 
     return {
         "items": items,
@@ -140,20 +140,16 @@ async def asset_stats(
 
     # Avg risk score
     avg_risk = (
-        await db.execute(
-            select(func.avg(Asset.risk_score)).where(Asset.tenant_id == user.tenant_id)
-        )
+        await db.execute(select(func.avg(Asset.risk_score)).where(Asset.tenant_id == user.tenant_id))
     ).scalar() or 0
 
     # Risk distribution
-    risk_q = (
-        select(
-            func.count().filter(Asset.risk_score >= 80).label("critical"),
-            func.count().filter((Asset.risk_score >= 50) & (Asset.risk_score < 80)).label("high"),
-            func.count().filter((Asset.risk_score >= 20) & (Asset.risk_score < 50)).label("medium"),
-            func.count().filter(Asset.risk_score < 20).label("low"),
-        ).where(Asset.tenant_id == user.tenant_id)
-    )
+    risk_q = select(
+        func.count().filter(Asset.risk_score >= 80).label("critical"),
+        func.count().filter((Asset.risk_score >= 50) & (Asset.risk_score < 80)).label("high"),
+        func.count().filter((Asset.risk_score >= 20) & (Asset.risk_score < 50)).label("medium"),
+        func.count().filter(Asset.risk_score < 20).label("low"),
+    ).where(Asset.tenant_id == user.tenant_id)
     risk_dist = (await db.execute(risk_q)).one()
 
     return {
@@ -177,12 +173,11 @@ async def get_asset(
 ):
     """Get single asset with full details."""
     asset = (
-        await db.execute(
-            select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
-        )
+        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
     ).scalar_one_or_none()
     if not asset:
         from fastapi import HTTPException
+
         raise HTTPException(404, "Asset not found")
 
     # Vuln breakdown
@@ -199,20 +194,24 @@ async def get_asset(
 
     # Vulns list
     vulns = (
-        await db.execute(
-            select(Vulnerability)
-            .where(Vulnerability.asset_id == asset.id)
-            .order_by(
-                case(
-                    (Vulnerability.severity == "CRITICAL", 0),
-                    (Vulnerability.severity == "HIGH", 1),
-                    (Vulnerability.severity == "MEDIUM", 2),
-                    else_=3,
+        (
+            await db.execute(
+                select(Vulnerability)
+                .where(Vulnerability.asset_id == asset.id)
+                .order_by(
+                    case(
+                        (Vulnerability.severity == "CRITICAL", 0),
+                        (Vulnerability.severity == "HIGH", 1),
+                        (Vulnerability.severity == "MEDIUM", 2),
+                        else_=3,
+                    )
                 )
+                .limit(100)
             )
-            .limit(100)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     return {
         "id": str(asset.id),
@@ -256,8 +255,13 @@ async def get_asset(
         "ignored_at": asset.ignored_at.isoformat() if asset.ignored_at else None,
         "ignored_reason": asset.ignored_reason,
         "vuln_counts": {
-            "total": vc.total, "critical": vc.critical, "high": vc.high,
-            "medium": vc.medium, "low": vc.low, "exploitable": vc.exploitable, "kev": vc.kev,
+            "total": vc.total,
+            "critical": vc.critical,
+            "high": vc.high,
+            "medium": vc.medium,
+            "low": vc.low,
+            "exploitable": vc.exploitable,
+            "kev": vc.kev,
         },
         "vulnerabilities": [
             {
@@ -291,17 +295,20 @@ async def ignore_asset(
 
     if body is None:
         body = {}
-    asset = (await db.execute(
-        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
-    )).scalar_one_or_none()
+    asset = (
+        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
     if not asset:
         from fastapi import HTTPException
+
         raise HTTPException(404, "Asset not found")
 
     asset.is_ignored = True
     asset.ignored_at = datetime.now(UTC)
     asset.ignored_reason = body.get("reason", "")
-    await audit(db, user, "asset.ignore", "asset", str(asset.id), {"hostname": asset.hostname, "reason": asset.ignored_reason})
+    await audit(
+        db, user, "asset.ignore", "asset", str(asset.id), {"hostname": asset.hostname, "reason": asset.ignored_reason}
+    )
     await db.commit()
     return {"message": f"Asset '{asset.hostname}' ignored", "is_ignored": True}
 
@@ -315,11 +322,12 @@ async def unignore_asset(
     """Unignore an asset — restores it to active remediation and ticket creation."""
     from app.audit import audit
 
-    asset = (await db.execute(
-        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
-    )).scalar_one_or_none()
+    asset = (
+        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
     if not asset:
         from fastapi import HTTPException
+
         raise HTTPException(404, "Asset not found")
 
     asset.is_ignored = False
@@ -347,11 +355,10 @@ async def bulk_ignore_assets(
 
     if not asset_ids:
         from fastapi import HTTPException
+
         raise HTTPException(400, "No asset IDs provided")
 
-    result = await db.execute(
-        select(Asset).where(Asset.id.in_(asset_ids), Asset.tenant_id == user.tenant_id)
-    )
+    result = await db.execute(select(Asset).where(Asset.id.in_(asset_ids), Asset.tenant_id == user.tenant_id))
     assets = result.scalars().all()
 
     for a in assets:
@@ -376,6 +383,7 @@ async def recompute_risk_scores(
 ):
     """Recompute risk scores for all assets based on current vulnerabilities."""
     from app.assets.risk_score import compute_risk_scores
+
     stats = await compute_risk_scores(db, user.tenant_id)
     await db.commit()
     return {"message": "Risk scores recomputed", **stats}
@@ -387,9 +395,7 @@ async def classify_all_assets(
     db: AsyncSession = Depends(get_db),
 ):
     """Re-classify all assets by device type."""
-    result = await db.execute(
-        select(Asset).where(Asset.tenant_id == user.tenant_id)
-    )
+    result = await db.execute(select(Asset).where(Asset.tenant_id == user.tenant_id))
     assets = result.scalars().all()
 
     counts: dict[str, int] = {}

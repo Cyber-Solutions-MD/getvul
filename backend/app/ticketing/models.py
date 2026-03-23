@@ -35,7 +35,9 @@ class ConnectorConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "connector_configs"
     __table_args__ = (UniqueConstraint("tenant_id", "connector_type", name="uq_connector_tenant_type"),)
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
     connector_type: Mapped[str] = mapped_column(String(30), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     credentials_secret_arn: Mapped[str | None] = mapped_column(Text)
@@ -51,7 +53,9 @@ class ConnectorConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class SyncLog(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "sync_logs"
 
-    connector_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("connector_configs.id", ondelete="CASCADE"), nullable=False)
+    connector_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("connector_configs.id", ondelete="CASCADE"), nullable=False
+    )
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -70,14 +74,18 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (UniqueConstraint("tenant_id", "external_ticket_id", "provider", name="uq_ticket_external"),)
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    vulnerability_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True)
+    vulnerability_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     provider: Mapped[str] = mapped_column(String(20), nullable=False)
     external_ticket_id: Mapped[str] = mapped_column(String(200), nullable=False)
     external_ticket_url: Mapped[str] = mapped_column(String(500), nullable=False)
     external_status: Mapped[str | None] = mapped_column(String(50))
     project_key: Mapped[str | None] = mapped_column(String(50))
     assignee: Mapped[str | None] = mapped_column(String(255))
-    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
     created_by_rule: Mapped[str | None] = mapped_column(String(200))
     detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ticket_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -87,7 +95,9 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class TicketRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "ticket_rules"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     conditions: Mapped[dict] = mapped_column(JSONB, nullable=False)

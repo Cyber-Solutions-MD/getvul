@@ -94,12 +94,12 @@ async def list_assets(
 
 
 async def get_asset(
-    db: AsyncSession, tenant_id: uuid.UUID, asset_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    asset_id: uuid.UUID,
 ) -> AssetResponse | None:
     """Get asset detail with vuln counts by severity."""
-    result = await db.execute(
-        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == tenant_id)
-    )
+    result = await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == tenant_id))
     asset = result.scalar_one_or_none()
     if asset is None:
         return None

@@ -27,6 +27,7 @@ BASE_URL = "https://app.humaans.io/api"
 @dataclass
 class HumaansPerson:
     """A person from Humaans with their equipment."""
+
     person_id: str
     first_name: str
     last_name: str
@@ -48,6 +49,7 @@ class HumaansPerson:
 @dataclass
 class HumaansDevice:
     """A piece of equipment assigned to a person."""
+
     equipment_id: str
     name: str
     serial_number: str | None
@@ -227,8 +229,7 @@ class HumaansConnector:
                     params={"$limit": limit, "$skip": skip},
                 )
                 if resp.status_code != 200:
-                    logger.warning("humaans_api_error", endpoint=endpoint,
-                                   status=resp.status_code, skip=skip)
+                    logger.warning("humaans_api_error", endpoint=endpoint, status=resp.status_code, skip=skip)
                     break
 
                 data = resp.json()

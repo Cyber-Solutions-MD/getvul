@@ -39,7 +39,10 @@ class TestJWT:
         user_id = str(uuid.uuid4())
         tenant_id = str(uuid.uuid4())
         token = create_access_token(
-            user_id=user_id, tenant_id=tenant_id, email="a@b.com", role="VIEWER",
+            user_id=user_id,
+            tenant_id=tenant_id,
+            email="a@b.com",
+            role="VIEWER",
         )
         decoded = decode_token(token)
         assert decoded.sub == user_id
@@ -74,7 +77,8 @@ class TestJWT:
         )
         # Tamper: decode with wrong secret
         with pytest.raises(JWTError):
-            jwt.decode(token, "wrong-secret", algorithms=[settings.jwt_algorithm])  # nosemgrep: python-pyjwt-hardcoded-secret
+            # nosemgrep: python-pyjwt-hardcoded-secret
+            jwt.decode(token, "wrong-secret", algorithms=[settings.jwt_algorithm])
 
 
 # ── RBAC Tests ──

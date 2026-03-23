@@ -18,9 +18,7 @@ from app.tenants.models import Tenant, User, UserRole
 async def resolve_tenant_by_email(db: AsyncSession, email: str) -> Tenant | None:
     """Find the tenant by matching the user's email domain."""
     domain = email.split("@")[1].lower()
-    result = await db.execute(
-        select(Tenant).where(Tenant.domain == domain, Tenant.is_active.is_(True))
-    )
+    result = await db.execute(select(Tenant).where(Tenant.domain == domain, Tenant.is_active.is_(True)))
     return result.scalar_one_or_none()
 
 
@@ -40,9 +38,7 @@ async def upsert_user(
 
     if user is None:
         # First user in a tenant becomes OWNER, rest are VIEWER
-        existing_users = await db.execute(
-            select(User).where(User.tenant_id == tenant.id).limit(1)
-        )
+        existing_users = await db.execute(select(User).where(User.tenant_id == tenant.id).limit(1))
         is_first_user = existing_users.scalar_one_or_none() is None
 
         user = User(
@@ -108,9 +104,7 @@ async def refresh_access_token(db: AsyncSession, refresh_token_str: str) -> Refr
         raise ValueError("Not a refresh token")
 
     # Look up the user to get current role (may have changed)
-    result = await db.execute(
-        select(User).where(User.id == uuid.UUID(payload.sub), User.is_active.is_(True))
-    )
+    result = await db.execute(select(User).where(User.id == uuid.UUID(payload.sub), User.is_active.is_(True)))
     user = result.scalar_one_or_none()
     if user is None:
         raise ValueError("User not found or deactivated")

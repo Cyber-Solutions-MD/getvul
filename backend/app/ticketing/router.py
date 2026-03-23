@@ -46,7 +46,8 @@ def _get_asana_config(db_config: dict) -> tuple[str | None, str | None, str | No
 
 
 async def _get_asana_client(
-    db: AsyncSession, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
 ) -> tuple[AsanaClient, str, str]:
     """Get an AsanaClient from the ASANA connector config. Does NOT require workspace to be set."""
     from sqlalchemy import select
@@ -77,7 +78,8 @@ async def _get_asana_client(
 
 
 async def _get_asana_client_from_connector(
-    db: AsyncSession, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
 ) -> tuple[AsanaClient, str, str]:
     """Get an AsanaClient and REQUIRE workspace to be configured."""
     client, workspace_gid, project_gid = await _get_asana_client(db, tenant_id)
@@ -88,6 +90,7 @@ async def _get_asana_client_from_connector(
 
 
 # ── Tickets CRUD ──
+
 
 @router.get("")
 async def list_all_tickets(
@@ -166,6 +169,7 @@ async def create_new_tickets(
         )
         await db.commit()
         from app.audit import audit as _audit
+
         await _audit(db, user, "ticket.create", "ticket", None, {"count": len(tickets), "provider": body.provider})
         return {"created": len(tickets), "tickets": tickets}
     finally:
@@ -233,7 +237,6 @@ async def bulk_ticket_action(
     if not urls:
         raise HTTPException(400, "No tickets selected")
 
-
     from sqlalchemy import select
 
     from app.ticketing.models import Ticket
@@ -262,9 +265,15 @@ async def bulk_ticket_action(
         try:
             seen_tasks: set[str] = set()
             for url in urls:
-                tickets = (await db.execute(
-                    select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
-                )).scalars().all()
+                tickets = (
+                    (
+                        await db.execute(
+                            select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
                 for t in tickets:
                     task_gid = t.external_ticket_id.split(":")[0]
                     if task_gid not in seen_tasks:
@@ -282,6 +291,7 @@ async def bulk_ticket_action(
         asana_client, _, _ = await _get_asana_client_from_connector(db, user.tenant_id)
         try:
             from app.ticketing.service import sync_ticket_status
+
             result = await sync_ticket_status(db, user.tenant_id, asana_client)
             await db.commit()
             results = result
@@ -293,9 +303,15 @@ async def bulk_ticket_action(
         try:
             deleted_tasks: set[str] = set()
             for url in urls:
-                tickets = (await db.execute(
-                    select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
-                )).scalars().all()
+                tickets = (
+                    (
+                        await db.execute(
+                            select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
                 for t in tickets:
                     # Delete Asana task (once per unique task)
                     task_gid = t.external_ticket_id.split(":")[0]
@@ -304,9 +320,9 @@ async def bulk_ticket_action(
                             await asana_client.client.delete(f"/tasks/{task_gid}")
                         deleted_tasks.add(task_gid)
                     # Reopen vulns that were changed by this ticket
-                    vuln = (await db.execute(
-                        select(Vulnerability).where(Vulnerability.id == t.vulnerability_id)
-                    )).scalar_one_or_none()
+                    vuln = (
+                        await db.execute(select(Vulnerability).where(Vulnerability.id == t.vulnerability_id))
+                    ).scalar_one_or_none()
                     if vuln and vuln.status in ("IN_PROGRESS", "REMEDIATED"):
                         vuln.status = "OPEN"
                         vuln.remediated_at = None
@@ -315,6 +331,7 @@ async def bulk_ticket_action(
 
             # Recompute risk scores
             from app.assets.risk_score import compute_risk_scores
+
             await compute_risk_scores(db, user.tenant_id)
             await db.commit()
         finally:
@@ -350,6 +367,7 @@ async def close_ticket_endpoint(
 
 # ── Asana configuration ──
 
+
 @router.get("/asana/config")
 async def get_asana_config(
     db: AsyncSession = Depends(get_db),
@@ -360,9 +378,7 @@ async def get_asana_config(
 
     from app.ticketing.models import ConnectorConfig as ConnConfig
 
-    result = await db.execute(
-        sel(ConnConfig).where(CC.tenant_id == user.tenant_id, CC.connector_type == "ASANA")
-    )
+    result = await db.execute(sel(ConnConfig).where(CC.tenant_id == user.tenant_id, CC.connector_type == "ASANA"))
     connector = result.scalar_one_or_none()
     if not connector:
         return {"configured": False, "workspace_gid": None, "project_gid": None}
@@ -385,8 +401,10 @@ async def get_asana_setup(
         asana_client, workspace_gid, project_gid = await _get_asana_client(db, user.tenant_id)
     except HTTPException:
         return AsanaConfigResponse(
-            workspace_gid=None, workspace_name=None,
-            project_gid=None, project_name=None,
+            workspace_gid=None,
+            workspace_name=None,
+            project_gid=None,
+            project_name=None,
         )
 
     try:
@@ -449,6 +467,7 @@ async def update_asana_config(
     connector.config = config
 
     from sqlalchemy.orm.attributes import flag_modified
+
     flag_modified(connector, "config")
     await db.commit()
 
@@ -456,6 +475,7 @@ async def update_asana_config(
 
 
 # ── Ticket Rules ──
+
 
 @router.get("/rules")
 async def list_rules(
@@ -484,6 +504,7 @@ async def create_rule(
     import uuid as _uuid
 
     from app.ticketing.models import TicketRule
+
     rule = TicketRule(
         tenant_id=user.tenant_id,
         name=body.name,
@@ -582,6 +603,7 @@ async def run_rule_now(
     try:
         run_result = await run_rule(db, rule, asana_client, workspace_gid, project_gid)
         from datetime import datetime
+
         rule.last_run_at = datetime.now(UTC)
         rule.last_run_status = "SUCCESS"
         rule.last_run_tickets_created = run_result["created"]
@@ -598,8 +620,10 @@ async def trigger_ticket_sync(
 ):
     """Manually trigger ticket status sync — checks all open tickets and posts progress comments."""
     from app.ticketing.daily_sync import run_daily_ticket_sync
+
     result = await run_daily_ticket_sync(db)
     from app.audit import audit
+
     await audit(db, user, "ticket.sync_status", "ticket", None, result)
     await db.commit()
     return result

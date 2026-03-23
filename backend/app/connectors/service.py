@@ -45,24 +45,23 @@ def _to_response(c: ConnectorConfig) -> ConnectorConfigResponse:
 
 
 async def list_connectors(
-    db: AsyncSession, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
 ) -> list[ConnectorConfigResponse]:
     """List all connectors for a tenant."""
     result = await db.execute(
-        select(ConnectorConfig)
-        .where(ConnectorConfig.tenant_id == tenant_id)
-        .order_by(ConnectorConfig.connector_type)
+        select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_id).order_by(ConnectorConfig.connector_type)
     )
     return [_to_response(c) for c in result.scalars().all()]
 
 
 async def create_connector(
-    db: AsyncSession, tenant_id: uuid.UUID, body: ConnectorCreate,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    body: ConnectorCreate,
 ) -> ConnectorConfigResponse:
     """Create a new connector with encrypted credentials."""
-    encrypted_creds = json.dumps({
-        k: encrypt_value(v) for k, v in body.credentials.items()
-    })
+    encrypted_creds = json.dumps({k: encrypt_value(v) for k, v in body.credentials.items()})
 
     connector = ConnectorConfig(
         tenant_id=tenant_id,
@@ -80,7 +79,10 @@ async def create_connector(
 
 
 async def update_connector(
-    db: AsyncSession, tenant_id: uuid.UUID, connector_id: uuid.UUID, body: ConnectorUpdate,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    connector_id: uuid.UUID,
+    body: ConnectorUpdate,
 ) -> ConnectorConfigResponse | None:
     """Update a connector's config and/or credentials."""
     result = await db.execute(
@@ -94,9 +96,7 @@ async def update_connector(
         return None
 
     if body.credentials is not None:
-        encrypted_creds = json.dumps({
-            k: encrypt_value(v) for k, v in body.credentials.items()
-        })
+        encrypted_creds = json.dumps({k: encrypt_value(v) for k, v in body.credentials.items()})
         connector.credentials_secret_arn = encrypted_creds
 
     if body.config is not None:
@@ -111,7 +111,9 @@ async def update_connector(
 
 
 async def delete_connector(
-    db: AsyncSession, tenant_id: uuid.UUID, connector_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    connector_id: uuid.UUID,
 ) -> bool:
     """Delete a connector."""
     result = await db.execute(

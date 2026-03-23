@@ -19,14 +19,24 @@ def upgrade() -> None:
     op.create_table(
         "scheduled_reports",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("is_enabled", sa.Boolean(), server_default="true"),
         sa.Column("schedule", sa.String(20), nullable=False),  # daily, weekly, monthly
         sa.Column("format", sa.String(10), server_default="pdf"),  # pdf, csv, txt
         sa.Column("recipients", postgresql.JSONB, nullable=False),  # ["email@example.com"]
-        sa.Column("sections", postgresql.JSONB, server_default='["vulns","assets","risk","top_hosts","top_remediations","tickets"]'),
-        sa.Column("filters", postgresql.JSONB, server_default='{}'),
+        sa.Column(
+            "sections",
+            postgresql.JSONB,
+            server_default='["vulns","assets","risk","top_hosts","top_remediations","tickets"]',
+        ),
+        sa.Column("filters", postgresql.JSONB, server_default="{}"),
         sa.Column("last_sent_at", sa.DateTime(timezone=True)),
         sa.Column("last_send_status", sa.String(20)),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),

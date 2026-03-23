@@ -26,9 +26,7 @@ async def _run_single_sync(connector_id: str, tenant_id: str) -> None:
 
     try:
         async with async_session_factory() as db:
-            result = await db.execute(
-                select(ConnectorConfig).where(ConnectorConfig.id == connector_id)
-            )
+            result = await db.execute(select(ConnectorConfig).where(ConnectorConfig.id == connector_id))
             connector = result.scalar_one_or_none()
             if connector is None:
                 logger.error("background_sync_connector_not_found", connector_id=connector_id)
@@ -116,6 +114,7 @@ async def _scheduler_loop() -> None:
         try:
             async with async_session_factory() as db:
                 from app.ticketing.rule_engine import run_all_due_rules
+
                 result = await run_all_due_rules(db)
                 if result.get("tickets_created", 0) > 0:
                     logger.info("ticket_rules_completed", **result)
@@ -126,6 +125,7 @@ async def _scheduler_loop() -> None:
         try:
             async with async_session_factory() as db:
                 from app.reports import run_due_reports
+
                 result = await run_due_reports(db)
                 if result.get("sent", 0) > 0:
                     logger.info("scheduled_reports_sent", **result)
@@ -139,6 +139,7 @@ async def _scheduler_loop() -> None:
 
                 from app.tenants.models import Tenant as TenantModel
                 from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
+
                 tenants = (await db.execute(_sel(TenantModel).where(_T.is_active.is_(True)))).scalars().all()
                 for t in tenants:
                     await backfill_sla_due_dates(db, t.id)
@@ -154,6 +155,7 @@ async def _scheduler_loop() -> None:
             if _last_ticket_sync is None or (now - _last_ticket_sync).total_seconds() >= 86400:
                 async with async_session_factory() as db:
                     from app.ticketing.daily_sync import run_daily_ticket_sync
+
                     result = await run_daily_ticket_sync(db)
                     if result.get("comments_added", 0) > 0 or result.get("resolved", 0) > 0:
                         logger.info("daily_ticket_sync_completed", **result)

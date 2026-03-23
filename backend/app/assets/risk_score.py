@@ -76,9 +76,7 @@ def _normalize_raw_score(raw: float) -> int:
     else:
         # Log curve from KNEE_SCORE toward 100.
         # Reaches 100 around MAX_RAW.
-        score = KNEE_SCORE + (100.0 - KNEE_SCORE) * (
-            math.log1p(raw - KNEE_RAW) / math.log1p(MAX_RAW - KNEE_RAW)
-        )
+        score = KNEE_SCORE + (100.0 - KNEE_SCORE) * (math.log1p(raw - KNEE_RAW) / math.log1p(MAX_RAW - KNEE_RAW))
 
     return min(int(round(score)), 100)
 
@@ -137,11 +135,7 @@ async def compute_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     for asset_id, raw_score in rows:
         normalized = _normalize_raw_score(float(raw_score))
 
-        await db.execute(
-            update(Asset)
-            .where(Asset.id == asset_id)
-            .values(risk_score=normalized)
-        )
+        await db.execute(update(Asset).where(Asset.id == asset_id).values(risk_score=normalized))
         updated += 1
 
     logger.info(

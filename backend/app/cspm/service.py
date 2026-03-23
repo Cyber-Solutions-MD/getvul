@@ -49,7 +49,10 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: MisconfigFilter
 
 
 async def list_misconfigurations(
-    db: AsyncSession, tenant_id: uuid.UUID, filters: MisconfigFilter, pagination: PaginationParams,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    filters: MisconfigFilter,
+    pagination: PaginationParams,
 ) -> PaginatedResponse[MisconfigSummary]:
     count_q = _apply_filters(select(func.count(Misconfiguration.id)), tenant_id, filters)
     total = (await db.execute(count_q)).scalar_one()
@@ -76,11 +79,14 @@ async def list_misconfigurations(
 
 
 async def get_misconfiguration(
-    db: AsyncSession, tenant_id: uuid.UUID, misconfig_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    misconfig_id: uuid.UUID,
 ) -> MisconfigResponse | None:
     result = await db.execute(
         select(Misconfiguration).where(
-            Misconfiguration.id == misconfig_id, Misconfiguration.tenant_id == tenant_id,
+            Misconfiguration.id == misconfig_id,
+            Misconfiguration.tenant_id == tenant_id,
         )
     )
     m = result.scalar_one_or_none()
@@ -90,7 +96,10 @@ async def get_misconfiguration(
 
 
 async def update_misconfig_status(
-    db: AsyncSession, tenant_id: uuid.UUID, misconfig_id: uuid.UUID, new_status: str,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    misconfig_id: uuid.UUID,
+    new_status: str,
 ) -> bool:
     now = datetime.now(UTC)
     values: dict = {"status": new_status, "updated_at": now}
@@ -105,7 +114,9 @@ async def update_misconfig_status(
 
 
 async def bulk_update_misconfig_status(
-    db: AsyncSession, tenant_id: uuid.UUID, body: BulkMisconfigStatusUpdate,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    body: BulkMisconfigStatusUpdate,
 ) -> int:
     now = datetime.now(UTC)
     values: dict = {"status": body.status, "updated_at": now}
@@ -123,31 +134,45 @@ async def get_cspm_stats(db: AsyncSession, tenant_id: uuid.UUID) -> CSPMDashboar
     base = Misconfiguration.tenant_id == tenant_id
 
     total = (await db.execute(select(func.count(Misconfiguration.id)).where(base))).scalar_one()
-    open_count = (await db.execute(
-        select(func.count(Misconfiguration.id)).where(base, Misconfiguration.status == "OPEN")
-    )).scalar_one()
+    open_count = (
+        await db.execute(select(func.count(Misconfiguration.id)).where(base, Misconfiguration.status == "OPEN"))
+    ).scalar_one()
 
-    sev_rows = (await db.execute(
-        select(Misconfiguration.severity, func.count(Misconfiguration.id)).where(base).group_by(Misconfiguration.severity)
-    )).all()
+    sev_rows = (
+        await db.execute(
+            select(Misconfiguration.severity, func.count(Misconfiguration.id))
+            .where(base)
+            .group_by(Misconfiguration.severity)
+        )
+    ).all()
 
-    cat_rows = (await db.execute(
-        select(Misconfiguration.category, func.count(Misconfiguration.id)).where(base).group_by(Misconfiguration.category)
-    )).all()
+    cat_rows = (
+        await db.execute(
+            select(Misconfiguration.category, func.count(Misconfiguration.id))
+            .where(base)
+            .group_by(Misconfiguration.category)
+        )
+    ).all()
 
-    src_rows = (await db.execute(
-        select(Misconfiguration.source, func.count(Misconfiguration.id)).where(base).group_by(Misconfiguration.source)
-    )).all()
+    src_rows = (
+        await db.execute(
+            select(Misconfiguration.source, func.count(Misconfiguration.id))
+            .where(base)
+            .group_by(Misconfiguration.source)
+        )
+    ).all()
 
-    cloud_rows = (await db.execute(
-        select(Misconfiguration.cloud_provider, func.count(Misconfiguration.id))
-        .where(base, Misconfiguration.cloud_provider.isnot(None))
-        .group_by(Misconfiguration.cloud_provider)
-    )).all()
+    cloud_rows = (
+        await db.execute(
+            select(Misconfiguration.cloud_provider, func.count(Misconfiguration.id))
+            .where(base, Misconfiguration.cloud_provider.isnot(None))
+            .group_by(Misconfiguration.cloud_provider)
+        )
+    ).all()
 
-    remediated = (await db.execute(
-        select(func.count(Misconfiguration.id)).where(base, Misconfiguration.status == "REMEDIATED")
-    )).scalar_one()
+    remediated = (
+        await db.execute(select(func.count(Misconfiguration.id)).where(base, Misconfiguration.status == "REMEDIATED"))
+    ).scalar_one()
     pass_rate = round((remediated / total) * 100, 1) if total > 0 else None
 
     return CSPMDashboardStats(

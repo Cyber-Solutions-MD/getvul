@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 # ── Connector type metadata ──
 
+
 class ConnectorPermission(BaseModel):
     scope: str
     access: str
@@ -37,9 +38,13 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
             {"name": "base_url", "label": "Base URL", "type": "select", "required": True},
         ],
         permissions=[
-            ConnectorPermission(scope="Spotlight Vulnerabilities", access="Read", purpose="Fetch vulnerability findings"),
+            ConnectorPermission(
+                scope="Spotlight Vulnerabilities", access="Read", purpose="Fetch vulnerability findings"
+            ),
             ConnectorPermission(scope="Hosts", access="Read", purpose="Resolve device hostnames and OS info"),
-            ConnectorPermission(scope="Configuration Assessment", access="Read", purpose="CSPM / cloud posture findings"),
+            ConnectorPermission(
+                scope="Configuration Assessment", access="Read", purpose="CSPM / cloud posture findings"
+            ),
             ConnectorPermission(scope="CSPM Registration", access="Read", purpose="Fallback for cloud posture data"),
         ],
         setup_url="https://falcon.crowdstrike.com/documentation/46/crowdstrike-oauth2-based-apis",
@@ -78,8 +83,12 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         ],
         permissions=[
             ConnectorPermission(scope="Machine.Read.All", access="Application", purpose="Read device information"),
-            ConnectorPermission(scope="Vulnerability.Read.All", access="Application", purpose="Read vulnerability data"),
-            ConnectorPermission(scope="SecurityRecommendation.Read.All", access="Application", purpose="Read security recommendations"),
+            ConnectorPermission(
+                scope="Vulnerability.Read.All", access="Application", purpose="Read vulnerability data"
+            ),
+            ConnectorPermission(
+                scope="SecurityRecommendation.Read.All", access="Application", purpose="Read security recommendations"
+            ),
         ],
         setup_url="https://learn.microsoft.com/en-us/defender-endpoint/api/exposed-apis-create-app-webapp",
         notes="Register an app in Azure Entra ID → API permissions → Add Microsoft Threat Protection permissions",
@@ -112,13 +121,22 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         name="Google Workspace",
         description="SSO directory — sync users and groups from Google Workspace",
         fields=[
-            {"name": "access_token", "label": "Admin OAuth Token or Service Account Token", "type": "password", "required": True},
+            {
+                "name": "access_token",
+                "label": "Admin OAuth Token or Service Account Token",
+                "type": "password",
+                "required": True,
+            },
             {"name": "domain", "label": "Google Workspace Domain", "type": "text", "required": True},
         ],
         permissions=[
-            ConnectorPermission(scope="admin.directory.user.readonly", access="Read", purpose="List all users in the domain"),
+            ConnectorPermission(
+                scope="admin.directory.user.readonly", access="Read", purpose="List all users in the domain"
+            ),
             ConnectorPermission(scope="admin.directory.group.readonly", access="Read", purpose="List all groups"),
-            ConnectorPermission(scope="admin.directory.group.member.readonly", access="Read", purpose="List group members"),
+            ConnectorPermission(
+                scope="admin.directory.group.member.readonly", access="Read", purpose="List group members"
+            ),
         ],
         setup_url="https://admin.google.com/ac/owl/domainwidedelegation",
         notes="Use a service account with domain-wide delegation, or generate an OAuth token with Admin SDK scopes from an admin account.",
@@ -164,7 +182,9 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         ],
         permissions=[
             ConnectorPermission(scope="public:read", access="Read", purpose="Read people names, emails, job titles"),
-            ConnectorPermission(scope="private:read", access="Read", purpose="Read equipment, custom fields (GitHub/Element handles)"),
+            ConnectorPermission(
+                scope="private:read", access="Read", purpose="Read equipment, custom fields (GitHub/Element handles)"
+            ),
         ],
         setup_url="https://app.humaans.io/settings/api-access-tokens",
         notes="Generate an API token in Humaans → Settings → API Access Tokens. Use an Owner or Admin token to access all people. Custom fields named 'GitHub' and 'Element' (or 'Matrix') will be auto-detected.",
@@ -214,7 +234,9 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         permissions=[
             ConnectorPermission(scope="Host Assets", access="Read", purpose="Fetch managed assets and host details"),
             ConnectorPermission(scope="Vulnerabilities", access="Read", purpose="Fetch vulnerability detections"),
-            ConnectorPermission(scope="Knowledge Base", access="Read", purpose="Resolve QID to CVE and remediation info"),
+            ConnectorPermission(
+                scope="Knowledge Base", access="Read", purpose="Resolve QID to CVE and remediation info"
+            ),
         ],
         setup_url="https://www.qualys.com/docs/qualys-api-vmpc-user-guide.pdf",
         base_urls={
@@ -252,7 +274,11 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
             {"name": "client_secret", "label": "App Client Secret", "type": "password", "required": True},
         ],
         permissions=[
-            ConnectorPermission(scope="DeviceManagementManagedDevices.Read.All", access="Application", purpose="Read managed device inventory"),
+            ConnectorPermission(
+                scope="DeviceManagementManagedDevices.Read.All",
+                access="Application",
+                purpose="Read managed device inventory",
+            ),
             ConnectorPermission(scope="User.Read.All", access="Application", purpose="Resolve device owners"),
         ],
         setup_url="https://learn.microsoft.com/en-us/mem/intune/developer/intune-graph-apis",
@@ -269,7 +295,9 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         ],
         permissions=[
             ConnectorPermission(scope="Assets", access="Read", purpose="Fetch asset inventory"),
-            ConnectorPermission(scope="Vulnerabilities", access="Read", purpose="Fetch vulnerability findings per asset"),
+            ConnectorPermission(
+                scope="Vulnerabilities", access="Read", purpose="Fetch vulnerability findings per asset"
+            ),
             ConnectorPermission(scope="Solutions", access="Read", purpose="Resolve remediation steps"),
         ],
         setup_url="https://help.rapid7.com/insightvm/en-us/api/index.html",
@@ -279,6 +307,7 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
 
 
 # ── Request / Response schemas ──
+
 
 class ConnectorCreate(BaseModel):
     connector_type: str
@@ -330,8 +359,6 @@ class SyncStatusResponse(BaseModel):
     last_sync_at: datetime | None = None
     last_sync_status: str | None = None
     last_sync_record_count: int | None = None
-
-
 
 
 # ── Aliases for backward compatibility ──

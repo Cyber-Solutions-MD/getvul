@@ -94,9 +94,7 @@ class Rapid7Connector(BaseConnector):
             return self._vuln_solutions_cache[vuln_id]
         data = await self._get_json(f"/api/3/vulnerabilities/{vuln_id}/solutions")
         solutions = data.get("resources", [])
-        summary = "; ".join(
-            s.get("summary", "") for s in solutions if s.get("summary")
-        )
+        summary = "; ".join(s.get("summary", "") for s in solutions if s.get("summary"))
         self._vuln_solutions_cache[vuln_id] = summary
         return summary
 
@@ -136,12 +134,17 @@ class Rapid7Connector(BaseConnector):
 
             logger.info(
                 "Rapid7: processing asset %d/%d (id=%s, host=%s)",
-                idx, len(assets), asset_id, hostname,
+                idx,
+                len(assets),
+                asset_id,
+                hostname,
             )
 
             asset_vulns = await self._fetch_asset_vulns(asset_id)
             logger.info(
-                "Rapid7: asset %s has %d vulnerabilities", asset_id, len(asset_vulns),
+                "Rapid7: asset %s has %d vulnerabilities",
+                asset_id,
+                len(asset_vulns),
             )
 
             # Batch-fetch unique vuln details for this asset
@@ -152,7 +155,9 @@ class Rapid7Connector(BaseConnector):
                         await self._fetch_vuln_detail(vid)
                     except httpx.HTTPStatusError as exc:
                         logger.warning(
-                            "Rapid7: failed to fetch detail for vuln %s: %s", vid, exc,
+                            "Rapid7: failed to fetch detail for vuln %s: %s",
+                            vid,
+                            exc,
                         )
 
             for vuln_entry in asset_vulns:
@@ -170,9 +175,7 @@ class Rapid7Connector(BaseConnector):
 
                 severity = self._severity_from_cvss(cvss_score)
                 exploit_count = detail.get("exploits", 0)
-                exploit_available = (
-                    exploit_count > 0 if isinstance(exploit_count, int) else False
-                )
+                exploit_available = exploit_count > 0 if isinstance(exploit_count, int) else False
 
                 # Remediation
                 try:

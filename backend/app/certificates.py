@@ -22,6 +22,7 @@ def get_cert_info() -> dict:
 
     try:
         import ssl
+
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -30,7 +31,9 @@ def get_cert_info() -> dict:
         # Parse cert with openssl
         result = subprocess.run(
             ["openssl", "x509", "-in", str(CERT_FILE), "-noout", "-subject", "-issuer", "-dates", "-serial"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         info = {"installed": True, "cert_path": str(CERT_FILE), "key_path": str(KEY_FILE)}
 
@@ -62,7 +65,10 @@ def save_certificate(cert_pem: str, key_pem: str) -> dict:
     try:
         result = subprocess.run(
             ["openssl", "x509", "-in", "/dev/stdin", "-noout", "-text"],
-            input=cert_pem, capture_output=True, text=True, timeout=5,
+            input=cert_pem,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode != 0:
             return {"error": "Invalid certificate PEM format"}
@@ -73,7 +79,10 @@ def save_certificate(cert_pem: str, key_pem: str) -> dict:
     try:
         result = subprocess.run(
             ["openssl", "rsa", "-in", "/dev/stdin", "-check", "-noout"],
-            input=key_pem, capture_output=True, text=True, timeout=5,
+            input=key_pem,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode != 0:
             return {"error": "Invalid private key PEM format"}
@@ -94,13 +103,29 @@ def generate_self_signed(hostname: str = "getvul.local", days: int = 365) -> dic
     CERT_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
-        result = subprocess.run([
-            "openssl", "req", "-x509", "-newkey", "rsa:2048",
-            "-keyout", str(KEY_FILE), "-out", str(CERT_FILE),
-            "-days", str(days), "-nodes",
-            "-subj", f"/CN={hostname}/O=GetVul/C=US",
-            "-addext", f"subjectAltName=DNS:{hostname},DNS:localhost,IP:127.0.0.1",
-        ], capture_output=True, text=True, timeout=10)
+        result = subprocess.run(
+            [
+                "openssl",
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-keyout",
+                str(KEY_FILE),
+                "-out",
+                str(CERT_FILE),
+                "-days",
+                str(days),
+                "-nodes",
+                "-subj",
+                f"/CN={hostname}/O=GetVul/C=US",
+                "-addext",
+                f"subjectAltName=DNS:{hostname},DNS:localhost,IP:127.0.0.1",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
 
         if result.returncode != 0:
             return {"error": f"OpenSSL failed: {result.stderr}"}

@@ -87,11 +87,7 @@ def _enrich_asset(asset: Asset, device: dict) -> None:
         asset.model = f"{manufacturer} {model}".strip()
     asset.system_manufacturer = manufacturer or asset.system_manufacturer
 
-    asset.assigned_user = (
-        device.get("userDisplayName")
-        or device.get("userPrincipalName")
-        or asset.assigned_user
-    )
+    asset.assigned_user = device.get("userDisplayName") or device.get("userPrincipalName") or asset.assigned_user
     asset.managed_by = "INTUNE"
 
     last_sync = _parse_iso(device.get("lastSyncDateTime"))
@@ -154,16 +150,12 @@ async def run_intune_sync(
             # Try to match by hostname
             asset: Asset | None = None
             if device_name:
-                result = await db.execute(
-                    select(Asset).where(Asset.hostname == device_name)
-                )
+                result = await db.execute(select(Asset).where(Asset.hostname == device_name))
                 asset = result.scalars().first()
 
             # Try to match by serial number
             if asset is None and serial:
-                result = await db.execute(
-                    select(Asset).where(Asset.serial_number == serial)
-                )
+                result = await db.execute(select(Asset).where(Asset.serial_number == serial))
                 asset = result.scalars().first()
 
             if asset:

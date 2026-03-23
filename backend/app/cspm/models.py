@@ -45,15 +45,15 @@ class Misconfiguration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """A misconfiguration / policy violation finding from CSPM tools."""
 
     __tablename__ = "misconfigurations"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "rule_id", "resource_id", "source", name="uq_misconfig_dedup"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "rule_id", "resource_id", "source", name="uq_misconfig_dedup"),)
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
 
     # ── Finding identity ──
     rule_id: Mapped[str] = mapped_column(
-        String(300), nullable=False, index=True,
+        String(300),
+        nullable=False,
+        index=True,
         comment="Policy/rule ID from the source (e.g. CIS 1.2.3, CS-12345)",
     )
     rule_name: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -65,13 +65,16 @@ class Misconfiguration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # ── Compliance frameworks ──
     frameworks: Mapped[dict | None] = mapped_column(
-        JSONB, default=list,
+        JSONB,
+        default=list,
         comment='e.g. ["CIS AWS 1.5", "SOC2", "PCI-DSS 3.2.1"]',
     )
 
     # ── Affected resource ──
     resource_id: Mapped[str] = mapped_column(
-        String(500), nullable=False, index=True,
+        String(500),
+        nullable=False,
+        index=True,
         comment="Cloud resource ID (ARN, Azure resource ID, GCP resource name)",
     )
     resource_name: Mapped[str | None] = mapped_column(String(300))
@@ -102,6 +105,7 @@ class Misconfiguration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # ── Extra data ──
     details: Mapped[dict | None] = mapped_column(
-        JSONB, default=dict,
+        JSONB,
+        default=dict,
         comment="Source-specific extra data",
     )

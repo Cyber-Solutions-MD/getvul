@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 @dataclass
 class NormalizedVulnerability:
     """Normalized vulnerability finding from any source."""
+
     cve_id: str | None
     vulnerability_name: str | None
     cvss_v3_score: float | None
@@ -45,6 +46,7 @@ class NormalizedVulnerability:
 @dataclass
 class NormalizedMisconfiguration:
     """Normalized CSPM misconfiguration from any source."""
+
     rule_id: str
     rule_name: str
     rule_description: str | None = None

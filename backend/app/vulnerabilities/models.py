@@ -54,7 +54,9 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     epss_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     exploit_available: Mapped[bool] = mapped_column(Boolean, default=False)
     cisa_kev: Mapped[bool] = mapped_column(Boolean, default=False)
-    asset_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL"), index=True)
+    asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL"), index=True
+    )
     source: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     source_vuln_id: Mapped[str | None] = mapped_column(String(200))
     source_scan_id: Mapped[str | None] = mapped_column(String(200))
@@ -83,11 +85,21 @@ class VulnerabilityCorrelation(Base, UUIDPrimaryKeyMixin):
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     cve_id: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
-    asset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), nullable=False)
-    crowdstrike_vuln_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL"))
-    nessus_vuln_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL"))
-    defender_vuln_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL"))
-    wiz_vuln_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL"))
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), nullable=False
+    )
+    crowdstrike_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
+    )
+    nessus_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
+    )
+    defender_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
+    )
+    wiz_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
+    )
     sources_count: Mapped[int] = mapped_column(Integer, default=1)
     confidence: Mapped[str] = mapped_column(String(10), default=Confidence.LOW.value)
 

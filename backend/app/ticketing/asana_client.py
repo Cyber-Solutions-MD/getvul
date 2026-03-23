@@ -21,6 +21,7 @@ BASE_URL = "https://app.asana.com/api/1.0"
 @dataclass
 class AsanaTask:
     """Result of creating or fetching an Asana task."""
+
     gid: str
     name: str
     url: str
@@ -55,10 +56,7 @@ class AsanaClient:
         ws_resp = await self.client.get("/workspaces", params={"limit": 50})
         workspaces = []
         if ws_resp.status_code == 200:
-            workspaces = [
-                {"gid": w["gid"], "name": w["name"]}
-                for w in ws_resp.json().get("data", [])
-            ]
+            workspaces = [{"gid": w["gid"], "name": w["name"]} for w in ws_resp.json().get("data", [])]
 
         return {
             "success": True,

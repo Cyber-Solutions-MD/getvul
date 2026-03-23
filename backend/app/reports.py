@@ -17,7 +17,9 @@ class ScheduledReport(Base):
     __tablename__ = "scheduled_reports"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     schedule: Mapped[str] = mapped_column(String(20), nullable=False)  # daily, weekly, monthly
@@ -33,10 +35,19 @@ class ScheduledReport(Base):
 
 # ── CRUD ──
 
+
 async def list_reports(db: AsyncSession, tenant_id: uuid.UUID) -> list[dict]:
-    rows = (await db.execute(
-        select(ScheduledReport).where(ScheduledReport.tenant_id == tenant_id).order_by(ScheduledReport.created_at.desc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(ScheduledReport)
+                .where(ScheduledReport.tenant_id == tenant_id)
+                .order_by(ScheduledReport.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [_to_dict(r) for r in rows]
 
 
@@ -59,9 +70,11 @@ async def create_report(db: AsyncSession, tenant_id: uuid.UUID, data: dict) -> d
 
 
 async def update_report(db: AsyncSession, tenant_id: uuid.UUID, report_id: uuid.UUID, data: dict) -> dict | None:
-    r = (await db.execute(
-        select(ScheduledReport).where(ScheduledReport.id == report_id, ScheduledReport.tenant_id == tenant_id)
-    )).scalar_one_or_none()
+    r = (
+        await db.execute(
+            select(ScheduledReport).where(ScheduledReport.id == report_id, ScheduledReport.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
     if not r:
         return None
     for key in ["name", "schedule", "format", "recipients", "sections", "filters", "is_enabled"]:
@@ -69,6 +82,7 @@ async def update_report(db: AsyncSession, tenant_id: uuid.UUID, report_id: uuid.
             setattr(r, key, data[key])
     if "recipients" in data or "sections" in data or "filters" in data:
         from sqlalchemy.orm.attributes import flag_modified
+
         for k in ["recipients", "sections", "filters"]:
             if k in data:
                 flag_modified(r, k)
@@ -77,9 +91,11 @@ async def update_report(db: AsyncSession, tenant_id: uuid.UUID, report_id: uuid.
 
 
 async def delete_report(db: AsyncSession, tenant_id: uuid.UUID, report_id: uuid.UUID) -> bool:
-    r = (await db.execute(
-        select(ScheduledReport).where(ScheduledReport.id == report_id, ScheduledReport.tenant_id == tenant_id)
-    )).scalar_one_or_none()
+    r = (
+        await db.execute(
+            select(ScheduledReport).where(ScheduledReport.id == report_id, ScheduledReport.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
     if not r:
         return False
     await db.delete(r)
@@ -88,9 +104,14 @@ async def delete_report(db: AsyncSession, tenant_id: uuid.UUID, report_id: uuid.
 
 def _to_dict(r: ScheduledReport) -> dict:
     return {
-        "id": str(r.id), "name": r.name, "is_enabled": r.is_enabled,
-        "schedule": r.schedule, "format": r.format,
-        "recipients": r.recipients, "sections": r.sections, "filters": r.filters,
+        "id": str(r.id),
+        "name": r.name,
+        "is_enabled": r.is_enabled,
+        "schedule": r.schedule,
+        "format": r.format,
+        "recipients": r.recipients,
+        "sections": r.sections,
+        "filters": r.filters,
         "last_sent_at": r.last_sent_at.isoformat() if r.last_sent_at else None,
         "last_send_status": r.last_send_status,
         "created_at": r.created_at.isoformat() if r.created_at else None,
@@ -99,15 +120,15 @@ def _to_dict(r: ScheduledReport) -> dict:
 
 # ── Scheduler ──
 
+
 async def run_due_reports(db: AsyncSession) -> dict:
     """Check all enabled reports and send those that are due."""
     import structlog
+
     logger = structlog.get_logger()
 
     now = datetime.now(UTC)
-    reports = (await db.execute(
-        select(ScheduledReport).where(ScheduledReport.is_enabled.is_(True))
-    )).scalars().all()
+    reports = (await db.execute(select(ScheduledReport).where(ScheduledReport.is_enabled.is_(True)))).scalars().all()
 
     sent = 0
     for report in reports:
@@ -172,6 +193,7 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
 
     # Store the generated report path for download
     from pathlib import Path
+
     report_dir = Path("/app/reports")
     report_dir.mkdir(exist_ok=True)
 
@@ -190,11 +212,13 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
         from sqlalchemy import select as _sel
 
         from app.tenants.models import Tenant
+
         tenant = (await db.execute(_sel(Tenant).where(Tenant.id == report.tenant_id))).scalar_one_or_none()
         smtp_cfg = tenant.smtp_config if tenant else None
 
         if smtp_cfg and smtp_cfg.get("enabled") and smtp_cfg.get("host"):
             from app.email import send_email
+
             mime = {
                 "pdf": "application/pdf",
                 "csv": "text/csv",
@@ -204,7 +228,7 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
                 smtp_config=smtp_cfg,
                 to=report.recipients,
                 subject=f"GetVul Report: {report.name}",
-                body=f"Attached is your scheduled report \"{report.name}\" ({report.schedule}).\n\nGenerated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
+                body=f'Attached is your scheduled report "{report.name}" ({report.schedule}).\n\nGenerated: {datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")}',
                 attachment=content if isinstance(content, (bytes, bytearray)) else content.encode("utf-8"),
                 attachment_filename=filename,
                 attachment_mime=mime,
@@ -212,6 +236,7 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
 
     # Log for audit
     from app.audit import AuditLog
+
     log = AuditLog(
         tenant_id=report.tenant_id,
         action="report.scheduled_send",

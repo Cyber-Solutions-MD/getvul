@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 # ── Ticket responses ──
 
+
 class TicketResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
@@ -48,6 +49,7 @@ class TicketSummary(BaseModel):
 
 # ── Ticket requests ──
 
+
 class TicketCreateRequest(BaseModel):
     vulnerability_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=50)
     provider: str = Field(..., pattern="^(ASANA|JIRA|GITHUB)$")
@@ -66,6 +68,7 @@ class HostTicketCreateRequest(BaseModel):
 
 # ── Asana config ──
 
+
 class AsanaConfigResponse(BaseModel):
     workspace_gid: str | None
     workspace_name: str | None
@@ -81,6 +84,7 @@ class AsanaConfigUpdate(BaseModel):
 
 
 # ── Ticket Rules ──
+
 
 class TicketRuleConditions(BaseModel):
     device_category: list[str] | None = None
@@ -137,6 +141,7 @@ class TicketRuleResponse(BaseModel):
 
 
 # ── Stats ──
+
 
 class TicketStats(BaseModel):
     total: int

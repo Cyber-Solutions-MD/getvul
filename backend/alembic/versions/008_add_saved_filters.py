@@ -19,7 +19,13 @@ def upgrade() -> None:
     op.create_table(
         "saved_filters",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("filter_type", sa.String(20), nullable=False),  # "vulnerability" or "remediation"
         sa.Column("filters", postgresql.JSONB, nullable=False),

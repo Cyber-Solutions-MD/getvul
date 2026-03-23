@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 async def enrich():
     async with async_session_factory() as db:
         # Get CS connector
-        r = await db.execute(
-            select(ConnectorConfig).where(ConnectorConfig.connector_type == "CROWDSTRIKE")
-        )
+        r = await db.execute(select(ConnectorConfig).where(ConnectorConfig.connector_type == "CROWDSTRIKE"))
         conn = r.scalar_one_or_none()
         if not conn:
             print("No CrowdStrike connector found")
@@ -145,9 +143,7 @@ async def enrich():
 
             # For any remaining assets that didn't match CrowdStrike, reclassify from hostname/OS
             remaining = await db.execute(
-                select(Asset).where(
-                    (Asset.crowdstrike_aid.is_(None)) | (Asset.crowdstrike_aid == "")
-                )
+                select(Asset).where((Asset.crowdstrike_aid.is_(None)) | (Asset.crowdstrike_aid == ""))
             )
             remaining_count = 0
             for asset in remaining.scalars().all():
@@ -167,5 +163,6 @@ async def enrich():
                 f"reclassified from hostname: {remaining_count}"
             )
             logger.info(f"Categories: {by_category}")
+
 
 asyncio.run(enrich())

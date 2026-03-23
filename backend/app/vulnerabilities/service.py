@@ -68,7 +68,9 @@ async def list_vulnerabilities(
 
     # Count query
     count_q = _apply_filters(
-        select(func.count(Vulnerability.id)), tenant_id, filters,
+        select(func.count(Vulnerability.id)),
+        tenant_id,
+        filters,
     )
     total = (await db.execute(count_q)).scalar_one()
 
@@ -117,7 +119,9 @@ async def list_vulnerabilities(
 
 
 async def get_vulnerability(
-    db: AsyncSession, tenant_id: uuid.UUID, vuln_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    vuln_id: uuid.UUID,
 ) -> VulnerabilityResponse | None:
     """Get a single vulnerability by ID with asset hostname."""
     query = (
@@ -174,7 +178,10 @@ async def get_vulnerability(
 
 
 async def update_vulnerability_status(
-    db: AsyncSession, tenant_id: uuid.UUID, vuln_id: uuid.UUID, new_status: str,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    vuln_id: uuid.UUID,
+    new_status: str,
 ) -> bool:
     """Update status of a single vulnerability."""
     now = datetime.now(UTC)
@@ -183,15 +190,15 @@ async def update_vulnerability_status(
         values["remediated_at"] = now
 
     result = await db.execute(
-        update(Vulnerability)
-        .where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id)
-        .values(**values)
+        update(Vulnerability).where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id).values(**values)
     )
     return result.rowcount > 0
 
 
 async def bulk_update_status(
-    db: AsyncSession, tenant_id: uuid.UUID, body: BulkStatusUpdate,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    body: BulkStatusUpdate,
 ) -> int:
     """Bulk update status for multiple vulnerabilities."""
     now = datetime.now(UTC)
@@ -211,7 +218,8 @@ async def bulk_update_status(
 
 
 async def get_dashboard_stats(
-    db: AsyncSession, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
 ) -> DashboardStats:
     """Compute dashboard statistics."""
 
@@ -242,13 +250,15 @@ async def get_dashboard_stats(
 
     # Exploitable
     exploit_q = select(func.count(Vulnerability.id)).where(
-        Vulnerability.tenant_id == tenant_id, Vulnerability.exploit_available.is_(True),
+        Vulnerability.tenant_id == tenant_id,
+        Vulnerability.exploit_available.is_(True),
     )
     exploitable = (await db.execute(exploit_q)).scalar_one()
 
     # CISA KEV
     kev_q = select(func.count(Vulnerability.id)).where(
-        Vulnerability.tenant_id == tenant_id, Vulnerability.cisa_kev.is_(True),
+        Vulnerability.tenant_id == tenant_id,
+        Vulnerability.cisa_kev.is_(True),
     )
     kev_count = (await db.execute(kev_q)).scalar_one()
 
@@ -261,9 +271,7 @@ async def get_dashboard_stats(
 
     # MTTR (mean time to remediate) — for vulns remediated in last 90 days
     mttr_q = select(
-        func.avg(
-            func.extract("epoch", Vulnerability.remediated_at - Vulnerability.first_detected_at) / 86400
-        )
+        func.avg(func.extract("epoch", Vulnerability.remediated_at - Vulnerability.first_detected_at) / 86400)
     ).where(
         Vulnerability.tenant_id == tenant_id,
         Vulnerability.status == "REMEDIATED",

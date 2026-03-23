@@ -37,7 +37,9 @@ logger = structlog.get_logger()
 
 
 async def find_matching_assets(
-    db: AsyncSession, tenant_id: uuid.UUID, conditions: dict,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    conditions: dict,
 ) -> list[Asset]:
     """Find assets matching the rule conditions."""
     query = select(Asset).where(Asset.tenant_id == tenant_id, Asset.is_ignored.is_(False))
@@ -93,9 +95,12 @@ async def find_matching_assets(
         if severity_filter:
             has_severity = False
             for sev in severity_filter:
-                if sev == "CRITICAL" and vc.critical > 0: has_severity = True
-                if sev == "HIGH" and vc.high > 0: has_severity = True
-                if sev == "MEDIUM" and (vc.total - vc.critical - vc.high) > 0: has_severity = True
+                if sev == "CRITICAL" and vc.critical > 0:
+                    has_severity = True
+                if sev == "HIGH" and vc.high > 0:
+                    has_severity = True
+                if sev == "MEDIUM" and (vc.total - vc.critical - vc.high) > 0:
+                    has_severity = True
             if not has_severity:
                 continue
 
@@ -146,18 +151,15 @@ async def run_rule(
         # Create one ticket per remediation across matching assets
         # Apply the same severity/source/exploit filters to remediations
         asset_ids = [a.id for a in assets]
-        rem_q = (
-            select(
-                Vulnerability.remediation_id,
-                func.count(func.distinct(Vulnerability.asset_id)).label("host_count"),
-            )
-            .where(
-                Vulnerability.tenant_id == rule.tenant_id,
-                Vulnerability.asset_id.in_(asset_ids),
-                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-                Vulnerability.remediation_id.isnot(None),
-                Vulnerability.remediation_id != "",
-            )
+        rem_q = select(
+            Vulnerability.remediation_id,
+            func.count(func.distinct(Vulnerability.asset_id)).label("host_count"),
+        ).where(
+            Vulnerability.tenant_id == rule.tenant_id,
+            Vulnerability.asset_id.in_(asset_ids),
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            Vulnerability.remediation_id.isnot(None),
+            Vulnerability.remediation_id != "",
         )
         # Apply severity filter to remediations too
         severity_filter = conditions.get("severity")
@@ -261,9 +263,7 @@ async def run_all_due_rules(db: AsyncSession) -> dict:
     now = datetime.now(UTC)
 
     # Get all enabled rules
-    rules = (await db.execute(
-        select(TicketRule).where(TicketRule.is_enabled.is_(True))
-    )).scalars().all()
+    rules = (await db.execute(select(TicketRule).where(TicketRule.is_enabled.is_(True)))).scalars().all()
 
     if not rules:
         return {"rules_checked": 0}
@@ -283,13 +283,15 @@ async def run_all_due_rules(db: AsyncSession) -> dict:
 
     for tenant_id, t_rules in tenant_rules.items():
         # Get Asana client for this tenant
-        connector = (await db.execute(
-            select(ConnectorConfig).where(
-                ConnectorConfig.tenant_id == tenant_id,
-                ConnectorConfig.connector_type == "ASANA",
-                ConnectorConfig.is_enabled.is_(True),
+        connector = (
+            await db.execute(
+                select(ConnectorConfig).where(
+                    ConnectorConfig.tenant_id == tenant_id,
+                    ConnectorConfig.connector_type == "ASANA",
+                    ConnectorConfig.is_enabled.is_(True),
+                )
             )
-        )).scalar_one_or_none()
+        ).scalar_one_or_none()
 
         if not connector:
             continue

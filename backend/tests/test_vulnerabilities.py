@@ -1,6 +1,5 @@
 """Tests for vulnerability schemas and pagination."""
 
-
 from app.pagination import PaginatedResponse, PaginationParams
 from app.vulnerabilities.schemas import (
     DashboardStats,

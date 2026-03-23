@@ -150,8 +150,9 @@ async def _prune_stale_correlations(
     # Get all existing correlations for this tenant
     existing = (
         await db.execute(
-            select(VulnerabilityCorrelation.id, VulnerabilityCorrelation.cve_id, VulnerabilityCorrelation.asset_id)
-            .where(VulnerabilityCorrelation.tenant_id == tenant_id)
+            select(
+                VulnerabilityCorrelation.id, VulnerabilityCorrelation.cve_id, VulnerabilityCorrelation.asset_id
+            ).where(VulnerabilityCorrelation.tenant_id == tenant_id)
         )
     ).all()
 
@@ -161,9 +162,7 @@ async def _prune_stale_correlations(
             stale_ids.append(corr_id)
 
     if stale_ids:
-        await db.execute(
-            delete(VulnerabilityCorrelation).where(VulnerabilityCorrelation.id.in_(stale_ids))
-        )
+        await db.execute(delete(VulnerabilityCorrelation).where(VulnerabilityCorrelation.id.in_(stale_ids)))
 
     return len(stale_ids)
 

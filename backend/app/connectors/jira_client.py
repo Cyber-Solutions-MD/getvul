@@ -82,10 +82,7 @@ class JiraClient:
             resp.raise_for_status()
             projects = resp.json()
             logger.info("jira.list_projects.success", count=len(projects))
-            return [
-                {"key": p["key"], "name": p["name"], "id": p["id"]}
-                for p in projects
-            ]
+            return [{"key": p["key"], "name": p["name"], "id": p["id"]} for p in projects]
         except httpx.HTTPStatusError as exc:
             logger.error("jira.list_projects.http_error", status=exc.response.status_code)
             raise
@@ -187,9 +184,7 @@ class JiraClient:
         if status:
             try:
                 # Fetch available transitions
-                resp = await self._client.get(
-                    f"{self._api_url}/issue/{issue_key}/transitions"
-                )
+                resp = await self._client.get(f"{self._api_url}/issue/{issue_key}/transitions")
                 resp.raise_for_status()
                 transitions = resp.json().get("transitions", [])
 
@@ -207,10 +202,7 @@ class JiraClient:
                         requested=status,
                         available=available,
                     )
-                    result["transition_error"] = (
-                        f"Transition '{status}' not found. "
-                        f"Available: {available}"
-                    )
+                    result["transition_error"] = f"Transition '{status}' not found. Available: {available}"
                 else:
                     resp = await self._client.post(
                         f"{self._api_url}/issue/{issue_key}/transitions",

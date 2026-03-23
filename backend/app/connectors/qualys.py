@@ -149,7 +149,9 @@ class QualysConnector(BaseConnector):
                 params["id_min"] = id_min
 
             resp = await self._request_with_rate_limit(
-                "GET", "/api/2.0/fo/asset/host/", params=params,
+                "GET",
+                "/api/2.0/fo/asset/host/",
+                params=params,
             )
             data = _parse_response(resp)
 
@@ -572,9 +574,7 @@ def _normalize_detection(
 
     # KB enrichment
     kb = kb_cache.get(qid, {})
-    vuln_name = str(
-        kb.get("TITLE") or kb.get("title") or f"QID {qid}"
-    )
+    vuln_name = str(kb.get("TITLE") or kb.get("title") or f"QID {qid}")
     cvss3 = _kb_cvss3(kb)
     cves = _kb_cves(kb)
     exploit_available = _kb_exploit_available(kb)
@@ -599,8 +599,6 @@ def _normalize_detection(
         for cve in cves:
             results.append(NormalizedVulnerability(cve_id=cve, **base))
     else:
-        results.append(
-            NormalizedVulnerability(cve_id=f"QID-{qid}", **base)
-        )
+        results.append(NormalizedVulnerability(cve_id=f"QID-{qid}", **base))
 
     return results

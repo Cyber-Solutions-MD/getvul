@@ -43,14 +43,24 @@ EXPLOIT_STATUS_NAMES = {
 }
 
 CS_CSPM_CATEGORY_MAP = {
-    "IAM": "IAM", "Network": "NETWORK", "Encryption": "ENCRYPTION",
-    "Logging": "LOGGING", "Storage": "STORAGE", "Compute": "COMPUTE",
-    "Database": "DATABASE", "Container": "CONTAINER", "Secrets": "SECRETS",
+    "IAM": "IAM",
+    "Network": "NETWORK",
+    "Encryption": "ENCRYPTION",
+    "Logging": "LOGGING",
+    "Storage": "STORAGE",
+    "Compute": "COMPUTE",
+    "Database": "DATABASE",
+    "Container": "CONTAINER",
+    "Secrets": "SECRETS",
 }
 
 CS_SEVERITY_MAP = {
-    "critical": "CRITICAL", "high": "HIGH", "medium": "MEDIUM",
-    "low": "LOW", "informational": "INFO", "none": "INFO",
+    "critical": "CRITICAL",
+    "high": "HIGH",
+    "medium": "MEDIUM",
+    "low": "LOW",
+    "informational": "INFO",
+    "none": "INFO",
 }
 
 
@@ -70,10 +80,13 @@ class CrowdStrikeConnector(BaseConnector):
         self.base_url = config.get("base_url", credentials.get("base_url", self.base_url))
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=60)
         try:
-            resp = await self.client.post("/oauth2/token", data={
-                "client_id": credentials["client_id"],
-                "client_secret": credentials["client_secret"],
-            })
+            resp = await self.client.post(
+                "/oauth2/token",
+                data={
+                    "client_id": credentials["client_id"],
+                    "client_secret": credentials["client_secret"],
+                },
+            )
             if resp.status_code == 201:
                 self.access_token = resp.json().get("access_token")
                 logger.info("crowdstrike_auth_success")
@@ -94,7 +107,7 @@ class CrowdStrikeConnector(BaseConnector):
         if not uncached or not self.client:
             return
         for i in range(0, len(uncached), 100):
-            batch = uncached[i:i + 100]
+            batch = uncached[i : i + 100]
             try:
                 resp = await self.client.get(
                     "/devices/entities/devices/v2",
@@ -117,7 +130,7 @@ class CrowdStrikeConnector(BaseConnector):
         if not uncached or not self.client:
             return
         for i in range(0, len(uncached), 100):
-            batch = uncached[i:i + 100]
+            batch = uncached[i : i + 100]
             try:
                 resp = await self.client.get(
                     "/spotlight/entities/remediations/v2",
@@ -145,7 +158,7 @@ class CrowdStrikeConnector(BaseConnector):
         if not uncached or not self.client:
             return
         for i in range(0, len(uncached), 100):
-            batch = uncached[i:i + 100]
+            batch = uncached[i : i + 100]
             try:
                 resp = await self.client.get(
                     "/spotlight/entities/vulnerabilities/v2",
@@ -172,7 +185,7 @@ class CrowdStrikeConnector(BaseConnector):
         if not uncached or not self.client:
             return
         for i in range(0, len(uncached), 50):
-            batch = uncached[i:i + 50]
+            batch = uncached[i : i + 50]
             try:
                 resp = await self.client.get(
                     "/spotlight/entities/evaluation-logic/v1",
@@ -225,7 +238,8 @@ class CrowdStrikeConnector(BaseConnector):
             try:
                 resp = await self.client.get(
                     "/spotlight/combined/vulnerabilities/v1",
-                    headers=self._headers(), params=params,
+                    headers=self._headers(),
+                    params=params,
                 )
                 if resp.status_code == 403:
                     break
@@ -249,7 +263,7 @@ class CrowdStrikeConnector(BaseConnector):
             rem_ids = set()
             vuln_meta_ids = []
             for it in resources:
-                for app in (it.get("apps") or []):
+                for app in it.get("apps") or []:
                     for rid in (app.get("remediation", {}) or {}).get("ids", []):
                         rem_ids.add(rid)
                 vuln_meta_ids.append(it.get("id", ""))
@@ -260,7 +274,7 @@ class CrowdStrikeConnector(BaseConnector):
             # Batch resolve evaluation logic for file paths
             eval_ids = set()
             for it in resources:
-                for app in (it.get("apps") or []):
+                for app in it.get("apps") or []:
                     el = app.get("evaluation_logic", {})
                     if isinstance(el, dict) and el.get("id"):
                         eval_ids.add(el["id"])
@@ -409,12 +423,14 @@ class CrowdStrikeConnector(BaseConnector):
             if after:
                 params["after"] = after
             try:
-                resp = await self.client.get("/configuration-assessment/combined/assessments/v1",
-                                              headers=self._headers(), params=params)
+                resp = await self.client.get(
+                    "/configuration-assessment/combined/assessments/v1", headers=self._headers(), params=params
+                )
                 if resp.status_code in (403, 404):
                     return []
                 if resp.status_code == 429:
-                    await asyncio.sleep(5); continue
+                    await asyncio.sleep(5)
+                    continue
                 resp.raise_for_status()
                 data = resp.json()
             except Exception:
@@ -428,23 +444,33 @@ class CrowdStrikeConnector(BaseConnector):
                 sev = CS_SEVERITY_MAP.get((r.get("severity") or "medium").lower(), "MEDIUM")
                 cat = CS_CSPM_CATEGORY_MAP.get(r.get("category", "Other"), "OTHER")
                 cloud = (res.get("cloud_provider") or "").upper()
-                if cloud not in ("AWS", "AZURE", "GCP"): cloud = None
-                all_f.append(NormalizedMisconfiguration(
-                    rule_id=str(r.get("id", it.get("id", ""))),
-                    rule_name=str(r.get("name", "Unknown"))[:500],
-                    rule_description=str(r.get("description", ""))[:2000] or None,
-                    category=cat, severity=sev,
-                    frameworks=[b.get("name", str(b)) if isinstance(b, dict) else str(b) for b in (r.get("benchmarks") or [])],
-                    resource_id=str(res.get("id", "")), resource_name=str(res.get("name", ""))[:300] or None,
-                    resource_type=str(res.get("type", ""))[:100] or None,
-                    resource_region=str(res.get("region", ""))[:50] or None,
-                    cloud_provider=cloud, cloud_account_id=str(res.get("account_id", ""))[:100] or None,
-                    source_finding_id=str(it.get("id", "")),
-                    remediation_info=str(r.get("remediation", ""))[:2000] or None,
-                ))
+                if cloud not in ("AWS", "AZURE", "GCP"):
+                    cloud = None
+                all_f.append(
+                    NormalizedMisconfiguration(
+                        rule_id=str(r.get("id", it.get("id", ""))),
+                        rule_name=str(r.get("name", "Unknown"))[:500],
+                        rule_description=str(r.get("description", ""))[:2000] or None,
+                        category=cat,
+                        severity=sev,
+                        frameworks=[
+                            b.get("name", str(b)) if isinstance(b, dict) else str(b)
+                            for b in (r.get("benchmarks") or [])
+                        ],
+                        resource_id=str(res.get("id", "")),
+                        resource_name=str(res.get("name", ""))[:300] or None,
+                        resource_type=str(res.get("type", ""))[:100] or None,
+                        resource_region=str(res.get("region", ""))[:50] or None,
+                        cloud_provider=cloud,
+                        cloud_account_id=str(res.get("account_id", ""))[:100] or None,
+                        source_finding_id=str(it.get("id", "")),
+                        remediation_info=str(r.get("remediation", ""))[:2000] or None,
+                    )
+                )
             meta = data.get("meta", {}).get("pagination", {})
             after = meta.get("after")
-            if not after or len(resources) < 500: break
+            if not after or len(resources) < 500:
+                break
         logger.info("crowdstrike_cspm_fetched", count=len(all_f))
         return all_f
 

@@ -115,9 +115,7 @@ async def create_tickets(
         assignee = request.assignee
         if not assignee and hostname:
             # Try to find the user assigned to this asset via Humaans data
-            asset_result = await db.execute(
-                select(Asset).where(Asset.id == vuln.asset_id)
-            )
+            asset_result = await db.execute(select(Asset).where(Asset.id == vuln.asset_id))
             asset = asset_result.scalar_one_or_none()
             if asset and asset.mdm_details:
                 humaans_email = asset.mdm_details.get("humaans_email")
@@ -161,18 +159,20 @@ async def create_tickets(
         # Update vulnerability status to IN_PROGRESS
         vuln.status = "IN_PROGRESS"
 
-        created_tickets.append(TicketSummary(
-            id=ticket.id,
-            provider=ticket.provider,
-            external_ticket_id=task.gid,
-            external_ticket_url=task.url,
-            external_status="open",
-            assignee=assignee,
-            cve_id=vuln.cve_id,
-            severity=vuln.severity,
-            hostname=hostname,
-            ticket_created_at=now,
-        ))
+        created_tickets.append(
+            TicketSummary(
+                id=ticket.id,
+                provider=ticket.provider,
+                external_ticket_id=task.gid,
+                external_ticket_url=task.url,
+                external_status="open",
+                assignee=assignee,
+                cve_id=vuln.cve_id,
+                severity=vuln.severity,
+                hostname=hostname,
+                ticket_created_at=now,
+            )
+        )
 
         logger.info("ticket_created", vuln_id=str(vuln_id), task_gid=task.gid, assignee=assignee)
 
@@ -180,7 +180,10 @@ async def create_tickets(
 
 
 def _build_host_task_description(
-    asset: Asset, remediations: list[dict], vuln_counts: dict, vulns: list | None = None,
+    asset: Asset,
+    remediations: list[dict],
+    vuln_counts: dict,
+    vulns: list | None = None,
 ) -> str:
     """Build plain text description for a host-level remediation ticket."""
     hostname = asset.hostname or "Unknown"
@@ -218,9 +221,12 @@ def _build_host_task_description(
 
         # List individual CVEs with file paths for this remediation
         if vulns:
-            rem_vulns = [v for v in vulns
-                         if (v.remediation_action or v.remediation_info) == (rem.get("remediation_action") or "")
-                         or v.affected_product == rem.get("affected_product")]
+            rem_vulns = [
+                v
+                for v in vulns
+                if (v.remediation_action or v.remediation_info) == (rem.get("remediation_action") or "")
+                or v.affected_product == rem.get("affected_product")
+            ]
             if not rem_vulns:
                 rem_vulns = [v for v in vulns if v.remediation_id == rem.get("remediation_id")]
             for v in rem_vulns[:20]:
@@ -246,25 +252,25 @@ async def create_host_ticket(
     """Create a single Asana ticket for a host with all its remediations."""
 
     # Fetch asset
-    result = await db.execute(
-        select(Asset).where(Asset.id == request.asset_id, Asset.tenant_id == tenant_id)
-    )
+    result = await db.execute(select(Asset).where(Asset.id == request.asset_id, Asset.tenant_id == tenant_id))
     asset = result.scalar_one_or_none()
     if asset is None:
         return {"error": "Asset not found"}
 
     # Check if this asset already has an open ticket
-    existing_ticket = (await db.execute(
-        select(Ticket)
-        .join(Vulnerability, Ticket.vulnerability_id == Vulnerability.id)
-        .where(
-            Ticket.tenant_id == tenant_id,
-            Ticket.provider == request.provider,
-            Ticket.resolved_at.is_(None),
-            Vulnerability.asset_id == asset.id,
+    existing_ticket = (
+        await db.execute(
+            select(Ticket)
+            .join(Vulnerability, Ticket.vulnerability_id == Vulnerability.id)
+            .where(
+                Ticket.tenant_id == tenant_id,
+                Ticket.provider == request.provider,
+                Ticket.resolved_at.is_(None),
+                Vulnerability.asset_id == asset.id,
+            )
+            .limit(1)
         )
-        .limit(1)
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
 
     if existing_ticket:
         return {
@@ -273,21 +279,27 @@ async def create_host_ticket(
         }
 
     # Fetch open vulns for this asset
-    vulns = (await db.execute(
-        select(Vulnerability)
-        .where(
-            Vulnerability.asset_id == asset.id,
-            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-        )
-        .order_by(
-            case(
-                (Vulnerability.severity == "CRITICAL", 0),
-                (Vulnerability.severity == "HIGH", 1),
-                (Vulnerability.severity == "MEDIUM", 2),
-                else_=3,
+    vulns = (
+        (
+            await db.execute(
+                select(Vulnerability)
+                .where(
+                    Vulnerability.asset_id == asset.id,
+                    Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                )
+                .order_by(
+                    case(
+                        (Vulnerability.severity == "CRITICAL", 0),
+                        (Vulnerability.severity == "HIGH", 1),
+                        (Vulnerability.severity == "MEDIUM", 2),
+                        else_=3,
+                    )
+                )
             )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not vulns:
         return {"error": "No open vulnerabilities on this asset"}
@@ -297,10 +309,14 @@ async def create_host_ticket(
     max_severity = "LOW"
     sev_rank = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
     for v in vulns:
-        if v.severity == "CRITICAL": vuln_counts["critical"] += 1
-        if v.severity == "HIGH": vuln_counts["high"] += 1
-        if v.exploit_available: vuln_counts["exploitable"] += 1
-        if v.cisa_kev: vuln_counts["kev"] += 1
+        if v.severity == "CRITICAL":
+            vuln_counts["critical"] += 1
+        if v.severity == "HIGH":
+            vuln_counts["high"] += 1
+        if v.exploit_available:
+            vuln_counts["exploitable"] += 1
+        if v.cisa_kev:
+            vuln_counts["kev"] += 1
         if sev_rank.get(v.severity, 0) > sev_rank.get(max_severity, 0):
             max_severity = v.severity
 
@@ -340,7 +356,9 @@ async def create_host_ticket(
 
     # Build task
     hostname = asset.hostname or "unknown"
-    task_name = f"[{max_severity}] Remediate {hostname} — {vuln_counts['total']} vulns ({vuln_counts['critical']} critical)"
+    task_name = (
+        f"[{max_severity}] Remediate {hostname} — {vuln_counts['total']} vulns ({vuln_counts['critical']} critical)"
+    )
 
     notes = _build_host_task_description(asset, remediations, vuln_counts, vulns=vulns)
 
@@ -459,12 +477,14 @@ async def create_remediation_ticket(
     # Check if ticket already exists for this remediation
     first_vuln = rows[0][0]
     existing = await db.execute(
-        select(Ticket).where(
+        select(Ticket)
+        .where(
             Ticket.tenant_id == tenant_id,
             Ticket.provider == provider,
             Ticket.resolved_at.is_(None),
             Ticket.created_by_rule == remediation_id,
-        ).limit(1)
+        )
+        .limit(1)
     )
     if existing.scalar_one_or_none():
         return {"error": "Ticket already exists for this remediation"}
@@ -476,7 +496,12 @@ async def create_remediation_ticket(
     for vuln, hostname, assigned_user, mdm in rows:
         h = hostname or "unknown"
         if h not in hosts:
-            hosts[h] = {"hostname": h, "assigned_user": assigned_user, "email": (mdm or {}).get("humaans_email"), "vulns": []}
+            hosts[h] = {
+                "hostname": h,
+                "assigned_user": assigned_user,
+                "email": (mdm or {}).get("humaans_email"),
+                "vulns": [],
+            }
         hosts[h]["vulns"].append(vuln)
         if sev_rank.get(vuln.severity, 0) > sev_rank.get(max_sev, 0):
             max_sev = vuln.severity
@@ -607,10 +632,7 @@ async def list_tickets(
     )
 
     # Count unique tasks
-    count_sub = (
-        select(func.count(func.distinct(Ticket.external_ticket_url)))
-        .where(*base_filter)
-    )
+    count_sub = select(func.count(func.distinct(Ticket.external_ticket_url))).where(*base_filter)
     total = (await db.execute(count_sub)).scalar_one()
 
     # Paginate
@@ -661,24 +683,26 @@ async def list_tickets(
             title = detail.hostname if detail else "Unknown"
             subtitle = None
 
-        items.append({
-            "id": str(row.first_ticket_id),
-            "provider": row.provider,
-            "external_ticket_url": row.external_ticket_url,
-            "external_status": row.external_status,
-            "assignee": row.assignee,
-            "title": title,
-            "subtitle": subtitle,
-            "ticket_type": "remediation" if is_per_remediation else "host",
-            "hostname": detail.hostname if detail else None,
-            "host_count": host_count,
-            "max_severity": max_severity,
-            "vuln_count": row.vuln_count,
-            "critical_count": critical,
-            "high_count": high,
-            "ticket_created_at": row.ticket_created_at.isoformat() if row.ticket_created_at else None,
-            "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None,
-        })
+        items.append(
+            {
+                "id": str(row.first_ticket_id),
+                "provider": row.provider,
+                "external_ticket_url": row.external_ticket_url,
+                "external_status": row.external_status,
+                "assignee": row.assignee,
+                "title": title,
+                "subtitle": subtitle,
+                "ticket_type": "remediation" if is_per_remediation else "host",
+                "hostname": detail.hostname if detail else None,
+                "host_count": host_count,
+                "max_severity": max_severity,
+                "vuln_count": row.vuln_count,
+                "critical_count": critical,
+                "high_count": high,
+                "ticket_created_at": row.ticket_created_at.isoformat() if row.ticket_created_at else None,
+                "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None,
+            }
+        )
 
     return {
         "items": items,
@@ -697,7 +721,8 @@ async def get_ticket_stats(db: AsyncSession, tenant_id: uuid.UUID) -> TicketStat
     total = (await db.execute(total_q)).scalar_one()
 
     open_q = select(func.count(func.distinct(Ticket.external_ticket_url))).where(
-        base, Ticket.resolved_at.is_(None),
+        base,
+        Ticket.resolved_at.is_(None),
     )
     open_count = (await db.execute(open_q)).scalar_one()
 
@@ -766,9 +791,7 @@ async def sync_ticket_status(
             ticket.resolved_at = datetime.now(UTC)
             resolved += 1
             # Mark vulnerability as remediated
-            vuln_result = await db.execute(
-                select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id)
-            )
+            vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
             vuln = vuln_result.scalar_one_or_none()
             if vuln and vuln.status != "REMEDIATED":
                 vuln.status = "REMEDIATED"
@@ -811,8 +834,10 @@ async def sync_ticket_status(
             now = datetime.now(UTC)
             # Complete the Asana task
             await asana_client.update_task(task_gid, completed=True)
-            await asana_client.add_comment(task_gid,
-                f"✅ All {total} vulnerabilities resolved ({remediated} remediated, {suppressed} suppressed). Closing automatically.")
+            await asana_client.add_comment(
+                task_gid,
+                f"✅ All {total} vulnerabilities resolved ({remediated} remediated, {suppressed} suppressed). Closing automatically.",
+            )
             # Mark all ticket rows as resolved
             for t in task_ticket_list:
                 t.external_status = "completed"
@@ -904,9 +929,7 @@ async def close_ticket(
         ticket.external_status = "completed"
         ticket.resolved_at = now
 
-        vuln_result = await db.execute(
-            select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id)
-        )
+        vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
         vuln = vuln_result.scalar_one_or_none()
         if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
             vuln.status = "REMEDIATED"

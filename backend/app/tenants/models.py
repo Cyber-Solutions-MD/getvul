@@ -47,7 +47,9 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "users"
     __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_user_tenant_email"),)
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
     display_name: Mapped[str | None] = mapped_column(String(255))
     avatar_url: Mapped[str | None] = mapped_column(String(500))

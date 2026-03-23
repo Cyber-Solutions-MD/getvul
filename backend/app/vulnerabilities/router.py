@@ -84,6 +84,7 @@ async def overview_stats(
 ):
     """Get enhanced dashboard overview — top hosts, tickets, connectors."""
     from app.vulnerabilities.dashboard import get_overview_stats
+
     return await get_overview_stats(db, user.tenant_id)
 
 
@@ -97,6 +98,7 @@ async def sla_metrics(
 ):
     """Get SLA compliance metrics."""
     from app.vulnerabilities.sla_service import get_sla_metrics
+
     return await get_sla_metrics(db, user.tenant_id)
 
 
@@ -107,6 +109,7 @@ async def sla_backfill(
 ):
     """Backfill SLA due dates for vulns that don't have one."""
     from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
+
     result = await backfill_sla_due_dates(db, user.tenant_id)
     breaches = await check_sla_breaches(db, user.tenant_id)
     await db.commit()
@@ -120,9 +123,11 @@ async def sla_recalculate(
 ):
     """Recalculate all SLA due dates based on current config."""
     from app.vulnerabilities.sla_service import check_sla_breaches, recalculate_sla_due_dates
+
     result = await recalculate_sla_due_dates(db, user.tenant_id)
     breaches = await check_sla_breaches(db, user.tenant_id)
     from app.audit import audit
+
     await audit(db, user, "sla.recalculate", "vulnerability", None, {**result, **breaches})
     await db.commit()
     return {**result, **breaches}
@@ -138,6 +143,7 @@ async def get_saved_filters(
     filter_type: str | None = Query(None),
 ):
     from app.vulnerabilities.saved_filters import list_saved_filters
+
     return await list_saved_filters(db, user.tenant_id, filter_type)
 
 
@@ -148,6 +154,7 @@ async def create_filter(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     from app.vulnerabilities.saved_filters import create_saved_filter
+
     name = body.get("name", "").strip()
     filter_type = body.get("filter_type", "vulnerability")
     filters = body.get("filters", {})
@@ -166,8 +173,11 @@ async def update_filter(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     from app.vulnerabilities.saved_filters import update_saved_filter
+
     result = await update_saved_filter(
-        db, user.tenant_id, filter_id,
+        db,
+        user.tenant_id,
+        filter_id,
         name=body.get("name"),
         filters=body.get("filters"),
     )
@@ -184,6 +194,7 @@ async def remove_filter(
     user: Annotated[CurrentUser, Depends(require_analyst)],
 ):
     from app.vulnerabilities.saved_filters import delete_saved_filter
+
     deleted = await delete_saved_filter(db, user.tenant_id, filter_id)
     if not deleted:
         raise HTTPException(404, "Filter not found")
@@ -204,15 +215,20 @@ async def create_rule_from_filter(
     from app.ticketing.models import TicketRule
     from app.vulnerabilities.saved_filters import SavedFilter
 
-    sf = (await db.execute(sel(SavedFilter).where(SavedFilter.id == filter_id, SavedFilter.tenant_id == user.tenant_id))).scalar_one_or_none()
+    sf = (
+        await db.execute(sel(SavedFilter).where(SavedFilter.id == filter_id, SavedFilter.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
     if not sf:
         raise HTTPException(404, "Filter not found")
 
     from app.vulnerabilities.saved_filters import map_filter_to_conditions
+
     conditions = map_filter_to_conditions(sf.filters)
 
     rule_name = body.get("name", f"Rule from: {sf.name}")
-    action = body.get("action", {"provider": "ASANA", "auto_assign": True, "ticket_mode": "per_host", "max_tickets": 10})
+    action = body.get(
+        "action", {"provider": "ASANA", "auto_assign": True, "ticket_mode": "per_host", "max_tickets": 10}
+    )
     schedule = body.get("schedule_minutes", 1440)
 
     rule = TicketRule(
@@ -257,6 +273,7 @@ async def update_status(
     if not updated:
         raise HTTPException(status_code=404, detail="Vulnerability not found")
     from app.audit import audit
+
     await audit(db, user, "vuln.status_update", "vulnerability", str(vuln_id), {"status": body.status})
     return {"message": "Status updated", "status": body.status}
 
@@ -290,7 +307,10 @@ async def ignore_cve(
     count = result.rowcount
     await compute_risk_scores(db, user.tenant_id)
     from app.audit import audit
-    await audit(db, user, "vuln.ignore_cve", "vulnerability", cve_id, {"suppressed": count, "reason": body.get("reason", "")})
+
+    await audit(
+        db, user, "vuln.ignore_cve", "vulnerability", cve_id, {"suppressed": count, "reason": body.get("reason", "")}
+    )
     await db.commit()
     return {"message": f"Ignored CVE {cve_id}", "suppressed": count, "cve_id": cve_id}
 
@@ -321,6 +341,7 @@ async def unignore_cve(
     count = result.rowcount
     await compute_risk_scores(db, user.tenant_id)
     from app.audit import audit
+
     await audit(db, user, "vuln.unignore_cve", "vulnerability", cve_id, {"reopened": count})
     await db.commit()
     return {"message": f"Restored CVE {cve_id}", "reopened": count, "cve_id": cve_id}
@@ -372,6 +393,7 @@ async def bulk_ignore_cve(
     count = result.rowcount
     await compute_risk_scores(db, user.tenant_id)
     from app.audit import audit
+
     await audit(db, user, f"vuln.bulk_{action}_cve", "vulnerability", None, {"cve_ids": cve_ids, "count": count})
     await db.commit()
     return {"message": f"{count} vulnerabilities {action}d across {len(cve_ids)} CVEs", "count": count}
@@ -387,8 +409,10 @@ async def bulk_status(
     count = await bulk_update_status(db, user.tenant_id, body)
     if body.status in ("SUPPRESSED", "OPEN"):
         from app.assets.risk_score import compute_risk_scores
+
         await compute_risk_scores(db, user.tenant_id)
     from app.audit import audit
+
     await audit(db, user, "vuln.bulk_status", "vulnerability", None, {"status": body.status, "count": count})
     return {"message": f"Updated {count} vulnerabilities", "count": count}
 
@@ -457,6 +481,7 @@ async def get_vuln_correlation(
 
 # ── Remediation views ──
 
+
 @router.get("/remediations/grouped")
 async def remediations_grouped(
     db: DBSession,
@@ -471,10 +496,17 @@ async def remediations_grouped(
 ):
     """List remediations grouped — each row is a unique remediation with affected host count."""
     from app.vulnerabilities.remediation_service import get_remediations_grouped
+
     return await get_remediations_grouped(
-        db, user.tenant_id, severity=severity, exploit_only=exploit_only,
-        kev_only=kev_only, search=search, show_suppressed=show_suppressed,
-        page=page, page_size=page_size,
+        db,
+        user.tenant_id,
+        severity=severity,
+        exploit_only=exploit_only,
+        kev_only=kev_only,
+        search=search,
+        show_suppressed=show_suppressed,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -496,14 +528,11 @@ async def suppress_remediation(
     from app.assets.risk_score import compute_risk_scores
 
     # Find affected asset IDs before suppressing
-    affected_assets_q = (
-        select(func.distinct(Vulnerability.asset_id))
-        .where(
-            Vulnerability.tenant_id == user.tenant_id,
-            Vulnerability.remediation_id == remediation_id,
-            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-            Vulnerability.asset_id.isnot(None),
-        )
+    affected_assets_q = select(func.distinct(Vulnerability.asset_id)).where(
+        Vulnerability.tenant_id == user.tenant_id,
+        Vulnerability.remediation_id == remediation_id,
+        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        Vulnerability.asset_id.isnot(None),
     )
     affected_asset_ids = [r[0] for r in (await db.execute(affected_assets_q)).all()]
 
@@ -524,7 +553,15 @@ async def suppress_remediation(
     risk_stats = await compute_risk_scores(db, user.tenant_id)
 
     from app.audit import audit as _audit
-    await _audit(db, user, "vuln.suppress", "remediation", remediation_id, {"suppressed": suppressed_count, "assets": len(affected_asset_ids)})
+
+    await _audit(
+        db,
+        user,
+        "vuln.suppress",
+        "remediation",
+        remediation_id,
+        {"suppressed": suppressed_count, "assets": len(affected_asset_ids)},
+    )
 
     await db.commit()
 
@@ -564,6 +601,7 @@ async def unsuppress_remediation(
     risk_stats = await compute_risk_scores(db, user.tenant_id)
 
     from app.audit import audit as _audit
+
     await _audit(db, user, "vuln.unsuppress", "remediation", remediation_id, {"reopened": reopened_count})
 
     await db.commit()
@@ -586,9 +624,14 @@ async def hosts_for_remediation(
 ):
     """Get all hosts affected by a specific remediation, with filters."""
     from app.vulnerabilities.remediation_service import get_hosts_for_remediation
+
     return await get_hosts_for_remediation(
-        db, user.tenant_id, remediation_id,
-        severity=severity, exploit_only=exploit_only, kev_only=kev_only,
+        db,
+        user.tenant_id,
+        remediation_id,
+        severity=severity,
+        exploit_only=exploit_only,
+        kev_only=kev_only,
     )
 
 
@@ -600,9 +643,9 @@ async def remediations_for_host(
 ):
     """Get remediations for a specific host, grouped by remediation action."""
     # Verify asset belongs to tenant
-    asset = (await db.execute(
-        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id)
-    )).scalar_one_or_none()
+    asset = (
+        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
 

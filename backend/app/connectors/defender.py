@@ -176,7 +176,8 @@ class DefenderConnector(BaseConnector):
         # Fetch vulnerability findings
         logger.info("defender_fetching_vulnerabilities")
         vuln_records = await self._fetch_odata_pages(
-            "/api/vulnerabilities/machinesVulnerabilities", "vulns",
+            "/api/vulnerabilities/machinesVulnerabilities",
+            "vulns",
         )
 
         all_vulns: list[NormalizedVulnerability] = []
@@ -203,7 +204,7 @@ class DefenderConnector(BaseConnector):
 
         # IP addresses
         ip_addresses: list[str] = []
-        for ip_entry in (machine.get("ipAddresses") or []):
+        for ip_entry in machine.get("ipAddresses") or []:
             addr = ip_entry.get("ipAddress", "") if isinstance(ip_entry, dict) else str(ip_entry)
             if addr and addr not in ip_addresses:
                 ip_addresses.append(addr)
@@ -253,10 +254,7 @@ class DefenderConnector(BaseConnector):
                 remediation_info = " — ".join(parts)
 
         # Exploit info
-        exploit_available = bool(
-            record.get("exploitVerified")
-            or record.get("publicExploit")
-        )
+        exploit_available = bool(record.get("exploitVerified") or record.get("publicExploit"))
 
         # OS info
         os_name = machine.get("osPlatform", "")

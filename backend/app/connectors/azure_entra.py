@@ -108,14 +108,16 @@ class AzureEntraConnector:
                 email = u.get("mail") or u.get("userPrincipalName", "")
                 if not email or "#EXT#" in email:
                     continue
-                users.append(AzureUser(
-                    email=email.lower(),
-                    name=u.get("displayName", ""),
-                    department=u.get("department"),
-                    job_title=u.get("jobTitle"),
-                    is_active=u.get("accountEnabled", True),
-                    azure_id=u.get("id"),
-                ))
+                users.append(
+                    AzureUser(
+                        email=email.lower(),
+                        name=u.get("displayName", ""),
+                        department=u.get("department"),
+                        job_title=u.get("jobTitle"),
+                        is_active=u.get("accountEnabled", True),
+                        azure_id=u.get("id"),
+                    )
+                )
 
             url = data.get("@odata.nextLink", "")
             params = {}  # nextLink includes params

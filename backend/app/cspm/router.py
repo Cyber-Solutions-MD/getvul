@@ -45,8 +45,13 @@ async def list_findings(
     search: str | None = Query(None),
 ):
     filters = MisconfigFilter(
-        severity=severity, source=source, status=status, category=category,
-        cloud_provider=cloud_provider, resource_type=resource_type, search=search,
+        severity=severity,
+        source=source,
+        status=status,
+        category=category,
+        cloud_provider=cloud_provider,
+        resource_type=resource_type,
+        search=search,
     )
     pagination = PaginationParams(page=page, page_size=page_size)
     return await list_misconfigurations(db, user.tenant_id, filters, pagination)

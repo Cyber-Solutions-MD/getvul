@@ -122,6 +122,7 @@ async def logout():
 
 # ── Password auth ──
 
+
 @router.post("/register")
 async def register(
     body: dict,
@@ -145,6 +146,7 @@ async def register(
     tenant = result["tenant"]
     from app.audit import audit
     from app.auth.schemas import CurrentUser
+
     cu = CurrentUser(id=user.id, tenant_id=tenant.id, email=user.email, role=user.role)
     await audit(db, cu, "auth.register", "user", str(user.id), {"email": user.email})
     await db.commit()
@@ -167,6 +169,7 @@ async def login_password(
     tenant = result["tenant"]
     from app.audit import audit
     from app.auth.schemas import CurrentUser
+
     cu = CurrentUser(id=user.id, tenant_id=tenant.id, email=user.email, role=user.role)
     await audit(db, cu, "auth.login", "user", str(user.id), {"method": "password"})
     await db.commit()
@@ -183,7 +186,8 @@ async def change_password_endpoint(
     from app.auth.password import change_password
 
     result = await change_password(
-        db, user.id,
+        db,
+        user.id,
         current_password=body.get("current_password"),
         new_password=body.get("new_password", ""),
     )
@@ -215,9 +219,9 @@ async def auth_config(
 
     tenant = None
     if tenant_slug:
-        tenant = (await db.execute(
-            select(Tenant).where(Tenant.slug == tenant_slug, Tenant.is_active.is_(True))
-        )).scalar_one_or_none()
+        tenant = (
+            await db.execute(select(Tenant).where(Tenant.slug == tenant_slug, Tenant.is_active.is_(True)))
+        ).scalar_one_or_none()
 
     if tenant:
         config["tenant_name"] = tenant.name

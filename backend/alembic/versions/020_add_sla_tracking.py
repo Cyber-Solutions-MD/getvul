@@ -24,7 +24,12 @@ def upgrade() -> None:
     op.add_column("tenants", sa.Column("sla_config", postgresql.JSONB, nullable=True))
 
     # Index for SLA queries
-    op.create_index("ix_vuln_sla_due_at", "vulnerabilities", ["sla_due_at"], postgresql_where=sa.text("status IN ('OPEN', 'IN_PROGRESS')"))
+    op.create_index(
+        "ix_vuln_sla_due_at",
+        "vulnerabilities",
+        ["sla_due_at"],
+        postgresql_where=sa.text("status IN ('OPEN', 'IN_PROGRESS')"),
+    )
 
 
 def downgrade() -> None:

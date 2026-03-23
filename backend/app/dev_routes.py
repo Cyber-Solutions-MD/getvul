@@ -100,9 +100,7 @@ async def clear_test_data(db: AsyncSession = Depends(get_db)):
 
     from app.ticketing.models import ConnectorConfig
 
-    await db.execute(
-        update(ConnectorConfig).values(tenant_id=tenant.id)
-    )
+    await db.execute(update(ConnectorConfig).values(tenant_id=tenant.id))
 
     await db.commit()
 

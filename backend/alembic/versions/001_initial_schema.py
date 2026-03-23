@@ -32,7 +32,13 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("email", sa.String(320), nullable=False, index=True),
         sa.Column("display_name", sa.String(255)),
         sa.Column("avatar_url", sa.String(500)),
@@ -105,11 +111,23 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column("cve_id", sa.String(20), nullable=False, index=True),
-        sa.Column("asset_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("assets.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("crowdstrike_vuln_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL")),
-        sa.Column("nessus_vuln_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL")),
-        sa.Column("defender_vuln_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL")),
-        sa.Column("wiz_vuln_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL")),
+        sa.Column(
+            "asset_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("assets.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "crowdstrike_vuln_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL"),
+        ),
+        sa.Column(
+            "nessus_vuln_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL")
+        ),
+        sa.Column(
+            "defender_vuln_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL")
+        ),
+        sa.Column(
+            "wiz_vuln_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="SET NULL")
+        ),
         sa.Column("sources_count", sa.Integer, server_default="1"),
         sa.Column("confidence", sa.String(10), server_default="'LOW'"),
         sa.UniqueConstraint("tenant_id", "cve_id", "asset_id", name="uq_correlation"),
@@ -118,7 +136,9 @@ def upgrade() -> None:
     op.create_table(
         "connector_configs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("connector_type", sa.String(30), nullable=False),
         sa.Column("is_enabled", sa.Boolean, server_default="true"),
         sa.Column("credentials_secret_arn", sa.String(500)),
@@ -134,7 +154,12 @@ def upgrade() -> None:
     op.create_table(
         "sync_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("connector_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("connector_configs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "connector_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("connector_configs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column("status", sa.String(20), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
@@ -149,7 +174,13 @@ def upgrade() -> None:
         "tickets",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("vulnerability_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "vulnerability_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("vulnerabilities.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("provider", sa.String(20), nullable=False),
         sa.Column("external_ticket_id", sa.String(200), nullable=False),
         sa.Column("external_ticket_url", sa.String(500), nullable=False),
@@ -168,7 +199,13 @@ def upgrade() -> None:
     op.create_table(
         "ticket_rules",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("is_enabled", sa.Boolean, server_default="true"),
         sa.Column("conditions", postgresql.JSONB, nullable=False),

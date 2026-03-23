@@ -85,14 +85,14 @@ async def register_user(
     # Find tenant — must already exist (no auto-creation)
     tenant = None
     if tenant_slug:
-        tenant = (await db.execute(
-            select(Tenant).where(Tenant.slug == tenant_slug, Tenant.is_active.is_(True))
-        )).scalar_one_or_none()
+        tenant = (
+            await db.execute(select(Tenant).where(Tenant.slug == tenant_slug, Tenant.is_active.is_(True)))
+        ).scalar_one_or_none()
     else:
         # Try to find tenant by email domain
-        tenant = (await db.execute(
-            select(Tenant).where(Tenant.domain == domain, Tenant.is_active.is_(True))
-        )).scalar_one_or_none()
+        tenant = (
+            await db.execute(select(Tenant).where(Tenant.domain == domain, Tenant.is_active.is_(True)))
+        ).scalar_one_or_none()
 
     if not tenant:
         return {"error": f"No organization found for domain '{domain}'. Contact your admin."}
@@ -104,16 +104,14 @@ async def register_user(
         return {"error": err}
 
     # Check if user already exists in this tenant
-    existing = (await db.execute(
-        select(User).where(User.tenant_id == tenant.id, User.email == email)
-    )).scalar_one_or_none()
+    existing = (
+        await db.execute(select(User).where(User.tenant_id == tenant.id, User.email == email))
+    ).scalar_one_or_none()
     if existing:
         return {"error": "User with this email already exists"}
 
     # Determine role — first user in tenant becomes OWNER
-    user_count = (await db.execute(
-        select(User).where(User.tenant_id == tenant.id).limit(1)
-    )).scalar_one_or_none()
+    user_count = (await db.execute(select(User).where(User.tenant_id == tenant.id).limit(1))).scalar_one_or_none()
 
     role = "OWNER" if user_count is None else "VIEWER"
 
@@ -148,7 +146,8 @@ async def login_with_password(
 
     # Find user — if multiple (different tenants), prefer the one with a password
     result = await db.execute(
-        select(User).where(User.email == email, User.is_active.is_(True))
+        select(User)
+        .where(User.email == email, User.is_active.is_(True))
         .order_by(User.password_hash.isnot(None).desc(), User.last_login_at.desc().nullslast())
     )
     user = result.scalars().first()
@@ -215,10 +214,11 @@ async def change_password(
         history.append(user.password_hash)
         # Keep only the last N
         if len(history) > max(history_count, 10):
-            history = history[-max(history_count, 10):]
+            history = history[-max(history_count, 10) :]
     user.password_history = history
 
     user.password_hash = hash_password(new_password)
     from sqlalchemy.orm.attributes import flag_modified
+
     flag_modified(user, "password_history")
     return {"message": "Password updated"}

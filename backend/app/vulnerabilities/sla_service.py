@@ -124,59 +124,69 @@ async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     sla_days = get_sla_days(tenant)
 
     # Open vulns with SLA tracking
-    open_with_sla = (await db.execute(
-        select(func.count(Vulnerability.id)).where(
-            Vulnerability.tenant_id == tenant_id,
-            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-            Vulnerability.sla_due_at.isnot(None),
+    open_with_sla = (
+        await db.execute(
+            select(func.count(Vulnerability.id)).where(
+                Vulnerability.tenant_id == tenant_id,
+                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                Vulnerability.sla_due_at.isnot(None),
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
     # Breached (open + past due)
-    breached = (await db.execute(
-        select(func.count(Vulnerability.id)).where(
-            Vulnerability.tenant_id == tenant_id,
-            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-            Vulnerability.sla_breached.is_(True),
+    breached = (
+        await db.execute(
+            select(func.count(Vulnerability.id)).where(
+                Vulnerability.tenant_id == tenant_id,
+                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                Vulnerability.sla_breached.is_(True),
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
     # At risk (due within 72 hours)
     at_risk_cutoff = now + timedelta(hours=72)
-    at_risk = (await db.execute(
-        select(func.count(Vulnerability.id)).where(
-            Vulnerability.tenant_id == tenant_id,
-            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-            Vulnerability.sla_due_at.isnot(None),
-            Vulnerability.sla_due_at <= at_risk_cutoff,
-            Vulnerability.sla_due_at > now,
-            Vulnerability.sla_breached.is_(False),
+    at_risk = (
+        await db.execute(
+            select(func.count(Vulnerability.id)).where(
+                Vulnerability.tenant_id == tenant_id,
+                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                Vulnerability.sla_due_at.isnot(None),
+                Vulnerability.sla_due_at <= at_risk_cutoff,
+                Vulnerability.sla_due_at > now,
+                Vulnerability.sla_breached.is_(False),
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
     # Within SLA (open, not breached, not at risk)
     within_sla = open_with_sla - breached - at_risk
 
     # Compliance % (remediated within SLA in last 90 days)
     ninety_days_ago = now - timedelta(days=90)
-    remediated_total = (await db.execute(
-        select(func.count(Vulnerability.id)).where(
-            Vulnerability.tenant_id == tenant_id,
-            Vulnerability.status == "REMEDIATED",
-            Vulnerability.remediated_at >= ninety_days_ago,
-            Vulnerability.sla_due_at.isnot(None),
+    remediated_total = (
+        await db.execute(
+            select(func.count(Vulnerability.id)).where(
+                Vulnerability.tenant_id == tenant_id,
+                Vulnerability.status == "REMEDIATED",
+                Vulnerability.remediated_at >= ninety_days_ago,
+                Vulnerability.sla_due_at.isnot(None),
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
-    remediated_within_sla = (await db.execute(
-        select(func.count(Vulnerability.id)).where(
-            Vulnerability.tenant_id == tenant_id,
-            Vulnerability.status == "REMEDIATED",
-            Vulnerability.remediated_at >= ninety_days_ago,
-            Vulnerability.sla_due_at.isnot(None),
-            Vulnerability.remediated_at <= Vulnerability.sla_due_at,
+    remediated_within_sla = (
+        await db.execute(
+            select(func.count(Vulnerability.id)).where(
+                Vulnerability.tenant_id == tenant_id,
+                Vulnerability.status == "REMEDIATED",
+                Vulnerability.remediated_at >= ninety_days_ago,
+                Vulnerability.sla_due_at.isnot(None),
+                Vulnerability.remediated_at <= Vulnerability.sla_due_at,
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
     compliance_pct = round((remediated_within_sla / remediated_total * 100), 1) if remediated_total > 0 else 100.0
 
@@ -193,16 +203,16 @@ async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     breach_by_sev = {r[0]: r[1] for r in (await db.execute(breach_by_sev_q)).all()}
 
     # Average days remaining for open vulns
-    avg_days_remaining = (await db.execute(
-        select(func.avg(
-            func.extract("epoch", Vulnerability.sla_due_at - func.now()) / 86400
-        )).where(
-            Vulnerability.tenant_id == tenant_id,
-            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-            Vulnerability.sla_due_at.isnot(None),
-            Vulnerability.sla_breached.is_(False),
+    avg_days_remaining = (
+        await db.execute(
+            select(func.avg(func.extract("epoch", Vulnerability.sla_due_at - func.now()) / 86400)).where(
+                Vulnerability.tenant_id == tenant_id,
+                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                Vulnerability.sla_due_at.isnot(None),
+                Vulnerability.sla_breached.is_(False),
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
     return {
         "sla_config": sla_days,

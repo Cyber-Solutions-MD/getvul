@@ -30,23 +30,27 @@ async def test_crowdstrike(credentials: dict, config: dict) -> ConnectorTestResu
                 headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
                 # Test Spotlight (Vulnerabilities)
-                r = await client.get(f"{base_url}/spotlight/combined/vulnerabilities/v1",
-                                      headers=headers, params={"limit": 1})
+                r = await client.get(
+                    f"{base_url}/spotlight/combined/vulnerabilities/v1", headers=headers, params={"limit": 1}
+                )
                 scope_results["Vulnerabilities (Spotlight)"] = "✓" if r.status_code == 200 else f"✗ ({r.status_code})"
 
                 # Test Hosts
-                r = await client.get(f"{base_url}/devices/queries/devices/v1",
-                                      headers=headers, params={"limit": 1})
+                r = await client.get(f"{base_url}/devices/queries/devices/v1", headers=headers, params={"limit": 1})
                 scope_results["Hosts"] = "✓" if r.status_code == 200 else f"✗ ({r.status_code})"
 
                 # Test Configuration Assessment (CSPM)
-                r = await client.get(f"{base_url}/configuration-assessment/combined/assessments/v1",
-                                      headers=headers, params={"limit": 1})
-                scope_results["Configuration Assessment (CSPM)"] = "✓" if r.status_code == 200 else f"✗ ({r.status_code})"
+                r = await client.get(
+                    f"{base_url}/configuration-assessment/combined/assessments/v1", headers=headers, params={"limit": 1}
+                )
+                scope_results["Configuration Assessment (CSPM)"] = (
+                    "✓" if r.status_code == 200 else f"✗ ({r.status_code})"
+                )
 
                 # Test CSPM Registration (fallback)
-                r = await client.get(f"{base_url}/cloud-connect-cspm-aws/entities/account/v1",
-                                      headers=headers, params={"limit": 1})
+                r = await client.get(
+                    f"{base_url}/cloud-connect-cspm-aws/entities/account/v1", headers=headers, params={"limit": 1}
+                )
                 scope_results["CSPM Registration"] = "✓" if r.status_code == 200 else f"✗ ({r.status_code})"
 
             return ConnectorTestResult(
@@ -129,8 +133,6 @@ async def test_wiz(credentials: dict, config: dict) -> ConnectorTestResult:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
 
-
-
 async def test_jamf(credentials: dict, config: dict) -> ConnectorTestResult:
     """Test JAMF Pro API access."""
     base_url = config.get("base_url", credentials.get("base_url", "")).rstrip("/")
@@ -164,9 +166,12 @@ async def test_jamf(credentials: dict, config: dict) -> ConnectorTestResult:
                 details={"inventory_access": inv_status, "total_computers": total},
             )
         else:
-            return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}", details={"response": resp.text[:500]})
+            return ConnectorTestResult(
+                success=False, message=f"Auth failed: HTTP {resp.status_code}", details={"response": resp.text[:500]}
+            )
     except Exception as e:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
 
 async def test_google_workspace(credentials: dict, config: dict) -> ConnectorTestResult:
     """Test Google Workspace Admin SDK access."""
@@ -177,12 +182,16 @@ async def test_google_workspace(credentials: dict, config: dict) -> ConnectorTes
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             h = {"Authorization": f"Bearer {token}"}
-            resp = await client.get("https://admin.googleapis.com/admin/directory/v1/users",
-                                     headers=h, params={"domain": domain, "maxResults": 1})
+            resp = await client.get(
+                "https://admin.googleapis.com/admin/directory/v1/users",
+                headers=h,
+                params={"domain": domain, "maxResults": 1},
+            )
             if resp.status_code == 200:
                 total = resp.json().get("totalResults", "?")
-                return ConnectorTestResult(success=True, message=f"Connected to Google Workspace ({domain})",
-                                           details={"total_users": total})
+                return ConnectorTestResult(
+                    success=True, message=f"Connected to Google Workspace ({domain})", details={"total_users": total}
+                )
             return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
     except Exception as e:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
@@ -197,20 +206,37 @@ async def test_azure_entra_id(credentials: dict, config: dict) -> ConnectorTestR
         return ConnectorTestResult(success=False, message="Tenant ID, Client ID, and Client Secret are required")
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
-                                      data={"grant_type": "client_credentials", "client_id": client_id,
-                                            "client_secret": client_secret, "scope": "https://graph.microsoft.com/.default"})
+            resp = await client.post(
+                f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "scope": "https://graph.microsoft.com/.default",
+                },
+            )
             if resp.status_code != 200:
                 return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
             token = resp.json()["access_token"]
 
-            users_resp = await client.get("https://graph.microsoft.com/v1.0/users",
-                                           headers={"Authorization": f"Bearer {token}"}, params={"$top": 1, "$select": "id"})
-            groups_resp = await client.get("https://graph.microsoft.com/v1.0/groups",
-                                            headers={"Authorization": f"Bearer {token}"}, params={"$top": 1, "$select": "id"})
-            return ConnectorTestResult(success=True, message="Connected to Azure Entra ID",
-                                       details={"users_access": "✓" if users_resp.status_code == 200 else f"✗ ({users_resp.status_code})",
-                                                 "groups_access": "✓" if groups_resp.status_code == 200 else f"✗ ({groups_resp.status_code})"})
+            users_resp = await client.get(
+                "https://graph.microsoft.com/v1.0/users",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"$top": 1, "$select": "id"},
+            )
+            groups_resp = await client.get(
+                "https://graph.microsoft.com/v1.0/groups",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"$top": 1, "$select": "id"},
+            )
+            return ConnectorTestResult(
+                success=True,
+                message="Connected to Azure Entra ID",
+                details={
+                    "users_access": "✓" if users_resp.status_code == 200 else f"✗ ({users_resp.status_code})",
+                    "groups_access": "✓" if groups_resp.status_code == 200 else f"✗ ({groups_resp.status_code})",
+                },
+            )
     except Exception as e:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
@@ -222,6 +248,7 @@ async def test_asana(credentials: dict, config: dict) -> ConnectorTestResult:
         return ConnectorTestResult(success=False, message="Access token is required")
     try:
         from app.ticketing.asana_client import AsanaClient
+
         client = AsanaClient(token)
         result = await client.test_connection()
         await client.close()
@@ -262,7 +289,9 @@ async def test_humaans(credentials: dict, config: dict) -> ConnectorTestResult:
             eq_total = eq_resp.json().get("total", "?") if eq_resp.status_code == 200 else "?"
 
             # Test custom fields access
-            cf_resp = await client.get("https://app.humaans.io/api/custom-fields", headers=headers, params={"$limit": 250})
+            cf_resp = await client.get(
+                "https://app.humaans.io/api/custom-fields", headers=headers, params={"$limit": 250}
+            )
             cf_status = "✓" if cf_resp.status_code == 200 else f"✗ ({cf_resp.status_code})"
             field_names = []
             if cf_resp.status_code == 200:
@@ -322,7 +351,9 @@ async def test_rapid7(credentials: dict, config: dict) -> ConnectorTestResult:
             )
         if resp.status_code == 200:
             total = resp.json().get("page", {}).get("totalResources", "?")
-            return ConnectorTestResult(success=True, message=f"Connected to InsightVM — {total} assets", details={"total_assets": total})
+            return ConnectorTestResult(
+                success=True, message=f"Connected to InsightVM — {total} assets", details={"total_assets": total}
+            )
         elif resp.status_code == 401:
             return ConnectorTestResult(success=False, message="Authentication failed")
         return ConnectorTestResult(success=False, message=f"HTTP {resp.status_code}")
@@ -333,6 +364,7 @@ async def test_rapid7(credentials: dict, config: dict) -> ConnectorTestResult:
 async def test_jira(credentials: dict, config: dict) -> ConnectorTestResult:
     """Test Jira Cloud/Server API access."""
     import base64
+
     url = config.get("base_url", credentials.get("url", "")).rstrip("/")
     email = credentials.get("email", "")
     token = credentials.get("api_token", "")

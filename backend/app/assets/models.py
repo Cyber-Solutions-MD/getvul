@@ -66,4 +66,6 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     mdm_details: Mapped[dict | None] = mapped_column(JSONB, default=dict)
 
     vulnerabilities: Mapped[list["Vulnerability"]] = relationship("Vulnerability", back_populates="asset")
-    correlations: Mapped[list["VulnerabilityCorrelation"]] = relationship("VulnerabilityCorrelation", back_populates="asset")
+    correlations: Mapped[list["VulnerabilityCorrelation"]] = relationship(
+        "VulnerabilityCorrelation", back_populates="asset"
+    )

@@ -47,27 +47,39 @@ SAMPLE_CVES = [
 ]
 
 HOSTNAMES = [
-    "web-prod-01", "web-prod-02", "web-prod-03",
-    "api-prod-01", "api-prod-02",
-    "db-prod-01", "db-prod-02",
+    "web-prod-01",
+    "web-prod-02",
+    "web-prod-03",
+    "api-prod-01",
+    "api-prod-02",
+    "db-prod-01",
+    "db-prod-02",
     "cache-prod-01",
-    "worker-prod-01", "worker-prod-02",
-    "ci-runner-01", "ci-runner-02",
+    "worker-prod-01",
+    "worker-prod-02",
+    "ci-runner-01",
+    "ci-runner-02",
     "monitoring-01",
     "bastion-01",
     "vpn-gateway-01",
     "mail-01",
-    "dev-server-01", "dev-server-02",
-    "staging-web-01", "staging-api-01",
+    "dev-server-01",
+    "dev-server-02",
+    "staging-web-01",
+    "staging-api-01",
 ]
 
 SOURCES = ["CROWDSTRIKE", "NESSUS", "DEFENDER", "WIZ"]
 STATUSES = ["OPEN", "OPEN", "OPEN", "OPEN", "IN_PROGRESS", "REMEDIATED", "SUPPRESSED"]
 OS_OPTIONS = [
-    ("Ubuntu", "22.04"), ("Ubuntu", "20.04"),
-    ("Windows Server", "2022"), ("Windows Server", "2019"),
-    ("Amazon Linux", "2023"), ("RHEL", "9.3"),
-    ("Debian", "12"), ("CentOS", "8"),
+    ("Ubuntu", "22.04"),
+    ("Ubuntu", "20.04"),
+    ("Windows Server", "2022"),
+    ("Windows Server", "2019"),
+    ("Amazon Linux", "2023"),
+    ("RHEL", "9.3"),
+    ("Debian", "12"),
+    ("CentOS", "8"),
 ]
 
 
@@ -108,7 +120,7 @@ async def seed_database(db: AsyncSession) -> dict:
         asset = Asset(
             tenant_id=tenant.id,
             hostname=hostname,
-            ip_addresses=[f"10.0.{random.randint(1,20)}.{random.randint(1,254)}"],
+            ip_addresses=[f"10.0.{random.randint(1, 20)}.{random.randint(1, 254)}"],
             os_name=os_name,
             os_version=os_version,
             asset_type=random.choice(["SERVER", "ENDPOINT", "VM"]),
@@ -254,7 +266,14 @@ SAMPLE_MISCONFIGS = [
     ("CIS-1.2.1", "S3 bucket without encryption", "ENCRYPTION", "HIGH", "aws_s3_bucket", "AWS"),
     ("CIS-1.3.5", "Public S3 bucket ACL", "STORAGE", "CRITICAL", "aws_s3_bucket", "AWS"),
     ("CIS-2.1.1", "CloudTrail not enabled", "LOGGING", "HIGH", "aws_cloudtrail", "AWS"),
-    ("CIS-3.4.2", "Security group allows 0.0.0.0/0 ingress on port 22", "NETWORK", "CRITICAL", "aws_security_group", "AWS"),
+    (
+        "CIS-3.4.2",
+        "Security group allows 0.0.0.0/0 ingress on port 22",
+        "NETWORK",
+        "CRITICAL",
+        "aws_security_group",
+        "AWS",
+    ),
     ("CIS-1.4.1", "Root account has active access keys", "IAM", "CRITICAL", "aws_iam_user", "AWS"),
     ("CIS-1.5.3", "MFA not enabled for IAM users", "IAM", "HIGH", "aws_iam_user", "AWS"),
     ("CIS-4.1.1", "EBS volumes not encrypted", "ENCRYPTION", "MEDIUM", "aws_ebs_volume", "AWS"),
@@ -275,16 +294,29 @@ SAMPLE_MISCONFIGS = [
 
 CSPM_SOURCES = ["CROWDSTRIKE", "WIZ", "DEFENDER"]
 CSPM_FRAMEWORKS = [
-    ["CIS AWS 1.5"], ["CIS AWS 1.5", "SOC2"], ["PCI-DSS 3.2.1"],
-    ["CIS Azure 2.0"], ["HIPAA"], ["SOC2", "ISO 27001"], ["NIST 800-53"],
+    ["CIS AWS 1.5"],
+    ["CIS AWS 1.5", "SOC2"],
+    ["PCI-DSS 3.2.1"],
+    ["CIS Azure 2.0"],
+    ["HIPAA"],
+    ["SOC2", "ISO 27001"],
+    ["NIST 800-53"],
 ]
 CSPM_REGIONS = [
-    "us-east-1", "us-west-2", "eu-west-1", "eu-central-1",
-    "eastus", "westeurope", "us-central1", "asia-east1",
+    "us-east-1",
+    "us-west-2",
+    "eu-west-1",
+    "eu-central-1",
+    "eastus",
+    "westeurope",
+    "us-central1",
+    "asia-east1",
 ]
 CSPM_ACCOUNTS = [
-    ("123456789012", "prod-account"), ("987654321098", "dev-account"),
-    ("sub-abc-123", "Azure Prod"), ("sub-def-456", "Azure Dev"),
+    ("123456789012", "prod-account"),
+    ("987654321098", "dev-account"),
+    ("sub-abc-123", "Azure Prod"),
+    ("sub-def-456", "Azure Dev"),
     ("proj-main-001", "GCP Main"),
 ]
 

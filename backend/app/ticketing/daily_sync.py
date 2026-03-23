@@ -49,11 +49,13 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
 
             if provider == "ASANA":
                 from app.ticketing.asana_client import AsanaClient
+
                 client = AsanaClient(creds.get("access_token", ""))
                 stats = await _sync_asana_tickets(db, tenant_id, client)
                 await client.close()
             elif provider == "JIRA":
                 from app.connectors.jira_client import JiraClient
+
                 client = JiraClient(
                     url=creds.get("url", ""),
                     email=creds.get("email", ""),
@@ -78,7 +80,12 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
                 )
 
         except Exception as e:
-            logger.error("daily_ticket_sync_error", tenant_id=str(connector.tenant_id), provider=connector.connector_type, error=str(e))
+            logger.error(
+                "daily_ticket_sync_error",
+                tenant_id=str(connector.tenant_id),
+                provider=connector.connector_type,
+                error=str(e),
+            )
 
     if total_synced > 0:
         await db.commit()
@@ -219,9 +226,9 @@ async def _sync_asana_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) ->
             ticket.external_status = "completed"
             ticket.resolved_at = datetime.now(UTC)
             resolved += 1
-            vuln = (await db.execute(
-                select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id)
-            )).scalar_one_or_none()
+            vuln = (
+                await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+            ).scalar_one_or_none()
             if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
                 vuln.status = "REMEDIATED"
                 vuln.remediated_at = datetime.now(UTC)
@@ -296,21 +303,16 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
         synced += 1
 
         # Check if Jira issue is in a "done" category
-        status_category = (
-            issue.get("fields", {})
-            .get("status", {})
-            .get("statusCategory", {})
-            .get("key", "")
-        )
+        status_category = issue.get("fields", {}).get("status", {}).get("statusCategory", {}).get("key", "")
         jira_status = issue.get("fields", {}).get("status", {}).get("name", "")
 
         if status_category == "done" or jira_status.lower() in ("done", "closed", "resolved", "completed"):
             ticket.external_status = jira_status.lower()
             ticket.resolved_at = datetime.now(UTC)
             resolved += 1
-            vuln = (await db.execute(
-                select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id)
-            )).scalar_one_or_none()
+            vuln = (
+                await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+            ).scalar_one_or_none()
             if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
                 vuln.status = "REMEDIATED"
                 vuln.remediated_at = datetime.now(UTC)

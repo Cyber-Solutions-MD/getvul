@@ -29,7 +29,9 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     user_email: Mapped[str | None] = mapped_column(String(320))
     action: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -148,18 +150,20 @@ async def audit(
 
     # Forward to syslog/SIEM
     if _syslog_enabled:
-        _send_to_syslog({
-            "action": action,
-            "resource_type": resource_type,
-            "resource_id": str(resource_id) if resource_id else None,
-            "user_email": user.email if user else None,
-            "user_id": str(user.id) if user else None,
-            "tenant_id": str(user.tenant_id) if user else None,
-            "details": details,
-            "ip_address": ip_address,
-            "timestamp": now.isoformat(),
-            "timezone": _tenant_timezone,
-        })
+        _send_to_syslog(
+            {
+                "action": action,
+                "resource_type": resource_type,
+                "resource_id": str(resource_id) if resource_id else None,
+                "user_email": user.email if user else None,
+                "user_id": str(user.id) if user else None,
+                "tenant_id": str(user.tenant_id) if user else None,
+                "details": details,
+                "ip_address": ip_address,
+                "timestamp": now.isoformat(),
+                "timezone": _tenant_timezone,
+            }
+        )
 
 
 # Tenant timezone for syslog events

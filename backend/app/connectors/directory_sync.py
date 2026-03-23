@@ -23,7 +23,8 @@ async def run_directory_sync(db: AsyncSession, connector_config: ConnectorConfig
     log = SyncLog(
         connector_id=connector_config.id,
         tenant_id=connector_config.tenant_id,
-        status="RUNNING", started_at=now,
+        status="RUNNING",
+        started_at=now,
     )
     db.add(log)
     await db.flush()
@@ -35,9 +36,11 @@ async def run_directory_sync(db: AsyncSession, connector_config: ConnectorConfig
     try:
         if connector_type == "GOOGLE_WORKSPACE":
             from app.connectors.google_workspace import GoogleWorkspaceConnector
+
             connector = GoogleWorkspaceConnector()
         elif connector_type == "AZURE_ENTRA_ID":
             from app.connectors.azure_entra import AzureEntraConnector
+
             connector = AzureEntraConnector()
         else:
             log.status = "FAILED"
@@ -138,7 +141,7 @@ async def run_directory_sync(db: AsyncSession, connector_config: ConnectorConfig
         connector_config.last_sync_status = "FAILED"
     finally:
         log.finished_at = datetime.now(UTC)
-        if 'connector' in locals():
+        if "connector" in locals():
             await connector.close()
 
     return log

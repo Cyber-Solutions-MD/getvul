@@ -16,7 +16,9 @@ class SavedFilter(Base):
     __tablename__ = "saved_filters"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     filter_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "vulnerability" or "remediation"
     filters: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -32,7 +34,9 @@ async def list_saved_filters(db: AsyncSession, tenant_id: uuid.UUID, filter_type
     return [{"id": str(r.id), "name": r.name, "filter_type": r.filter_type, "filters": r.filters} for r in rows]
 
 
-async def create_saved_filter(db: AsyncSession, tenant_id: uuid.UUID, name: str, filter_type: str, filters: dict) -> dict:
+async def create_saved_filter(
+    db: AsyncSession, tenant_id: uuid.UUID, name: str, filter_type: str, filters: dict
+) -> dict:
     sf = SavedFilter(tenant_id=tenant_id, name=name, filter_type=filter_type, filters=filters)
     db.add(sf)
     await db.flush()
@@ -40,8 +44,12 @@ async def create_saved_filter(db: AsyncSession, tenant_id: uuid.UUID, name: str,
     return {"id": str(sf.id), "name": sf.name, "filter_type": sf.filter_type, "filters": sf.filters}
 
 
-async def update_saved_filter(db: AsyncSession, tenant_id: uuid.UUID, filter_id: uuid.UUID, name: str | None, filters: dict | None) -> dict | None:
-    result = await db.execute(select(SavedFilter).where(SavedFilter.id == filter_id, SavedFilter.tenant_id == tenant_id))
+async def update_saved_filter(
+    db: AsyncSession, tenant_id: uuid.UUID, filter_id: uuid.UUID, name: str | None, filters: dict | None
+) -> dict | None:
+    result = await db.execute(
+        select(SavedFilter).where(SavedFilter.id == filter_id, SavedFilter.tenant_id == tenant_id)
+    )
     sf = result.scalar_one_or_none()
     if sf is None:
         return None
@@ -50,18 +58,32 @@ async def update_saved_filter(db: AsyncSession, tenant_id: uuid.UUID, filter_id:
     if filters is not None:
         sf.filters = filters
         from sqlalchemy.orm.attributes import flag_modified
+
         flag_modified(sf, "filters")
 
         # Sync linked automation rules — update their conditions
         from app.ticketing.models import TicketRule
-        rules = (await db.execute(
-            select(TicketRule).where(TicketRule.saved_filter_id == filter_id, TicketRule.tenant_id == tenant_id)
-        )).scalars().all()
+
+        rules = (
+            (
+                await db.execute(
+                    select(TicketRule).where(TicketRule.saved_filter_id == filter_id, TicketRule.tenant_id == tenant_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
         for rule in rules:
             rule.conditions = map_filter_to_conditions(filters)
             flag_modified(rule, "conditions")
 
-    return {"id": str(sf.id), "name": sf.name, "filter_type": sf.filter_type, "filters": sf.filters, "rules_updated": len(rules) if filters else 0}
+    return {
+        "id": str(sf.id),
+        "name": sf.name,
+        "filter_type": sf.filter_type,
+        "filters": sf.filters,
+        "rules_updated": len(rules) if filters else 0,
+    }
 
 
 def map_filter_to_conditions(filters: dict) -> dict:
@@ -76,7 +98,9 @@ def map_filter_to_conditions(filters: dict) -> dict:
     if filters.get("cisa_kev"):
         conditions["cisa_kev"] = True
     if filters.get("device_category"):
-        conditions["device_category"] = filters["device_category"] if isinstance(filters["device_category"], list) else [filters["device_category"]]
+        conditions["device_category"] = (
+            filters["device_category"] if isinstance(filters["device_category"], list) else [filters["device_category"]]
+        )
     if filters.get("min_risk_score"):
         conditions["min_risk_score"] = filters["min_risk_score"]
     if filters.get("search"):
@@ -85,7 +109,9 @@ def map_filter_to_conditions(filters: dict) -> dict:
 
 
 async def delete_saved_filter(db: AsyncSession, tenant_id: uuid.UUID, filter_id: uuid.UUID) -> bool:
-    result = await db.execute(select(SavedFilter).where(SavedFilter.id == filter_id, SavedFilter.tenant_id == tenant_id))
+    result = await db.execute(
+        select(SavedFilter).where(SavedFilter.id == filter_id, SavedFilter.tenant_id == tenant_id)
+    )
     sf = result.scalar_one_or_none()
     if sf is None:
         return False

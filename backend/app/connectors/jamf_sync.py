@@ -27,7 +27,8 @@ async def run_jamf_sync(db: AsyncSession, connector_config: ConnectorConfig) -> 
     log = SyncLog(
         connector_id=connector_config.id,
         tenant_id=connector_config.tenant_id,
-        status="RUNNING", started_at=now,
+        status="RUNNING",
+        started_at=now,
     )
     db.add(log)
     await db.flush()
@@ -88,7 +89,9 @@ async def run_jamf_sync(db: AsyncSession, connector_config: ConnectorConfig) -> 
 
 
 async def _upsert_jamf_device(
-    db: AsyncSession, tenant_id: uuid.UUID, comp: dict,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    comp: dict,
 ) -> bool:
     """Match JAMF computer to existing asset by serial number, login user, or hostname. Returns True if created."""
     hostname = (comp.get("name") or "unknown").lower().strip()
@@ -99,9 +102,7 @@ async def _upsert_jamf_device(
 
     # Strategy 1: Serial number match (most reliable)
     if serial:
-        result = await db.execute(
-            select(Asset).where(Asset.tenant_id == tenant_id, Asset.serial_number == serial)
-        )
+        result = await db.execute(select(Asset).where(Asset.tenant_id == tenant_id, Asset.serial_number == serial))
         asset = result.scalars().first()
 
     # Strategy 2: Login user match (Jamf lastLoggedInUsernameBinary == CrowdStrike last_login_user)
@@ -117,15 +118,15 @@ async def _upsert_jamf_device(
 
     # Strategy 3: Hostname match
     if asset is None:
-        result = await db.execute(
-            select(Asset).where(Asset.tenant_id == tenant_id, Asset.hostname == hostname)
-        )
+        result = await db.execute(select(Asset).where(Asset.tenant_id == tenant_id, Asset.hostname == hostname))
         asset = result.scalar_one_or_none()
 
     os_name = comp.get("os_name", "")
     os_version = comp.get("os_version", "")
     category = classify_asset_from_data(
-        hostname=hostname, os_name=os_name, platform_name=os_name,
+        hostname=hostname,
+        os_name=os_name,
+        platform_name=os_name,
     )
 
     # Build MDM security details

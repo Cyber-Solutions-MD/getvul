@@ -21,9 +21,7 @@ router = APIRouter()
 @router.get("/me", response_model=TenantResponse)
 async def get_my_tenant(db: DBSession, user: AuthenticatedUser):
     """Get the current user's tenant info."""
-    result = await db.execute(
-        select(Tenant).where(Tenant.id == user.tenant_id)
-    )
+    result = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
     tenant = result.scalar_one_or_none()
     if tenant is None:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -36,11 +34,7 @@ async def list_users(
     user: Annotated[CurrentUser, Depends(require_admin)],
 ):
     """List all users in the tenant. Requires Admin role."""
-    result = await db.execute(
-        select(User)
-        .where(User.tenant_id == user.tenant_id)
-        .order_by(User.email)
-    )
+    result = await db.execute(select(User).where(User.tenant_id == user.tenant_id).order_by(User.email))
     return result.scalars().all()
 
 
@@ -55,16 +49,21 @@ async def update_user_role(
     if body.role not in ("OWNER", "ADMIN", "ANALYST", "VIEWER"):
         raise HTTPException(status_code=400, detail="Invalid role")
 
-    result = await db.execute(
-        select(User).where(User.id == user_id, User.tenant_id == user.tenant_id)
-    )
+    result = await db.execute(select(User).where(User.id == user_id, User.tenant_id == user.tenant_id))
     target_user = result.scalar_one_or_none()
     if target_user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
     old_role = target_user.role
     target_user.role = body.role
-    await audit(db, user, "user.role_change", "user", str(user_id), {"email": target_user.email, "old_role": old_role, "new_role": body.role})
+    await audit(
+        db,
+        user,
+        "user.role_change",
+        "user",
+        str(user_id),
+        {"email": target_user.email, "old_role": old_role, "new_role": body.role},
+    )
     await db.flush()
     return target_user
 
@@ -80,9 +79,7 @@ async def deactivate_user(
         raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
 
     result = await db.execute(
-        update(User)
-        .where(User.id == user_id, User.tenant_id == user.tenant_id)
-        .values(is_active=False)
+        update(User).where(User.id == user_id, User.tenant_id == user.tenant_id).values(is_active=False)
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="User not found")
@@ -102,7 +99,15 @@ async def get_tenant_settings(
         "idp_provider": tenant.idp_provider,
         "domain": tenant.domain,
         "timezone": tenant.timezone,
-        "password_policy": tenant.password_policy or {"min_length": 8, "require_uppercase": False, "require_lowercase": False, "require_digit": False, "require_symbol": False, "history_count": 0},
+        "password_policy": tenant.password_policy
+        or {
+            "min_length": 8,
+            "require_uppercase": False,
+            "require_lowercase": False,
+            "require_digit": False,
+            "require_symbol": False,
+            "history_count": 0,
+        },
         "syslog_config": tenant.syslog_config,
         "smtp_config": _safe_smtp(getattr(tenant, "smtp_config", None)),
         "sla_config": getattr(tenant, "sla_config", None),
@@ -130,7 +135,9 @@ async def update_tenant_settings(
 
     if "sso_enforced" in body:
         if body["sso_enforced"] and (not tenant.idp_provider or tenant.idp_provider == "LOCAL"):
-            raise HTTPException(400, "Cannot enforce SSO without an identity provider configured. Select Google or Azure first.")
+            raise HTTPException(
+                400, "Cannot enforce SSO without an identity provider configured. Select Google or Azure first."
+            )
         tenant.sso_enforced = bool(body["sso_enforced"])
     if "name" in body:
         tenant.name = body["name"]
@@ -146,15 +153,18 @@ async def update_tenant_settings(
         tenant.timezone = body["timezone"]
     if "password_policy" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm
+
         tenant.password_policy = body["password_policy"]
         _fm(tenant, "password_policy")
     if "syslog_config" in body:
         from sqlalchemy.orm.attributes import flag_modified
+
         tenant.syslog_config = body["syslog_config"]
         flag_modified(tenant, "syslog_config")
 
         # Apply syslog config
         from app.audit import configure_syslog, disable_syslog
+
         cfg = body["syslog_config"]
         if cfg and cfg.get("enabled") and cfg.get("host"):
             configure_syslog(
@@ -168,11 +178,13 @@ async def update_tenant_settings(
 
     if "sla_config" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm_sla
+
         tenant.sla_config = body["sla_config"]
         _fm_sla(tenant, "sla_config")
 
     if "smtp_config" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm_smtp
+
         new_smtp = body["smtp_config"]
         # If password is masked, keep the existing one
         if new_smtp and new_smtp.get("password") == "••••••••" and tenant.smtp_config:
@@ -196,14 +208,21 @@ async def toggle_user_password_login(
     user: Annotated[CurrentUser, Depends(require_owner)],
 ):
     """Toggle whether a user can use password login when SSO is enforced. Requires Owner."""
-    target = (await db.execute(
-        select(User).where(User.id == user_id, User.tenant_id == user.tenant_id)
-    )).scalar_one_or_none()
+    target = (
+        await db.execute(select(User).where(User.id == user_id, User.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
     if not target:
         raise HTTPException(404, "User not found")
 
     target.allow_password_login = bool(body.get("allow", True))
-    await audit(db, user, "user.password_toggle", "user", str(user_id), {"email": target.email, "allow": target.allow_password_login})
+    await audit(
+        db,
+        user,
+        "user.password_toggle",
+        "user",
+        str(user_id),
+        {"email": target.email, "allow": target.allow_password_login},
+    )
     await db.commit()
     return {"message": "Updated", "allow_password_login": target.allow_password_login}
 
@@ -229,9 +248,9 @@ async def create_user(
     password = body.get("password", "")
 
     # Check if user already exists in this tenant
-    existing = (await db.execute(
-        select(User).where(User.tenant_id == user.tenant_id, User.email == email)
-    )).scalar_one_or_none()
+    existing = (
+        await db.execute(select(User).where(User.tenant_id == user.tenant_id, User.email == email))
+    ).scalar_one_or_none()
 
     if existing:
         # Update existing user
@@ -272,9 +291,9 @@ async def update_user(
     user: Annotated[CurrentUser, Depends(require_owner)],
 ):
     """Update user display name or email. Requires Owner role."""
-    target = (await db.execute(
-        select(User).where(User.id == user_id, User.tenant_id == user.tenant_id)
-    )).scalar_one_or_none()
+    target = (
+        await db.execute(select(User).where(User.id == user_id, User.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
     if not target:
         raise HTTPException(404, "User not found")
 
@@ -303,6 +322,7 @@ async def get_audit_log(
 ):
     """Get audit log entries. Requires Admin role."""
     from app.audit import get_audit_logs
+
     return await get_audit_logs(db, user.tenant_id, action, resource_type, user_email, page, page_size)
 
 
@@ -324,16 +344,18 @@ async def list_groups(
 
     groups_map: dict[str, list[dict]] = {}
     for u in users_with_groups:
-        for g in (u.groups or []):
+        for g in u.groups or []:
             if g not in groups_map:
                 groups_map[g] = []
-            groups_map[g].append({
-                "id": str(u.id),
-                "email": u.email,
-                "display_name": u.display_name,
-                "role": u.role,
-                "department": u.department,
-            })
+            groups_map[g].append(
+                {
+                    "id": str(u.id),
+                    "email": u.email,
+                    "display_name": u.display_name,
+                    "role": u.role,
+                    "department": u.department,
+                }
+            )
 
     return [
         {"name": name, "member_count": len(members), "members": members}
@@ -351,9 +373,9 @@ async def delete_user(
     if user_id == user.id:
         raise HTTPException(400, "Cannot delete yourself")
 
-    target = (await db.execute(
-        select(User).where(User.id == user_id, User.tenant_id == user.tenant_id)
-    )).scalar_one_or_none()
+    target = (
+        await db.execute(select(User).where(User.id == user_id, User.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
     if not target:
         raise HTTPException(404, "User not found")
 

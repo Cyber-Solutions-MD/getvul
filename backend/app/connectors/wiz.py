@@ -191,9 +191,7 @@ class WizConnector(BaseConnector):
     # Internal GraphQL helper
     # ------------------------------------------------------------------
 
-    async def _graphql(
-        self, query: str, variables: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    async def _graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """Execute a single GraphQL request with basic rate-limit handling."""
 
         assert self._client is not None, "Call authenticate() first"
@@ -227,9 +225,7 @@ class WizConnector(BaseConnector):
 
         raise RuntimeError("Wiz rate-limit retries exhausted")
 
-    async def _paginate(
-        self, query: str, root_key: str
-    ) -> list[dict[str, Any]]:
+    async def _paginate(self, query: str, root_key: str) -> list[dict[str, Any]]:
         """Paginate through a Wiz GraphQL connection and return all nodes."""
 
         all_nodes: list[dict[str, Any]] = []
@@ -282,9 +278,7 @@ class WizConnector(BaseConnector):
                     vulnerability_name=node.get("detailedName") or node.get("name"),
                     cvss_v3_score=node.get("score"),
                     severity=_map_vuln_severity(node.get("severity")),
-                    exploit_available=bool(
-                        node.get("exploitAvailable") or node.get("hasExploit")
-                    ),
+                    exploit_available=bool(node.get("exploitAvailable") or node.get("hasExploit")),
                     cisa_kev=bool(node.get("hasCisaKevExploit")),
                     source_vuln_id=node.get("id"),
                     hostname=asset.get("name"),

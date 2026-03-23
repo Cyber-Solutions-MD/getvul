@@ -37,9 +37,7 @@ class RequireRole:
     def __init__(self, minimum_role: str):
         self.minimum_role = minimum_role
 
-    async def __call__(
-        self, user: Annotated[CurrentUser, Depends(get_current_user)]
-    ) -> CurrentUser:
+    async def __call__(self, user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
         if not _check_role(user, self.minimum_role):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
