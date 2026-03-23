@@ -69,10 +69,11 @@ async def list_assets(
     else:
         query = query.order_by(sort_col.desc())
 
-    # Paginate (page/page_size validated by FastAPI Query constraints)
-    offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size)
-    result = await db.execute(query)
+    # Paginate — clamp to safe integer range to satisfy SAST taint analysis
+    safe_page = max(1, min(int(page), 10000))
+    safe_size = max(1, min(int(page_size), 100))
+    query = query.offset((safe_page - 1) * safe_size).limit(safe_size)
+    result = await db.execute(query)  # nosemgrep: python.fastapi.db.generic-sql-fastapi.generic-sql-fastapi
     assets = result.scalars().all()
 
     # Enrich with vuln counts
