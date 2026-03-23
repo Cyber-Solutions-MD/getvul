@@ -1,0 +1,21 @@
+# Gitleaks configuration — allowlist known dev/test values and build artifacts
+
+[allowlist]
+description = "GetVul development allowlist"
+
+paths = [
+    '''frontend/\.next/''',
+    '''nginx/certs/''',
+    '''\.claude/''',
+    '''node_modules/''',
+]
+
+regexTarget = "match"
+regexes = [
+    '''3iPwTM32LuijVi-uwCGt448cCCPHGVvUoriwi0A3FkY=''',
+    '''dev-secret-change-in-prod''',
+    '''ci-test-secret-not-for-prod''',
+    '''dev-token''',
+    '''test-secret''',
+    '''CHANGE-ME''',
+]
