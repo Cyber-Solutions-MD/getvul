@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-import { getAuthHeaders, API_BASE } from "@/lib/fetch";
-const headers = getAuthHeaders();
+import { api } from "@/lib/api";
 
 const SEV_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -27,294 +24,224 @@ export default function AssetDetailPage() {
   const router = useRouter();
   const [asset, setAsset] = useState<any>(null);
   const [remediations, setRemediations] = useState<any[]>([]);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [sevFilter, setSevFilter] = useState("");
   const [tab, setTab] = useState<"remediations" | "vulns">("remediations");
+  const [sevFilter, setSevFilter] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${API}/api/v1/assets/${params.id}`, { headers });
-        if (!r.ok) { setError("Asset not found"); return; }
-        const data = await r.json();
-        setAsset(data);
-
-        // Fetch remediations for this host
-        const rr = await fetch(`${API}/api/v1/vulnerabilities/hosts/${params.id}/remediations`, { headers });
-        if (rr.ok) setRemediations(await rr.json());
-      } catch { setError("Failed to load"); }
-      finally { setLoading(false); }
+        const [a, r] = await Promise.all([
+          api(`/api/v1/assets/${params.id}`),
+          api(`/api/v1/vulnerabilities/hosts/${params.id}/remediations`).catch(() => []),
+        ]);
+        setAsset(a);
+        setRemediations(r);
+      } catch {} finally { setLoading(false); }
     })();
   }, [params.id]);
 
   if (loading) return <div className="flex min-h-[400px] items-center justify-center"><p className="text-gray-400">Loading...</p></div>;
-  if (error) return <div className="flex min-h-[400px] items-center justify-center"><p className="text-gray-400">{error}</p></div>;
-  if (!asset) return null;
+  if (!asset) return <div className="flex min-h-[400px] items-center justify-center"><p className="text-gray-400">Asset not found</p></div>;
 
   const vc = asset.vuln_counts || {};
   const vulns = asset.vulnerabilities || [];
+  const du = asset.directory_user;
+  const mdm = asset.mdm_details || {};
+  const sources = Array.isArray(asset.seen_by_sources) ? asset.seen_by_sources : Object.keys(asset.seen_by_sources || {});
   const filteredVulns = sevFilter ? vulns.filter((v: any) => v.severity === sevFilter) : vulns;
-  const filteredRem = sevFilter
-    ? remediations.filter((r: any) => r.max_severity === sevFilter || r.severities?.includes(sevFilter))
-    : remediations;
+  const filteredRem = sevFilter ? remediations.filter((r: any) => r.max_severity === sevFilter) : remediations;
 
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.push("/dashboard/assets")} className="text-sm text-indigo-400 hover:text-indigo-300">← Back to Assets</button>
+    <div className="space-y-5">
+      <button onClick={() => router.push("/dashboard/assets")} className="text-sm text-indigo-400 hover:text-indigo-300">← Assets</button>
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">{CAT_ICONS[asset.device_category] || "❓"} {asset.hostname}</h1>
+      {/* Header — compact */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{CAT_ICONS[asset.device_category] || "❓"}</span>
+            <h1 className="text-xl font-bold text-white truncate">{asset.hostname}</h1>
             {asset.host_status && (
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                asset.host_status === "normal" || asset.host_status === "online"
-                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                  : asset.host_status === "contained" || asset.host_status === "containment_pending"
-                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                  : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
-              }`}>{asset.host_status}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${asset.host_status === "normal" ? "bg-green-500/20 text-green-400" : "bg-gray-500/20 text-gray-400"}`}>{asset.host_status}</span>
             )}
+            {asset.is_ignored && <span className="rounded bg-orange-500/20 border border-orange-500/30 px-1.5 py-0.5 text-[10px] text-orange-400">IGNORED</span>}
           </div>
-          <p className="mt-1 text-gray-400">
-            {asset.os_name} {asset.os_version}
-            {asset.model && <span> · {asset.model}</span>}
-            {asset.serial_number && <span> · S/N: {asset.serial_number}</span>}
+          <p className="text-sm text-gray-400 mt-0.5">
+            {asset.os_name} {asset.os_version} {asset.model && `· ${asset.model}`} {asset.serial_number && `· ${asset.serial_number}`}
           </p>
-          {(asset.last_login_user || asset.assigned_user) && (
-            <p className="text-sm text-gray-500">
-              {asset.last_login_user && <span>Last login: {asset.last_login_user}</span>}
-              {asset.last_login_user && asset.last_login_at && <span className="text-gray-600"> ({new Date(asset.last_login_at).toLocaleDateString()})</span>}
-              {asset.assigned_user && asset.last_login_user && <span> · </span>}
-              {asset.assigned_user && <span>Assigned: {asset.assigned_user}</span>}
-              {asset.department && <span> · {asset.department}</span>}
-            </p>
-          )}
         </div>
-        <div className="flex items-start gap-4">
-          <button
-            onClick={async () => {
-              if (!confirm(`Create Asana remediation ticket for ${asset.hostname}?`)) return;
-              try {
-                const resp = await fetch(`${API}/api/v1/tickets/host`, {
-                  method: "POST", headers,
-                  body: JSON.stringify({ asset_id: asset.id, provider: "ASANA", project_key: "" }),
-                });
-                const data = await resp.json();
-                if (resp.ok && data.task_url) {
-                  alert(`Ticket created! ${data.vulns_linked} vulns linked, assigned to ${data.assignee || 'unassigned'}. Due: ${data.due_on}`);
-                  window.open(data.task_url, "_blank");
-                } else {
-                  alert(`Error: ${data.detail || data.error || 'Failed'}`);
-                }
-              } catch (e: any) { alert(`Error: ${e.message}`); }
-            }}
-            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-500 whitespace-nowrap"
-          >
+        <div className="flex items-center gap-3 shrink-0">
+          <button onClick={async () => {
+            if (!confirm(`Create ticket for ${asset.hostname}?`)) return;
+            try {
+              const r = await api("/api/v1/tickets/host", { method: "POST", body: JSON.stringify({ asset_id: asset.id, provider: "ASANA", project_key: "" }) });
+              if (r.task_url) { alert(`Ticket created!`); window.open(r.task_url, "_blank"); }
+              else alert(r.error || "Failed");
+            } catch (e: any) { alert(e.message); }
+          }} className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-500">
             Create Ticket
           </button>
           <div className="text-right">
-            <p className="text-sm text-gray-400">Risk Score</p>
-            <p className={`text-4xl font-bold ${riskColor(asset.risk_score)}`}>{asset.risk_score}</p>
+            <p className="text-[10px] text-gray-500 uppercase">Risk</p>
+            <p className={`text-3xl font-bold ${riskColor(asset.risk_score)}`}>{asset.risk_score}</p>
           </div>
         </div>
       </div>
 
-      {/* Vuln count cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+      {/* Vuln count pills — inline */}
+      <div className="flex flex-wrap gap-2">
         {([
-          { label: "Total", value: vc.total, color: "text-white", sev: "" },
-          { label: "Critical", value: vc.critical, color: "text-red-400", sev: "CRITICAL" },
-          { label: "High", value: vc.high, color: "text-orange-400", sev: "HIGH" },
-          { label: "Medium", value: vc.medium, color: "text-yellow-400", sev: "MEDIUM" },
-          { label: "Low", value: vc.low, color: "text-green-400", sev: "LOW" },
-          { label: "Exploitable", value: vc.exploitable, color: "text-yellow-300", sev: "" },
-          { label: "CISA KEV", value: vc.kev, color: "text-red-300", sev: "" },
-        ] as const).map((c) => (
-          <button key={c.label}
-            onClick={() => c.sev && setSevFilter(sevFilter === c.sev ? "" : c.sev)}
-            className={`rounded-lg border p-3 text-left transition ${
-              sevFilter === c.sev && c.sev ? "border-indigo-500 bg-indigo-500/10" : "border-gray-700 bg-gray-800 hover:border-gray-600"
-            }`}>
-            <p className="text-xs text-gray-400">{c.label}</p>
-            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
+          { l: "Total", v: vc.total, c: "text-white", s: "" },
+          { l: "Critical", v: vc.critical, c: "text-red-400", s: "CRITICAL" },
+          { l: "High", v: vc.high, c: "text-orange-400", s: "HIGH" },
+          { l: "Medium", v: vc.medium, c: "text-yellow-400", s: "MEDIUM" },
+          { l: "Low", v: vc.low, c: "text-green-400", s: "LOW" },
+          { l: "Exploit", v: vc.exploitable, c: "text-yellow-300", s: "" },
+          { l: "KEV", v: vc.kev, c: "text-red-300", s: "" },
+        ]).map(c => (
+          <button key={c.l} onClick={() => c.s && setSevFilter(sevFilter === c.s ? "" : c.s)}
+            className={`rounded-lg border px-3 py-1.5 text-xs transition ${sevFilter === c.s && c.s ? "border-indigo-500 bg-indigo-500/10" : "border-gray-700 bg-gray-800/50"}`}>
+            <span className="text-gray-500">{c.l} </span><span className={`font-bold ${c.c}`}>{c.v}</span>
           </button>
         ))}
       </div>
 
-      {/* Info panels */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {/* Device Info */}
-        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-          <p className="mb-3 text-sm font-medium text-gray-400">Device Info</p>
-          <div className="space-y-2 text-sm">
-            <InfoRow label="Type" value={asset.asset_type || asset.device_category} />
-            <InfoRow label="Serial Number" value={asset.serial_number} />
-            <InfoRow label="Model" value={asset.model} />
-            {asset.crowdstrike_aid && <InfoRow label="CrowdStrike AID" value={asset.crowdstrike_aid} mono />}
+      {/* Info — two columns, compact */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Left: Device + Network */}
+        <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+            <R l="Type" v={asset.device_category} />
+            <R l="Serial" v={asset.serial_number} />
+            <R l="Model" v={asset.model} />
+            <R l="Manufacturer" v={asset.system_manufacturer} />
+            <R l="Local IP" v={(asset.ip_addresses || []).join(", ")} />
+            <R l="External IP" v={asset.external_ip} />
+            <R l="MAC" v={(asset.mac_addresses || []).join(", ")} />
+            <R l="Managed By" v={asset.managed_by} />
           </div>
-        </div>
-
-        {/* Network */}
-        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-          <p className="mb-3 text-sm font-medium text-gray-400">Network</p>
-          <div className="space-y-2 text-sm">
-            <InfoRow label="Local IP" value={(asset.ip_addresses || []).join(", ")} />
-            <InfoRow label="External IP" value={asset.external_ip} />
-            <InfoRow label="MAC Address" value={(asset.mac_addresses || []).join(", ")} />
-          </div>
-        </div>
-
-        {/* User & Activity */}
-        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-          <p className="mb-3 text-sm font-medium text-gray-400">User & Activity</p>
-          <div className="space-y-2 text-sm">
-            <InfoRow label="Assigned User" value={asset.assigned_user} />
-            <InfoRow label="Work Email" value={asset.humaans_email} />
-            <InfoRow label="Department" value={asset.department} />
-            {asset.github_handle && (
-              <div className="flex justify-between gap-4">
-                <span className="text-gray-500 shrink-0">GitHub</span>
-                <a href={`https://github.com/${asset.github_handle.replace(/^@/, "")}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="text-indigo-400 hover:underline text-right truncate">@{asset.github_handle.replace(/^@/, "")}</a>
-              </div>
-            )}
-            {asset.linkedin_handle && (
-              <div className="flex justify-between gap-4">
-                <span className="text-gray-500 shrink-0">LinkedIn</span>
-                <a href={`https://linkedin.com/in/${asset.linkedin_handle}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="text-indigo-400 hover:underline text-right truncate">{asset.linkedin_handle}</a>
-              </div>
-            )}
-            {asset.element_handle && <InfoRow label="Element" value={asset.element_handle} />}
-            {asset.humaans_location && <InfoRow label="Location" value={asset.humaans_location} />}
-            {asset.humaans_timezone && <InfoRow label="Timezone" value={asset.humaans_timezone} />}
-            {asset.humaans_teams && asset.humaans_teams.length > 0 && (
-              <div className="flex justify-between gap-4">
-                <span className="text-gray-500 shrink-0">Teams</span>
-                <span className="text-gray-200 text-right text-xs">{asset.humaans_teams.join(", ")}</span>
-              </div>
-            )}
-            <div className="mt-2 border-t border-gray-700 pt-2" />
-            <InfoRow label="Last Login User" value={asset.last_login_user} />
-            <InfoRow label="Last Login" value={asset.last_login_at ? new Date(asset.last_login_at).toLocaleString() : null} />
-            <InfoRow label="Last Seen" value={asset.last_seen_at ? timeAgo(asset.last_seen_at) : null} />
-            <InfoRow label="Host Status" value={asset.host_status} badge={
-              asset.host_status === "normal" ? "green" : asset.host_status === "contained" ? "red" : "gray"
-            } />
-          </div>
-        </div>
-
-        {/* Scanners */}
-        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-          <p className="mb-3 text-sm font-medium text-gray-400">Scanners</p>
-          <div className="flex flex-wrap gap-2">
-            {(Array.isArray(asset.seen_by_sources) ? asset.seen_by_sources : Object.keys(asset.seen_by_sources || {})).map((s: string) => (
-              <span key={s} className="rounded-full border border-indigo-500/30 bg-indigo-500/20 px-2 py-0.5 text-xs text-indigo-400">{s}</span>
+          {/* Scanners */}
+          <div className="flex items-center gap-2 pt-2 border-t border-gray-800">
+            <span className="text-[10px] text-gray-500">Sources:</span>
+            {sources.map((s: string) => (
+              <span key={s} className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] text-indigo-400">{s}</span>
             ))}
           </div>
+          {asset.crowdstrike_aid && <R l="CrowdStrike AID" v={asset.crowdstrike_aid} mono />}
         </div>
 
-        {/* MDM Security (if available) */}
-        {asset.mdm_details && Object.keys(asset.mdm_details).length > 0 && (
-          <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-            <p className="mb-3 text-sm font-medium text-gray-400">MDM Security</p>
-            {Object.entries(asset.mdm_details).map(([k, v]) => (
-              <div key={k} className="flex justify-between text-sm">
-                <span className="text-gray-400">{k}</span>
-                <span className={v ? "text-green-400" : "text-red-400"}>{v ? "✓" : "✗"}</span>
+        {/* Right: User info — merged from Humaans + Google Workspace */}
+        <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4 space-y-3">
+          {/* Directory user (Google Workspace / Azure / Okta) */}
+          {du && (
+            <div className="flex items-center gap-3 pb-2 border-b border-gray-800">
+              {du.avatar_url ? (
+                <img src={du.avatar_url} alt="" className="h-9 w-9 rounded-full" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="h-9 w-9 rounded-full bg-indigo-600/50 flex items-center justify-center text-sm text-white font-bold">
+                  {(du.display_name || du.email || "?")[0]?.toUpperCase()}
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-medium text-white">{du.display_name}</p>
+                <p className="text-[11px] text-gray-500">{du.email} · {du.job_title || du.department || du.idp_source}</p>
               </div>
-            ))}
+              <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] ${du.is_active ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                {du.is_active ? "Active" : "Suspended"}
+              </span>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+            <R l="Assigned User" v={asset.assigned_user} />
+            <R l="Department" v={du?.department || asset.department} />
+            <R l="Job Title" v={du?.job_title} />
+            <R l="Email" v={asset.humaans_email || du?.email} />
+            {asset.github_handle && <R l="GitHub" v={`@${asset.github_handle.replace(/^@/, "")}`} link={`https://github.com/${asset.github_handle.replace(/^@/, "")}`} />}
+            {asset.element_handle && <R l="Element" v={asset.element_handle} />}
+            <R l="Location" v={asset.humaans_location} />
+            <R l="Timezone" v={asset.humaans_timezone} />
+            {du?.groups?.length > 0 && (
+              <div className="col-span-2">
+                <span className="text-gray-500">Groups: </span>
+                <span className="text-gray-300">{du.groups.slice(0, 5).join(", ")}{du.groups.length > 5 ? ` +${du.groups.length - 5}` : ""}</span>
+              </div>
+            )}
           </div>
-        )}
+          {/* Activity */}
+          <div className="pt-2 border-t border-gray-800 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+            <R l="Last Login" v={asset.last_login_user} />
+            <R l="Last Seen" v={asset.last_seen_at ? timeAgo(asset.last_seen_at) : null} />
+            <R l="Login Time" v={asset.last_login_at ? new Date(asset.last_login_at).toLocaleString() : null} />
+            <R l="Host Status" v={asset.host_status} badge={asset.host_status === "normal" ? "green" : "gray"} />
+          </div>
+          {/* MDM flags — compact single line */}
+          {mdm.filevault_enabled !== undefined && (
+            <div className="pt-2 border-t border-gray-800 flex gap-3 text-[10px]">
+              <Flag l="FileVault" v={mdm.filevault_enabled} />
+              <Flag l="SIP" v={mdm.sip_enabled} />
+              <Flag l="Gatekeeper" v={mdm.gatekeeper_enabled} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-700">
         <button onClick={() => setTab("remediations")}
-          className={`pb-2 text-sm font-medium transition ${tab === "remediations" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400 hover:text-gray-300"}`}>
-          🔧 Remediations ({remediations.length})
+          className={`pb-2 text-sm font-medium transition ${tab === "remediations" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400"}`}>
+          Remediations ({remediations.length})
         </button>
         <button onClick={() => setTab("vulns")}
-          className={`pb-2 text-sm font-medium transition ${tab === "vulns" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400 hover:text-gray-300"}`}>
-          🛡️ Vulnerabilities ({vc.total})
+          className={`pb-2 text-sm font-medium transition ${tab === "vulns" ? "border-b-2 border-indigo-500 text-white" : "text-gray-400"}`}>
+          Vulnerabilities ({vc.total})
         </button>
       </div>
 
-      {/* Remediations tab */}
+      {/* Remediations */}
       {tab === "remediations" && (
         <div className="overflow-x-auto rounded-lg border border-gray-700">
           <table className="w-full text-sm text-left">
             <thead className="border-b border-gray-700 bg-gray-800 text-gray-400">
-              <tr>
-                <th className="px-4 py-3">Remediation</th>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Severity</th>
-                <th className="px-4 py-3 text-right">Vulns</th>
-              </tr>
+              <tr><th className="px-4 py-2">Remediation</th><th className="px-4 py-2">Product</th><th className="px-4 py-2">Severity</th><th className="px-4 py-2 text-right">Vulns</th></tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {(filteredRem.length > 0 ? filteredRem : remediations.length === 0 ? [] : filteredRem).map((r: any, i: number) => (
-                <tr key={i} className="bg-gray-900 hover:bg-gray-800">
-                  <td className="px-4 py-3 text-gray-200 max-w-md">{r.remediation_action || r.remediation || "No remediation info"}</td>
-                  <td className="px-4 py-3 text-gray-400">{r.product || r.affected_product || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${SEV_COLORS[r.max_severity || r.severity] || ""}`}>
-                      {r.max_severity || r.severity}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-300">{r.vuln_count || r.count || 1}</td>
+              {filteredRem.map((r: any, i: number) => (
+                <tr key={i} className="hover:bg-gray-800/50">
+                  <td className="px-4 py-2 text-gray-200 max-w-md truncate">{r.remediation_action || "—"}</td>
+                  <td className="px-4 py-2 text-gray-400 text-xs">{r.product || r.affected_product || "—"}</td>
+                  <td className="px-4 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${SEV_COLORS[r.max_severity] || ""}`}>{r.max_severity}</span></td>
+                  <td className="px-4 py-2 text-right text-gray-300">{r.vuln_count || 1}</td>
                 </tr>
               ))}
-              {remediations.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">No remediations found — data may not include remediation info</td></tr>
-              )}
+              {filteredRem.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">No remediations</td></tr>}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Vulns tab */}
+      {/* Vulnerabilities */}
       {tab === "vulns" && (
         <div className="overflow-x-auto rounded-lg border border-gray-700">
           <table className="w-full text-sm text-left">
             <thead className="border-b border-gray-700 bg-gray-800 text-gray-400">
-              <tr>
-                <th className="px-4 py-3">CVE</th>
-                <th className="px-4 py-3">Severity</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Remediation</th>
-                <th className="px-4 py-3">Exploit</th>
-                <th className="px-4 py-3">KEV</th>
-                <th className="px-4 py-3">Source</th>
-              </tr>
+              <tr><th className="px-4 py-2">CVE</th><th className="px-4 py-2">Severity</th><th className="px-4 py-2">Status</th><th className="px-4 py-2">Product</th><th className="px-4 py-2">Source</th></tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
               {filteredVulns.map((v: any) => (
-                <tr key={v.id} className="bg-gray-900 hover:bg-gray-800">
-                  <td className="px-4 py-2 font-mono text-sm">
-                    <a href={`https://nvd.nist.gov/vuln/detail/${v.cve_id}`} target="_blank" rel="noopener noreferrer"
-                      className="text-indigo-400 hover:underline">{v.cve_id}</a>
+                <tr key={v.id} className="hover:bg-gray-800/50">
+                  <td className="px-4 py-2 font-mono text-xs">
+                    <a href={`https://nvd.nist.gov/vuln/detail/${v.cve_id}`} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">{v.cve_id}</a>
+                    {v.is_exploitable && <span className="ml-1 text-yellow-400">⚡</span>}
+                    {v.is_cisa_kev && <span className="ml-1 text-red-300">KEV</span>}
                   </td>
-                  <td className="px-4 py-2">
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${SEV_COLORS[v.severity] || ""}`}>{v.severity}</span>
-                  </td>
-                  <td className="px-4 py-2 text-gray-300">{v.status}</td>
-                  <td className="px-4 py-2 text-gray-300">{v.product || v.affected_product || "—"}</td>
-                  <td className="px-4 py-2 text-gray-400 text-xs max-w-xs truncate">{v.remediation || v.remediation_action || "—"}</td>
-                  <td className="px-4 py-2">{v.is_exploitable && <span className="text-yellow-400">⚡</span>}</td>
-                  <td className="px-4 py-2">{v.is_cisa_kev && <span className="text-red-300">🚨</span>}</td>
-                  <td className="px-4 py-2"><span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300">{v.source}</span></td>
+                  <td className="px-4 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${SEV_COLORS[v.severity] || ""}`}>{v.severity}</span></td>
+                  <td className="px-4 py-2 text-gray-400 text-xs">{v.status}</td>
+                  <td className="px-4 py-2 text-gray-400 text-xs max-w-[200px] truncate">{v.product || "—"}</td>
+                  <td className="px-4 py-2"><span className="rounded bg-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300">{v.source}</span></td>
                 </tr>
               ))}
-              {filteredVulns.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No vulnerabilities match your filter</td></tr>
-              )}
+              {filteredVulns.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">No vulnerabilities</td></tr>}
             </tbody>
           </table>
         </div>
@@ -323,30 +250,29 @@ export default function AssetDetailPage() {
   );
 }
 
-function InfoRow({ label, value, mono, badge }: { label: string; value: string | null | undefined; mono?: boolean; badge?: "green" | "red" | "gray" }) {
-  if (!value) return null;
-  const badgeColors = { green: "bg-green-500/20 text-green-400", red: "bg-red-500/20 text-red-400", gray: "bg-gray-500/20 text-gray-400" };
+function R({ l, v, mono, badge, link }: { l: string; v: any; mono?: boolean; badge?: "green" | "red" | "gray"; link?: string }) {
+  if (!v) return null;
+  const badgeC = { green: "bg-green-500/20 text-green-400", red: "bg-red-500/20 text-red-400", gray: "bg-gray-500/20 text-gray-400" };
   return (
-    <div className="flex justify-between gap-4">
-      <span className="text-gray-500 shrink-0">{label}</span>
-      {badge ? (
-        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${badgeColors[badge]}`}>{value}</span>
-      ) : (
-        <span className={`text-gray-200 text-right truncate ${mono ? "font-mono text-xs" : ""}`}>{value}</span>
-      )}
+    <div className="flex justify-between gap-2">
+      <span className="text-gray-500 shrink-0">{l}</span>
+      {badge ? <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${badgeC[badge]}`}>{v}</span>
+       : link ? <a href={link} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline text-right truncate">{v}</a>
+       : <span className={`text-gray-200 text-right truncate ${mono ? "font-mono" : ""}`}>{v}</span>}
     </div>
   );
 }
 
+function Flag({ l, v }: { l: string; v: boolean | undefined }) {
+  if (v === undefined) return null;
+  return <span className={v ? "text-green-400" : "text-red-400"}>{l}: {v ? "✓" : "✗"}</span>;
+}
+
 function timeAgo(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  const diffMin = Math.floor((now - then) / 60000);
-  if (diffMin < 1) return "Just now";
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return "now";
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHrs = Math.floor(diffMin / 60);
   if (diffHrs < 24) return `${diffHrs}h ago`;
-  const diffDays = Math.floor(diffHrs / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return `${Math.floor(diffHrs / 24)}d ago`;
 }

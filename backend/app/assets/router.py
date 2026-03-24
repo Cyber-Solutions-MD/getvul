@@ -17,6 +17,50 @@ from app.vulnerabilities.models import Vulnerability
 router = APIRouter(prefix="", tags=["Assets"])
 
 
+async def _get_directory_user(db: AsyncSession, tenant_id, asset) -> dict | None:
+    """Find matching directory user for an asset by email."""
+    from app.tenants.models import User
+
+    # Try to match by humaans_email, assigned_user email, or last_login_user
+    emails_to_try = []
+    mdm = asset.mdm_details or {}
+    if mdm.get("humaans_email"):
+        emails_to_try.append(mdm["humaans_email"].lower())
+    if asset.assigned_user and "@" in asset.assigned_user:
+        emails_to_try.append(asset.assigned_user.lower())
+    if asset.last_login_user and "@" in asset.last_login_user:
+        emails_to_try.append(asset.last_login_user.lower())
+
+    if not emails_to_try:
+        return None
+
+    from sqlalchemy import or_
+
+    result = await db.execute(
+        select(User)
+        .where(
+            User.tenant_id == tenant_id,
+            or_(*[User.email == e for e in emails_to_try]),
+        )
+        .limit(1)
+    )
+    u = result.scalar_one_or_none()
+    if not u:
+        return None
+
+    return {
+        "email": u.email,
+        "display_name": u.display_name,
+        "department": u.department,
+        "job_title": u.job_title,
+        "avatar_url": u.avatar_url,
+        "groups": u.groups or [],
+        "idp_source": u.idp_source,
+        "is_active": u.is_active,
+        "role": u.role,
+    }
+
+
 @router.get("")
 async def list_assets(
     page: int = Query(1, ge=1),
@@ -251,6 +295,8 @@ async def get_asset(
         "humaans_timezone": (asset.mdm_details or {}).get("humaans_timezone"),
         # CrowdStrike
         "crowdstrike_aid": asset.crowdstrike_aid,
+        # Directory user info (from Google Workspace / Azure / Okta sync)
+        "directory_user": await _get_directory_user(db, user.tenant_id, asset),
         "is_ignored": asset.is_ignored,
         "ignored_at": asset.ignored_at.isoformat() if asset.ignored_at else None,
         "ignored_reason": asset.ignored_reason,
