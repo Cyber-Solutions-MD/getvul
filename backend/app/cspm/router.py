@@ -19,7 +19,10 @@ from app.cspm.schemas import (
 )
 from app.cspm.service import (
     bulk_update_misconfig_status,
+    get_cloud_resources,
+    get_compliance_dashboard,
     get_cspm_stats,
+    get_cspm_trends,
     get_misconfiguration,
     list_misconfigurations,
     update_misconfig_status,
@@ -63,6 +66,44 @@ async def cspm_stats(
     user: Annotated[CurrentUser, Depends(require_viewer)],
 ):
     return await get_cspm_stats(db, user.tenant_id)
+
+
+@router.get("/compliance")
+async def compliance_dashboard(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    return await get_compliance_dashboard(db, user.tenant_id)
+
+
+@router.get("/resources")
+async def cloud_resources(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+    cloud_provider: str | None = Query(None),
+    resource_type: str | None = Query(None),
+    search: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=200),
+):
+    return await get_cloud_resources(
+        db,
+        user.tenant_id,
+        cloud_provider=cloud_provider,
+        resource_type=resource_type,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/trends")
+async def cspm_trends(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+    days: int = Query(30, ge=7, le=365),
+):
+    return await get_cspm_trends(db, user.tenant_id, days=days)
 
 
 @router.get("/{finding_id}", response_model=MisconfigResponse)
