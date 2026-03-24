@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { Bell } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 
 function timeAgo(iso: string): string {
   const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -14,7 +14,7 @@ function timeAgo(iso: string): string {
   return `${Math.floor(diffHrs / 24)}d ago`;
 }
 
-export default function Header() {
+export default function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -79,8 +79,11 @@ export default function Header() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-800 bg-gray-950/80 px-6 backdrop-blur">
-      <div />
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-800 bg-gray-950/80 px-4 md:px-6 backdrop-blur">
+      <button onClick={onMenuToggle} className="rounded-lg p-1.5 text-gray-400 hover:text-white md:hidden">
+        <Menu className="h-5 w-5" />
+      </button>
+      <div className="hidden md:block" />
       <div className="relative flex items-center gap-4" ref={ref}>
         {user && (
           <>
@@ -96,7 +99,7 @@ export default function Header() {
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 top-full mt-2 w-96 rounded-xl border border-gray-700 bg-gray-900 shadow-2xl z-50 max-h-[500px] overflow-hidden">
+                <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-96 rounded-xl border border-gray-700 bg-gray-900 shadow-2xl z-50 max-h-[500px] overflow-hidden">
                   {/* Header */}
                   <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
                     <h3 className="text-sm font-semibold text-white">Notifications</h3>
@@ -145,7 +148,7 @@ export default function Header() {
             </button>
 
             {open && (
-              <div className="absolute right-0 top-14 w-80 rounded-xl border border-gray-700 bg-gray-900 shadow-2xl overflow-hidden z-50">
+              <div className="absolute right-0 top-14 w-[calc(100vw-2rem)] sm:w-80 rounded-xl border border-gray-700 bg-gray-900 shadow-2xl overflow-hidden z-50">
                 {/* Account info */}
                 <div className="border-b border-gray-800 px-5 py-4">
                   <div className="flex items-center gap-3">
