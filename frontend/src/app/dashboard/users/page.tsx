@@ -227,7 +227,7 @@ function UserRow({ user: u, isExpanded, onToggle, onAssetClick }: {
             {hasDevices && <span className="text-[10px] text-gray-600 w-3">{isExpanded ? "▼" : "▶"}</span>}
             {!hasDevices && <span className="w-3" />}
             {u.avatar_url ? (
-              <img src={u.avatar_url} alt="" className="h-7 w-7 rounded-full" />
+              <img src={u.avatar_url} alt="" className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
             ) : (
               <div className="h-7 w-7 rounded-full bg-indigo-600/50 flex items-center justify-center text-xs text-white font-bold">
                 {(u.display_name || u.email || "?")[0]?.toUpperCase()}
