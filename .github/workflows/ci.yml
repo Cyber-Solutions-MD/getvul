@@ -160,13 +160,8 @@ jobs:
           target: http://localhost:8000/openapi.json
           cmd_options: "-a"
           allow_issue_writing: false
+          artifact_name: zap-api-scan
         continue-on-error: true
-
-      - name: Rename API scan report
-        if: always()
-        run: |
-          mv report_html.html zap-api-scan.html 2>/dev/null || true
-          mv zap_scan_report.html zap-api-scan-report.html 2>/dev/null || true
 
       - name: ZAP Baseline Scan (Backend)
         uses: zaproxy/action-baseline@v0.14.0
@@ -174,12 +169,8 @@ jobs:
           target: http://localhost:8000
           cmd_options: "-a"
           allow_issue_writing: false
+          artifact_name: zap-backend-baseline
         continue-on-error: true
-
-      - name: Rename backend scan report
-        if: always()
-        run: |
-          mv report_html.html zap-backend-baseline.html 2>/dev/null || true
 
       - name: ZAP Baseline Scan (Frontend)
         uses: zaproxy/action-baseline@v0.14.0
@@ -187,20 +178,8 @@ jobs:
           target: http://localhost:3000
           cmd_options: "-a"
           allow_issue_writing: false
+          artifact_name: zap-frontend-baseline
         continue-on-error: true
-
-      - name: Rename frontend scan report
-        if: always()
-        run: |
-          mv report_html.html zap-frontend-baseline.html 2>/dev/null || true
-
-      - name: Upload ZAP reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-reports
-          path: zap-*.html
-          retention-days: 14
 
       - name: Stop application stack
         if: always()
