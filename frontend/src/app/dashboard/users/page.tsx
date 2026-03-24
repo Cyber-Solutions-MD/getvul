@@ -27,7 +27,8 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(0);
-  const [tab, setTab] = useState<"directory" | "devices" | "groups">("directory");
+  const [tab, setTab] = useState<"directory" | "groups">("directory");
+  const [expanded, setExpanded] = useState<string | null>(null);
   const pageSize = 25;
 
   const loadStats = useCallback(async () => {
@@ -96,19 +97,17 @@ export default function UsersPage() {
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-700">
-        {(["directory", "devices", "groups"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
+        {(["directory", "groups"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t as any)}
             className={`pb-2 text-sm font-medium capitalize transition ${
               tab === t ? "border-b-2 border-indigo-500 text-white" : "text-gray-400 hover:text-gray-300"
             }`}>
-            {t === "directory" ? "Directory" : t === "devices" ? "Device Owners" : "Groups"}
+            {t === "directory" ? "Users" : "Groups"}
           </button>
         ))}
       </div>
 
       {tab === "groups" && <GroupsPanel />}
-
-      {tab === "devices" && <DeviceOwnersPanel />}
 
       {tab === "directory" && (
         <>
@@ -151,64 +150,27 @@ export default function UsersPage() {
                   <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("display_name")}>
                     User{sortArrow("display_name")}
                   </th>
-                  <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("email")}>
-                    Email{sortArrow("email")}
-                  </th>
                   <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("department")}>
                     Department{sortArrow("department")}
                   </th>
-                  <th className="px-4 py-3">Job Title</th>
                   <th className="px-4 py-3">Source</th>
+                  <th className="px-4 py-3 text-center">Devices</th>
+                  <th className="px-4 py-3 text-center">Vulns</th>
+                  <th className="px-4 py-3 text-center">Crit/High</th>
+                  <th className="px-4 py-3 text-center">Risk</th>
                   <th className="px-4 py-3">Groups</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("last_login_at")}>
-                    Last Login{sortArrow("last_login_at")}
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
                 {loading ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500">Loading...</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-500">Loading...</td></tr>
                 ) : users.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500">No users found</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-500">No users found</td></tr>
                 ) : users.map(u => (
-                  <tr key={u.id} className={`transition hover:bg-gray-800 ${!u.is_active ? "opacity-50" : ""}`}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {u.avatar_url ? (
-                          <img src={u.avatar_url} alt="" className="h-7 w-7 rounded-full" />
-                        ) : (
-                          <div className="h-7 w-7 rounded-full bg-indigo-600/50 flex items-center justify-center text-xs text-white font-bold">
-                            {(u.display_name || u.email || "?")[0]?.toUpperCase()}
-                          </div>
-                        )}
-                        <span className="font-medium text-white">{u.display_name || u.email}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{u.email}</td>
-                    <td className="px-4 py-3 text-gray-300 text-xs">{u.department || "—"}</td>
-                    <td className="px-4 py-3 text-gray-400 text-xs max-w-[150px] truncate">{u.job_title || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SOURCE_COLORS[u.idp_source] || "bg-gray-700 text-gray-400"}`}>
-                        {u.idp_source}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {u.groups?.length > 0 ? (
-                        <span title={u.groups.join(", ")}>{u.groups.length} groups</span>
-                      ) : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        u.is_active ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                      }`}>
-                        {u.is_active ? "Active" : "Suspended"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {u.last_login_at ? timeAgo(u.last_login_at) : "Never"}
-                    </td>
-                  </tr>
+                  <UserRow key={u.id} user={u} isExpanded={expanded === u.id}
+                    onToggle={() => setExpanded(expanded === u.id ? null : u.id)}
+                    onAssetClick={(id) => router.push(`/dashboard/assets/${id}`)} />
                 ))}
               </tbody>
             </table>
@@ -252,108 +214,72 @@ export default function UsersPage() {
   );
 }
 
-function DeviceOwnersPanel() {
-  const router = useRouter();
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [pages, setPages] = useState(0);
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const p = new URLSearchParams({ page: String(page), page_size: "25", sort_by: "risk_score", sort_dir: "desc" });
-      if (search) p.set("search", search);
-      const data = await api(`/api/v1/users?${p}`);
-      setUsers(data.items || []);
-      setTotal(data.total || 0);
-      setPages(data.pages || 0);
-    } catch {} finally { setLoading(false); }
-  }, [page, search]);
-
-  useEffect(() => { load(); }, [load]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <input type="text" placeholder="Search by name, email, or hostname..."
-          value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-          className="w-72 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-        <span className="ml-auto text-sm text-gray-500">{total} users with devices</span>
-      </div>
-
-      <div className="overflow-x-auto rounded-lg border border-gray-700">
-        <table className="w-full text-sm text-left">
-          <thead className="border-b border-gray-700 bg-gray-800 text-gray-400">
-            <tr>
-              <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3 text-center">Devices</th>
-              <th className="px-4 py-3 text-center">Vulns</th>
-              <th className="px-4 py-3 text-center">Crit / High</th>
-              <th className="px-4 py-3 text-center">Risk</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-700">
-            {loading ? (
-              <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500">Loading...</td></tr>
-            ) : users.map(u => (
-              <DeviceOwnerRow key={u.user_key} user={u} expanded={expanded === u.user_key}
-                onToggle={() => setExpanded(expanded === u.user_key ? null : u.user_key)}
-                onAssetClick={(id: string) => router.push(`/dashboard/assets/${id}`)} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {pages > 1 && (
-        <div className="flex items-center justify-between">
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-            className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40">Previous</button>
-          <span className="text-sm text-gray-500">Page {page} of {pages}</span>
-          <button disabled={page >= pages} onClick={() => setPage(p => p + 1)}
-            className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40">Next</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DeviceOwnerRow({ user: u, expanded, onToggle, onAssetClick }: {
-  user: any; expanded: boolean; onToggle: () => void; onAssetClick: (id: string) => void;
+function UserRow({ user: u, isExpanded, onToggle, onAssetClick }: {
+  user: any; isExpanded: boolean; onToggle: () => void; onAssetClick: (id: string) => void;
 }) {
+  const hasDevices = u.device_count > 0;
   return (
     <>
-      <tr className="bg-gray-900 hover:bg-gray-800 cursor-pointer" onClick={onToggle}>
+      <tr className={`transition cursor-pointer ${!u.is_active ? "opacity-50" : "hover:bg-gray-800"}`}
+        onClick={hasDevices ? onToggle : undefined}>
         <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600">{expanded ? "▼" : "▶"}</span>
-            <div>
-              <p className="font-medium text-white">{u.name}</p>
-              {u.job_title && <p className="text-xs text-gray-500">{u.job_title}</p>}
+          <div className="flex items-center gap-2.5">
+            {hasDevices && <span className="text-[10px] text-gray-600 w-3">{isExpanded ? "▼" : "▶"}</span>}
+            {!hasDevices && <span className="w-3" />}
+            {u.avatar_url ? (
+              <img src={u.avatar_url} alt="" className="h-7 w-7 rounded-full" />
+            ) : (
+              <div className="h-7 w-7 rounded-full bg-indigo-600/50 flex items-center justify-center text-xs text-white font-bold">
+                {(u.display_name || u.email || "?")[0]?.toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="font-medium text-white truncate">{u.display_name || u.email}</p>
+              <p className="text-[11px] text-gray-500 truncate">{u.email}{u.job_title ? ` · ${u.job_title}` : ""}</p>
             </div>
           </div>
         </td>
-        <td className="px-4 py-3 text-gray-400 text-xs">{u.email || "—"}</td>
-        <td className="px-4 py-3 text-center text-gray-300">{u.device_count}</td>
-        <td className="px-4 py-3 text-center text-gray-300">{u.total_vulns}</td>
+        <td className="px-4 py-3 text-gray-300 text-xs">{u.department || "—"}</td>
+        <td className="px-4 py-3">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SOURCE_COLORS[u.idp_source] || "bg-gray-700 text-gray-400"}`}>
+            {u.idp_source}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-center text-gray-300">{u.device_count || "—"}</td>
+        <td className="px-4 py-3 text-center text-gray-300">{u.total_vulns || "—"}</td>
         <td className="px-4 py-3 text-center">
-          <span className="text-red-400">{u.critical_vulns}</span>
-          <span className="text-gray-600"> / </span>
-          <span className="text-orange-400">{u.high_vulns}</span>
+          {u.total_vulns > 0 ? (
+            <>
+              <span className="text-red-400">{u.critical_vulns}</span>
+              <span className="text-gray-600"> / </span>
+              <span className="text-orange-400">{u.high_vulns}</span>
+            </>
+          ) : <span className="text-gray-600">—</span>}
         </td>
         <td className="px-4 py-3 text-center">
-          <span className={`inline-block w-10 rounded border px-1.5 py-0.5 text-center text-xs font-bold ${riskBg(u.max_risk_score)} ${riskColor(u.max_risk_score)}`}>
-            {u.max_risk_score}
+          {u.max_risk_score > 0 ? (
+            <span className={`inline-block w-10 rounded border px-1.5 py-0.5 text-center text-xs font-bold ${riskBg(u.max_risk_score)} ${riskColor(u.max_risk_score)}`}>
+              {u.max_risk_score}
+            </span>
+          ) : <span className="text-gray-600">—</span>}
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-500">
+          {u.groups?.length > 0 ? (
+            <span title={u.groups.join(", ")}>{u.groups.length}</span>
+          ) : "—"}
+        </td>
+        <td className="px-4 py-3">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            u.is_active ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+          }`}>
+            {u.is_active ? "Active" : "Suspended"}
           </span>
         </td>
       </tr>
-      {expanded && (
+      {isExpanded && hasDevices && (
         <tr className="bg-gray-950">
-          <td colSpan={6} className="px-6 py-4">
+          <td colSpan={9} className="px-6 py-4">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Devices ({u.device_count})</p>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {u.devices.map((d: any) => (
                 <div key={d.id} onClick={e => { e.stopPropagation(); onAssetClick(d.id); }}
@@ -361,8 +287,12 @@ function DeviceOwnerRow({ user: u, expanded, onToggle, onAssetClick }: {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-white truncate">{d.hostname}</p>
                     <p className="text-xs text-gray-500">{d.os_name} {d.serial_number && `· ${d.serial_number}`}</p>
+                    {d.model && <p className="text-xs text-gray-600 truncate">{d.model}</p>}
                   </div>
-                  <span className={`text-xs font-bold ${riskColor(d.risk_score)}`}>{d.risk_score}</span>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    {d.host_status && <span className={`h-2 w-2 rounded-full ${d.host_status === "normal" ? "bg-green-400" : "bg-gray-500"}`} />}
+                    <span className={`text-xs font-bold ${riskColor(d.risk_score)}`}>{d.risk_score}</span>
+                  </div>
                 </div>
               ))}
             </div>

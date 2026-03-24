@@ -309,8 +309,82 @@ async def list_directory_users(
     query = query.offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(query)).scalars().all()
 
+    # Enrich with device/vuln data by matching email → assigned_user or humaans_email
+    emails = [u.email for u in rows if u.email]
+    device_map: dict[str, list] = {e: [] for e in emails}
+    vuln_map: dict[str, dict] = {}
+
+    if emails:
+        # Find assets linked to these users (by assigned_user, last_login_user, or humaans_email)
+        asset_q = select(Asset).where(
+            Asset.tenant_id == user.tenant_id,
+            or_(
+                func.lower(Asset.assigned_user).in_([e.lower() for e in emails]),
+                func.lower(Asset.last_login_user).in_([e.lower() for e in emails]),
+                func.lower(Asset.mdm_details["humaans_email"].astext).in_([e.lower() for e in emails]),
+            ),
+        )
+        assets = (await db.execute(asset_q)).scalars().all()
+
+        for a in assets:
+            # Match to user email
+            match_email = None
+            for e in emails:
+                el = e.lower()
+                if (
+                    (a.assigned_user or "").lower() == el
+                    or (a.last_login_user or "").lower() == el
+                    or ((a.mdm_details or {}).get("humaans_email") or "").lower() == el
+                ):
+                    match_email = e
+                    break
+            if not match_email:
+                continue
+
+            device_map.setdefault(match_email, []).append(
+                {
+                    "id": str(a.id),
+                    "hostname": a.hostname,
+                    "os_name": a.os_name,
+                    "device_category": a.device_category or "OTHER",
+                    "risk_score": a.risk_score or 0,
+                    "model": a.model,
+                    "serial_number": a.serial_number,
+                    "host_status": a.host_status,
+                    "last_seen_at": a.last_seen_at.isoformat() if a.last_seen_at else None,
+                }
+            )
+
+        # Vuln counts per user's assets
+        for email_key, devices in device_map.items():
+            if not devices:
+                continue
+            asset_ids = [d["id"] for d in devices]
+            vc = (
+                await db.execute(
+                    select(
+                        func.count().label("total"),
+                        func.count().filter(Vulnerability.severity == "CRITICAL").label("critical"),
+                        func.count().filter(Vulnerability.severity == "HIGH").label("high"),
+                        func.count().filter(Vulnerability.exploit_available.is_(True)).label("exploitable"),
+                    ).where(
+                        Vulnerability.asset_id.in_(asset_ids),
+                        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                    )
+                )
+            ).one()
+            vuln_map[email_key] = {
+                "total_vulns": vc.total,
+                "critical_vulns": vc.critical,
+                "high_vulns": vc.high,
+                "exploitable_vulns": vc.exploitable,
+            }
+
     items = []
     for u in rows:
+        devices = device_map.get(u.email, [])
+        vulns = vuln_map.get(u.email, {})
+        max_risk = max((d["risk_score"] for d in devices), default=0)
         items.append(
             {
                 "id": str(u.id),
@@ -324,6 +398,13 @@ async def list_directory_users(
                 "groups": u.groups or [],
                 "avatar_url": u.avatar_url,
                 "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+                "device_count": len(devices),
+                "devices": devices,
+                "max_risk_score": max_risk,
+                "total_vulns": vulns.get("total_vulns", 0),
+                "critical_vulns": vulns.get("critical_vulns", 0),
+                "high_vulns": vulns.get("high_vulns", 0),
+                "exploitable_vulns": vulns.get("exploitable_vulns", 0),
             }
         )
 
