@@ -20,7 +20,7 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob:",
+              "img-src 'self' data: blob: https://lh3.googleusercontent.com https://lh3.google.com https://*.googleusercontent.com",
               "font-src 'self' data:",
               "connect-src 'self' http://localhost:8000 https://*.getvul.app",
               "frame-ancestors 'none'",
