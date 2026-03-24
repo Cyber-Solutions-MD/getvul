@@ -1,1 +1,1 @@
-# Outputs will be added as modules are built
+# See infra/gcp/outputs.tf for Google Cloud outputs

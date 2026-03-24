@@ -1,0 +1,75 @@
+name: CD — Deploy to GCE
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force deploy (skip CI check)"
+        type: boolean
+        default: false
+
+env:
+  VM_HOST: ${{ secrets.GCE_VM_IP }}
+  VM_USER: deploy
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCE_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy to VM
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << 'DEPLOY'
+            set -e
+            cd /opt/getvul
+
+            echo "=== Deploying GetVul $(date) ==="
+
+            # Pull latest code
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Rebuild and restart
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Wait for health
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "Health check passed!"
+                break
+              fi
+              echo "  waiting... ($i/30)"
+              sleep 5
+            done
+
+            # Verify
+            curl -sf http://localhost:8000/health || exit 1
+
+            # Cleanup
+            docker image prune -f
+
+            echo "=== Deploy complete $(date) ==="
+          DEPLOY
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+          STATUS=$(curl -sf http://${{ env.VM_HOST }}/health | grep -o '"status":"ok"' || echo "FAILED")
+          if [ "$STATUS" = '"status":"ok"' ]; then
+            echo "✅ Deployment verified — app is healthy"
+          else
+            echo "❌ Deployment verification failed"
+            exit 1
+          fi

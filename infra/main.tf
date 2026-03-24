@@ -1,17 +1,14 @@
-# GetVul Infrastructure — placeholder
-# Modules will be added in Phase 1, Step 3
+# GetVul Infrastructure
+#
+# Primary deployment: Google Cloud (see infra/gcp/)
+# This file is kept for Terraform CI validation.
+#
+# Usage:
+#   cd infra/gcp
+#   terraform init
+#   terraform plan -var="project_id=YOUR_PROJECT" -var="ssh_public_key=YOUR_KEY"
+#   terraform apply
 
 terraform {
   required_version = ">= 1.7"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
 }
