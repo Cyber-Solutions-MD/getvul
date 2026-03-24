@@ -66,7 +66,6 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Users</h1>
-        <ExportButton resource="users" />
       </div>
 
       {/* Stats */}
@@ -141,6 +140,7 @@ export default function UsersPage() {
             )}
 
             <span className="ml-auto text-sm text-gray-500">{total} users</span>
+            <ExportButton resource="users" />
           </div>
 
           {/* Table */}
