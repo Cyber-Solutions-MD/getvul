@@ -90,8 +90,8 @@ resource "google_compute_instance" "getvul" {
   }
 
   metadata = {
-    ssh-keys                = "${var.ssh_user}:${var.ssh_public_key}"
-    google-logging-enabled  = "true"
+    ssh-keys                  = "${var.ssh_user}:${var.ssh_public_key}"
+    google-logging-enabled    = "true"
     google-monitoring-enabled = "true"
   }
 
