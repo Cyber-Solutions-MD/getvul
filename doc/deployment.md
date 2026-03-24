@@ -1,254 +1,426 @@
-# Deployment and Configuration
+# Deployment Guide
+
+GetVul runs as five Docker Compose services on a single VM. This guide covers local development and production deployment on GCP, AWS, and Azure.
+
+## Prerequisites
+
+- Docker and Docker Compose v2
+- Terraform >= 1.7
+- Git access to the repository
+- Domain name (optional, for TLS with Let's Encrypt)
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  Single VM (2 vCPU, 4 GB RAM, 30 GB SSD)   │
+│                                             │
+│  ┌─────────┐   ┌──────────┐   ┌─────────┐  │
+│  │  nginx   │──>│ backend  │   │ frontend│  │
+│  │  :80/443 │   │  :8000   │   │  :3000  │  │
+│  └─────────┘   └──────────┘   └─────────┘  │
+│                  │       │                  │
+│           ┌──────┘       └──────┐           │
+│           v                     v           │
+│  ┌──────────────┐      ┌─────────────┐      │
+│  │  postgres     │      │    redis    │      │
+│  │  :5432        │      │    :6379    │      │
+│  └──────────────┘      └─────────────┘      │
+└─────────────────────────────────────────────┘
+```
+
+- **nginx** -- Reverse proxy with TLS termination, security headers, rate limiting
+- **backend** -- FastAPI application server, runs Alembic migrations on startup
+- **frontend** -- Next.js 15 with React 19
+- **postgres** -- PostgreSQL 16, data persisted via Docker volume
+- **redis** -- Redis 7 for rate limiting and caching
+
+Daily auto-update from GitHub checks for new commits at 3:00 AM UTC, rebuilds containers, and restarts. TLS is provided via a self-signed certificate generated on first boot, with options for custom certs or Let's Encrypt.
+
+---
 
 ## Local Development
 
-### Prerequisites
-- Docker and Docker Compose
-
-### Quick Start
 ```bash
 git clone <repo-url> && cd getvul
-cp .env.example .env  # Edit with your secrets
-docker compose up --build
+cp .env.example .env   # Edit with your secrets
+docker compose up -d --build
 ```
 
-### Services (5 total)
-| Service | Port | Description |
-|---------|------|-------------|
-| nginx | 80, 443 | Reverse proxy with TLS termination |
-| backend | 8000 | FastAPI API server |
-| frontend | 3000 | Next.js application |
-| postgres | 5432 | PostgreSQL 16 database |
-| redis | 6379 | Redis 7 cache |
-
 ### Access
-- **HTTPS:** `https://localhost` (self-signed cert auto-generated)
-- **HTTP:** `http://localhost` (redirects to HTTPS)
-- **API docs:** `http://localhost:8000/docs`
-- **Direct frontend:** `http://localhost:3000`
 
-## Docker Compose Services
+| Endpoint | URL |
+|----------|-----|
+| Application (HTTPS) | `https://localhost` |
+| Application (HTTP, redirects) | `http://localhost` |
+| Frontend direct | `http://localhost:3000` |
+| Backend API | `http://localhost:8000` |
+| API docs (Swagger) | `http://localhost:8000/docs` |
 
-### nginx
-- Image: nginx:alpine
-- Custom entrypoint generates self-signed cert if none exists
-- TLS 1.2/1.3 with modern cipher suites
-- Security headers on all responses
-- Rate limiting: configurable per endpoint type
-- H2C smuggling protection
-- Proxies `/api` and `/auth` to backend, everything else to frontend
+Hot reload is enabled for both backend (Uvicorn `--reload`) and frontend (Next.js dev server with volume mount).
 
-### backend
-- Built from `backend/Dockerfile`
-- Runs Alembic migrations on startup (`alembic upgrade head`)
-- Uvicorn with `--reload` for development
-- Mounts `./nginx/certs` for certificate management
-- APScheduler background jobs for connector sync, ticket automation, daily snapshots
+---
 
-### frontend
-- Built from `frontend/Dockerfile`
-- Next.js 15 with React 19
-- Hot reload via volume mount in development
+## Google Cloud Platform (GCP)
 
-### postgres
-- Image: postgres:16-alpine
-- Data persisted via Docker volume
-- JSONB columns for flexible metadata
+### Prerequisites
 
-### redis
-- Image: redis:7-alpine
-- Used for rate limiting and caching
+- GCP project with billing enabled
+- `gcloud` CLI installed and authenticated (`gcloud auth application-default login`)
+- SSH key pair (`~/.ssh/id_rsa` / `~/.ssh/id_rsa.pub`)
+
+### Deploy
+
+```bash
+cd infra/gcp
+terraform init
+terraform plan \
+  -var="project_id=YOUR_PROJECT_ID" \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)"
+terraform apply \
+  -var="project_id=YOUR_PROJECT_ID" \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)"
+```
+
+### What it creates
+
+| Resource | Details |
+|----------|---------|
+| GCE VM | e2-medium (2 vCPU, 4 GB RAM), 30 GB SSD, Container-Optimized OS |
+| Static external IP | `google_compute_address` |
+| Firewall (web) | Ports 80 and 443 open to 0.0.0.0/0 |
+| Firewall (SSH) | Port 22, restricted to `ssh_allowed_cidrs` |
+| Service account | Dedicated SA with `cloud-platform` scope |
+| Auto-update cron | Daily at 3:00 AM UTC |
+
+### Terraform variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `project_id` | (required) | GCP project ID |
+| `region` | `us-central1` | GCP region |
+| `zone` | `us-central1-a` | GCP zone |
+| `machine_type` | `e2-medium` | VM size |
+| `disk_size_gb` | `30` | Boot disk size |
+| `ssh_user` | `getvul` | SSH username |
+| `ssh_public_key` | (required) | SSH public key |
+| `ssh_allowed_cidrs` | `["0.0.0.0/0"]` | Restrict SSH source IPs |
+| `github_repo` | (repo default) | GitHub repository (owner/repo) |
+| `deploy_key` | `""` | SSH deploy key for private repos |
+
+### Post-deploy
+
+```bash
+# SSH into the VM
+ssh user@$(terraform output -raw ip_address)
+
+# View the application
+open https://$(terraform output -raw ip_address)
+
+# View logs
+docker compose -f /opt/getvul/docker-compose.yml logs -f
+
+# Trigger a manual update
+sudo /usr/local/bin/getvul-update
+```
+
+---
+
+## Amazon Web Services (AWS)
+
+### Prerequisites
+
+- AWS account with credentials configured (`aws configure` or environment variables)
+- SSH key pair (`~/.ssh/id_rsa` / `~/.ssh/id_rsa.pub`)
+
+### Deploy
+
+```bash
+cd infra/aws
+terraform init
+terraform plan \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)"
+terraform apply \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)"
+```
+
+### What it creates
+
+| Resource | Details |
+|----------|---------|
+| EC2 instance | t3.medium (2 vCPU, 4 GB RAM), 30 GB gp3, Ubuntu 22.04 LTS |
+| Elastic IP | `aws_eip` attached to the instance |
+| Security group | Ports 80, 443 open to 0.0.0.0/0; port 22 restricted to `ssh_allowed_cidrs` |
+| Key pair | Created from provided SSH public key |
+| Auto-update cron | Daily at 3:00 AM UTC |
+
+Uses the default VPC and first available subnet.
+
+### Terraform variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `region` | `eu-west-1` | AWS region |
+| `instance_type` | `t3.medium` | EC2 instance type |
+| `disk_size_gb` | `30` | Root EBS volume size |
+| `ssh_public_key` | (required) | SSH public key |
+| `ssh_allowed_cidrs` | `["0.0.0.0/0"]` | Restrict SSH source IPs |
+| `github_repo` | (repo default) | GitHub repository (owner/repo) |
+| `deploy_key` | `""` | SSH deploy key for private repos |
+
+### Post-deploy
+
+```bash
+# SSH into the instance
+ssh ubuntu@$(terraform output -raw ip_address)
+
+# View the application
+open https://$(terraform output -raw ip_address)
+
+# View logs
+docker compose -f /opt/getvul/docker-compose.yml logs -f
+
+# Trigger a manual update
+sudo /usr/local/bin/getvul-update
+```
+
+---
+
+## Microsoft Azure
+
+### Prerequisites
+
+- Azure subscription
+- `az` CLI installed and authenticated (`az login`)
+- SSH key pair (`~/.ssh/id_rsa` / `~/.ssh/id_rsa.pub`)
+
+### Deploy
+
+```bash
+cd infra/azure
+terraform init
+terraform plan \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)"
+terraform apply \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)"
+```
+
+### What it creates
+
+| Resource | Details |
+|----------|---------|
+| Resource group | `getvul-rg` |
+| Virtual network | `getvul-vnet` (10.0.0.0/16) with subnet (10.0.1.0/24) |
+| Linux VM | Standard_B2s (2 vCPU, 4 GB RAM), 30 GB Premium SSD, Ubuntu 22.04 LTS |
+| Public IP | Static, Standard SKU |
+| NSG | Ports 80, 443 open; port 22 restricted to `ssh_allowed_cidrs` |
+| NIC | With NSG association |
+| Auto-update cron | Daily at 3:00 AM UTC |
+
+### Terraform variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `location` | `westeurope` | Azure region |
+| `vm_size` | `Standard_B2s` | VM size |
+| `disk_size_gb` | `30` | OS disk size |
+| `admin_username` | `getvul` | VM admin username |
+| `ssh_public_key` | (required) | SSH public key |
+| `ssh_allowed_cidrs` | `["0.0.0.0/0"]` | Restrict SSH source IPs |
+| `github_repo` | (repo default) | GitHub repository (owner/repo) |
+| `deploy_key` | `""` | SSH deploy key for private repos |
+
+### Post-deploy
+
+```bash
+# SSH into the VM
+ssh getvul@$(terraform output -raw ip_address)
+
+# View the application
+open https://$(terraform output -raw ip_address)
+
+# View logs
+docker compose -f /opt/getvul/docker-compose.yml logs -f
+
+# Trigger a manual update
+sudo /usr/local/bin/getvul-update
+```
+
+---
 
 ## Environment Variables
 
 ### Required
+
 | Variable | Description | Example |
 |----------|-------------|---------|
-| DATABASE_URL | PostgreSQL connection string | `postgresql+asyncpg://user:pass@postgres:5432/getvul` |
-| REDIS_URL | Redis connection string | `redis://redis:6379/0` |
-| JWT_SECRET_KEY | Secret for signing JWTs | (random 64-char string) |
-| ENCRYPTION_KEY | Fernet key for encrypting credentials | (use `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`) |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://user:pass@postgres:5432/getvul` |
+| `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
+| `JWT_SECRET_KEY` | Secret for signing JWTs (64+ random characters) | (generate with `openssl rand -hex 32`) |
+| `ENCRYPTION_KEY` | Fernet key for encrypting stored credentials | (generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`) |
 
 ### Optional
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| ENVIRONMENT | development | `development` or `production` |
-| DEBUG | true | Enable debug mode |
-| JWT_ACCESS_TOKEN_EXPIRE_MINUTES | 15 | Access token lifetime |
-| JWT_REFRESH_TOKEN_EXPIRE_DAYS | 7 | Refresh token lifetime |
-| GOOGLE_CLIENT_ID | | Google OIDC client ID |
-| GOOGLE_CLIENT_SECRET | | Google OIDC client secret |
-| AZURE_CLIENT_ID | | Azure OIDC client ID |
-| AZURE_CLIENT_SECRET | | Azure OIDC client secret |
-| AZURE_TENANT_ID | | Azure AD tenant ID |
-| CORS_ORIGINS | `["http://localhost:3000"]` | Allowed CORS origins |
-| RATE_LIMIT_REQUESTS | 200 | Max requests per window |
-| RATE_LIMIT_WINDOW_SECONDS | 60 | Rate limit window |
+| `ENVIRONMENT` | `development` | Set to `production` for production deployments |
+| `DEBUG` | `true` | Set to `false` in production |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
+| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
+| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins (JSON array) |
+| `RATE_LIMIT_REQUESTS` | `200` | Max requests per rate limit window |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate limit window in seconds |
 
-## TLS Certificate Management
+### SMTP (for email and scheduled reports)
 
-### Via UI (Settings, then TLS Certificate)
-1. **Upload custom cert:** Paste PEM certificate + private key
-2. **Generate self-signed:** Enter hostname, auto-generates with OpenSSL
-3. **Remove:** Delete installed cert
+| Variable | Description |
+|----------|-------------|
+| SMTP host | Mail server hostname |
+| SMTP port | Mail server port (587 for STARTTLS, 465 for SSL) |
+| SMTP username | Authentication username |
+| SMTP password | Authentication password |
+| SMTP TLS | Enable TLS (toggle) |
+| Sender email | From address for outgoing emails |
 
-### Via command line
+Configure these in **Settings > SMTP** within the application.
+
+### SSO / OIDC
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Google OIDC client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OIDC client secret |
+| `AZURE_CLIENT_ID` | Azure AD OIDC client ID |
+| `AZURE_CLIENT_SECRET` | Azure AD OIDC client secret |
+| `AZURE_TENANT_ID` | Azure AD tenant ID |
+
+---
+
+## TLS / SSL Certificates
+
+### Self-signed (default)
+
+A self-signed certificate is generated automatically on first boot by the nginx entrypoint. No action required. Browsers will show a security warning.
+
+### Custom certificate (via UI)
+
+1. Go to **Settings > General > TLS Certificate**
+2. Paste the PEM-encoded certificate chain and private key
+3. Nginx reloads automatically
+
+### Let's Encrypt (manual)
+
 ```bash
-# Let's Encrypt
-certbot certonly --webroot -w ./certbot-webroot -d your-org.example.com
-cp /etc/letsencrypt/live/your-org.example.com/fullchain.pem nginx/certs/server.crt
-cp /etc/letsencrypt/live/your-org.example.com/privkey.pem nginx/certs/server.key
-docker compose restart nginx
+# Install certbot on the VM
+sudo apt install certbot
 
-# Any CA-signed certificate
-# Export cert chain as PEM, copy to nginx/certs/
-cp your-cert.pem nginx/certs/server.crt
-cp your-key.pem nginx/certs/server.key
-docker compose restart nginx
+# Obtain certificate
+sudo certbot certonly --webroot -w /opt/getvul/certbot-webroot -d your-domain.example.com
+
+# Copy to nginx cert directory
+sudo cp /etc/letsencrypt/live/your-domain.example.com/fullchain.pem /opt/getvul/nginx/certs/server.crt
+sudo cp /etc/letsencrypt/live/your-domain.example.com/privkey.pem /opt/getvul/nginx/certs/server.key
+
+# Restart nginx
+docker compose -f /opt/getvul/docker-compose.yml restart nginx
 ```
 
-## Database Migrations
+### Any CA-signed certificate
 
 ```bash
-# Apply all migrations
+cp your-cert-chain.pem /opt/getvul/nginx/certs/server.crt
+cp your-private-key.pem /opt/getvul/nginx/certs/server.key
+docker compose -f /opt/getvul/docker-compose.yml restart nginx
+```
+
+---
+
+## Database
+
+- **Engine:** PostgreSQL 16 running in Docker (`postgres:16-alpine`)
+- **Persistence:** Docker named volume (survives container restarts)
+- **Migrations:** Alembic runs `upgrade head` automatically on backend startup
+- **Total migrations:** 22 (from initial schema through notifications)
+
+### Backup
+
+```bash
+# Dump the database
+docker compose -f /opt/getvul/docker-compose.yml exec postgres \
+  pg_dump -U getvul getvul > backup_$(date +%Y%m%d).sql
+
+# Restore from backup
+docker compose -f /opt/getvul/docker-compose.yml exec -T postgres \
+  psql -U getvul getvul < backup_20260101.sql
+```
+
+### Manual migration commands
+
+```bash
+# Apply all pending migrations
 docker compose exec backend alembic upgrade head
-
-# Current migrations (22):
-# 001 Initial schema
-# 002 Misconfigurations (CSPM)
-# 003 Widen credentials column
-# 004 Remediation fields
-# 005 Device category + Jamf
-# 006 CrowdStrike device fields
-# 007 Ticket rule schedule
-# 008 Saved filters
-# 009 Link rules to filters
-# 010 Vulnerability file paths
-# 011 Password authentication
-# 012 User groups
-# 013 Audit log
-# 014 Syslog config
-# 015 Tenant timezone
-# 016 Password policy
-# 017 Scheduled reports
-# 018 SMTP config
-# 019 Asset ignored flag
-# 020 SLA tracking
-# 021 Daily snapshots
-# 022 Notifications table
-
-# Create a new migration
-docker compose exec backend alembic revision --autogenerate -m "description"
 
 # Rollback one migration
 docker compose exec backend alembic downgrade -1
+
+# Create a new migration
+docker compose exec backend alembic revision --autogenerate -m "description"
 ```
 
-## Background Scheduler
+---
 
-The backend runs APScheduler background tasks that:
-1. Check all enabled connectors every 60 seconds, trigger sync when interval has elapsed
-2. Run ticket automation rules on their configured schedules
-3. Execute daily status sync for open tickets (check external providers, post progress, auto-close)
-4. Generate daily metric snapshots for trend analytics
-5. Send scheduled reports via SMTP
-6. Run alert engine checks (new critical vulns, SLA breaches, sync failures, risk spikes)
+## Auto-Update System
 
-## SMTP Configuration
+A cron job installed by the startup script runs daily at **3:00 AM UTC**:
 
-Configure email delivery for scheduled reports in Settings:
-- SMTP host and port
-- Authentication (username/password)
-- TLS toggle
-- Sender email address
-- Test connection and test email buttons available
+1. Checks the GitHub repository for new commits on the default branch
+2. Pulls the latest code to `/opt/getvul`
+3. Rebuilds Docker images and restarts containers (`docker compose up -d --build`)
+4. Runs a health check against the backend API
+5. Logs all activity to `/var/log/getvul-update.log`
 
-## CI/CD Pipeline (5 Jobs)
-
-| Job | Description |
-|-----|-------------|
-| **Backend** | ruff lint + format, mypy type check, alembic migrations, pytest with coverage |
-| **Frontend** | npm install, lint, type check (tsc), production build |
-| **Terraform** | fmt check, init, validate |
-| **Semgrep SAST** | p/default + p/owasp-top-ten + p/secrets + p/dockerfile (published to semgrep.dev) |
-| **OWASP ZAP DAST** | API scan (OpenAPI), baseline scan (backend), baseline scan (frontend) |
-
-## GCP Deployment
-
-GetVul includes Terraform configuration for deploying to Google Cloud Platform on a single GCE VM running Docker Compose.
-
-### Infrastructure (Terraform)
-
-Located in `infra/gcp/`:
-
-| Resource | Description |
-|----------|-------------|
-| `google_compute_address` | Static external IP for the VM |
-| `google_compute_firewall` (web) | Allow HTTP (80) and HTTPS (443) from all sources |
-| `google_compute_firewall` (ssh) | Allow SSH (22) from restricted CIDRs |
-| `google_service_account` | Dedicated service account for the VM |
-| `google_compute_instance` | GCE VM running Container-Optimized OS (COS) |
-
-### Provisioning
+### Manual trigger
 
 ```bash
-cd infra/gcp
-cp terraform.tfvars.example terraform.tfvars  # Edit with your values
-terraform init
-terraform plan
-terraform apply
+sudo /usr/local/bin/getvul-update
 ```
 
-Key variables:
-- `project_id` -- GCP project ID
-- `region` / `zone` -- deployment region (e.g., us-central1-a)
-- `machine_type` -- VM size (e.g., e2-medium)
-- `disk_size_gb` -- boot disk size
-- `ssh_user` / `ssh_public_key` -- SSH access credentials
-- `ssh_allowed_cidrs` -- restrict SSH source IPs
-- `github_repo` -- repository for the startup script to clone
-- `deploy_key` -- deploy key for private repo access
+### View update logs
 
-### Startup Script
+```bash
+sudo tail -f /var/log/getvul-update.log
+```
 
-The VM startup script (`infra/gcp/startup.sh`) runs on first boot:
-1. Installs Docker and Docker Compose plugin (if not on COS)
-2. Clones the repository to `/opt/getvul`
-3. Creates a template `.env` file (must be edited with real secrets)
-4. Starts all services with `docker compose up -d --build`
-5. Installs the auto-update cron job
+---
 
-### Auto-Update
+## CI/CD Pipeline
 
-A daily cron job runs at 3:00 AM UTC:
-- Checks the GitHub repository for new releases/commits
-- Pulls the latest code
-- Rebuilds and restarts Docker Compose services
-- Logs all activity to `/var/log/getvul-update.log`
+The repository includes a GitHub Actions workflow with five jobs, triggered on push/PR to `main` or manually via `workflow_dispatch`.
 
-### CI Docker Compose (`docker-compose.ci.yml`)
+| Job | What it does |
+|-----|-------------|
+| **Backend** | ruff lint + format, mypy type check, Alembic migrations, pytest with coverage |
+| **Frontend** | npm install, ESLint, TypeScript type check (`tsc`), production build |
+| **Terraform Validate** | `terraform fmt -check`, `terraform init`, `terraform validate` |
+| **Semgrep SAST** | Static analysis with p/default, p/owasp-top-ten, p/secrets, p/dockerfile rulesets |
+| **OWASP ZAP DAST** | API scan (OpenAPI spec), baseline scan against backend and frontend |
 
-A separate Compose file used by the OWASP ZAP DAST job in CI:
-- Starts the full stack (backend, frontend, postgres, redis, nginx)
-- Runs ZAP scans against the live application
-- Used only in CI/CD pipelines, not for production
+---
 
 ## Production Checklist
 
-- [ ] Set `JWT_SECRET_KEY` to a strong random value (64+ characters)
-- [ ] Generate unique `ENCRYPTION_KEY` with Fernet
-- [ ] Set `ENVIRONMENT=production`, `DEBUG=false`
-- [ ] Install proper TLS certificate (Let's Encrypt or CA-signed)
-- [ ] Configure `CORS_ORIGINS` for production domain
-- [ ] Set up Google/Azure OIDC credentials for SSO
-- [ ] Enable SSO enforcement for the organization
-- [ ] Configure password policy (complexity + history)
+- [ ] Generate and set a strong `JWT_SECRET_KEY` (`openssl rand -hex 32`)
+- [ ] Generate and set a unique `ENCRYPTION_KEY` (Fernet key)
+- [ ] Set `ENVIRONMENT=production` and `DEBUG=false`
+- [ ] Configure SMTP for email delivery (scheduled reports, notifications)
+- [ ] Install a proper TLS certificate (Let's Encrypt or CA-signed)
+- [ ] Restrict `ssh_allowed_cidrs` to known IP ranges
+- [ ] Configure `CORS_ORIGINS` for your production domain
+- [ ] Set up Google and/or Azure OIDC credentials for SSO
+- [ ] Create the initial admin user
+- [ ] Configure at least one vulnerability connector
 - [ ] Set SLA policy per severity level
-- [ ] Configure syslog forwarding to SIEM
-- [ ] Configure SMTP for scheduled report delivery
-- [ ] Review and restrict database network access
-- [ ] Enable automated backups for PostgreSQL
-- [ ] Set up monitoring and alerting for connector sync failures
+- [ ] Configure syslog forwarding to your SIEM
+- [ ] Verify database backup strategy
 - [ ] Review rate limiting configuration
-- [ ] Run Semgrep scan before deploying
-- [ ] Configure pre-commit hook for developer workstations
+- [ ] Run the CI pipeline (Semgrep + ZAP) before going live
