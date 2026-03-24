@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { Bell, Menu } from "lucide-react";
+import { Bell, Menu, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/lib/theme";
 
 function timeAgo(iso: string): string {
   const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -16,6 +17,7 @@ function timeAgo(iso: string): string {
 
 export default function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const { user, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -87,6 +89,11 @@ export default function Header({ onMenuToggle }: { onMenuToggle?: () => void }) 
       <div className="relative flex items-center gap-4" ref={ref}>
         {user && (
           <>
+            {/* Theme toggle */}
+            <button onClick={toggleTheme} className="p-1.5 rounded-lg hover:bg-gray-800 transition" title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+              {theme === "dark" ? <Sun className="h-5 w-5 text-gray-400" /> : <Moon className="h-5 w-5 text-gray-400" />}
+            </button>
+
             {/* Notification bell */}
             <div className="relative" ref={notifRef}>
               <button onClick={() => setNotifOpen(!notifOpen)} className="relative p-1.5 rounded-lg hover:bg-gray-800 transition">
