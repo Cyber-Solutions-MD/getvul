@@ -71,6 +71,7 @@ def is_sync_running(connector_id: str) -> bool:
 async def _scheduler_loop() -> None:
     """Periodic loop that checks all connectors and triggers syncs when due."""
     logger.info("sync_scheduler_started")
+    _loop_count = 0
 
     while True:
         try:
@@ -174,6 +175,20 @@ async def _scheduler_loop() -> None:
                         logger.info("daily_snapshots_captured", **snap_result)
         except Exception as e:
             logger.error("daily_snapshot_error", error=str(e))
+
+        # ── Notification alert checks (every 5 minutes) ──
+        try:
+            if _loop_count % 5 == 0:
+                async with async_session_factory() as db:
+                    from app.notifications.alerts import run_alert_checks
+
+                    alert_result = await run_alert_checks(db)
+                    if alert_result.get("alerts_created", 0) > 0:
+                        logger.info("alerts_created", **alert_result)
+        except Exception as e:
+            logger.error("alert_check_error", error=str(e))
+
+        _loop_count += 1
 
         # Check every 60 seconds
         await asyncio.sleep(60)

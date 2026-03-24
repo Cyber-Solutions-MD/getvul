@@ -156,6 +156,9 @@ app.include_router(cspm_router, prefix="/api/v1/cspm", tags=["CSPM"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(tickets_router, prefix="/api/v1/tickets", tags=["Tickets"])
 
+from app.notifications.router import router as notifications_router
+app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
+
 
 @app.get("/health")
 async def health_check():
