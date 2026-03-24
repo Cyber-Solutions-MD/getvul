@@ -63,8 +63,11 @@ class GoogleWorkspaceConnector:
             access_token: str — fallback: raw OAuth token
             domain: str — Google Workspace domain
         """
-        self.domain = config.get("domain", credentials.get("domain", ""))
         self._admin_email = credentials.get("admin_email", "")
+        self.domain = config.get("domain", credentials.get("domain", ""))
+        # Auto-detect domain from admin email if not provided
+        if not self.domain and self._admin_email and "@" in self._admin_email:
+            self.domain = self._admin_email.split("@")[1]
 
         # Try service account JSON first
         sa_json = credentials.get("service_account_json", "")

@@ -283,9 +283,33 @@ function AddConnectorModal({ type, onClose, onSaved }: { type: ConnectorType; on
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPerms, setShowPerms] = useState(false);
+  const [jsonFileName, setJsonFileName] = useState("");
 
   const isSecretField = (f: string) => f.includes("secret") || f.includes("key") || f.includes("password") || f.includes("token");
+  const isJsonFileField = (f: string) => f.includes("_json");
   const fieldLabel = (f: string) => f.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+  function handleJsonFileUpload(field: string, file: File) {
+    setJsonFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const updated = { ...credentials, [field]: content };
+      // Auto-fill fields from Google service account JSON
+      try {
+        const parsed = JSON.parse(content);
+        // Auto-fill admin_email hint from client_email domain
+        if (parsed.client_email) {
+          const domain = parsed.client_email.split("@")[1]?.replace(".iam.gserviceaccount.com", "");
+          if (domain && !updated.domain) {
+            // Don't auto-fill domain from SA — it's the GCP project, not workspace domain
+          }
+        }
+      } catch {}
+      setCredentials(updated);
+    };
+    reader.readAsText(file);
+  }
 
   async function handleTest() {
     setTesting(true); setTestResult(null); setError(null);
@@ -371,17 +395,48 @@ function AddConnectorModal({ type, onClose, onSaved }: { type: ConnectorType; on
           {type.fields.map(field => (
             <div key={field}>
               <label className="mb-1.5 block text-sm font-medium text-gray-300">{fieldLabel(field)}</label>
-              <div className="relative">
-                <input type={isSecretField(field) && !showSecrets[field] ? "password" : "text"} value={credentials[field] || ""}
-                  onChange={e => setCredentials({ ...credentials, [field]: e.target.value })}
-                  placeholder={type.defaults[field] || `Enter ${fieldLabel(field)}`}
-                  className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                {isSecretField(field) && (
-                  <button type="button" onClick={() => setShowSecrets({ ...showSecrets, [field]: !showSecrets[field] })} className="absolute right-2 top-2.5 text-gray-500 hover:text-gray-300">
-                    {showSecrets[field] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                )}
-              </div>
+              {isJsonFileField(field) ? (
+                /* JSON file upload */
+                <div className="relative">
+                  <label className={cn(
+                    "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-4 transition-all",
+                    credentials[field]
+                      ? "border-emerald-500/50 bg-emerald-500/5"
+                      : "border-gray-700 bg-gray-900 hover:border-indigo-500/50"
+                  )}>
+                    <input type="file" accept=".json,application/json" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleJsonFileUpload(field, f); }} />
+                    {credentials[field] ? (
+                      <div className="text-center">
+                        <p className="text-sm text-emerald-400 font-medium">{jsonFileName || "JSON loaded"}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {(() => { try { const p = JSON.parse(credentials[field]); return p.client_email || p.project_id || "Valid JSON"; } catch { return "JSON loaded"; } })()}
+                        </p>
+                        <button type="button" onClick={(e) => { e.preventDefault(); setCredentials({ ...credentials, [field]: "" }); setJsonFileName(""); }}
+                          className="mt-2 text-xs text-gray-500 hover:text-red-400">Remove</button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-sm text-gray-400">Drop JSON key file here or click to browse</p>
+                        <p className="text-xs text-gray-600 mt-1">The file content is encrypted and stored securely</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              ) : (
+                /* Regular text/password input */
+                <div className="relative">
+                  <input type={isSecretField(field) && !showSecrets[field] ? "password" : "text"} value={credentials[field] || ""}
+                    onChange={e => setCredentials({ ...credentials, [field]: e.target.value })}
+                    placeholder={type.defaults[field] || `Enter ${fieldLabel(field)}`}
+                    className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  {isSecretField(field) && (
+                    <button type="button" onClick={() => setShowSecrets({ ...showSecrets, [field]: !showSecrets[field] })} className="absolute right-2 top-2.5 text-gray-500 hover:text-gray-300">
+                      {showSecrets[field] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           <div>
