@@ -95,6 +95,57 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+
+# ── Tenant rate limiting middleware ──
+import time
+from collections import defaultdict
+
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+RATE_LIMIT_REQUESTS = 200  # max requests per window
+RATE_LIMIT_WINDOW = 60  # seconds
+
+
+class TenantRateLimitMiddleware(BaseHTTPMiddleware):
+    """Per-tenant rate limiting for API endpoints."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/api/"):
+            return await call_next(request)
+
+        # Extract tenant from JWT (lightweight — just parse, don't validate DB)
+        auth = request.headers.get("authorization", "")
+        tenant_key = "anonymous"
+        if auth.startswith("Bearer "):
+            try:
+                from app.auth.jwt import decode_token
+
+                payload = decode_token(auth[7:])
+                tenant_key = payload.tenant_id
+            except Exception:
+                pass
+
+        now = time.time()
+        window_start = now - RATE_LIMIT_WINDOW
+        hits = _rate_limit_store[tenant_key]
+        # Prune old entries
+        _rate_limit_store[tenant_key] = [t for t in hits if t > window_start]
+        hits = _rate_limit_store[tenant_key]
+
+        if len(hits) >= RATE_LIMIT_REQUESTS:
+            from starlette.responses import JSONResponse
+
+            return JSONResponse(
+                {"detail": "Rate limit exceeded. Try again later."},
+                status_code=429,
+                headers={"Retry-After": str(RATE_LIMIT_WINDOW)},
+            )
+
+        hits.append(now)
+        return await call_next(request)
+
+
+app.add_middleware(TenantRateLimitMiddleware)
+
 # ── Routes ──
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(vuln_router, prefix="/api/v1/vulnerabilities", tags=["Vulnerabilities"])

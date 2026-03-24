@@ -227,7 +227,7 @@ async def auth_config(
             ).scalar_one_or_none()
 
     if tenant:
-        config["tenant_name"] = tenant.name
+        config["tenant_found"] = True
         config["sso_enforced"] = tenant.sso_enforced
         if tenant.sso_enforced:
             config["password_login"] = False  # Disabled unless user has override
