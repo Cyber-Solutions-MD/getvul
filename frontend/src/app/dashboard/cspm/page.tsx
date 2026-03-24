@@ -69,16 +69,17 @@ interface PaginatedResources {
 
 interface TrendDay {
   date: string;
-  new_findings: number;
+  new: number;
   resolved: number;
+  open_cumulative: number;
 }
 
 interface TrendsData {
-  days: TrendDay[];
+  timeline: TrendDay[];
   summary: {
-    new_findings: number;
-    resolved: number;
-    currently_open: number;
+    new_in_period: number;
+    resolved_in_period: number;
+    total_open: number;
   };
 }
 
@@ -834,7 +835,7 @@ function TrendsTab({
         {/* Chart area */}
         <div className="flex items-end gap-px" style={{ height: 180 }}>
           {timeline.map((day, i) => {
-            const newH = (day.new_findings / maxVal) * 160;
+            const newH = (day.new / maxVal) * 160;
             const resH = (day.resolved / maxVal) * 160;
             const dateObj = new Date(day.date);
             const label = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
@@ -844,14 +845,14 @@ function TrendsTab({
               <div key={day.date} className="group relative flex flex-1 flex-col items-center justify-end">
                 {/* Tooltip */}
                 <div className="pointer-events-none absolute -top-10 z-10 hidden rounded bg-gray-800 px-2 py-1 text-[10px] text-gray-200 shadow-lg group-hover:block whitespace-nowrap">
-                  {label}: {day.new_findings} new, {day.resolved} resolved
+                  {label}: {day.new} new, {day.resolved} resolved
                 </div>
 
                 {/* Stacked bars side by side */}
                 <div className="flex w-full items-end justify-center gap-px">
                   <div
                     className="rounded-t bg-red-500/80 transition-all hover:bg-red-500"
-                    style={{ height: Math.max(newH, day.new_findings > 0 ? 2 : 0), width: "45%" }}
+                    style={{ height: Math.max(newH, day.new > 0 ? 2 : 0), width: "45%" }}
                   />
                   <div
                     className="rounded-t bg-emerald-500/80 transition-all hover:bg-emerald-500"
@@ -882,11 +883,11 @@ function TrendsTab({
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {timeline.slice().reverse().slice(0, 14).map((day) => {
-              const net = day.new_findings - day.resolved;
+              const net = day.new - day.resolved;
               return (
                 <tr key={day.date} className="transition-colors hover:bg-gray-800/30">
                   <td className="px-3 py-2.5 text-xs text-gray-300">{new Date(day.date).toLocaleDateString()}</td>
-                  <td className="px-3 py-2.5 text-right text-sm text-red-400">{day.new_findings}</td>
+                  <td className="px-3 py-2.5 text-right text-sm text-red-400">{day.new}</td>
                   <td className="px-3 py-2.5 text-right text-sm text-emerald-400">{day.resolved}</td>
                   <td className="px-3 py-2.5">
                     <span className={cn("flex items-center gap-1 text-sm font-medium", net > 0 ? "text-red-400" : net < 0 ? "text-emerald-400" : "text-gray-500")}>
