@@ -1,9 +1,10 @@
-"""Password authentication — registration, login, password management."""
+"""Password authentication — registration, login, password management, reset."""
 
 from __future__ import annotations
 
+import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import structlog
@@ -222,3 +223,119 @@ async def change_password(
 
     flag_modified(user, "password_history")
     return {"message": "Password updated"}
+
+
+# ── Password Reset ──
+
+# In-memory token store (use Redis in production for multi-instance)
+_reset_tokens: dict[str, dict] = {}
+RESET_TOKEN_EXPIRY_MINUTES = 30
+
+
+async def request_password_reset(db: AsyncSession, email: str) -> dict:
+    """Generate a password reset token and send it via email.
+
+    Always returns success to prevent email enumeration.
+    """
+    email = email.lower().strip()
+
+    user = (await db.execute(select(User).where(User.email == email, User.is_active.is_(True)))).scalars().first()
+
+    if not user:
+        # Don't reveal whether email exists
+        logger.info("password_reset_requested_unknown_email", email=email)
+        return {"message": "If an account exists with that email, a reset link has been sent."}
+
+    if not user.password_hash and not user.allow_password_login:
+        # SSO-only user, no password to reset
+        logger.info("password_reset_sso_only", email=email)
+        return {"message": "If an account exists with that email, a reset link has been sent."}
+
+    # Generate secure token
+    token = secrets.token_urlsafe(32)
+    _reset_tokens[token] = {
+        "user_id": str(user.id),
+        "tenant_id": str(user.tenant_id),
+        "email": email,
+        "expires_at": datetime.now(UTC) + timedelta(minutes=RESET_TOKEN_EXPIRY_MINUTES),
+    }
+
+    # Send email
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+    smtp_cfg = getattr(tenant, "smtp_config", None)
+
+    if smtp_cfg and smtp_cfg.get("enabled") and smtp_cfg.get("host"):
+        from app.email import send_email
+
+        send_email(
+            smtp_config=smtp_cfg,
+            to=[email],
+            subject="GetVul — Password Reset",
+            body=(
+                f"A password reset was requested for your GetVul account.\n\n"
+                f"Use this token to reset your password: {token}\n\n"
+                f"Or open the app and enter the token on the password reset page.\n\n"
+                f"This token expires in {RESET_TOKEN_EXPIRY_MINUTES} minutes.\n\n"
+                f"If you did not request this, you can ignore this email."
+            ),
+        )
+        logger.info("password_reset_email_sent", email=email)
+    else:
+        logger.warning("password_reset_no_smtp", email=email, token=token[:8])
+
+    return {"message": "If an account exists with that email, a reset link has been sent."}
+
+
+async def confirm_password_reset(db: AsyncSession, token: str, new_password: str) -> dict:
+    """Validate reset token and set new password."""
+    token_data = _reset_tokens.get(token)
+    if not token_data:
+        return {"error": "Invalid or expired reset token"}
+
+    if datetime.now(UTC) > token_data["expires_at"]:
+        _reset_tokens.pop(token, None)
+        return {"error": "Reset token has expired"}
+
+    user_id = uuid.UUID(token_data["user_id"])
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        _reset_tokens.pop(token, None)
+        return {"error": "User not found"}
+
+    # Validate against tenant policy
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+    policy = tenant.password_policy or DEFAULT_POLICY
+    err = validate_password(new_password, policy)
+    if err:
+        return {"error": err}
+
+    # Check password history
+    history_count = policy.get("history_count", 0)
+    if history_count > 0 and check_password_history(new_password, user.password_history, history_count):
+        return {"error": f"Cannot reuse one of your last {history_count} passwords"}
+
+    # Save old hash to history
+    history = list(user.password_history or [])
+    if user.password_hash:
+        history.append(user.password_hash)
+        if len(history) > max(history_count, 10):
+            history = history[-max(history_count, 10) :]
+    user.password_history = history
+    from sqlalchemy.orm.attributes import flag_modified
+
+    flag_modified(user, "password_history")
+
+    # Set new password
+    user.password_hash = hash_password(new_password)
+
+    # Invalidate token
+    _reset_tokens.pop(token, None)
+
+    # Clean up expired tokens
+    now = datetime.now(UTC)
+    expired = [k for k, v in _reset_tokens.items() if now > v["expires_at"]]
+    for k in expired:
+        _reset_tokens.pop(k, None)
+
+    logger.info("password_reset_completed", email=user.email)
+    return {"message": "Password has been reset successfully. You can now sign in."}

@@ -197,6 +197,46 @@ async def change_password_endpoint(
     return result
 
 
+@router.post("/forgot-password")
+async def forgot_password(
+    body: dict,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Request a password reset email. Public endpoint — no auth required."""
+    from app.auth.password import request_password_reset
+
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(400, "Email is required")
+
+    result = await request_password_reset(db, email)
+    await db.commit()
+    return result
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: dict,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Confirm password reset with token. Public endpoint — no auth required."""
+    from app.auth.password import confirm_password_reset
+
+    token = (body.get("token") or "").strip()
+    new_password = body.get("new_password", "")
+
+    if not token:
+        raise HTTPException(400, "Reset token is required")
+    if not new_password:
+        raise HTTPException(400, "New password is required")
+
+    result = await confirm_password_reset(db, token, new_password)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    await db.commit()
+    return result
+
+
 @router.get("/config")
 async def auth_config(
     db: Annotated[AsyncSession, Depends(get_db)],
