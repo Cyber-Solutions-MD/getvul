@@ -363,6 +363,71 @@ async def list_groups(
     ]
 
 
+@router.get("/groups/export")
+async def export_groups_csv(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Export all groups and their members as CSV."""
+    import csv
+    import io
+
+    from fastapi.responses import StreamingResponse
+
+    result = await db.execute(
+        select(User).where(
+            User.tenant_id == user.tenant_id,
+            User.groups.isnot(None),
+        )
+    )
+    users_with_groups = result.scalars().all()
+
+    groups_map: dict[str, list[dict]] = {}
+    for u in users_with_groups:
+        for g in u.groups or []:
+            if g not in groups_map:
+                groups_map[g] = []
+            groups_map[g].append(
+                {
+                    "email": u.email,
+                    "display_name": u.display_name or "",
+                    "department": u.department or "",
+                    "job_title": u.job_title or "",
+                    "role": u.role,
+                    "is_active": u.is_active,
+                }
+            )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Group", "Member Email", "Display Name", "Department", "Job Title", "Role", "Active"])
+
+    for group_name in sorted(groups_map.keys()):
+        for m in sorted(groups_map[group_name], key=lambda x: x["email"]):
+            writer.writerow(
+                [
+                    group_name,
+                    m["email"],
+                    m["display_name"],
+                    m["department"],
+                    m["job_title"],
+                    m["role"],
+                    "Yes" if m["is_active"] else "No",
+                ]
+            )
+
+    content = output.getvalue()
+
+    from datetime import UTC, datetime
+
+    filename = f"groups_export_{datetime.now(UTC).strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: uuid.UUID,

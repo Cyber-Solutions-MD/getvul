@@ -385,6 +385,22 @@ function GroupsPanel() {
 
   const filtered = search ? groups.filter(g => g.name.toLowerCase().includes(search.toLowerCase())) : groups;
 
+  async function handleExport() {
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const token = typeof window !== "undefined" ? localStorage.getItem("getvul_token") || "" : "";
+    const resp = await fetch(`${API}/api/v1/tenant/groups/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return;
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `groups_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) return <p className="text-gray-500 text-sm py-8 text-center">Loading groups...</p>;
   if (groups.length === 0) return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-12 text-center">
@@ -398,7 +414,13 @@ function GroupsPanel() {
       <div className="flex items-center justify-between">
         <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search groups..."
           className="w-72 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-        <span className="text-sm text-gray-500">{filtered.length} groups</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">{filtered.length} groups</span>
+          <button onClick={handleExport}
+            className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition">
+            Export CSV
+          </button>
+        </div>
       </div>
       <div className="space-y-2">
         {filtered.map(g => (
