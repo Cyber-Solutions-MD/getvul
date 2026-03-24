@@ -122,11 +122,12 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         description="SSO directory — sync users and groups from Google Workspace",
         fields=[
             {
-                "name": "access_token",
-                "label": "Admin OAuth Token or Service Account Token",
+                "name": "service_account_json",
+                "label": "Service Account JSON Key (paste full file content)",
                 "type": "password",
                 "required": True,
             },
+            {"name": "admin_email", "label": "Admin Email (for impersonation)", "type": "text", "required": True},
             {"name": "domain", "label": "Google Workspace Domain", "type": "text", "required": True},
         ],
         permissions=[
@@ -139,7 +140,7 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
             ),
         ],
         setup_url="https://admin.google.com/ac/owl/domainwidedelegation",
-        notes="Use a service account with domain-wide delegation, or generate an OAuth token with Admin SDK scopes from an admin account.",
+        notes="1) Create a Service Account in GCP Console → download JSON key. 2) Enable Admin SDK API. 3) In Google Admin → Security → API Controls → Domain-wide delegation, add the client_id with the 3 scopes. 4) Paste the full JSON key content here.",
     ),
     "AZURE_ENTRA_ID": ConnectorTypeInfo(
         id="AZURE_ENTRA_ID",

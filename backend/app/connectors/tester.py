@@ -174,25 +174,27 @@ async def test_jamf(credentials: dict, config: dict) -> ConnectorTestResult:
 
 
 async def test_google_workspace(credentials: dict, config: dict) -> ConnectorTestResult:
-    """Test Google Workspace Admin SDK access."""
-    token = credentials.get("access_token", "")
+    """Test Google Workspace Admin SDK access via service account or access token."""
+    from app.connectors.google_workspace import GoogleWorkspaceConnector
+
     domain = config.get("domain", credentials.get("domain", ""))
-    if not token or not domain:
-        return ConnectorTestResult(success=False, message="Access token and domain are required")
+    if not domain:
+        return ConnectorTestResult(success=False, message="Domain is required")
+
+    connector = GoogleWorkspaceConnector()
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            h = {"Authorization": f"Bearer {token}"}
-            resp = await client.get(
-                "https://admin.googleapis.com/admin/directory/v1/users",
-                headers=h,
-                params={"domain": domain, "maxResults": 1},
+        authed = await connector.authenticate(credentials, config)
+        if not authed:
+            return ConnectorTestResult(
+                success=False, message="Authentication failed — check JSON key, admin email, and domain-wide delegation"
             )
-            if resp.status_code == 200:
-                total = resp.json().get("totalResults", "?")
-                return ConnectorTestResult(
-                    success=True, message=f"Connected to Google Workspace ({domain})", details={"total_users": total}
-                )
-            return ConnectorTestResult(success=False, message=f"Auth failed: HTTP {resp.status_code}")
+        users = await connector.fetch_users()
+        await connector.close()
+        return ConnectorTestResult(
+            success=True,
+            message=f"Connected to Google Workspace ({domain})",
+            details={"total_users": len(users)},
+        )
     except Exception as e:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
