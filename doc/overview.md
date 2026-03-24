@@ -52,8 +52,21 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 - Risk score history
 - Daily metric snapshots for historical data
 
+### Notifications and Alerting
+- In-app notification system with bell icon in header showing unread badge
+- Alert engine with 4 automated checks running on schedule:
+  - New critical vulnerabilities (detected in last 2 hours)
+  - SLA breach warnings (due within 24 hours)
+  - Connector sync failures
+  - Risk score spikes (20+ point increase since previous day)
+- Email delivery to Owner and Admin users for critical alerts
+- Notification filtering by category and read status
+- Mark read, mark all read, delete actions
+- Deduplication: prevents duplicate alerts within configurable lookback windows
+
 ### Authentication and Access Control
 - Local email/password login with configurable password policy
+- Email-based password reset flow (request token, receive email, confirm reset)
 - SSO: Google Workspace OIDC + Azure Entra ID OIDC
 - SSO enforcement with per-user password login override
 - JWT access tokens (15 min) + refresh tokens (7 days) with auto-refresh
@@ -78,6 +91,14 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 - SLA compliance widget
 - Trend charts: new vs resolved, severity trend, MTTR weekly, risk score over time
 - Executive Report tab with schedule management
+
+### Users Dashboard
+- Unified directory view merging identity provider users and device owners
+- Active/Suspended/All status filter
+- Department filter from directory data
+- Google avatar sync with profile images
+- Groups export to CSV
+- Expandable rows showing all devices per user with vuln counts and risk scores
 
 ### Settings
 - Organization: name, slug, domain, timezone
@@ -118,5 +139,5 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 | Reverse Proxy | Nginx with TLS 1.2/1.3 termination |
 | Auth | JWT + bcrypt + OIDC (Google/Azure) |
 | Containers | Docker + Docker Compose (5 services) |
-| IaC | Terraform (AWS) |
+| IaC | Terraform (AWS + GCP) |
 | CI/CD | GitHub Actions (5 jobs) |

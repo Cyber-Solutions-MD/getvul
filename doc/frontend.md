@@ -7,6 +7,7 @@ The GetVul frontend is a **Next.js 15** application with **React 19** and **Type
 ### Login (`/login`)
 - Email/password login form
 - SSO buttons for Google and Azure (when configured)
+- Forgot password link with email-based reset flow
 - Redirects to `/dashboard` after authentication
 - Displays tenant auth config (available methods)
 
@@ -51,16 +52,36 @@ Tabbed interface with two views:
 - Click asset for detail view with vulnerability list and MDM info
 
 ### Users (`/dashboard/users`)
-- Merged view of identity provider users + device data
+- Unified directory view merging identity provider users and device owners
+- Active/Suspended/All status filter tabs
+- Department filter dropdown (populated from directory data)
+- Google avatar sync with profile images (referrerPolicy=no-referrer)
 - User search with device details, vuln counts, risk scores
-- Groups tab (synced from Google Workspace, Azure Entra ID, or Okta)
+- Groups tab with CSV export (synced from Google Workspace, Azure Entra ID, or Okta)
 - Expandable rows showing all devices per user
 
 ### CSPM (`/dashboard/cspm`)
+4-tab interface:
+
+**Findings Tab:**
 - Cloud misconfiguration findings
 - Filters: severity, category, source, compliance framework, resource type
 - Table: rule name, resource, severity, category, frameworks, remediation link
 - Bulk status updates
+
+**Compliance Tab:**
+- Compliance framework dashboard
+- Pass rates for CIS, SOC2, PCI-DSS, HIPAA frameworks
+- Per-framework breakdown with pass/fail/total counts
+
+**Resources Tab:**
+- Cloud resource inventory
+- Filterable by cloud provider, resource type, search
+- Shows finding counts per resource
+
+**Trends Tab:**
+- CSPM trends timeline (configurable 7-365 days)
+- Findings over time by severity and status
 
 ### Connectors (`/dashboard/connectors`)
 - Card per connector: type, last sync time/status, record count, enabled toggle
@@ -102,6 +123,8 @@ Tabbed interface with two views:
 
 ### Header
 - Sticky top bar with branding
+- Notification bell icon with unread count badge (polls `/api/v1/notifications/unread-count`)
+- Clicking bell opens notification dropdown with recent alerts
 - User menu with profile and logout
 
 ## Components
@@ -124,6 +147,7 @@ Tabbed interface with two views:
 | SLAWidget | SLA compliance donut/stats |
 | TopHostsList | Top 10 riskiest hosts |
 | ConnectorHealth | Connector status indicators |
+| NotificationBell | Header bell icon with unread badge + dropdown |
 
 ## HTTP Client (`lib/api.ts`)
 

@@ -7,6 +7,8 @@
 - SSO enforcement available (Google Workspace / Azure Entra ID OIDC)
 - Configurable password policy (length, complexity, history)
 - Password history prevents reuse of last N passwords (configurable: 3, 5, 10, 24)
+- Email-based password reset with time-limited single-use tokens
+- Generic response on forgot-password to prevent email enumeration
 - Per-tenant API rate limiting: 200 requests per 60 seconds (Redis-backed)
 
 ## Security Headers
@@ -118,7 +120,9 @@ CEF:0|GetVul|VulnMgmt|1.0|auth.login|auth.login|5|suser=admin@company.com act=au
 
 ### Pre-commit Hook
 - Semgrep scan runs on staged files before every commit
+- Rule sets: `p/default`, `p/owasp-top-ten`, `p/secrets`, `p/dockerfile`
 - Catches security issues before they enter the repository
+- Prevents hardcoded secrets, SQL injection, XSS, and insecure Dockerfile patterns from being committed
 
 ### Backend Checks
 - ruff: Python linting and formatting
@@ -130,6 +134,25 @@ CEF:0|GetVul|VulnMgmt|1.0|auth.login|auth.login|5|suser=admin@company.com act=au
 - TypeScript strict type checking (`tsc --noEmit`)
 - ESLint for code quality
 - Production build verification
+
+## Notification Security
+
+### Alert Deduplication
+Each alert check uses a time-windowed deduplication strategy to prevent notification flooding:
+
+| Alert Type | Lookback Window | Dedup Key |
+|------------|----------------|-----------|
+| New critical vulnerability | 2 hours | (tenant_id, category, resource_type, cve_id) |
+| SLA breach warning | 24 hours | (tenant_id, category, resource_type, cve_id) |
+| Connector sync failure | 4 hours | (tenant_id, category, resource_type, connector_id) |
+| Risk score spike | 24 hours | (tenant_id, category, resource_type, asset_id) |
+
+### Notification Access Control
+- Notifications are scoped by `tenant_id` -- no cross-tenant access
+- Broadcast notifications (user_id = null) visible to all tenant users
+- Targeted notifications only visible to the specified user
+- All notification endpoints require Viewer+ role
+- Email delivery uses the tenant's configured SMTP settings
 
 ## SLA Compliance Security
 - SLA deadlines computed automatically based on tenant policy

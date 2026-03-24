@@ -70,10 +70,12 @@ GetVul supports 14 connector types across 4 categories:
 ## Identity Providers
 
 ### Google Workspace
-- **Data:** Directory users (name, email, department, job title) + groups with memberships
-- **Auth:** Admin OAuth token or Service Account with domain-wide delegation
+- **Data:** Directory users (name, email, department, job title, avatar) + groups with memberships
+- **Auth:** Service Account JSON key file (paste full JSON content) + admin email for domain-wide delegation impersonation
+- **Setup:** Upload the service account JSON key file content directly into the connector configuration; no manual token management required
 - **Scopes:** admin.directory.user.readonly, admin.directory.group.readonly, admin.directory.group.member.readonly
 - **SSO:** Provides OIDC authentication for user login
+- **Avatar sync:** Fetches Google profile photos for display in the Users dashboard
 
 ### Azure Entra ID
 - **Data:** Directory users + groups via Microsoft Graph API

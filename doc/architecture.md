@@ -50,7 +50,7 @@
 | Framework | FastAPI (Python 3.12) |
 | Database | PostgreSQL 16 (asyncpg async driver) |
 | ORM | SQLAlchemy 2.0 (async) |
-| Migrations | Alembic (21 migrations) |
+| Migrations | Alembic (22 migrations) |
 | Cache/Queue | Redis 7 |
 | Auth | JWT (python-jose), OAuth 2.0 OIDC (Google, Azure) |
 | HTTP Client | httpx (async) |
@@ -75,7 +75,7 @@
 | Component | Technology |
 |-----------|-----------|
 | Containers | Docker + Docker Compose (5 services) |
-| IaC | Terraform 1.7 (AWS) |
+| IaC | Terraform 1.7 (AWS + GCP) |
 | CI/CD | GitHub Actions (5 jobs) |
 | Reverse Proxy | Nginx (TLS, rate limiting, security headers) |
 
@@ -158,6 +158,57 @@ After vulnerabilities are ingested, a correlation pass identifies the same CVE d
 3. Create/update `VulnerabilityCorrelation` record
 4. Set `sources_count` and `confidence` (HIGH if 3+ sources, MEDIUM if 2)
 
+## Notification and Alert Engine Flow
+
+```
+1. APScheduler triggers alert checks on schedule
+       |
+2. run_alert_checks() iterates all active tenants
+       |
+3. For each tenant, runs 4 automated checks:
+     a. _check_new_critical_vulns() — CRITICAL vulns detected in last 2 hours
+     b. _check_sla_breaches() — vulns with SLA due within 24 hours
+     c. _check_sync_failures() — enabled connectors with failed sync status
+     d. _check_risk_score_changes() — assets with 20+ point risk spike vs yesterday
+       |
+4. Deduplication: checks if matching notification already exists
+   within lookback window (2h / 24h / 4h per check type)
+       |
+5. Creates Notification record (broadcast or user-targeted)
+       |
+6. Sends email to OWNER and ADMIN users (for critical alerts)
+       |
+7. Frontend polls /api/v1/notifications/unread-count for bell badge
+```
+
+## GCP Deployment Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│              Google Cloud Platform                │
+│                                                   │
+│  ┌──────────────┐     ┌───────────────────────┐  │
+│  │  Static IP    │────>│  GCE VM (COS image)   │  │
+│  │  (External)   │     │                       │  │
+│  └──────────────┘     │  ┌─────────────────┐   │  │
+│                       │  │ Docker Compose   │   │  │
+│  ┌──────────────┐     │  │  - nginx         │   │  │
+│  │  Firewall     │     │  │  - backend       │   │  │
+│  │  (80, 443,    │     │  │  - frontend      │   │  │
+│  │   SSH)        │     │  │  - postgres      │   │  │
+│  └──────────────┘     │  │  - redis         │   │  │
+│                       │  └─────────────────┘   │  │
+│  ┌──────────────┐     │                       │  │
+│  │  Service      │     │  Auto-update cron    │  │
+│  │  Account      │     │  (daily at 3 AM UTC) │  │
+│  └──────────────┘     └───────────────────────┘  │
+└─────────────────────────────────────────────────┘
+
+Terraform provisions: static IP, firewall rules, service account, GCE VM
+Startup script: installs Docker, clones repo, starts app, sets up cron
+Auto-update: checks GitHub releases daily, pulls latest, restarts services
+```
+
 ## Daily Snapshot Pipeline
 
 ```
@@ -239,9 +290,13 @@ getvul/
 │   │   │   └── router.py           # Tenant API routes
 │   │   ├── users/                  # User directory views
 │   │   │   └── router.py           # User list + stats routes
-│   │   └── notifications/          # Alert delivery
+│   │   └── notifications/          # Notification and alert system
+│   │       ├── models.py           # Notification model
+│   │       ├── service.py          # Notification CRUD + email delivery
+│   │       ├── router.py           # Notification API routes
+│   │       └── alerts.py           # Alert engine (4 automated checks)
 │   ├── alembic/                    # Database migrations
-│   │   └── versions/               # 21 migration scripts
+│   │   └── versions/               # 22 migration scripts
 │   ├── tests/                      # pytest test suite
 │   ├── pyproject.toml              # Python dependencies
 │   ├── Dockerfile                  # Backend container
@@ -266,7 +321,14 @@ getvul/
 │   ├── tailwind.config.ts          # Tailwind configuration
 │   └── tsconfig.json               # TypeScript config
 ├── infra/                          # Terraform IaC
-│   └── main.tf                     # AWS provider setup
+│   ├── main.tf                     # AWS provider setup
+│   ├── variables.tf                # AWS variables
+│   ├── outputs.tf                  # AWS outputs
+│   └── gcp/                        # GCP deployment
+│       ├── main.tf                 # GCE VM, firewall, static IP, service account
+│       ├── variables.tf            # GCP variables
+│       ├── outputs.tf              # GCP outputs
+│       └── startup.sh              # VM startup script (Docker, clone, auto-update)
 ├── .github/workflows/ci.yml       # CI/CD pipeline (5 jobs)
 ├── docker-compose.yml              # Development stack (5 services)
 ├── docker-compose.ci.yml           # CI DAST testing stack

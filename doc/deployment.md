@@ -113,7 +113,7 @@ docker compose restart nginx
 # Apply all migrations
 docker compose exec backend alembic upgrade head
 
-# Current migrations (21):
+# Current migrations (22):
 # 001 Initial schema
 # 002 Misconfigurations (CSPM)
 # 003 Widen credentials column
@@ -135,6 +135,7 @@ docker compose exec backend alembic upgrade head
 # 019 Asset ignored flag
 # 020 SLA tracking
 # 021 Daily snapshots
+# 022 Notifications table
 
 # Create a new migration
 docker compose exec backend alembic revision --autogenerate -m "description"
@@ -151,6 +152,7 @@ The backend runs APScheduler background tasks that:
 3. Execute daily status sync for open tickets (check external providers, post progress, auto-close)
 4. Generate daily metric snapshots for trend analytics
 5. Send scheduled reports via SMTP
+6. Run alert engine checks (new critical vulns, SLA breaches, sync failures, risk spikes)
 
 ## SMTP Configuration
 
@@ -170,6 +172,66 @@ Configure email delivery for scheduled reports in Settings:
 | **Terraform** | fmt check, init, validate |
 | **Semgrep SAST** | p/default + p/owasp-top-ten + p/secrets + p/dockerfile (published to semgrep.dev) |
 | **OWASP ZAP DAST** | API scan (OpenAPI), baseline scan (backend), baseline scan (frontend) |
+
+## GCP Deployment
+
+GetVul includes Terraform configuration for deploying to Google Cloud Platform on a single GCE VM running Docker Compose.
+
+### Infrastructure (Terraform)
+
+Located in `infra/gcp/`:
+
+| Resource | Description |
+|----------|-------------|
+| `google_compute_address` | Static external IP for the VM |
+| `google_compute_firewall` (web) | Allow HTTP (80) and HTTPS (443) from all sources |
+| `google_compute_firewall` (ssh) | Allow SSH (22) from restricted CIDRs |
+| `google_service_account` | Dedicated service account for the VM |
+| `google_compute_instance` | GCE VM running Container-Optimized OS (COS) |
+
+### Provisioning
+
+```bash
+cd infra/gcp
+cp terraform.tfvars.example terraform.tfvars  # Edit with your values
+terraform init
+terraform plan
+terraform apply
+```
+
+Key variables:
+- `project_id` -- GCP project ID
+- `region` / `zone` -- deployment region (e.g., us-central1-a)
+- `machine_type` -- VM size (e.g., e2-medium)
+- `disk_size_gb` -- boot disk size
+- `ssh_user` / `ssh_public_key` -- SSH access credentials
+- `ssh_allowed_cidrs` -- restrict SSH source IPs
+- `github_repo` -- repository for the startup script to clone
+- `deploy_key` -- deploy key for private repo access
+
+### Startup Script
+
+The VM startup script (`infra/gcp/startup.sh`) runs on first boot:
+1. Installs Docker and Docker Compose plugin (if not on COS)
+2. Clones the repository to `/opt/getvul`
+3. Creates a template `.env` file (must be edited with real secrets)
+4. Starts all services with `docker compose up -d --build`
+5. Installs the auto-update cron job
+
+### Auto-Update
+
+A daily cron job runs at 3:00 AM UTC:
+- Checks the GitHub repository for new releases/commits
+- Pulls the latest code
+- Rebuilds and restarts Docker Compose services
+- Logs all activity to `/var/log/getvul-update.log`
+
+### CI Docker Compose (`docker-compose.ci.yml`)
+
+A separate Compose file used by the OWASP ZAP DAST job in CI:
+- Starts the full stack (backend, frontend, postgres, redis, nginx)
+- Runs ZAP scans against the live application
+- Used only in CI/CD pipelines, not for production
 
 ## Production Checklist
 

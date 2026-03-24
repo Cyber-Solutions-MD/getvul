@@ -14,6 +14,14 @@
 - Requires the corresponding identity provider connector to be configured first
 - SSO enforcement toggle: when enabled, password login is disabled (with per-user override)
 
+### Password Reset
+- **Request:** `POST /auth/forgot-password` with email address (public endpoint)
+- Server generates a time-limited reset token and sends it via email (SMTP)
+- **Confirm:** `POST /auth/reset-password` with token and new password (public endpoint)
+- New password is validated against the tenant's password policy
+- Token is single-use and expires after a short window
+- Always returns a generic success message (prevents email enumeration)
+
 ### Token Management
 - Access tokens: 15 minutes (JWT, HS256)
 - Refresh tokens: 7 days
@@ -104,5 +112,7 @@ Enforced on: registration, password change (by user or admin).
 | `/auth/refresh` | POST | Public | Refresh token |
 | `/auth/me` | GET | Bearer | Current user |
 | `/auth/change-password` | POST | Bearer | Change password |
+| `/auth/forgot-password` | POST | Public | Request password reset email |
+| `/auth/reset-password` | POST | Public | Confirm password reset with token |
 | `/auth/config` | GET | Public | Available auth methods |
 | `/auth/logout` | POST | Bearer | Logout |

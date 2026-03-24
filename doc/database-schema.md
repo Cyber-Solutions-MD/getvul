@@ -1,6 +1,6 @@
 # Database Schema
 
-GetVul uses PostgreSQL 16 with SQLAlchemy 2.0 (async). Migrations are managed by Alembic (21 migrations).
+GetVul uses PostgreSQL 16 with SQLAlchemy 2.0 (async). Migrations are managed by Alembic (22 migrations).
 
 ## Entity Relationship Diagram
 
@@ -67,6 +67,15 @@ GetVul uses PostgreSQL 16 with SQLAlchemy 2.0 (async). Migrations are managed by
        │  │ schedule, format     │  │ tenant_id, date      │
        │  │ recipients, sections │  │ metrics (JSONB)      │
        │  └──────────────────────┘  └──────────────────────┘
+       │
+       │  ┌──────────────────────┐
+       ├─<│   notifications      │
+       │  │                      │
+       │  │ title, message       │
+       │  │ severity, category   │
+       │  │ is_read, email_sent  │
+       │  │ details (JSONB)      │
+       │  └──────────────────────┘
 ```
 
 ## Tables
@@ -406,6 +415,34 @@ Historical metric snapshots for trend analytics.
 
 **Unique constraint:** `(tenant_id, snapshot_date)`
 
+### notifications
+
+In-app and email alerts for security events.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK | |
+| tenant_id | UUID | FK -> tenants | |
+| user_id | UUID | FK -> users, nullable | Target user (null = broadcast to all) |
+| title | VARCHAR(200) | NOT NULL | Notification title |
+| message | TEXT | NOT NULL | Notification body |
+| severity | VARCHAR(20) | NOT NULL, DEFAULT 'info' | critical, high, medium, low, info |
+| category | VARCHAR(50) | NOT NULL | new_critical_vuln, sla_breach, sync_failure, risk_change |
+| resource_type | VARCHAR(50) | | vulnerability, asset, ticket, connector |
+| resource_id | VARCHAR(200) | | ID of related resource |
+| is_read | BOOLEAN | DEFAULT false | Whether user has read it |
+| read_at | TIMESTAMP | | When marked as read |
+| email_sent | BOOLEAN | DEFAULT false | Whether email was delivered |
+| email_sent_at | TIMESTAMP | | When email was sent |
+| details | JSONB | DEFAULT '{}' | Extra metadata |
+| created_at | TIMESTAMP | | |
+| updated_at | TIMESTAMP | | |
+
+**Indexes:**
+- `(tenant_id, user_id, is_read)` -- unread notifications query
+- `(tenant_id, category)` -- filter by category
+- `(tenant_id, created_at)` -- chronological listing
+
 ## Migration History
 
 | Version | Description |
@@ -431,3 +468,4 @@ Historical metric snapshots for trend analytics.
 | 019 | Add asset ignored flag |
 | 020 | Add SLA tracking fields (sla_deadline, sla_breached, sla_policy) |
 | 021 | Add daily_snapshots table |
+| 022 | Add notifications table (in-app + email alerts) |

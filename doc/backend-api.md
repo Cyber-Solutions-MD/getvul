@@ -15,7 +15,8 @@ Interactive API docs (Swagger): `http://localhost:8000/docs`
 | `/api/v1/cspm` | cspm | Cloud posture findings |
 | `/api/v1/tickets` | ticketing | Ticketing integration, automation rules |
 | `/api/v1/tenant` | tenants | Tenant settings, user management, audit log, groups |
-| `/api/v1/users` | users | User directory views, stats |
+| `/api/v1/users` | users | User directory views, stats, directory |
+| `/api/v1/notifications` | notifications | In-app notifications, alert bell |
 | `/api/v1/export` | main | CSV export for all resources |
 | `/api/v1/reports` | main | Scheduled report CRUD and delivery |
 | `/api/v1/smtp` | main | SMTP config testing |
@@ -37,6 +38,8 @@ Interactive API docs (Swagger): `http://localhost:8000/docs`
 | GET | `/auth/me` | Bearer | Current user profile |
 | POST | `/auth/logout` | Bearer | Logout (optional server-side blocklist) |
 | POST | `/auth/change-password` | Bearer | Change password (validates policy) |
+| POST | `/auth/forgot-password` | Public | Request password reset email |
+| POST | `/auth/reset-password` | Public | Confirm password reset with token |
 | GET | `/auth/config` | Public | Available auth methods for tenant |
 
 ---
@@ -123,6 +126,9 @@ Interactive API docs (Swagger): `http://localhost:8000/docs`
 |--------|----------|------|-------------|
 | GET | `/` | Viewer+ | List misconfigurations with filters |
 | GET | `/stats` | Viewer+ | CSPM summary statistics |
+| GET | `/compliance` | Viewer+ | Compliance framework dashboard (CIS, SOC2, PCI-DSS, HIPAA pass rates) |
+| GET | `/resources` | Viewer+ | Cloud resource inventory (filterable by provider, type, search) |
+| GET | `/trends` | Viewer+ | CSPM trends timeline (configurable 7-365 days) |
 | GET | `/{finding_id}` | Viewer+ | Single misconfiguration detail |
 | PATCH | `/{finding_id}/status` | Analyst+ | Update status |
 | POST | `/bulk-status` | Analyst+ | Bulk status update |
@@ -175,8 +181,21 @@ Interactive API docs (Swagger): `http://localhost:8000/docs`
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | `/` | Viewer+ | User directory (merged HR + device data) |
+| GET | `/` | Viewer+ | Unified user list (directory + device owners, Active/Suspended/All filter, department filter) |
 | GET | `/stats` | Viewer+ | User statistics |
+| GET | `/directory` | Viewer+ | Full directory view with Google avatar sync |
+
+---
+
+## Notifications (`/api/v1/notifications`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/` | Viewer+ | List notifications (paginated, filterable by category and read status) |
+| GET | `/unread-count` | Viewer+ | Unread notification count (for bell icon badge) |
+| POST | `/{notification_id}/read` | Viewer+ | Mark a single notification as read |
+| POST | `/read-all` | Viewer+ | Mark all notifications as read |
+| DELETE | `/{notification_id}` | Viewer+ | Delete a single notification |
 
 ---
 
