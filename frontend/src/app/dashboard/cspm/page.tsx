@@ -773,7 +773,8 @@ function TrendsTab({
     );
   }
 
-  const maxVal = Math.max(...data.days.map((d) => Math.max(d.new_findings, d.resolved)), 1);
+  const timeline = data.timeline || [];
+  const maxVal = timeline.length > 0 ? Math.max(...timeline.map((d: any) => Math.max(d.new, d.resolved)), 1) : 1;
 
   return (
     <div className="space-y-6">
@@ -802,17 +803,17 @@ function TrendsTab({
         <StatCard
           icon={<AlertTriangle className="h-5 w-5 text-red-400" />}
           label={`New Findings (${days}d)`}
-          value={data.summary.new_findings.toLocaleString()}
+          value={data.summary.new_in_period.toLocaleString()}
         />
         <StatCard
           icon={<CheckCircle2 className="h-5 w-5 text-emerald-400" />}
           label={`Resolved (${days}d)`}
-          value={data.summary.resolved.toLocaleString()}
+          value={data.summary.resolved_in_period.toLocaleString()}
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5 text-orange-400" />}
           label="Currently Open"
-          value={data.summary.currently_open.toLocaleString()}
+          value={data.summary.total_open.toLocaleString()}
         />
       </div>
 
@@ -832,12 +833,12 @@ function TrendsTab({
 
         {/* Chart area */}
         <div className="flex items-end gap-px" style={{ height: 180 }}>
-          {data.days.map((day, i) => {
+          {timeline.map((day, i) => {
             const newH = (day.new_findings / maxVal) * 160;
             const resH = (day.resolved / maxVal) * 160;
             const dateObj = new Date(day.date);
             const label = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
-            const showLabel = data.days.length <= 14 || i % Math.ceil(data.days.length / 14) === 0;
+            const showLabel = timeline.length <= 14 || i % Math.ceil(timeline.length / 14) === 0;
 
             return (
               <div key={day.date} className="group relative flex flex-1 flex-col items-center justify-end">
@@ -880,7 +881,7 @@ function TrendsTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
-            {data.days.slice().reverse().slice(0, 14).map((day) => {
+            {timeline.slice().reverse().slice(0, 14).map((day) => {
               const net = day.new_findings - day.resolved;
               return (
                 <tr key={day.date} className="transition-colors hover:bg-gray-800/30">
