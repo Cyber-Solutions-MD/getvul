@@ -191,35 +191,146 @@ async def user_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Summary stats for the users dashboard."""
-    humaans_filter = [
-        Asset.tenant_id == user.tenant_id,
-        Asset.assigned_user.isnot(None),
-        Asset.mdm_details["humaans_person_id"].astext.isnot(None),
-    ]
+    from app.tenants.models import User
 
-    # Count unique Humaans users
-    users_q = select(func.count(func.distinct(Asset.assigned_user))).where(*humaans_filter)
-    total_users = (await db.execute(users_q)).scalar_one() or 0
+    base = User.tenant_id == user.tenant_id
 
-    # Users with email
-    humaans_q = select(func.count(func.distinct(Asset.assigned_user))).where(
-        *humaans_filter,
-        Asset.mdm_details["humaans_email"].astext != "",
+    total = (await db.execute(select(func.count(User.id)).where(base))).scalar_one()
+    active = (await db.execute(select(func.count(User.id)).where(base, User.is_active.is_(True)))).scalar_one()
+    suspended = total - active
+
+    # By source
+    source_q = select(User.idp_source, func.count(User.id)).where(base).group_by(User.idp_source)
+    by_source = {r[0] or "local": r[1] for r in (await db.execute(source_q)).all()}
+
+    # With department
+    has_dept = (
+        await db.execute(select(func.count(User.id)).where(base, User.department.isnot(None), User.department != ""))
+    ).scalar_one()
+
+    # With groups
+    has_groups = (
+        await db.execute(
+            select(func.count(User.id)).where(base, User.groups.isnot(None), func.jsonb_array_length(User.groups) > 0)
+        )
+    ).scalar_one()
+
+    # Departments breakdown
+    dept_q = (
+        select(User.department, func.count(User.id))
+        .where(base, User.is_active.is_(True), User.department.isnot(None), User.department != "")
+        .group_by(User.department)
+        .order_by(func.count(User.id).desc())
+        .limit(10)
     )
-    humaans_enriched = (await db.execute(humaans_q)).scalar_one() or 0
+    departments = [{"name": r[0], "count": r[1]} for r in (await db.execute(dept_q)).all()]
 
-    # Assets linked to Humaans users
-    assigned_assets_q = select(func.count()).where(*humaans_filter)
-    assigned_assets = (await db.execute(assigned_assets_q)).scalar_one() or 0
-
-    # Unassigned assets (no user info at all)
-    total_assets_q = select(func.count()).where(Asset.tenant_id == user.tenant_id)
-    total_assets = (await db.execute(total_assets_q)).scalar_one() or 0
-    unassigned = total_assets - assigned_assets
+    # Assets linked
+    assigned_assets = (
+        await db.execute(
+            select(func.count(Asset.id)).where(Asset.tenant_id == user.tenant_id, Asset.assigned_user.isnot(None))
+        )
+    ).scalar_one()
+    total_assets = (
+        await db.execute(select(func.count(Asset.id)).where(Asset.tenant_id == user.tenant_id))
+    ).scalar_one()
 
     return {
-        "total_users": total_users,
-        "humaans_enriched": humaans_enriched,
+        "total_users": total,
+        "active": active,
+        "suspended": suspended,
+        "by_source": by_source,
+        "has_department": has_dept,
+        "has_groups": has_groups,
+        "departments": departments,
         "assigned_assets": assigned_assets,
-        "unassigned_assets": unassigned,
+        "unassigned_assets": total_assets - assigned_assets,
+    }
+
+
+@router.get("/directory")
+async def list_directory_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    search: str = Query(""),
+    status: str = Query("active", description="active, suspended, or all"),
+    department: str = Query(""),
+    source: str = Query(""),
+    sort_by: str = Query("display_name"),
+    sort_dir: str = Query("asc"),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all directory users (from Google Workspace, Azure, Okta, Humaans, local)."""
+    from app.tenants.models import User
+
+    query = select(User).where(User.tenant_id == user.tenant_id)
+
+    # Status filter
+    if status == "active":
+        query = query.where(User.is_active.is_(True))
+    elif status == "suspended":
+        query = query.where(User.is_active.is_(False))
+
+    # Search
+    if search:
+        s = f"%{search}%"
+        query = query.where(
+            or_(
+                User.email.ilike(s),
+                User.display_name.ilike(s),
+                User.department.ilike(s),
+                User.job_title.ilike(s),
+            )
+        )
+
+    # Department filter
+    if department:
+        query = query.where(User.department == department)
+
+    # Source filter
+    if source:
+        query = query.where(User.idp_source == source)
+
+    # Count
+    count_q = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    # Sort
+    allowed_sort = {"display_name", "email", "department", "role", "last_login_at"}
+    safe_sort = sort_by if sort_by in allowed_sort else "display_name"
+    sort_col = getattr(User, safe_sort)
+    if sort_dir == "desc":
+        query = query.order_by(sort_col.desc().nullslast())
+    else:
+        query = query.order_by(sort_col.asc().nullslast())
+
+    # Paginate
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    rows = (await db.execute(query)).scalars().all()
+
+    items = []
+    for u in rows:
+        items.append(
+            {
+                "id": str(u.id),
+                "email": u.email,
+                "display_name": u.display_name,
+                "role": u.role,
+                "department": u.department,
+                "job_title": u.job_title,
+                "idp_source": u.idp_source or "local",
+                "is_active": u.is_active,
+                "groups": u.groups or [],
+                "avatar_url": u.avatar_url,
+                "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+            }
+        )
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total + page_size - 1) // page_size if total > 0 else 0,
     }
