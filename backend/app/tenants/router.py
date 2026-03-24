@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select, update
 
 from app.audit import audit
@@ -111,6 +111,7 @@ async def get_tenant_settings(
         "syslog_config": tenant.syslog_config,
         "smtp_config": _safe_smtp(getattr(tenant, "smtp_config", None)),
         "sla_config": getattr(tenant, "sla_config", None),
+        "branding": getattr(tenant, "branding", None),
     }
 
 
@@ -182,6 +183,12 @@ async def update_tenant_settings(
         tenant.sla_config = body["sla_config"]
         _fm_sla(tenant, "sla_config")
 
+    if "branding" in body:
+        from sqlalchemy.orm.attributes import flag_modified as _fm_brand
+
+        tenant.branding = body["branding"]
+        _fm_brand(tenant, "branding")
+
     if "smtp_config" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm_smtp
 
@@ -198,6 +205,42 @@ async def update_tenant_settings(
 
     await db.commit()
     return {"message": "Settings updated"}
+
+
+@router.post("/branding/logo")
+async def upload_logo(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    file: UploadFile = File(...),
+):
+    """Upload a logo image for PDF reports (PNG/JPG, max 500KB)."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "File must be an image (PNG or JPG)")
+
+    content = await file.read()
+    if len(content) > 512_000:
+        raise HTTPException(400, "Logo must be under 500KB")
+
+    from pathlib import Path
+
+    logo_dir = Path("/app/data/branding")
+    logo_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = "png" if "png" in (file.content_type or "") else "jpg"
+    logo_path = logo_dir / f"{user.tenant_id}.{ext}"
+    logo_path.write_bytes(content)
+
+    # Update tenant branding
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+    branding = dict(tenant.branding or {})
+    branding["logo_path"] = str(logo_path)
+    tenant.branding = branding
+    from sqlalchemy.orm.attributes import flag_modified
+
+    flag_modified(tenant, "branding")
+    await db.commit()
+
+    return {"message": "Logo uploaded", "path": str(logo_path)}
 
 
 @router.patch("/users/{user_id}/allow-password")

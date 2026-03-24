@@ -75,6 +75,9 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Report Branding */}
+          {isOwner && <BrandingConfig />}
+
           {/* SLA Policy */}
           {isOwner && <SlaConfig />}
 
@@ -976,6 +979,166 @@ function SmtpConfig() {
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function BrandingConfig() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [primaryColor, setPrimaryColor] = useState("#4f46e5");
+  const [accentColor, setAccentColor] = useState("#f0f0fa");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [hasLogo, setHasLogo] = useState(false);
+
+  useEffect(() => {
+    api("/api/v1/tenant/settings")
+      .then(d => {
+        const b = d.branding || {};
+        setCompanyName(b.company_name || "");
+        setTagline(b.tagline || "");
+        if (b.primary_color_r !== undefined) {
+          const r = b.primary_color_r, g = b.primary_color_g, b2 = b.primary_color_b;
+          setPrimaryColor(`#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b2.toString(16).padStart(2,"0")}`);
+        }
+        if (b.accent_color_r !== undefined) {
+          const r = b.accent_color_r, g = b.accent_color_g, b2 = b.accent_color_b;
+          setAccentColor(`#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b2.toString(16).padStart(2,"0")}`);
+        }
+        setHasLogo(!!b.logo_path);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function hexToRgb(hex: string) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return { r, g, b };
+  }
+
+  async function handleSave() {
+    setSaving(true); setMsg("");
+    try {
+      const pc = hexToRgb(primaryColor);
+      const ac = hexToRgb(accentColor);
+      await api("/api/v1/tenant/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          branding: {
+            company_name: companyName,
+            tagline,
+            primary_color_r: pc.r, primary_color_g: pc.g, primary_color_b: pc.b,
+            accent_color_r: ac.r, accent_color_g: ac.g, accent_color_b: ac.b,
+          },
+        }),
+      });
+      setMsg("Branding saved");
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setSaving(false); }
+  }
+
+  async function handleLogoUpload() {
+    if (!logoFile) return;
+    setSaving(true); setMsg("");
+    try {
+      const formData = new FormData();
+      formData.append("file", logoFile);
+      const token = localStorage.getItem("getvul_token") || "";
+      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const resp = await fetch(`${API}/api/v1/tenant/branding/logo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!resp.ok) throw new Error((await resp.json()).detail || "Upload failed");
+      setHasLogo(true);
+      setLogoFile(null);
+      setMsg("Logo uploaded");
+    } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setSaving(false); }
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+      <h2 className="text-lg font-medium text-white mb-1">Report Branding</h2>
+      <p className="text-xs text-gray-500 mb-4">Customize executive PDF reports with your logo, company name, and colors</p>
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Company Name</label>
+            <input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Your Organization"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Tagline</label>
+            <input value={tagline} onChange={e => setTagline(e.target.value)} placeholder="Security Report"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Primary Color</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)}
+                className="h-9 w-12 cursor-pointer rounded border border-gray-700 bg-gray-800" />
+              <input value={primaryColor} onChange={e => setPrimaryColor(e.target.value)}
+                className="w-28 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white font-mono focus:border-indigo-500 focus:outline-none" />
+              <span className="text-xs text-gray-500">Title & section headers</span>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Accent Color</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={accentColor} onChange={e => setAccentColor(e.target.value)}
+                className="h-9 w-12 cursor-pointer rounded border border-gray-700 bg-gray-800" />
+              <input value={accentColor} onChange={e => setAccentColor(e.target.value)}
+                className="w-28 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white font-mono focus:border-indigo-500 focus:outline-none" />
+              <span className="text-xs text-gray-500">Section backgrounds</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Logo upload */}
+        <div>
+          <label className="mb-1 block text-xs text-gray-400">Logo (PNG/JPG, max 500KB)</label>
+          <div className="flex items-center gap-3">
+            <input type="file" accept="image/png,image/jpeg" onChange={e => setLogoFile(e.target.files?.[0] || null)}
+              className="text-sm text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600/20 file:px-3 file:py-1.5 file:text-sm file:text-indigo-400 hover:file:bg-indigo-600/30" />
+            {logoFile && (
+              <button onClick={handleLogoUpload} disabled={saving}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">
+                Upload
+              </button>
+            )}
+            {hasLogo && <span className="text-xs text-emerald-400">Logo configured</span>}
+          </div>
+        </div>
+
+        {/* Preview bar */}
+        <div className="rounded-lg border border-gray-700 p-4">
+          <p className="text-xs text-gray-500 mb-2">Preview</p>
+          <div className="rounded" style={{ borderTop: `3px solid ${primaryColor}` }}>
+            <div className="p-3">
+              <p className="text-sm font-bold" style={{ color: primaryColor }}>{companyName || "Company"} — Executive Summary</p>
+              <p className="text-xs text-gray-500">{tagline ? `${tagline}  |  ` : ""}Generated: {new Date().toLocaleDateString()}</p>
+            </div>
+            <div className="rounded px-3 py-1.5 text-xs font-medium" style={{ backgroundColor: accentColor, color: primaryColor }}>
+              Section Title
+            </div>
+          </div>
+        </div>
+
+        {msg && <p className={`text-xs ${msg.includes("Error") ? "text-red-400" : "text-emerald-400"}`}>{msg}</p>}
+
+        <button onClick={handleSave} disabled={saving}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Branding"}
+        </button>
       </div>
     </div>
   );

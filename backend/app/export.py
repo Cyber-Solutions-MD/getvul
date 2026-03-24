@@ -614,29 +614,59 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
     d = await _collect_summary_data(db, tenant_id, filters)
     v, a, t = d["vulns"], d["assets"], d["tickets"]
 
+    # Load branding config
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one()
+    brand = tenant.branding or {}
+    company_name = brand.get("company_name") or d["org"] or "Organization"
+    tagline = brand.get("tagline", "")
+    logo_path = brand.get("logo_path", "")
+    primary_r = brand.get("primary_color_r", 79)
+    primary_g = brand.get("primary_color_g", 70)
+    primary_b = brand.get("primary_color_b", 229)  # indigo-500 default
+    accent_r = brand.get("accent_color_r", 240)
+    accent_g = brand.get("accent_color_g", 240)
+    accent_b = brand.get("accent_color_b", 250)
+
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
+    # Header bar with branding color
+    pdf.set_fill_color(primary_r, primary_g, primary_b)
+    pdf.rect(0, 0, 210, 3, "F")
+
+    # Logo
+    y_start = 10
+    if logo_path:
+        from pathlib import Path
+
+        if Path(logo_path).exists():
+            try:
+                pdf.image(logo_path, x=10, y=y_start, h=15)
+                y_start += 2  # slight offset for text alignment
+            except Exception:
+                pass  # skip if image fails
+
     # Title
+    pdf.set_y(y_start)
     pdf.set_font("Helvetica", "B", 18)
-    pdf.cell(0, 12, "GetVul Executive Summary", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(primary_r, primary_g, primary_b)
+    pdf.cell(0, 12, f"{company_name} — Executive Summary", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(100, 100, 100)
-    pdf.cell(
-        0,
-        6,
-        f"Organization: {d['org']}  |  Generated: {d['generated'].strftime('%Y-%m-%d %H:%M UTC')}",
-        new_x="LMARGIN",
-        new_y="NEXT",
-    )
+    sub_line = f"Generated: {d['generated'].strftime('%Y-%m-%d %H:%M UTC')}"
+    if tagline:
+        sub_line = f"{tagline}  |  {sub_line}"
+    pdf.cell(0, 6, sub_line, new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(8)
 
     def section(title):
         pdf.set_font("Helvetica", "B", 13)
-        pdf.set_fill_color(240, 240, 250)
+        pdf.set_fill_color(accent_r, accent_g, accent_b)
+        pdf.set_text_color(primary_r, primary_g, primary_b)
         pdf.cell(0, 8, f"  {title}", fill=True, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
         pdf.ln(3)
 
     def row(label, value):
@@ -729,5 +759,18 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
     section("Ticket Status")
     for label, val in [("Total Tickets", t["total"]), ("Open", t["open"]), ("Resolved", t["resolved"])]:
         row(label, f"{val:,}")
+
+    # Footer on each page
+    for page_num in range(1, pdf.pages_count + 1):
+        pdf.page = page_num
+        pdf.set_y(-15)
+        pdf.set_font("Helvetica", "", 7)
+        pdf.set_text_color(150, 150, 150)
+        footer_text = f"{company_name} — Confidential  |  Page {page_num}/{pdf.pages_count}"
+        pdf.cell(0, 5, footer_text, align="C")
+
+    # Bottom color bar on last page
+    pdf.set_fill_color(primary_r, primary_g, primary_b)
+    pdf.rect(0, 292, 210, 3, "F")
 
     return pdf.output()

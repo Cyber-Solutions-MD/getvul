@@ -39,6 +39,7 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     syslog_config: Mapped[dict | None] = mapped_column(JSONB)
     smtp_config: Mapped[dict | None] = mapped_column(JSONB)
     sla_config: Mapped[dict | None] = mapped_column(JSONB)
+    branding: Mapped[dict | None] = mapped_column(JSONB)  # logo_path, company_name, tagline, primary_color, accent_color
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 
