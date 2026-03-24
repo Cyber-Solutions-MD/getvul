@@ -1,68 +1,92 @@
 # Frontend Documentation
 
-The GetVul frontend is a **Next.js 14.2** application with **React 18.3** and **TypeScript 5.5**, styled with **Tailwind CSS**.
+The GetVul frontend is a **Next.js 15** application with **React 19** and **TypeScript**, styled with **Tailwind CSS**.
 
 ## Pages
 
-### Login (`/`)
-- Entry point and login page
-- SSO buttons for Google and Azure
+### Login (`/login`)
+- Email/password login form
+- SSO buttons for Google and Azure (when configured)
 - Redirects to `/dashboard` after authentication
+- Displays tenant auth config (available methods)
 
 ### Dashboard (`/dashboard`)
-- **Stats cards:** Total vulnerabilities, open count, exploitable, CISA KEV
+- **Stat cards:** Total vulnerabilities, open count, critical, exploitable, CISA KEV
 - **Severity distribution:** Progress bars with counts per severity level
 - **Source distribution:** Breakdown by scanner source
 - **Correlated CVEs:** Count of CVEs detected by multiple scanners
 - **MTTR:** Mean Time to Remediate metric
-- **Seed button:** Populates demo data (development only)
+- **Top 10 riskiest hosts:** Clickable links to asset detail
+- **Connector health:** Last sync status per connector
+- **SLA compliance widget:** Breached, at-risk (72h), within SLA, compliance %
+- **Trend charts:** New vs resolved timeline, severity trend, MTTR weekly, risk score history
+- **Executive Report tab:** Generate/schedule PDF/CSV/TXT reports
 
 ### Vulnerabilities (`/dashboard/vulnerabilities`)
 Tabbed interface with two views:
 
 **Vulnerabilities Tab:**
-- Filter bar: search, severity (multi-select), source, status, exploit/KEV checkboxes
-- Paginated table: CVE ID, severity badge, source, status, product, hostname, last seen
+- Filter bar: search, severity (multi-select), source, status, exploit/KEV checkboxes, device category, min risk score
+- Paginated table: CVE ID, severity badge, source, status, product, hostname, last seen, SLA status
 - Bulk select with status update actions (remediate, suppress, etc.)
+- CVE ignore/unignore actions
 - Click row to view full details
 
 **Remediations Tab:**
 - Grouped by remediation action
 - Columns: action, affected product, host count, vuln count, max severity
-- Click remediation → drill into affected hosts
-- Click host → see all remediations for that asset
+- Click remediation to drill into affected hosts
+- Click host to see all remediations for that asset
+- Suppress/unsuppress remediations
 - All filters apply across drill-down levels
 
 ### Assets (`/dashboard/assets`)
 - Filter bar: hostname search, device category dropdown, risk score slider
 - Sortable table: hostname, OS, device category, risk score, vuln counts
 - Vuln counts include: open, critical, high, exploitable, CISA KEV
-- Risk score color-coded: 80+ red, 50–79 orange, 20–49 yellow, <20 green
+- Risk score color-coded: 80+ red, 50-79 orange, 20-49 yellow, <20 green
 - Classify button for bulk device categorization (Admin only)
-- Click asset for detail view with vulnerability list
+- Recompute risk scores button (Admin only)
+- Ignore/unignore assets
+- Click asset for detail view with vulnerability list and MDM info
+
+### Users (`/dashboard/users`)
+- Merged view of identity provider users + device data
+- User search with device details, vuln counts, risk scores
+- Groups tab (synced from Google Workspace, Azure Entra ID, or Okta)
+- Expandable rows showing all devices per user
 
 ### CSPM (`/dashboard/cspm`)
 - Cloud misconfiguration findings
 - Filters: severity, category, source, compliance framework, resource type
 - Table: rule name, resource, severity, category, frameworks, remediation link
+- Bulk status updates
 
 ### Connectors (`/dashboard/connectors`)
-- View and manage data source integrations
 - Card per connector: type, last sync time/status, record count, enabled toggle
 - Actions: Test credentials, Trigger sync, Edit config, Delete
 - Setup modal with per-connector-type form fields and validation
+- All 14 connector types with category grouping
 - Polling sync status (3s interval while syncing)
 - Permission matrix displayed in setup modal
 
 ### Tickets (`/dashboard/tickets`)
-- Jira and GitHub Issues integration
-- List, create, update, resolve tickets linked to vulnerabilities
-- Automation rules for auto-ticket creation
+- Asana and Jira integration views
+- List tickets grouped by task with severity, vuln count, assignee, status
+- Create per-host or per-remediation tickets
+- Automation rules: create, edit, enable/disable, run immediately
+- Bulk actions: close, comment, sync status, delete
+- Asana workspace/project configuration
 
 ### Settings (`/dashboard/settings`)
-- Tenant configuration
-- User management (add/remove, role assignment)
-- Session timeout settings
+- **Organization:** Name, slug, domain, timezone
+- **Authentication:** IdP config, SSO enforcement toggle, password policy settings
+- **SLA Policy:** Per-severity deadlines (CRITICAL, HIGH, MEDIUM, LOW)
+- **TLS/SSL:** Upload custom cert, generate self-signed, remove
+- **SMTP:** Email server config with test connection and test email
+- **Users:** Add/edit/delete users, role assignment, password login override
+- **Audit Log:** Filterable table of all actions + syslog/SIEM forwarding config
+- **Executive Reports:** Schedule management (daily/weekly/monthly)
 
 ## Layout
 
@@ -70,52 +94,44 @@ Tabbed interface with two views:
 - Two-column layout: sidebar + main content area
 - Persistent across all dashboard pages
 
-### Sidebar (`components/layout/Sidebar.tsx`)
+### Sidebar
 - Navigation links with Lucide icons
-- Items: Dashboard, Vulnerabilities, Assets, CSPM, Connectors, Tickets, Settings
+- Items: Dashboard, Vulnerabilities, Assets, Users, CSPM, Connectors, Tickets, Settings
 - Active link highlighting
 - Responsive (collapses on mobile)
 
-### Header (`components/layout/Header.tsx`)
-- Sticky top bar with GetVul branding
+### Header
+- Sticky top bar with branding
 - User menu with profile and logout
 
 ## Components
 
 ### UI Components
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| SeverityBadge | `components/ui/Badge.tsx` | Color-coded CRITICAL/HIGH/MEDIUM/LOW/INFO badges |
-| Pagination | `components/ui/Pagination.tsx` | Page navigation with prev/next and page indicator |
-
-### Vulnerability Components
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| VulnTable | `components/vulnerabilities/VulnTable.tsx` | Sortable vulnerability table with bulk select |
-| VulnFilters | `components/vulnerabilities/VulnFilters.tsx` | Filter bar with dropdowns and checkboxes |
-| BulkActions | `components/vulnerabilities/BulkActions.tsx` | Status update for selected vulnerabilities |
+| Component | Purpose |
+|-----------|---------|
+| SeverityBadge | Color-coded CRITICAL/HIGH/MEDIUM/LOW/INFO badges |
+| Pagination | Page navigation with prev/next and page indicator |
+| FilterBar | Reusable filter dropdowns and toggles |
+| Modal | Dialog overlay for forms and confirmations |
+| DataTable | Sortable, selectable table with bulk actions |
 
 ### Dashboard Components
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| StatsCards | `components/dashboard/` | Summary metric cards |
-| SeverityChart | `components/dashboard/` | Severity distribution visualization |
+| Component | Purpose |
+|-----------|---------|
+| StatsCards | Summary metric cards |
+| SeverityChart | Severity distribution visualization |
+| TrendChart | New vs resolved timeline (Recharts) |
+| SLAWidget | SLA compliance donut/stats |
+| TopHostsList | Top 10 riskiest hosts |
+| ConnectorHealth | Connector status indicators |
 
 ## HTTP Client (`lib/api.ts`)
 
-Simple wrapper around the native `fetch` API:
-
-```typescript
-const data = await api<ResponseType>("/api/v1/endpoint");
-const result = await api<T>("/api/v1/endpoint", {
-  method: "POST",
-  body: JSON.stringify(payload),
-});
-```
-
+Wrapper around the native `fetch` API:
 - Automatically adds `Authorization: Bearer <token>` header
+- Auto-refreshes token on 401 response
+- Redirects to login on refresh failure
 - Throws on non-2xx responses
-- Default token: `"dev-token"` for development
 
 ## Type Definitions (`types/`)
 
@@ -129,8 +145,8 @@ const result = await api<T>("/api/v1/endpoint", {
 
 ## State Management
 
-- **Local state only** — React `useState`, `useEffect`, `useCallback` hooks
-- No global state manager (Redux, Zustand, etc.)
+- **Local state only** -- React `useState`, `useEffect`, `useCallback` hooks
+- No global state manager
 - Async data fetching with loading/error states per page
 - Filter state managed locally and passed as query params to API
 
@@ -140,5 +156,5 @@ const result = await api<T>("/api/v1/endpoint", {
 - **Primary color:** Indigo
 - **Data colors:** Red, orange, yellow, green, blue for severity/risk levels
 - **Icons:** Lucide React throughout
-- **Responsive:** Grid layouts adapt from 1 column (mobile) to 2–4 columns (desktop)
+- **Responsive:** Grid layouts adapt from 1 column (mobile) to 2-4 columns (desktop)
 - **Utilities:** `cn()` helper for conditional class merging (clsx + tailwind-merge)
