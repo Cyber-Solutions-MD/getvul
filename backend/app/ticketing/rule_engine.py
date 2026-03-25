@@ -140,7 +140,24 @@ async def run_rule(
     auto_assign = action.get("auto_assign", True)
     due_days = action.get("due_days")
     ticket_mode = action.get("ticket_mode", "per_host")
-    max_tickets = action.get("max_tickets", 10)
+    max_tickets_per_day = action.get("max_tickets", 10)
+
+    # Daily ticket budget: count distinct tickets created today for this tenant + provider
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_created = (
+        await db.execute(
+            select(func.count(func.distinct(Ticket.external_ticket_id))).where(
+                Ticket.tenant_id == rule.tenant_id,
+                Ticket.provider == provider,
+                Ticket.ticket_created_at >= today_start,
+            )
+        )
+    ).scalar_one()
+
+    remaining_budget = max(0, max_tickets_per_day - today_created)
+    if remaining_budget == 0:
+        logger.info("rule_daily_limit_reached", rule=rule.name, max=max_tickets_per_day, today=today_created)
+        return {"matched": len(assets), "created": 0, "skipped": 0, "daily_limit_reached": True}
 
     created = 0
     skipped = 0
@@ -181,7 +198,7 @@ async def run_rule(
         rem_rows = (await db.execute(rem_q)).all()
 
         for row in rem_rows:
-            if created >= max_tickets:
+            if created >= remaining_budget:
                 break
             result = await create_remediation_ticket(
                 db=db,
@@ -207,7 +224,7 @@ async def run_rule(
     else:
         # per_host: one ticket per matching host (existing behavior)
         for asset in assets:
-            if created >= max_tickets:
+            if created >= remaining_budget:
                 break
             existing = await db.execute(
                 select(Ticket)
