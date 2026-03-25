@@ -138,23 +138,25 @@ export default function Header({ onMenuToggle }: { onMenuToggle?: () => void }) 
     setMobileSearchOpen(false);
     setSearchQuery("");
     setSearchResults({});
+    let url = "";
     switch (category) {
       case "Vulnerabilities":
-        router.push(`/dashboard/vulnerabilities?search=${encodeURIComponent(item.cve_id || "")}`);
+        url = `/dashboard/vulnerabilities?search=${encodeURIComponent(item.cve_id || "")}`;
         break;
       case "Assets":
-        router.push(`/dashboard/assets/${item.id}`);
+        url = `/dashboard/assets/${item.id}`;
         break;
       case "Users":
-        router.push(`/dashboard/users?search=${encodeURIComponent(item.name || item.email || "")}`);
+        url = `/dashboard/users?search=${encodeURIComponent(item.name || item.email || "")}`;
         break;
       case "Tickets":
-        router.push("/dashboard/tickets");
+        url = "/dashboard/tickets";
         break;
       case "CSPM":
-        router.push("/dashboard/cspm");
+        url = "/dashboard/cspm";
         break;
     }
+    if (url) window.location.href = url;
   };
 
   const severityBadge = (sev: string) => {

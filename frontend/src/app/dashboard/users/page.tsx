@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import ExportButton from "@/components/ui/ExportButton";
 
@@ -15,10 +15,11 @@ const SOURCE_COLORS: Record<string, string> = {
 
 export default function UsersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState("active");
   const [deptFilter, setDeptFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
