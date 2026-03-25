@@ -6,7 +6,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 
 from app.audit import audit
 from app.auth.rbac import require_admin, require_owner
@@ -33,8 +33,21 @@ async def list_users(
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_admin)],
 ):
-    """List all users in the tenant. Requires Admin role."""
-    result = await db.execute(select(User).where(User.tenant_id == user.tenant_id).order_by(User.email))
+    """List app users (with login access) in the tenant. Requires Admin role.
+
+    Excludes directory-only users (synced from IdP with no password and VIEWER role).
+    To see all directory users, use GET /api/v1/users/directory.
+    """
+    result = await db.execute(
+        select(User).where(
+            User.tenant_id == user.tenant_id,
+            or_(
+                User.password_hash.isnot(None),
+                User.allow_password_login.is_(True),
+                User.role.in_(["OWNER", "ADMIN", "ANALYST"]),
+            ),
+        ).order_by(User.email)
+    )
     return result.scalars().all()
 
 
