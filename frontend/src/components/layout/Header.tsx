@@ -86,12 +86,13 @@ export default function Header({ onMenuToggle }: { onMenuToggle?: () => void }) 
     setSearchOpen(true);
     api(`/api/v1/search?q=${encodeURIComponent(q)}&limit=5`)
       .then((data) => {
+        const r = data.results || data;
         const grouped: Record<string, any[]> = {};
-        if (data.vulnerabilities?.length) grouped["Vulnerabilities"] = data.vulnerabilities;
-        if (data.assets?.length) grouped["Assets"] = data.assets;
-        if (data.users?.length) grouped["Users"] = data.users;
-        if (data.tickets?.length) grouped["Tickets"] = data.tickets;
-        if (data.cspm?.length) grouped["CSPM"] = data.cspm;
+        if (r.vulnerabilities?.length) grouped["Vulnerabilities"] = r.vulnerabilities;
+        if (r.assets?.length) grouped["Assets"] = r.assets;
+        if (r.users?.length) grouped["Users"] = r.users;
+        if (r.tickets?.length) grouped["Tickets"] = r.tickets;
+        if (r.cspm?.length) grouped["CSPM"] = r.cspm;
         setSearchResults(grouped);
       })
       .catch(() => setSearchResults({}))
