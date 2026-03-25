@@ -85,13 +85,14 @@ CEF:0|GetVul|VulnMgmt|1.0|auth.login|auth.login|5|suser=admin@company.com act=au
 - All database tables include `tenant_id` column
 - All queries scoped by authenticated user's `tenant_id` from JWT
 - No cross-tenant data access possible through the API
+- Global search (`/api/v1/search`) results are tenant-scoped -- queries only return data belonging to the authenticated user's tenant
 - RBAC enforced on all write endpoints
 - Owner-only operations: settings, certificates, user management, SSO enforcement, SLA policy
 
 ## Input Validation
 - Pydantic schemas validate all API request bodies
 - SQLAlchemy ORM uses parameterized queries (prevents SQL injection)
-- File uploads limited to PEM text content (no binary uploads)
+- File uploads limited to PEM text content and image files (logo upload for branding); handled via `python-multipart`
 - Pagination limits enforced (max 200 per page)
 - Bulk operations capped (max 500 per request)
 

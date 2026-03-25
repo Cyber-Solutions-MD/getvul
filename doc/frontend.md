@@ -105,7 +105,8 @@ Tabbed interface with two views:
 - **SLA Policy:** Per-severity deadlines (CRITICAL, HIGH, MEDIUM, LOW)
 - **TLS/SSL:** Upload custom cert, generate self-signed, remove
 - **SMTP:** Email server config with test connection and test email
-- **Users:** Add/edit/delete users, role assignment, password login override
+- **Branding:** Custom logo upload, company name, tagline, primary/accent colors for executive PDF reports
+- **Users:** Add/edit/delete app users (with login access), role assignment, password login override. Directory users are shown separately under Users > Directory tab
 - **Audit Log:** Filterable table of all actions + syslog/SIEM forwarding config
 - **Executive Reports:** Schedule management (daily/weekly/monthly)
 
@@ -119,10 +120,13 @@ Tabbed interface with two views:
 - Navigation links with Lucide icons
 - Items: Dashboard, Vulnerabilities, Assets, Users, CSPM, Connectors, Tickets, Settings
 - Active link highlighting
-- Responsive (collapses on mobile)
+- Mobile responsive: collapsible with hamburger menu on small screens
 
 ### Header
 - Sticky top bar with branding
+- Global search bar with Cmd+K (Mac) / Ctrl+K (Windows) keyboard shortcut
+- Debounced search input with categorized dropdown results (vulns, assets, users, tickets, CSPM)
+- Theme toggle (Sun/Moon icon) for dark/light mode switching, persisted in localStorage
 - Notification bell icon with unread count badge (polls `/api/v1/notifications/unread-count`)
 - Clicking bell opens notification dropdown with recent alerts
 - User menu with profile and logout
@@ -148,6 +152,8 @@ Tabbed interface with two views:
 | TopHostsList | Top 10 riskiest hosts |
 | ConnectorHealth | Connector status indicators |
 | NotificationBell | Header bell icon with unread badge + dropdown |
+| GlobalSearch | Search bar with Cmd+K shortcut + categorized dropdown |
+| ThemeToggle | Sun/Moon icon for dark/light mode switching |
 
 ## HTTP Client (`lib/api.ts`)
 
@@ -176,9 +182,9 @@ Wrapper around the native `fetch` API:
 
 ## Styling
 
-- **Theme:** Dark mode (gray-950/gray-900 backgrounds)
+- **Theme:** Dark/light mode toggle with CSS variable overrides; preference stored in localStorage
 - **Primary color:** Indigo
 - **Data colors:** Red, orange, yellow, green, blue for severity/risk levels
 - **Icons:** Lucide React throughout
-- **Responsive:** Grid layouts adapt from 1 column (mobile) to 2-4 columns (desktop)
+- **Responsive:** Grid layouts adapt from 1 column (mobile) to 2-4 columns (desktop); responsive dropdowns and padding; collapsible sidebar with hamburger menu on mobile
 - **Utilities:** `cn()` helper for conditional class merging (clsx + tailwind-merge)

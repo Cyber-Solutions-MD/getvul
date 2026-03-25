@@ -21,6 +21,8 @@ Interactive API docs (Swagger): `http://localhost:8000/docs`
 | `/api/v1/reports` | main | Scheduled report CRUD and delivery |
 | `/api/v1/smtp` | main | SMTP config testing |
 | `/api/v1/certificates` | main | TLS certificate management |
+| `/api/v1/search` | search | Global cross-category search |
+| `/api/v1/branding` | branding | PDF report branding (logo upload, colors) |
 | `/dev` | dev_routes | Seed data (development only) |
 | `/health` | main | Health check |
 
@@ -236,6 +238,30 @@ Interactive API docs (Swagger): `http://localhost:8000/docs`
 | POST | `/upload` | Owner | Upload custom PEM cert + key |
 | POST | `/self-signed` | Owner | Generate self-signed certificate |
 | DELETE | `/` | Owner | Remove installed certificate |
+
+---
+
+## Search (`/api/v1/search`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/?q=QUERY&limit=5` | Viewer+ | Global search across vulnerabilities, assets, users, tickets, and CSPM findings |
+
+Query parameters:
+- `q` -- search term (required)
+- `limit` -- max results per category (default 5)
+
+Returns categorized results from all five categories in a single response. Results are scoped to the authenticated user's tenant.
+
+---
+
+## Branding (`/api/v1/branding`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/logo` | Admin+ | Upload custom logo for PDF reports (multipart file upload) |
+
+Logo and branding configuration (company name, tagline, primary/accent colors) are managed through tenant settings and applied to executive PDF reports.
 
 ---
 

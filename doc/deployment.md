@@ -340,7 +340,7 @@ docker compose -f /opt/getvul/docker-compose.yml restart nginx
 - **Engine:** PostgreSQL 16 running in Docker (`postgres:16-alpine`)
 - **Persistence:** Docker named volume (survives container restarts)
 - **Migrations:** Alembic runs `upgrade head` automatically on backend startup
-- **Total migrations:** 22 (from initial schema through notifications)
+- **Total migrations:** 23 (from initial schema through branding)
 
 ### Backup
 
@@ -423,4 +423,5 @@ The repository includes a GitHub Actions workflow with five jobs, triggered on p
 - [ ] Configure syslog forwarding to your SIEM
 - [ ] Verify database backup strategy
 - [ ] Review rate limiting configuration
+- [ ] Ensure `python-multipart` is installed (required for file uploads such as logo and certificate uploads)
 - [ ] Run the CI pipeline (Semgrep + ZAP) before going live

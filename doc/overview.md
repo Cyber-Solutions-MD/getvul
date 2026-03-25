@@ -77,6 +77,7 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 ### Export and Reporting
 - CSV export: vulnerabilities, assets, users, tickets, remediations
 - Executive summary: PDF (fpdf2), CSV, TXT with configurable sections and filters
+- Executive PDF branding: custom logo upload, company name, tagline, primary/accent colors
 - Scheduled reports: daily/weekly/monthly with SMTP email delivery
 - Report sections: vulns, assets, risk, top hosts, top remediations, tickets
 
@@ -85,6 +86,12 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 - SIEM forwarding via syslog in CEF format (configurable per tenant)
 - SLA compliance tracking with breach alerts
 - Daily metric snapshots
+
+### Global Search
+- Cross-category search across vulnerabilities, assets, users, tickets, and CSPM findings
+- Keyboard shortcut: Cmd+K (Mac) / Ctrl+K (Windows) to focus search bar
+- Debounced input with categorized dropdown results
+- Results limited to 5 per category for fast navigation
 
 ### Dashboard
 - Overview: stat cards, severity/risk/status breakdown, top 10 hosts, connector health
@@ -100,13 +107,24 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 - Groups export to CSV
 - Expandable rows showing all devices per user with vuln counts and risk scores
 
+### Dark/Light Theme
+- Theme toggle (Sun/Moon icon) in the header
+- Persists user preference in localStorage
+- CSS variable overrides for seamless switching between dark and light modes
+
+### Mobile Responsive
+- Collapsible sidebar with hamburger menu on small screens
+- Responsive dropdown menus and filter bars
+- Responsive padding and grid layouts across all pages
+
 ### Settings
 - Organization: name, slug, domain, timezone
 - Authentication: IdP config, SSO enforcement, password policy
 - SLA Policy: per-severity remediation deadlines
 - TLS/SSL certificate management (upload, self-signed, remove)
 - SMTP email config with test connection
-- Users: add/edit/delete, role management, password toggle
+- Branding: custom logo upload, company name, tagline, primary/accent colors for PDF reports
+- Users: add/edit/delete, role management, password toggle (shows only app users with login access; directory users visible in Users > Directory tab)
 - Audit log: filterable table + syslog/SIEM forwarding config
 
 ## Supported Integrations
