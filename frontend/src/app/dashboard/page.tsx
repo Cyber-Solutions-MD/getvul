@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ExportButton from "@/components/ui/ExportButton";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/ToastProvider";
 import type { DashboardStats } from "@/types/vulnerability";
 
 export default function DashboardPage() {
@@ -389,6 +391,7 @@ export default function DashboardPage() {
 }
 
 function ReportBuilder() {
+  const { toast } = useToast();
   // Saved/scheduled reports
   const [reports, setReports] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
@@ -461,7 +464,7 @@ function ReportBuilder() {
 
       if (!resp.ok) {
         const err = await resp.text().catch(() => "Unknown error");
-        alert(`Export failed: ${err}`);
+        toast({ title: "Export Failed", message: err, variant: "error" });
         return;
       }
 
@@ -474,7 +477,7 @@ function ReportBuilder() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(`Export error: ${e.message}`);
+      toast({ title: "Export Error", message: e.message, variant: "error" });
     } finally { setGenerating(false); }
   }
 
@@ -637,6 +640,7 @@ function ScheduleReportSection({ currentConfig, reports, onReload }: {
 }) {
   const [showSave, setShowSave] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [saveSchedule, setSaveSchedule] = useState("weekly");
   const [saveRecipients, setSaveRecipients] = useState("");
   const [saving, setSaving] = useState(false);
@@ -736,7 +740,7 @@ function ScheduleReportSection({ currentConfig, reports, onReload }: {
                     className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:text-white">Send</button>
                   <button onClick={async () => { await api(`/api/v1/reports/${r.id}`, { method: "PATCH", body: JSON.stringify({ is_enabled: !r.is_enabled }) }); onReload(); }}
                     className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:text-white">{r.is_enabled ? "Pause" : "Enable"}</button>
-                  <button onClick={async () => { if (confirm(`Delete "${r.name}"?`)) { await api(`/api/v1/reports/${r.id}`, { method: "DELETE" }); onReload(); }}}
+                  <button onClick={() => setDeleteTarget(r)}
                     className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-red-400">Delete</button>
                 </div>
               </div>
@@ -744,6 +748,22 @@ function ScheduleReportSection({ currentConfig, reports, onReload }: {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Delete Report"
+        message={deleteTarget ? `Delete "${deleteTarget.name}"?` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteTarget) {
+            await api(`/api/v1/reports/${deleteTarget.id}`, { method: "DELETE" });
+            onReload();
+          }
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

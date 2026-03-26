@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import ExportButton from "@/components/ui/ExportButton";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -27,6 +29,7 @@ const SEV_COLORS: Record<string, string> = {
 };
 
 export default function TicketsPage() {
+  const { toast } = useToast();
   const [tickets, setTickets] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [asanaConfig, setAsanaConfig] = useState<any>(null);
@@ -42,6 +45,7 @@ export default function TicketsPage() {
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; variant?: "danger" | "warning" | "info"; onConfirm: () => void } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -171,17 +175,27 @@ export default function TicketsPage() {
           loading={bulkLoading}
           onAction={async (action) => {
             if (action === "comment") { setShowCommentModal(true); return; }
-            if (action === "close" && !confirm(`Close ${selectedUrls.size} ticket(s)? Asana tasks will be completed.`)) return;
-            if (action === "delete" && !confirm(`Delete ${selectedUrls.size} ticket(s)? This removes them from GetVul (Asana tasks remain).`)) return;
-            setBulkLoading(true);
-            try {
-              await apiFetch(`/api/v1/tickets/bulk-action`, {
-                method: "POST", 
-                body: JSON.stringify({ ticket_urls: Array.from(selectedUrls), action }),
-              });
-              setSelectedUrls(new Set());
-              load();
-            } catch {} finally { setBulkLoading(false); }
+            const doBulk = async () => {
+              setConfirmModal(null);
+              setBulkLoading(true);
+              try {
+                await apiFetch(`/api/v1/tickets/bulk-action`, {
+                  method: "POST",
+                  body: JSON.stringify({ ticket_urls: Array.from(selectedUrls), action }),
+                });
+                setSelectedUrls(new Set());
+                load();
+              } catch {} finally { setBulkLoading(false); }
+            };
+            if (action === "close") {
+              setConfirmModal({ title: "Close Tickets", message: `Close ${selectedUrls.size} ticket(s)? Asana tasks will be completed.`, variant: "warning", onConfirm: doBulk });
+              return;
+            }
+            if (action === "delete") {
+              setConfirmModal({ title: "Delete Tickets", message: `Delete ${selectedUrls.size} ticket(s)? This removes them from GetVul (Asana tasks remain).`, variant: "danger", onConfirm: doBulk });
+              return;
+            }
+            await doBulk();
           }}
         />
       )}
@@ -313,6 +327,16 @@ export default function TicketsPage() {
       {showSetup && asanaConfig && (
         <AsanaSetupModal config={asanaConfig} onClose={() => setShowSetup(false)} onSaved={() => { setShowSetup(false); load(); }} />
       )}
+
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title || ""}
+        message={confirmModal?.message || ""}
+        variant={confirmModal?.variant}
+        confirmLabel="Confirm"
+        onConfirm={() => confirmModal?.onConfirm()}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 }
@@ -540,10 +564,12 @@ function HostTicketFlow({ onCreated }: { onCreated: () => void }) {
 }
 
 function RulesPanel() {
+  const { toast } = useToast();
   const [rules, setRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
   const loadRules = useCallback(async () => {
     try {
@@ -562,15 +588,13 @@ function RulesPanel() {
   }
 
   async function handleDelete(rule: any) {
-    if (!confirm(`Delete rule "${rule.name}"?`)) return;
-    await apiFetch(`/api/v1/tickets/rules/${rule.id}`, { method: "DELETE" });
-    loadRules();
+    setDeleteTarget(rule);
   }
 
   async function handleRun(rule: any) {
     const resp = await apiFetch(`/api/v1/tickets/rules/${rule.id}/run`, { method: "POST" });
     const result = await resp.json();
-    alert(`Rule executed: ${result.matched} hosts matched, ${result.created} tickets created, ${result.skipped} skipped`);
+    toast({ title: "Rule Executed", message: `${result.matched} hosts matched, ${result.created} tickets created, ${result.skipped} skipped`, variant: "success" });
     loadRules();
   }
 
@@ -640,6 +664,22 @@ function RulesPanel() {
 
       {showCreate && <CreateRuleModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); loadRules(); }} />}
       {editingRule && <EditRuleModal rule={editingRule} onClose={() => setEditingRule(null)} onSaved={() => { setEditingRule(null); loadRules(); }} />}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Delete Rule"
+        message={deleteTarget ? `Delete rule "${deleteTarget.name}"?` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteTarget) {
+            await apiFetch(`/api/v1/tickets/rules/${deleteTarget.id}`, { method: "DELETE" });
+            loadRules();
+          }
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -1094,14 +1134,19 @@ function CommentModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
 
 function CloseTicketButton({ url, onDone }: { url: string; onDone: () => void }) {
   const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  async function handleClose(e: React.MouseEvent) {
+  function handleClose(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Close this ticket? The Asana task will be marked complete and all linked vulnerabilities will be marked as remediated.")) return;
+    setShowConfirm(true);
+  }
+
+  async function doClose() {
+    setShowConfirm(false);
     setLoading(true);
     try {
       await apiFetch(`/api/v1/tickets/close`, {
-        method: "POST", 
+        method: "POST",
         body: JSON.stringify({ external_ticket_url: url }),
       });
       onDone();
@@ -1109,10 +1154,21 @@ function CloseTicketButton({ url, onDone }: { url: string; onDone: () => void })
   }
 
   return (
-    <button onClick={handleClose} disabled={loading}
-      className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-emerald-400 hover:border-emerald-500/30 disabled:opacity-50">
-      {loading ? "..." : "Close"}
-    </button>
+    <>
+      <button onClick={handleClose} disabled={loading}
+        className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-emerald-400 hover:border-emerald-500/30 disabled:opacity-50">
+        {loading ? "..." : "Close"}
+      </button>
+      <ConfirmModal
+        open={showConfirm}
+        title="Close Ticket"
+        message="Close this ticket? The Asana task will be marked complete and all linked vulnerabilities will be marked as remediated."
+        confirmLabel="Close Ticket"
+        variant="warning"
+        onConfirm={doClose}
+        onCancel={() => setShowConfirm(false)}
+      />
+    </>
   );
 }
 

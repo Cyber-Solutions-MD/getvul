@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const SEV_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -22,11 +24,13 @@ function riskColor(s: number) {
 export default function AssetDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const [asset, setAsset] = useState<any>(null);
   const [remediations, setRemediations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"remediations" | "vulns">("remediations");
   const [sevFilter, setSevFilter] = useState("");
+  const [showTicketConfirm, setShowTicketConfirm] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -72,16 +76,25 @@ export default function AssetDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <button onClick={async () => {
-            if (!confirm(`Create ticket for ${asset.hostname}?`)) return;
-            try {
-              const r = await api("/api/v1/tickets/host", { method: "POST", body: JSON.stringify({ asset_id: asset.id, provider: "ASANA", project_key: "" }) });
-              if (r.task_url) { alert(`Ticket created!`); window.open(r.task_url, "_blank"); }
-              else alert(r.error || "Failed");
-            } catch (e: any) { alert(e.message); }
-          }} className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-500">
+          <button onClick={() => setShowTicketConfirm(true)} className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-500">
             Create Ticket
           </button>
+          <ConfirmModal
+            open={showTicketConfirm}
+            title="Create Ticket"
+            message={`Create ticket for ${asset.hostname}?`}
+            confirmLabel="Create"
+            variant="info"
+            onConfirm={async () => {
+              setShowTicketConfirm(false);
+              try {
+                const r = await api("/api/v1/tickets/host", { method: "POST", body: JSON.stringify({ asset_id: asset.id, provider: "ASANA", project_key: "" }) });
+                if (r.task_url) { toast({ title: "Ticket Created", message: "Ticket created successfully!", variant: "success" }); window.open(r.task_url, "_blank"); }
+                else toast({ title: "Failed", message: r.error || "Failed to create ticket", variant: "error" });
+              } catch (e: any) { toast({ title: "Error", message: e.message, variant: "error" }); }
+            }}
+            onCancel={() => setShowTicketConfirm(false)}
+          />
           <div className="text-right">
             <p className="text-[10px] text-gray-500 uppercase">Risk</p>
             <p className={`text-3xl font-bold ${riskColor(asset.risk_score)}`}>{asset.risk_score}</p>

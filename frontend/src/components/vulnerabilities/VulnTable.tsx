@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Flame, ShieldAlert } from "lucide-react";
 import { SeverityBadge, StatusBadge, SourceBadge } from "@/components/ui/Badge";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { VulnerabilitySummary } from "@/types/vulnerability";
@@ -100,13 +101,15 @@ export default function VulnTable({ vulnerabilities, selectedIds, onSelectToggle
 
 function CveActionButton({ cveId, action, onDone }: { cveId: string; action: "ignore" | "unignore"; onDone: () => void }) {
   const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  async function handleClick(e: React.MouseEvent) {
+  function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
-    const msg = action === "ignore"
-      ? `Ignore CVE ${cveId}? All instances across all hosts will be suppressed.`
-      : `Restore CVE ${cveId}? All suppressed instances will be reopened.`;
-    if (!confirm(msg)) return;
+    setShowConfirm(true);
+  }
+
+  async function doAction() {
+    setShowConfirm(false);
     setLoading(true);
     try {
       await api(`/api/v1/vulnerabilities/cve/${encodeURIComponent(cveId)}/${action}`, { method: "POST", body: JSON.stringify({}) });
@@ -114,19 +117,41 @@ function CveActionButton({ cveId, action, onDone }: { cveId: string; action: "ig
     } catch {} finally { setLoading(false); }
   }
 
+  const msg = action === "ignore"
+    ? `Ignore CVE ${cveId}? All instances across all hosts will be suppressed.`
+    : `Restore CVE ${cveId}? All suppressed instances will be reopened.`;
+
+  const modal = (
+    <ConfirmModal
+      open={showConfirm}
+      title={action === "ignore" ? "Ignore CVE" : "Restore CVE"}
+      message={msg}
+      confirmLabel={action === "ignore" ? "Ignore" : "Restore"}
+      variant={action === "ignore" ? "warning" : "info"}
+      onConfirm={doAction}
+      onCancel={() => setShowConfirm(false)}
+    />
+  );
+
   if (action === "unignore") {
     return (
-      <button onClick={handleClick} disabled={loading}
-        className="rounded border border-emerald-500/30 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
-        {loading ? "..." : "Restore"}
-      </button>
+      <>
+        <button onClick={handleClick} disabled={loading}
+          className="rounded border border-emerald-500/30 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
+          {loading ? "..." : "Restore"}
+        </button>
+        {modal}
+      </>
     );
   }
 
   return (
-    <button onClick={handleClick} disabled={loading}
-      className="opacity-0 group-hover:opacity-100 transition-opacity rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-orange-400 hover:border-orange-500/30 disabled:opacity-50">
-      {loading ? "..." : "Ignore CVE"}
-    </button>
+    <>
+      <button onClick={handleClick} disabled={loading}
+        className="opacity-0 group-hover:opacity-100 transition-opacity rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-orange-400 hover:border-orange-500/30 disabled:opacity-50">
+        {loading ? "..." : "Ignore CVE"}
+      </button>
+      {modal}
+    </>
   );
 }

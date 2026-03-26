@@ -9,6 +9,8 @@ import VulnTable from "@/components/vulnerabilities/VulnTable";
 import BulkActions from "@/components/vulnerabilities/BulkActions";
 import Pagination from "@/components/ui/Pagination";
 import { SeverityBadge } from "@/components/ui/Badge";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/ToastProvider";
 import { cn } from "@/lib/utils";
 import type { VulnerabilitySummary } from "@/types/vulnerability";
 
@@ -61,6 +63,7 @@ function buildFilterParams(filters: VulnFilterState): URLSearchParams {
 }
 
 export default function VulnerabilitiesPage() {
+  const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("vulnerabilities");
   const [vulnData, setVulnData] = useState<PaginatedVulns | null>(null);
   const [remData, setRemData] = useState<PaginatedRemediations | null>(null);
@@ -73,6 +76,7 @@ export default function VulnerabilitiesPage() {
   const [savedFilters, setSavedFilters] = useState<any[]>([]);
   const [showSaveFilter, setShowSaveFilter] = useState(false);
   const [saveFilterName, setSaveFilterName] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; variant?: "danger" | "warning" | "info"; onConfirm: () => void } | null>(null);
 
   // Drill-down states
   const [selectedRemediation, setSelectedRemediation] = useState<RemediationGrouped | null>(null);
@@ -210,18 +214,25 @@ export default function VulnerabilitiesPage() {
   }
 
   async function updateSavedFilter(sf: any) {
-    if (!confirm(`Update "${sf.name}" with the current filter settings? This will also update any linked automation rules.`)) return;
-    const filterData: any = { ...filters };
-    if (tab === "remediations") filterData.show_suppressed = showSuppressed;
-    try {
-      const result = await api<any>(`/api/v1/vulnerabilities/saved-filters/${sf.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ filters: filterData }),
-      });
-      loadSavedFilters();
-      const rulesUpdated = result.rules_updated || 0;
-      if (rulesUpdated > 0) alert(`Filter updated. ${rulesUpdated} linked automation rule(s) also updated.`);
-    } catch (e: any) { alert(`Error: ${e.message}`); }
+    setConfirmModal({
+      title: "Update Saved Filter",
+      message: `Update "${sf.name}" with the current filter settings? This will also update any linked automation rules.`,
+      variant: "warning",
+      onConfirm: async () => {
+        setConfirmModal(null);
+        const filterData: any = { ...filters };
+        if (tab === "remediations") filterData.show_suppressed = showSuppressed;
+        try {
+          const result = await api<any>(`/api/v1/vulnerabilities/saved-filters/${sf.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ filters: filterData }),
+          });
+          loadSavedFilters();
+          const rulesUpdated = result.rules_updated || 0;
+          if (rulesUpdated > 0) toast({ title: "Filter Updated", message: `${rulesUpdated} linked automation rule(s) also updated.`, variant: "success" });
+        } catch (e: any) { toast({ title: "Error", message: e.message, variant: "error" }); }
+      },
+    });
   }
 
   async function deleteSavedFilter(id: string) {
@@ -237,29 +248,35 @@ export default function VulnerabilitiesPage() {
         method: "POST",
         body: JSON.stringify({ name: ruleName }),
       });
-      alert(`Automation rule "${result.rule_name}" created! Go to Tickets → Automation Rules to configure it.`);
+      toast({ title: "Rule Created", message: `Automation rule "${result.rule_name}" created! Go to Tickets → Automation Rules to configure it.`, variant: "success" });
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      toast({ title: "Error", message: e.message, variant: "error" });
     }
   }
 
   async function handleBulkIgnoreCve(action: "ignore" | "unignore") {
     if (selectedIds.size === 0) return;
-    // Collect unique CVE IDs from selected vulns
     const cveIds = [...new Set((vulnData?.items || []).filter(v => selectedIds.has(v.id) && v.cve_id).map(v => v.cve_id!))];
     if (!cveIds.length) return;
     const msg = action === "ignore"
       ? `Ignore ${cveIds.length} CVE(s)? All instances across all hosts will be suppressed.`
       : `Restore ${cveIds.length} CVE(s)? All suppressed instances will be reopened.`;
-    if (!confirm(msg)) return;
-    try {
-      await api("/api/v1/vulnerabilities/bulk-ignore-cve", {
-        method: "POST",
-        body: JSON.stringify({ cve_ids: cveIds, action }),
-      });
-      setSelectedIds(new Set());
-      fetchVulns();
-    } catch (e: any) { alert(`Error: ${e.message}`); }
+    setConfirmModal({
+      title: action === "ignore" ? "Ignore CVEs" : "Restore CVEs",
+      message: msg,
+      variant: action === "ignore" ? "warning" : "info",
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await api("/api/v1/vulnerabilities/bulk-ignore-cve", {
+            method: "POST",
+            body: JSON.stringify({ cve_ids: cveIds, action }),
+          });
+          setSelectedIds(new Set());
+          fetchVulns();
+        } catch (e: any) { toast({ title: "Error", message: e.message, variant: "error" }); }
+      },
+    });
   }
 
   function goBackToRemediations() {
@@ -534,6 +551,16 @@ export default function VulnerabilitiesPage() {
           )}
         </>
       )}
+
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title || ""}
+        message={confirmModal?.message || ""}
+        variant={confirmModal?.variant}
+        confirmLabel="Confirm"
+        onConfirm={() => confirmModal?.onConfirm()}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 }
@@ -548,10 +575,15 @@ function ExploitBadge({ status, available }: { status: string | null; available:
 
 function UnsuppressButton({ remediationId, vulnCount, onDone }: { remediationId: string; vulnCount: number; onDone: () => void }) {
   const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  async function handleUnsuppress(e: React.MouseEvent) {
+  function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm(`Restore this remediation? ${vulnCount} vulnerabilities will be reopened and risk scores recalculated.`)) return;
+    setShowConfirm(true);
+  }
+
+  async function doUnsuppress() {
+    setShowConfirm(false);
     setLoading(true);
     try {
       await api<any>(`/api/v1/vulnerabilities/remediations/${encodeURIComponent(remediationId)}/unsuppress`, { method: "POST" });
@@ -560,20 +592,36 @@ function UnsuppressButton({ remediationId, vulnCount, onDone }: { remediationId:
   }
 
   return (
-    <button onClick={handleUnsuppress} disabled={loading}
-      className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50">
-      {loading ? "..." : "Restore"}
-    </button>
+    <>
+      <button onClick={handleClick} disabled={loading}
+        className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50">
+        {loading ? "..." : "Restore"}
+      </button>
+      <ConfirmModal
+        open={showConfirm}
+        title="Restore Remediation"
+        message={`Restore this remediation? ${vulnCount} vulnerabilities will be reopened and risk scores recalculated.`}
+        confirmLabel="Restore"
+        variant="info"
+        onConfirm={doUnsuppress}
+        onCancel={() => setShowConfirm(false)}
+      />
+    </>
   );
 }
 
 function SuppressButton({ remediationId, vulnCount, onDone }: { remediationId: string; vulnCount: number; onDone: () => void }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  async function handleSuppress(e: React.MouseEvent) {
+  function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm(`Ignore this remediation? This will suppress ${vulnCount} vulnerabilities and recalculate risk scores.`)) return;
+    setShowConfirm(true);
+  }
+
+  async function doSuppress() {
+    setShowConfirm(false);
     setLoading(true);
     try {
       const resp = await api<any>(`/api/v1/vulnerabilities/remediations/${encodeURIComponent(remediationId)}/suppress`, { method: "POST" });
@@ -588,10 +636,21 @@ function SuppressButton({ remediationId, vulnCount, onDone }: { remediationId: s
   if (result) return <span className="text-xs text-emerald-400">{result}</span>;
 
   return (
-    <button onClick={handleSuppress} disabled={loading}
-      className="opacity-0 group-hover:opacity-100 transition-opacity rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-orange-400 hover:border-orange-500/30 disabled:opacity-50"
-    >
-      {loading ? "..." : "Ignore"}
-    </button>
+    <>
+      <button onClick={handleClick} disabled={loading}
+        className="opacity-0 group-hover:opacity-100 transition-opacity rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-orange-400 hover:border-orange-500/30 disabled:opacity-50"
+      >
+        {loading ? "..." : "Ignore"}
+      </button>
+      <ConfirmModal
+        open={showConfirm}
+        title="Ignore Remediation"
+        message={`Ignore this remediation? This will suppress ${vulnCount} vulnerabilities and recalculate risk scores.`}
+        confirmLabel="Ignore"
+        variant="warning"
+        onConfirm={doSuppress}
+        onCancel={() => setShowConfirm(false)}
+      />
+    </>
   );
 }

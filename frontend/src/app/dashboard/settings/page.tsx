@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -11,6 +12,7 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"general" | "auth" | "users" | "audit">("general");
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; variant?: "danger" | "warning" | "info"; onConfirm: () => void } | null>(null);
 
   const isOwner = user?.role === "OWNER";
   const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
@@ -175,19 +177,33 @@ export default function SettingsPage() {
                         {u.id !== user?.id && (
                           <div className="flex gap-2">
                             {u.is_active && (
-                              <button onClick={async () => {
-                                if (!confirm(`Deactivate ${u.email}?`)) return;
-                                await api(`/api/v1/tenant/users/${u.id}/deactivate`, { method: "PATCH" });
-                                load();
+                              <button onClick={() => {
+                                setConfirmModal({
+                                  title: "Deactivate User",
+                                  message: `Deactivate ${u.email}?`,
+                                  variant: "warning",
+                                  onConfirm: async () => {
+                                    setConfirmModal(null);
+                                    await api(`/api/v1/tenant/users/${u.id}/deactivate`, { method: "PATCH" });
+                                    load();
+                                  },
+                                });
                               }}
                                 className="text-xs text-gray-500 hover:text-orange-400">
                                 Deactivate
                               </button>
                             )}
-                            <button onClick={async () => {
-                              if (!confirm(`Permanently delete ${u.email}? This cannot be undone.`)) return;
-                              await api(`/api/v1/tenant/users/${u.id}`, { method: "DELETE" });
-                              load();
+                            <button onClick={() => {
+                              setConfirmModal({
+                                title: "Delete User",
+                                message: `Permanently delete ${u.email}? This cannot be undone.`,
+                                variant: "danger",
+                                onConfirm: async () => {
+                                  setConfirmModal(null);
+                                  await api(`/api/v1/tenant/users/${u.id}`, { method: "DELETE" });
+                                  load();
+                                },
+                              });
                             }}
                               className="text-xs text-gray-500 hover:text-red-400">
                               Delete
@@ -211,6 +227,16 @@ export default function SettingsPage() {
           <AuditLogPanel />
         </div>
       )}
+
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title || ""}
+        message={confirmModal?.message || ""}
+        variant={confirmModal?.variant}
+        confirmLabel="Confirm"
+        onConfirm={() => confirmModal?.onConfirm()}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 }
@@ -624,6 +650,7 @@ function TlsCertificatePanel() {
   const [hostname, setHostname] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     api("/api/v1/certificates").then(setCert).catch(() => {}).finally(() => setLoading(false));
@@ -648,10 +675,8 @@ function TlsCertificatePanel() {
     } catch (e: any) { setMsg(`Error: ${e.message}`); } finally { setSaving(false); }
   }
 
-  async function handleDelete() {
-    if (!confirm("Remove the TLS certificate? HTTPS will stop working.")) return;
-    await api("/api/v1/certificates", { method: "DELETE" });
-    reload(); setMsg("Certificate removed");
+  function handleDelete() {
+    setShowDeleteConfirm(true);
   }
 
   if (loading) return null;
@@ -745,6 +770,20 @@ function TlsCertificatePanel() {
       )}
 
       {msg && <p className={`mt-3 text-xs ${msg.startsWith("Error") ? "text-red-400" : "text-emerald-400"}`}>{msg}</p>}
+
+      <ConfirmModal
+        open={showDeleteConfirm}
+        title="Remove TLS Certificate"
+        message="Remove the TLS certificate? HTTPS will stop working."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={async () => {
+          setShowDeleteConfirm(false);
+          await api("/api/v1/certificates", { method: "DELETE" });
+          reload(); setMsg("Certificate removed");
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

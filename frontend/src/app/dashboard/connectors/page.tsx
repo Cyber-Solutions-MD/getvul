@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/ToastProvider";
 import type { ConnectorType, ConnectorConfig, ConnectorTestResult } from "@/types/connector";
 
 const CONNECTOR_META: Record<string, { color: string; icon: string }> = {
@@ -53,6 +55,7 @@ const CATEGORY_INFO: Record<string, { label: string; description: string; icon: 
 const CATEGORY_ORDER = ["vulnerability_scanner", "ticketing", "identity_provider", "enrichment"];
 
 export default function ConnectorsPage() {
+  const { toast } = useToast();
   const [connectorTypes, setConnectorTypes] = useState<(ConnectorType & { category?: string })[]>([]);
   const [connectors, setConnectors] = useState<ConnectorConfig[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -60,6 +63,7 @@ export default function ConnectorsPage() {
   const [editingConnector, setEditingConnector] = useState<ConnectorConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -97,13 +101,11 @@ export default function ConnectorsPage() {
       if (result.status === "STARTED" || result.status === "ALREADY_RUNNING") {
         setSyncingIds(prev => new Set(prev).add(connectorId));
       }
-    } catch (e: any) { alert(`Sync failed: ${e.message}`); }
+    } catch (e: any) { toast({ title: "Sync Failed", message: e.message, variant: "error" }); }
   }
 
   async function handleDelete(connectorId: string) {
-    if (!confirm("Delete this connector? Synced data will remain.")) return;
-    try { await api(`/api/v1/connectors/${connectorId}`, { method: "DELETE" }); loadData(); }
-    catch (e: any) { alert(`Delete failed: ${e.message}`); }
+    setDeleteTarget(connectorId);
   }
 
   const configuredTypes = new Set(connectors.map(c => c.connector_type));
@@ -257,6 +259,22 @@ export default function ConnectorsPage() {
           onSaved={() => { setEditingConnector(null); loadData(); }}
         />
       )}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Delete Connector"
+        message="Delete this connector? Synced data will remain."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteTarget) {
+            try { await api(`/api/v1/connectors/${deleteTarget}`, { method: "DELETE" }); loadData(); }
+            catch (e: any) { toast({ title: "Delete Failed", message: e.message, variant: "error" }); }
+          }
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
