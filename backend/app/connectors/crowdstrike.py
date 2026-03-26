@@ -400,7 +400,9 @@ class CrowdStrikeConnector(BaseConnector):
         )
         # Attach extra fields via ad-hoc attributes
         vuln.remediation_id = remediation_id
-        vuln.remediation_action = remediation_action
+        vuln.remediation_action = remediation_action or (
+            f"Update {product} to the latest version" if product else ""
+        )
         vuln.exploit_status_id = exploit_status_id
         vuln.exploit_status_name = exploit_status_name
         return vuln
