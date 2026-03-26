@@ -37,6 +37,7 @@ def _apply_common_filters(
     severity: list[str] | None = None,
     exploit_only: bool = False,
     kev_only: bool = False,
+    device_category: str | None = None,
 ):
     if severity:
         q = q.where(Vulnerability.severity.in_(severity))
@@ -44,6 +45,8 @@ def _apply_common_filters(
         q = q.where(Vulnerability.exploit_available.is_(True))
     if kev_only:
         q = q.where(Vulnerability.cisa_kev.is_(True))
+    if device_category:
+        q = q.where(Asset.device_category == device_category)
     return q
 
 
@@ -57,6 +60,7 @@ async def get_remediations_grouped(
     show_suppressed: str = "active",
     page: int = 1,
     page_size: int = 25,
+    device_category: str | None = None,
 ) -> dict:
     """Group vulns by remediation_id. show_suppressed: active, ignored, or all."""
 
@@ -92,7 +96,7 @@ async def get_remediations_grouped(
         )
     )
 
-    base = _apply_common_filters(base, severity, exploit_only, kev_only)
+    base = _apply_common_filters(base, severity, exploit_only, kev_only, device_category)
 
     if search:
         base = base.having(
@@ -150,6 +154,7 @@ async def get_hosts_for_remediation(
     severity: list[str] | None = None,
     exploit_only: bool = False,
     kev_only: bool = False,
+    device_category: str | None = None,
 ) -> list[dict]:
     """Get all hosts affected by a specific remediation, with filters."""
     q = (
@@ -181,7 +186,7 @@ async def get_hosts_for_remediation(
         )
     )
 
-    q = _apply_common_filters(q, severity, exploit_only, kev_only)
+    q = _apply_common_filters(q, severity, exploit_only, kev_only, device_category)
 
     rows = (await db.execute(q)).all()
     return [
@@ -207,6 +212,7 @@ async def get_remediations_for_host(
     severity: list[str] | None = None,
     exploit_only: bool = False,
     kev_only: bool = False,
+    device_category: str | None = None,
 ) -> list[dict]:
     """Get all remediations needed for a specific host, with filters."""
     q = (
@@ -237,7 +243,7 @@ async def get_remediations_for_host(
         )
     )
 
-    q = _apply_common_filters(q, severity, exploit_only, kev_only)
+    q = _apply_common_filters(q, severity, exploit_only, kev_only, device_category)
 
     rows = (await db.execute(q)).all()
     return [

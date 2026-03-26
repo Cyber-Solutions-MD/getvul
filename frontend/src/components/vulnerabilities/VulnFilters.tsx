@@ -8,6 +8,7 @@ export interface VulnFilterState {
   severity: string[];
   source: string[];
   status: string[];
+  device_type: string | null;
   exploit_available: boolean | null;
   cisa_kev: boolean | null;
 }
@@ -15,6 +16,7 @@ export interface VulnFilterState {
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 const SOURCES = ["CROWDSTRIKE", "NESSUS", "DEFENDER", "WIZ"];
 const STATUSES = ["OPEN", "IN_PROGRESS", "REMEDIATED", "SUPPRESSED", "FALSE_POSITIVE"];
+const DEVICE_TYPES = ["SERVER", "WORKSTATION", "OTHER"];
 
 const sevColors: Record<string, string> = {
   CRITICAL: "border-red-500/40 bg-red-500/10 text-red-400 data-[active=true]:bg-red-500/25",
@@ -36,6 +38,7 @@ export default function VulnFilters({ filters, onChange }: Props) {
     filters.severity.length +
     filters.source.length +
     filters.status.length +
+    (filters.device_type !== null ? 1 : 0) +
     (filters.exploit_available !== null ? 1 : 0) +
     (filters.cisa_kev !== null ? 1 : 0);
 
@@ -135,6 +138,28 @@ export default function VulnFilters({ filters, onChange }: Props) {
 
         <div className="h-4 w-px bg-gray-700" />
 
+        {/* Device Type */}
+        <div className="flex gap-1.5">
+          {DEVICE_TYPES.map((dt) => (
+            <button
+              key={dt}
+              onClick={() =>
+                onChange({ ...filters, device_type: filters.device_type === dt ? null : dt })
+              }
+              className={cn(
+                "rounded-md border px-2 py-0.5 text-xs font-medium transition-all",
+                filters.device_type === dt
+                  ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-400"
+                  : "border-gray-700 bg-gray-900 text-gray-500 hover:text-gray-300"
+              )}
+            >
+              {dt}
+            </button>
+          ))}
+        </div>
+
+        <div className="h-4 w-px bg-gray-700" />
+
         {/* Toggles */}
         <button
           onClick={() =>
@@ -179,6 +204,7 @@ export default function VulnFilters({ filters, onChange }: Props) {
                 severity: [],
                 source: [],
                 status: [],
+                device_type: null,
                 exploit_available: null,
                 cisa_kev: null,
               })

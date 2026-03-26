@@ -508,6 +508,7 @@ async def remediations_grouped(
     kev_only: bool = Query(False),
     search: str | None = Query(None),
     show_suppressed: str = Query("active", description="active, ignored, or all"),
+    device_type: str | None = Query(None, description="Filter by asset type: SERVER, WORKSTATION, OTHER"),
 ):
     """List remediations grouped — each row is a unique remediation with affected host count."""
     from app.vulnerabilities.remediation_service import get_remediations_grouped
@@ -522,6 +523,7 @@ async def remediations_grouped(
         show_suppressed=show_suppressed,
         page=page,
         page_size=page_size,
+        device_category=device_type,
     )
 
 

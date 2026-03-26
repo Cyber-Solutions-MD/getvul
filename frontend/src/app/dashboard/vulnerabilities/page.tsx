@@ -46,7 +46,7 @@ interface RemediationForHost {
 
 const DEFAULT_FILTERS: VulnFilterState = {
   search: "", severity: [], source: [], status: [],
-  exploit_available: null, cisa_kev: null,
+  device_type: null, exploit_available: null, cisa_kev: null,
 };
 
 type Tab = "vulnerabilities" | "remediations";
@@ -57,6 +57,7 @@ function buildFilterParams(filters: VulnFilterState): URLSearchParams {
   filters.source.forEach((s) => p.append("source", s));
   filters.status.forEach((s) => p.append("status", s));
   if (filters.search) p.set("search", filters.search);
+  if (filters.device_type) p.set("device_type", filters.device_type);
   if (filters.exploit_available === true) p.set("exploit_only", "true");
   if (filters.cisa_kev === true) p.set("kev_only", "true");
   return p;
