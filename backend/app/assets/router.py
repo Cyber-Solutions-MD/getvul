@@ -126,7 +126,7 @@ async def list_assets(
             func.count().filter(Vulnerability.severity == "HIGH").label("high"),
             func.count().filter(Vulnerability.exploit_available).label("exploitable"),
             func.count().filter(Vulnerability.cisa_kev).label("kev"),
-        ).where(Vulnerability.asset_id == a.id)
+        ).where(Vulnerability.asset_id == a.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
         vcounts = (await db.execute(vuln_q)).one()
 
         items.append(
@@ -233,7 +233,7 @@ async def get_asset(
         func.count().filter(Vulnerability.severity == "LOW").label("low"),
         func.count().filter(Vulnerability.exploit_available).label("exploitable"),
         func.count().filter(Vulnerability.cisa_kev).label("kev"),
-    ).where(Vulnerability.asset_id == asset.id)
+    ).where(Vulnerability.asset_id == asset.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
     vc = (await db.execute(vuln_q)).one()
 
     # Vulns list
@@ -241,7 +241,7 @@ async def get_asset(
         (
             await db.execute(
                 select(Vulnerability)
-                .where(Vulnerability.asset_id == asset.id)
+                .where(Vulnerability.asset_id == asset.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
                 .order_by(
                     case(
                         (Vulnerability.severity == "CRITICAL", 0),

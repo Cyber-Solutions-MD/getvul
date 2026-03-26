@@ -680,7 +680,11 @@ async def remediations_for_host(
                 )
             ).label("max_sev_rank"),
         )
-        .where(Vulnerability.asset_id == asset_id, Vulnerability.tenant_id == user.tenant_id)
+        .where(
+            Vulnerability.asset_id == asset_id,
+            Vulnerability.tenant_id == user.tenant_id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        )
         .group_by(Vulnerability.remediation_action, Vulnerability.affected_product)
         .order_by(
             func.max(
