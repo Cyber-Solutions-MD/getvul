@@ -156,10 +156,10 @@ app.include_router(cspm_router, prefix="/api/v1/cspm", tags=["CSPM"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(tickets_router, prefix="/api/v1/tickets", tags=["Tickets"])
 
-from app.notifications.router import router as notifications_router
-app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
+from app.notifications.router import router as notifications_router  # noqa: E402
+from app.search import search_router  # noqa: E402
 
-from app.search import search_router
+app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(search_router, prefix="/api/v1", tags=["Search"])
 
 

@@ -207,6 +207,7 @@ export default function VulnerabilitiesPage() {
       severity: f.severity || [],
       source: f.source || [],
       status: f.status || [],
+      device_type: f.device_type ?? null,
       exploit_available: f.exploit_available ?? null,
       cisa_kev: f.cisa_kev ?? null,
     });

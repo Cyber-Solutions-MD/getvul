@@ -3,9 +3,10 @@
 revision = "023_add_branding"
 down_revision = "022_add_notifications"
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 
 def upgrade() -> None:
