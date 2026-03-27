@@ -46,9 +46,13 @@ async def _search_vulnerabilities(db: AsyncSession, tenant_id: uuid.UUID, query:
     asset = aliased(Asset)
     stmt = (
         select(
-            Vulnerability.id, Vulnerability.cve_id, Vulnerability.severity,
-            Vulnerability.status, Vulnerability.affected_product,
-            asset.hostname.label("hostname"), Vulnerability.source,
+            Vulnerability.id,
+            Vulnerability.cve_id,
+            Vulnerability.severity,
+            Vulnerability.status,
+            Vulnerability.affected_product,
+            asset.hostname.label("hostname"),
+            Vulnerability.source,
         )
         .outerjoin(asset, Vulnerability.asset_id == asset.id)
         .where(
@@ -64,8 +68,15 @@ async def _search_vulnerabilities(db: AsyncSession, tenant_id: uuid.UUID, query:
         .limit(limit)
     )
     return [
-        {"id": str(r.id), "cve_id": r.cve_id, "severity": r.severity, "status": r.status,
-         "affected_product": r.affected_product, "hostname": r.hostname, "source": r.source}
+        {
+            "id": str(r.id),
+            "cve_id": r.cve_id,
+            "severity": r.severity,
+            "status": r.status,
+            "affected_product": r.affected_product,
+            "hostname": r.hostname,
+            "source": r.source,
+        }
         for r in (await db.execute(stmt)).all()
     ]
 
@@ -87,8 +98,14 @@ async def _search_assets(db: AsyncSession, tenant_id: uuid.UUID, query: str, lim
         .limit(limit)
     )
     return [
-        {"id": str(r.id), "hostname": r.hostname, "device_category": r.device_category,
-         "os_name": r.os_name, "risk_score": r.risk_score, "host_status": r.host_status}
+        {
+            "id": str(r.id),
+            "hostname": r.hostname,
+            "device_category": r.device_category,
+            "os_name": r.os_name,
+            "risk_score": r.risk_score,
+            "host_status": r.host_status,
+        }
         for r in (await db.execute(stmt)).all()
     ]
 
@@ -105,8 +122,14 @@ async def _search_users(db: AsyncSession, tenant_id: uuid.UUID, query: str, limi
         .limit(limit)
     )
     return [
-        {"id": str(r.id), "email": r.email, "name": r.display_name, "department": r.department,
-         "role": r.role, "is_active": r.is_active}
+        {
+            "id": str(r.id),
+            "email": r.email,
+            "name": r.display_name,
+            "department": r.department,
+            "role": r.role,
+            "is_active": r.is_active,
+        }
         for r in (await db.execute(stmt)).all()
     ]
 
@@ -115,15 +138,24 @@ async def _search_tickets(db: AsyncSession, tenant_id: uuid.UUID, query: str, li
     pattern = f"%{query}%"
     vuln = aliased(Vulnerability)
     stmt = (
-        select(Ticket.id, Ticket.external_ticket_url, Ticket.provider, Ticket.external_status, vuln.cve_id.label("cve_id"))
+        select(
+            Ticket.id, Ticket.external_ticket_url, Ticket.provider, Ticket.external_status, vuln.cve_id.label("cve_id")
+        )
         .join(vuln, Ticket.vulnerability_id == vuln.id)
-        .where(Ticket.tenant_id == tenant_id, or_(vuln.cve_id.ilike(pattern), Ticket.external_ticket_url.ilike(pattern)))
+        .where(
+            Ticket.tenant_id == tenant_id, or_(vuln.cve_id.ilike(pattern), Ticket.external_ticket_url.ilike(pattern))
+        )
         .order_by(Ticket.created_at.desc())
         .limit(limit)
     )
     return [
-        {"id": str(r.id), "external_ticket_url": r.external_ticket_url, "provider": r.provider,
-         "external_status": r.external_status, "cve_id": r.cve_id}
+        {
+            "id": str(r.id),
+            "external_ticket_url": r.external_ticket_url,
+            "provider": r.provider,
+            "external_status": r.external_status,
+            "cve_id": r.cve_id,
+        }
         for r in (await db.execute(stmt)).all()
     ]
 
@@ -131,22 +163,37 @@ async def _search_tickets(db: AsyncSession, tenant_id: uuid.UUID, query: str, li
 async def _search_cspm(db: AsyncSession, tenant_id: uuid.UUID, query: str, limit: int) -> list[dict]:
     pattern = f"%{query}%"
     stmt = (
-        select(Misconfiguration.id, Misconfiguration.rule_id, Misconfiguration.rule_name,
-               Misconfiguration.severity, Misconfiguration.status, Misconfiguration.resource_name,
-               Misconfiguration.cloud_provider)
+        select(
+            Misconfiguration.id,
+            Misconfiguration.rule_id,
+            Misconfiguration.rule_name,
+            Misconfiguration.severity,
+            Misconfiguration.status,
+            Misconfiguration.resource_name,
+            Misconfiguration.cloud_provider,
+        )
         .where(
             Misconfiguration.tenant_id == tenant_id,
             or_(
-                Misconfiguration.rule_id.ilike(pattern), Misconfiguration.rule_name.ilike(pattern),
-                Misconfiguration.resource_name.ilike(pattern), Misconfiguration.resource_id.ilike(pattern),
+                Misconfiguration.rule_id.ilike(pattern),
+                Misconfiguration.rule_name.ilike(pattern),
+                Misconfiguration.resource_name.ilike(pattern),
+                Misconfiguration.resource_id.ilike(pattern),
             ),
         )
         .order_by(CSPM_SEVERITY_RANK)
         .limit(limit)
     )
     return [
-        {"id": str(r.id), "rule_id": r.rule_id, "rule_name": r.rule_name, "severity": r.severity,
-         "status": r.status, "resource_name": r.resource_name, "cloud_provider": r.cloud_provider}
+        {
+            "id": str(r.id),
+            "rule_id": r.rule_id,
+            "rule_name": r.rule_name,
+            "severity": r.severity,
+            "status": r.status,
+            "resource_name": r.resource_name,
+            "cloud_provider": r.cloud_provider,
+        }
         for r in (await db.execute(stmt)).all()
     ]
 

@@ -25,7 +25,9 @@ class Notification(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Content
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="info")  # critical, high, medium, low, info
+    severity: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="info"
+    )  # critical, high, medium, low, info
     category: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     # new_critical_vuln, sla_breach, sync_failure, ticket_update, risk_change
 

@@ -39,14 +39,16 @@ async def list_users(
     To see all directory users, use GET /api/v1/users/directory.
     """
     result = await db.execute(
-        select(User).where(
+        select(User)
+        .where(
             User.tenant_id == user.tenant_id,
             or_(
                 User.password_hash.isnot(None),
                 User.allow_password_login.is_(True),
                 User.role.in_(["OWNER", "ADMIN", "ANALYST"]),
             ),
-        ).order_by(User.email)
+        )
+        .order_by(User.email)
     )
     return result.scalars().all()
 

@@ -115,9 +115,7 @@ async def get_unread_count(db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid
     return (await db.execute(q)).scalar_one()
 
 
-async def mark_read(
-    db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID, notification_id: uuid.UUID
-) -> bool:
+async def mark_read(db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID, notification_id: uuid.UUID) -> bool:
     """Mark a single notification as read. Returns True if updated."""
     result = await db.execute(
         update(Notification)

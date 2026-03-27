@@ -203,21 +203,16 @@ async def get_compliance_dashboard(
     """Return compliance posture grouped by framework."""
     logger.info("get_compliance_dashboard", tenant_id=str(tenant_id))
 
-    framework_col = func.jsonb_array_elements_text(Misconfiguration.frameworks).label(
-        "framework"
-    )
+    framework_col = func.jsonb_array_elements_text(Misconfiguration.frameworks).label("framework")
 
-    base_q = (
-        select(
-            framework_col,
-            Misconfiguration.rule_id,
-            Misconfiguration.status,
-            Misconfiguration.severity,
-        )
-        .where(
-            Misconfiguration.tenant_id == tenant_id,
-            Misconfiguration.frameworks.isnot(None),
-        )
+    base_q = select(
+        framework_col,
+        Misconfiguration.rule_id,
+        Misconfiguration.status,
+        Misconfiguration.severity,
+    ).where(
+        Misconfiguration.tenant_id == tenant_id,
+        Misconfiguration.frameworks.isnot(None),
     )
 
     # Wrap as subquery so we can group on the unnested framework value
@@ -228,15 +223,11 @@ async def get_compliance_dashboard(
             select(
                 sub.c.framework,
                 func.count(func.distinct(sub.c.rule_id)).label("total_controls"),
-                func.count(func.distinct(sub.c.rule_id)).filter(
-                    sub.c.status == "REMEDIATED"
-                ).label("passed"),
-                func.count(func.distinct(sub.c.rule_id)).filter(
-                    sub.c.status.in_(["OPEN", "IN_PROGRESS"])
-                ).label("failed"),
-                func.count(func.distinct(sub.c.rule_id)).filter(
-                    sub.c.status == "SUPPRESSED"
-                ).label("suppressed"),
+                func.count(func.distinct(sub.c.rule_id)).filter(sub.c.status == "REMEDIATED").label("passed"),
+                func.count(func.distinct(sub.c.rule_id))
+                .filter(sub.c.status.in_(["OPEN", "IN_PROGRESS"]))
+                .label("failed"),
+                func.count(func.distinct(sub.c.rule_id)).filter(sub.c.status == "SUPPRESSED").label("suppressed"),
                 func.count(1).filter(sub.c.severity == "CRITICAL").label("critical"),
                 func.count(1).filter(sub.c.severity == "HIGH").label("high"),
                 func.count(1).filter(sub.c.severity == "MEDIUM").label("medium"),
@@ -309,12 +300,10 @@ async def get_cloud_resources(
         select(
             *group_cols,
             func.count(Misconfiguration.id).label("total_findings"),
-            func.count(Misconfiguration.id).filter(
-                Misconfiguration.status.in_(["OPEN", "IN_PROGRESS"])
-            ).label("open_findings"),
-            func.count(Misconfiguration.id).filter(
-                Misconfiguration.severity == "CRITICAL"
-            ).label("critical_findings"),
+            func.count(Misconfiguration.id)
+            .filter(Misconfiguration.status.in_(["OPEN", "IN_PROGRESS"]))
+            .label("open_findings"),
+            func.count(Misconfiguration.id).filter(Misconfiguration.severity == "CRITICAL").label("critical_findings"),
             func.max(
                 case(
                     (Misconfiguration.severity == "CRITICAL", 1),
@@ -362,18 +351,18 @@ async def get_cloud_resources(
     for r in rows:
         # Fetch distinct frameworks for this resource
         fw_rows = (
-            await db.execute(
-                select(
-                    func.distinct(
-                        func.jsonb_array_elements_text(Misconfiguration.frameworks)
+            (
+                await db.execute(
+                    select(func.distinct(func.jsonb_array_elements_text(Misconfiguration.frameworks))).where(
+                        Misconfiguration.tenant_id == tenant_id,
+                        Misconfiguration.resource_id == r.resource_id,
+                        Misconfiguration.frameworks.isnot(None),
                     )
-                ).where(
-                    Misconfiguration.tenant_id == tenant_id,
-                    Misconfiguration.resource_id == r.resource_id,
-                    Misconfiguration.frameworks.isnot(None),
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         items.append(
             {
@@ -451,9 +440,7 @@ async def get_cspm_trends(
     # Total detected before the window (baseline for cumulative)
     total_before = (
         await db.execute(
-            select(func.count(Misconfiguration.id)).where(
-                base, Misconfiguration.first_detected_at < start_date
-            )
+            select(func.count(Misconfiguration.id)).where(base, Misconfiguration.first_detected_at < start_date)
         )
     ).scalar_one()
 
@@ -469,9 +456,7 @@ async def get_cspm_trends(
 
     # Build lookup dicts
     new_by_day: dict[str, int] = {r.day.strftime("%Y-%m-%d"): r.cnt for r in new_rows}
-    resolved_by_day: dict[str, int] = {
-        r.day.strftime("%Y-%m-%d"): r.cnt for r in resolved_rows
-    }
+    resolved_by_day: dict[str, int] = {r.day.strftime("%Y-%m-%d"): r.cnt for r in resolved_rows}
 
     # Build timeline
     timeline: list[dict] = []
@@ -503,9 +488,7 @@ async def get_cspm_trends(
     # Current total open
     total_open = (
         await db.execute(
-            select(func.count(Misconfiguration.id)).where(
-                base, Misconfiguration.status.in_(["OPEN", "IN_PROGRESS"])
-            )
+            select(func.count(Misconfiguration.id)).where(base, Misconfiguration.status.in_(["OPEN", "IN_PROGRESS"]))
         )
     ).scalar_one()
 

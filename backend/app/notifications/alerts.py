@@ -86,9 +86,13 @@ async def _check_new_critical_vulns(db: AsyncSession, tenant: Tenant) -> int:
         alerts_created += 1
 
         # Send email to OWNER and ADMIN users
-        await _email_owners_and_admins(db, tenant, f"New Critical Vulnerability: {resource_id}",
-                                       f"{vuln_name} detected on {hostname} — CVSS {score}",
-                                       "new_critical_vuln")
+        await _email_owners_and_admins(
+            db,
+            tenant,
+            f"New Critical Vulnerability: {resource_id}",
+            f"{vuln_name} detected on {hostname} — CVSS {score}",
+            "new_critical_vuln",
+        )
 
     return alerts_created
 
@@ -144,14 +148,18 @@ async def _check_sync_failures(db: AsyncSession, tenant: Tenant) -> int:
     alerts_created = 0
 
     connectors = (
-        await db.execute(
-            select(ConnectorConfig).where(
-                ConnectorConfig.tenant_id == tenant.id,
-                ConnectorConfig.is_enabled.is_(True),
-                ConnectorConfig.last_sync_status.in_(["error", "FAILED", "failed"]),
+        (
+            await db.execute(
+                select(ConnectorConfig).where(
+                    ConnectorConfig.tenant_id == tenant.id,
+                    ConnectorConfig.is_enabled.is_(True),
+                    ConnectorConfig.last_sync_status.in_(["error", "FAILED", "failed"]),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     for connector in connectors:
         resource_id = str(connector.id)
@@ -203,13 +211,17 @@ async def _check_risk_score_changes(db: AsyncSession, tenant: Tenant) -> int:
 
     # Get current assets with risk scores
     assets = (
-        await db.execute(
-            select(Asset).where(
-                Asset.tenant_id == tenant.id,
-                Asset.risk_score.isnot(None),
+        (
+            await db.execute(
+                select(Asset).where(
+                    Asset.tenant_id == tenant.id,
+                    Asset.risk_score.isnot(None),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     for asset in assets:
         old_score = asset_scores_yesterday.get(str(asset.id))
@@ -282,14 +294,18 @@ async def _email_owners_and_admins(
     from app.notifications.service import _send_notification_email
 
     users = (
-        await db.execute(
-            select(User).where(
-                User.tenant_id == tenant.id,
-                User.is_active.is_(True),
-                User.role.in_(["OWNER", "ADMIN"]),
+        (
+            await db.execute(
+                select(User).where(
+                    User.tenant_id == tenant.id,
+                    User.is_active.is_(True),
+                    User.role.in_(["OWNER", "ADMIN"]),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     for user in users:
         await _send_notification_email(db, tenant.id, user.email, title, message, category)
