@@ -63,6 +63,18 @@ Hot reload is enabled for both backend (Uvicorn `--reload`) and frontend (Next.j
 
 ## Google Cloud Platform (GCP)
 
+### Step 0: Clone the repository
+
+```bash
+# Clone the GetVul repository (contains Terraform configs under infra/)
+git clone https://github.com/Cyber-Solutions-MD/getvul.git
+cd getvul
+
+# Verify the infrastructure files exist
+ls infra/gcp/
+# Expected: main.tf  outputs.tf  startup.sh  variables.tf
+```
+
 ### Step 1: Install prerequisites
 
 ```bash
@@ -225,6 +237,17 @@ terraform destroy \
 
 ## Amazon Web Services (AWS)
 
+### Step 0: Clone the repository (if not already done)
+
+```bash
+git clone https://github.com/Cyber-Solutions-MD/getvul.git
+cd getvul
+
+# Verify the infrastructure files exist
+ls infra/aws/
+# Expected: main.tf  outputs.tf  startup.sh  variables.tf
+```
+
 ### Step 1: Install prerequisites
 
 ```bash
@@ -384,6 +407,17 @@ terraform destroy \
 
 ## Microsoft Azure
 
+### Step 0: Clone the repository (if not already done)
+
+```bash
+git clone https://github.com/Cyber-Solutions-MD/getvul.git
+cd getvul
+
+# Verify the infrastructure files exist
+ls infra/azure/
+# Expected: main.tf  outputs.tf  startup.sh  variables.tf
+```
+
 ### Step 1: Install prerequisites
 
 ```bash
@@ -431,8 +465,9 @@ cat ~/.ssh/id_rsa.pub  # verify it exists
 ### Step 4: Deploy with Terraform
 
 ```bash
-# Navigate to the Azure infrastructure directory
+# Navigate to the Azure infrastructure directory (from the repo root: getvul/)
 cd infra/azure
+# You should see: main.tf  outputs.tf  startup.sh  variables.tf
 
 # Initialize Terraform (downloads the Azure provider)
 terraform init
