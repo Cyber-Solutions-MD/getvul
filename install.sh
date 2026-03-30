@@ -85,43 +85,7 @@ fi
 
 # ── Step 6: Create default admin user ──
 echo "[6/7] Creating default admin user..."
-sudo docker compose exec -T backend python3 -c "
-import asyncio
-from app.db.session import async_session_factory
-from sqlalchemy import select, text
-
-async def create_admin():
-    async with async_session_factory() as db:
-        # Check if any user exists
-        result = await db.execute(text('SELECT COUNT(*) FROM users'))
-        count = result.scalar()
-        if count > 0:
-            print('    Users already exist — skipping.')
-            return
-
-        # Ensure a tenant exists
-        result = await db.execute(text('SELECT id FROM tenants LIMIT 1'))
-        tenant = result.scalar()
-        if not tenant:
-            await db.execute(text(
-                \"\"\"INSERT INTO tenants (id, name, slug, domain, idp_provider, is_active)
-                VALUES (gen_random_uuid(), 'GetVul', 'getvul', 'localhost', 'LOCAL', true)\"\"\"
-            ))
-            await db.commit()
-            result = await db.execute(text('SELECT id FROM tenants LIMIT 1'))
-            tenant = result.scalar()
-
-        from app.auth.password import hash_password
-        hashed = hash_password('Admin123!')
-        await db.execute(text(
-            \"\"\"INSERT INTO users (id, tenant_id, email, display_name, role, password_hash, is_active)
-            VALUES (gen_random_uuid(), :tid, 'admin@getvul.local', 'Admin', 'OWNER', :pw, true)\"\"\"
-        ), {'tid': str(tenant), 'pw': hashed})
-        await db.commit()
-        print('    Default admin user created.')
-
-asyncio.run(create_admin())
-" 2>/dev/null || echo "    Skipped (backend not ready yet — register manually)."
+sudo docker compose exec -T backend python3 /app/create_admin.py 2>&1 || echo "    Skipped (backend not ready yet — register manually)."
 
 # ── Step 7: Set up auto-update cron ──
 if [ ! -f /usr/local/bin/getvul-update ]; then
