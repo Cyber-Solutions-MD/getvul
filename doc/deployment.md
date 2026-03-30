@@ -63,9 +63,10 @@ Deploy using Azure Cloud Shell (browser-based, no local tools needed).
 ```bash
 # Choose your settings
 RESOURCE_GROUP="getvul-rg"
-LOCATION="westeurope"           # Change to your preferred region
+LOCATION="uksouth"              # Change to your preferred region (westeurope often has capacity issues)
 VM_NAME="getvul-vm"
-VM_SIZE="Standard_B2s"          # 2 vCPU, 4 GB RAM
+VM_SIZE="Standard_B2ms"         # 2 vCPU, 8 GB RAM (~$30/mo)
+# If B2ms is unavailable, try: Standard_B2s, Standard_D2s_v5, Standard_D2as_v5
 ADMIN_USER="getvul"
 REPO_URL="https://github.com/Cyber-Solutions-MD/getvul.git"
 ```
