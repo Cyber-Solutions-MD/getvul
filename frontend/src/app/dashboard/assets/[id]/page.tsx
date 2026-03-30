@@ -264,9 +264,9 @@ export default function AssetDetailPage() {
   );
 }
 
-function R({ l, v, mono, badge, link }: { l: string; v: any; mono?: boolean; badge?: "green" | "red" | "gray"; link?: string }) {
+function R({ l, v, mono, badge, link }: { l: string; v: any; mono?: boolean; badge?: "green" | "red" | "gray" | "yellow"; link?: string }) {
   if (!v) return null;
-  const badgeC = { green: "bg-green-500/20 text-green-400", red: "bg-red-500/20 text-red-400", gray: "bg-gray-500/20 text-gray-400" };
+  const badgeC = { green: "bg-green-500/20 text-green-400", red: "bg-red-500/20 text-red-400", yellow: "bg-yellow-500/20 text-yellow-400", gray: "bg-gray-500/20 text-gray-400" };
   return (
     <div className="flex justify-between gap-2">
       <span className="text-gray-500 shrink-0">{l}</span>
