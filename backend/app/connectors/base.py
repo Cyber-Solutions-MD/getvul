@@ -37,6 +37,7 @@ class NormalizedVulnerability:
     last_login_at: str | None = None
     last_seen_at: str | None = None
     host_status: str | None = None
+    containment_status: str | None = None
     system_manufacturer: str | None = None
     system_product_name: str | None = None
     crowdstrike_aid: str | None = None

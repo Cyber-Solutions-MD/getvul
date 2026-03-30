@@ -187,6 +187,7 @@ export default function AssetDetailPage() {
             <R l="Last Seen" v={asset.last_seen_at ? timeAgo(asset.last_seen_at) : null} />
             <R l="Login Time" v={asset.last_login_at ? new Date(asset.last_login_at).toLocaleString() : null} />
             <R l="Host Status" v={asset.host_status} badge={asset.host_status === "normal" ? "green" : "gray"} />
+            <R l="Containment" v={asset.containment_status} badge={asset.containment_status === "normal" ? "green" : asset.containment_status === "contained" ? "red" : asset.containment_status === "lift_containment_pending" ? "yellow" : "gray"} />
           </div>
           {/* MDM flags — compact single line */}
           {mdm.filevault_enabled !== undefined && (

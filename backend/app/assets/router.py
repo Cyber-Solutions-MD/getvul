@@ -278,6 +278,7 @@ async def get_asset(
         "last_login_at": asset.last_login_at.isoformat() if asset.last_login_at else None,
         "last_seen_at": asset.last_seen_at.isoformat() if asset.last_seen_at else None,
         "host_status": asset.host_status,
+        "containment_status": asset.containment_status,
         # HR / MDM enrichment
         "assigned_user": asset.assigned_user,
         "department": asset.department,

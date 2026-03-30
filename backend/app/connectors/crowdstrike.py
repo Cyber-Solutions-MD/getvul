@@ -314,6 +314,7 @@ class CrowdStrikeConnector(BaseConnector):
         last_login_at = device.get("last_login_timestamp", "")
         last_seen = device.get("last_seen", "")
         host_status = device.get("status", "")
+        containment_status = device.get("containment_status", "")
         system_manufacturer = device.get("system_manufacturer", "")
         system_product_name = device.get("system_product_name", "")
         if not hostname:
@@ -393,6 +394,7 @@ class CrowdStrikeConnector(BaseConnector):
             last_login_at=last_login_at or None,
             last_seen_at=last_seen or None,
             host_status=host_status or None,
+            containment_status=containment_status or None,
             system_manufacturer=system_manufacturer or None,
             system_product_name=system_product_name or None,
             crowdstrike_aid=aid or None,

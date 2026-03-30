@@ -195,6 +195,7 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
             last_login_at=_last_login_at,
             last_seen_at=_last_seen_at,
             host_status=getattr(v, "host_status", None),
+            containment_status=getattr(v, "containment_status", None),
             crowdstrike_aid=getattr(v, "crowdstrike_aid", None),
             defender_device_id=getattr(v, "defender_device_id", None),
             wiz_asset_id=getattr(v, "wiz_asset_id", None),
@@ -232,6 +233,8 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
             asset.last_seen_at = _last_seen_at
         if getattr(v, "host_status", None):
             asset.host_status = v.host_status
+        if getattr(v, "containment_status", None):
+            asset.containment_status = v.containment_status
         if getattr(v, "crowdstrike_aid", None):
             asset.crowdstrike_aid = v.crowdstrike_aid
         if getattr(v, "defender_device_id", None):

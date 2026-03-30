@@ -51,6 +51,7 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_login_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
     host_status: Mapped[str | None] = mapped_column(String(30))
+    containment_status: Mapped[str | None] = mapped_column(String(30))
     system_manufacturer: Mapped[str | None] = mapped_column(String(200))
     external_ip: Mapped[str | None] = mapped_column(String(50))
 
