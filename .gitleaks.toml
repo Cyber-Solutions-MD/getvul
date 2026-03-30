@@ -18,4 +18,5 @@ regexes = [
     '''dev-token''',
     '''test-secret''',
     '''CHANGE-ME''',
+    '''s2KzF3tB8GpR5xN7vQ9wE1yU4iO6aS0dL8jH2kM5nP0=''',
 ]
