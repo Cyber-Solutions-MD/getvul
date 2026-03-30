@@ -129,6 +129,11 @@ resource "aws_instance" "getvul" {
     volume_type = "gp3"
   }
 
+  metadata_options {
+    http_tokens   = "required"
+    http_endpoint = "enabled"
+  }
+
   user_data = templatefile("${path.module}/startup.sh", {
     app_name    = "getvul"
     github_repo = var.github_repo
