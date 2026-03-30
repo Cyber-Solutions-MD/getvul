@@ -97,8 +97,8 @@ docker compose up -d --build >> \$LOG 2>&1
 echo "\$(date) — Update complete" >> \$LOG
 SCRIPT
     sudo chmod +x /usr/local/bin/getvul-update
-    echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update > /dev/null
-    echo "    Auto-update scheduled at 3:00 AM UTC daily."
+    echo "0 * * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update > /dev/null
+    echo "    Auto-update scheduled hourly."
 else
     echo "[6/6] Auto-update already configured — skipping."
 fi
