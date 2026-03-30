@@ -127,102 +127,47 @@ az vm open-port \
 ### Step 7: SSH into the VM and install the app
 
 ```bash
-# SSH into the VM (use the IP from Step 5)
+# Option A: From Azure Cloud Shell (no key needed)
+az ssh vm --resource-group getvul-rg --name getvul-vm
+
+# Option B: Direct SSH
 ssh -i ~/.ssh/getvul $ADMIN_USER@<PUBLIC_IP>
 ```
 
-Once inside the VM, run these commands:
+Once inside the VM, run the install script:
 
 ```bash
-# Install Docker
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# Add your user to docker group (no sudo needed for docker commands)
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Clone the repository
 sudo git clone https://github.com/Cyber-Solutions-MD/getvul.git /opt/getvul
 sudo chown -R $USER:$USER /opt/getvul
-cd /opt/getvul
-
-# Create environment file
-cat > .env << 'ENVEOF'
-DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
-REDIS_URL=redis://redis:6379/0
-ENVIRONMENT=production
-DEBUG=false
-ENVEOF
-
-# Generate and add secrets
-echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> .env
-echo "ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' 2>/dev/null || openssl rand -base64 32)" >> .env
-
-# Start the application
-docker compose up -d --build
+bash /opt/getvul/install.sh
 ```
 
-### Step 8: Verify
+The script automatically:
+- Installs Docker and Docker Compose
+- Creates `.env` with generated secrets (JWT key, encryption key)
+- Builds and starts all 5 containers (2-5 minutes)
+- Sets up daily auto-update cron at 3 AM UTC
+- Prints the access URL when done
 
-```bash
-# Check all 5 containers are running
-docker compose ps
+### Step 8: Access the application
 
-# Expected: nginx, backend, frontend, postgres, redis — all "Up"
-
-# Check backend health
-curl -s http://localhost:8000/api/v1/health || echo "Backend starting..."
-
-# View logs if needed
-docker compose logs -f backend
-```
-
-### Step 9: Access the application
-
-Back in your browser, go to:
+Open in your browser (use the IP from the install script output):
 
 ```
 https://<PUBLIC_IP>
 ```
 
-Accept the self-signed certificate warning (click Advanced > Proceed).
-
-### Step 10: Set up daily auto-update (optional)
-
-```bash
-# Create the update script
-sudo tee /usr/local/bin/getvul-update > /dev/null << 'SCRIPT'
-#!/bin/bash
-set -e
-LOG="/var/log/getvul-update.log"
-echo "$(date) — Checking for updates..." >> $LOG
-cd /opt/getvul
-git pull >> $LOG 2>&1
-docker compose up -d --build >> $LOG 2>&1
-echo "$(date) — Update complete" >> $LOG
-SCRIPT
-
-sudo chmod +x /usr/local/bin/getvul-update
-
-# Schedule daily at 3 AM UTC
-echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update
-```
+Accept the self-signed certificate warning, then register your admin account.
 
 ### Restrict SSH access (recommended)
 
 ```bash
-# From Azure Cloud Shell — restrict SSH to your IP only
+# From Azure Cloud Shell — find NSG name and restrict SSH to your IP
+NSG_NAME=$(az network nsg list --resource-group getvul-rg --query "[0].name" --output tsv)
 MY_IP=$(curl -s ifconfig.me)
 az network nsg rule update \
-  --resource-group $RESOURCE_GROUP \
-  --nsg-name ${VM_NAME}NSG \
+  --resource-group getvul-rg \
+  --nsg-name $NSG_NAME \
   --name default-allow-ssh \
   --source-address-prefixes $MY_IP
 ```
@@ -376,78 +321,25 @@ sleep 30
 ssh -i ~/.ssh/getvul.pem -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP
 ```
 
-Once inside the instance, run these commands:
+Once inside the instance, run the install script:
 
 ```bash
-# Install Docker
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# Add your user to docker group
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Clone the repository
 sudo git clone https://github.com/Cyber-Solutions-MD/getvul.git /opt/getvul
 sudo chown -R $USER:$USER /opt/getvul
-cd /opt/getvul
-
-# Create environment file
-cat > .env << 'ENVEOF'
-DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
-REDIS_URL=redis://redis:6379/0
-ENVIRONMENT=production
-DEBUG=false
-ENVEOF
-
-# Generate and add secrets
-echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> .env
-echo "ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' 2>/dev/null || openssl rand -base64 32)" >> .env
-
-# Start the application
-docker compose up -d --build
+bash /opt/getvul/install.sh
 ```
 
-### Step 9: Verify
+The script automatically installs Docker, creates `.env` with generated secrets, builds all containers, and sets up daily auto-update.
 
-```bash
-# Check all 5 containers are running
-docker compose ps
+### Step 9: Access the application
 
-# Check backend health
-curl -s http://localhost:8000/api/v1/health || echo "Backend starting..."
-```
-
-### Step 10: Access the application
+Open in your browser (use the IP from Step 7):
 
 ```
 https://<PUBLIC_IP>
 ```
 
-### Set up daily auto-update (optional)
-
-```bash
-# Same as Azure — run inside the VM
-sudo tee /usr/local/bin/getvul-update > /dev/null << 'SCRIPT'
-#!/bin/bash
-set -e
-LOG="/var/log/getvul-update.log"
-echo "$(date) — Checking for updates..." >> $LOG
-cd /opt/getvul
-git pull >> $LOG 2>&1
-docker compose up -d --build >> $LOG 2>&1
-echo "$(date) — Update complete" >> $LOG
-SCRIPT
-
-sudo chmod +x /usr/local/bin/getvul-update
-echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update
-```
+Accept the self-signed certificate warning, then register your admin account.
 
 ### Restrict SSH (recommended)
 
@@ -580,78 +472,25 @@ echo "Static IP: $STATIC_IP"
 gcloud compute ssh $VM_NAME --zone=$ZONE
 ```
 
-Once inside the VM, run these commands:
+Once inside the VM, run the install script:
 
 ```bash
-# Install Docker
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# Add your user to docker group
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Clone the repository
 sudo git clone https://github.com/Cyber-Solutions-MD/getvul.git /opt/getvul
 sudo chown -R $USER:$USER /opt/getvul
-cd /opt/getvul
-
-# Create environment file
-cat > .env << 'ENVEOF'
-DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
-REDIS_URL=redis://redis:6379/0
-ENVIRONMENT=production
-DEBUG=false
-ENVEOF
-
-# Generate and add secrets
-echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> .env
-echo "ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' 2>/dev/null || openssl rand -base64 32)" >> .env
-
-# Start the application
-docker compose up -d --build
+bash /opt/getvul/install.sh
 ```
 
-### Step 8: Verify
+The script automatically installs Docker, creates `.env` with generated secrets, builds all containers, and sets up daily auto-update.
 
-```bash
-# Check all 5 containers are running
-docker compose ps
+### Step 8: Access the application
 
-# Check backend health
-curl -s http://localhost:8000/api/v1/health || echo "Backend starting..."
-```
-
-### Step 9: Access the application
+Open in your browser (use the IP from Step 6):
 
 ```
 https://<STATIC_IP>
 ```
 
-### Set up daily auto-update (optional)
-
-```bash
-# Same as other clouds — run inside the VM
-sudo tee /usr/local/bin/getvul-update > /dev/null << 'SCRIPT'
-#!/bin/bash
-set -e
-LOG="/var/log/getvul-update.log"
-echo "$(date) — Checking for updates..." >> $LOG
-cd /opt/getvul
-git pull >> $LOG 2>&1
-docker compose up -d --build >> $LOG 2>&1
-echo "$(date) — Update complete" >> $LOG
-SCRIPT
-
-sudo chmod +x /usr/local/bin/getvul-update
-echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update
-```
+Accept the self-signed certificate warning, then register your admin account.
 
 ### Restrict SSH (recommended)
 
