@@ -233,7 +233,7 @@ async def seed() -> None:
                 ON CONFLICT (tenant_id, connector_type) DO NOTHING
             """), {
                 "id": cid, "tid": str(tenant_id), "ctype": ctype, "config": config, "creds": creds_arn,
-                "last_sync": rand_recent(2).isoformat(), "count": random.randint(15, 120),
+                "last_sync": rand_recent(2), "count": random.randint(15, 120),
             })
         print(f"  -> {len(connectors)} connector configs")
 
@@ -267,7 +267,7 @@ async def seed() -> None:
                 "id": aid, "tid": str(tenant_id), "hostname": hostname,
                 "ips": jl([ip]), "osn": osn, "osv": osv,
                 "risk": risk, "sources": jl(sources), "serial": serial, "model": model,
-                "mfr": mfr, "seen": rand_recent(1).isoformat(), "ext_ip": ext_ip,
+                "mfr": mfr, "seen": rand_recent(1), "ext_ip": ext_ip,
                 "user": user, "mgr": mgr,
             })
 
@@ -291,7 +291,7 @@ async def seed() -> None:
                 "id": aid, "tid": str(tenant_id), "hostname": hostname,
                 "ips": jl([ip]), "osn": osn, "osv": osv,
                 "risk": risk, "sources": jl(sources), "serial": serial, "model": model,
-                "mfr": mfr, "seen": rand_recent(2).isoformat(), "ext_ip": ext_ip,
+                "mfr": mfr, "seen": rand_recent(2), "ext_ip": ext_ip,
             })
 
         # Network devices
@@ -313,7 +313,7 @@ async def seed() -> None:
                 "id": aid, "tid": str(tenant_id), "hostname": hostname,
                 "ips": jl([ip]), "osn": osn, "osv": osv,
                 "risk": risk, "sources": jl(sources), "serial": serial, "model": model,
-                "mfr": mfr, "seen": rand_recent(3).isoformat(),
+                "mfr": mfr, "seen": rand_recent(3),
             })
 
         # Cloud resources
@@ -338,7 +338,7 @@ async def seed() -> None:
                 "id": aid, "tid": str(tenant_id), "hostname": hostname,
                 "ips": jl([ip]), "osn": osn, "osv": osv,
                 "risk": risk, "sources": jl(sources), "model": model,
-                "mfr": cloud, "seen": rand_recent(1).isoformat(),
+                "mfr": cloud, "seen": rand_recent(1),
                 "cloud": cloud_map.get(cloud, "AWS"), "crid": crid,
             })
 
@@ -384,15 +384,15 @@ async def seed() -> None:
             status = random.choice(status_weights)
             first_detected = rand_past(120)
             last_seen = rand_recent(3) if status != "REMEDIATED" else rand_past(30)
-            remediated_at = rand_past(15).isoformat() if status == "REMEDIATED" else None
+            remediated_at = rand_past(15) if status == "REMEDIATED" else None
 
             # SLA: some breached
             sla_offset = sla_days.get(severity, 90)
             if random.random() < 0.15:  # 15% SLA breached
-                sla_due = (first_detected + timedelta(days=sla_offset)).isoformat()
+                sla_due = first_detected + timedelta(days=sla_offset)
                 sla_breached = True
             else:
-                sla_due = (NOW + timedelta(days=random.randint(1, sla_offset))).isoformat()
+                sla_due = NOW + timedelta(days=random.randint(1, sla_offset))
                 sla_breached = False
 
             vid = str(uuid.uuid4())
@@ -415,7 +415,7 @@ async def seed() -> None:
                     "cvss": float(cvss), "sev": severity, "exploit": exploit, "kev": kev,
                     "aid": aid, "source": source, "product": product,
                     "remediation": remediation, "rem_id": rem_id, "status": status,
-                    "first": first_detected.isoformat(), "last": last_seen.isoformat(),
+                    "first": first_detected, "last": last_seen,
                     "rem_at": remediated_at, "sla": sla_due, "sla_b": sla_breached,
                 })
                 vuln_count += 1
@@ -455,7 +455,7 @@ async def seed() -> None:
                 "acct_id": "123456789012" if cloud == "AWS" else ("sub-001" if cloud == "AZURE" else "getvul-prod"),
                 "acct_name": "getvul-production",
                 "rem": remediation, "status": st,
-                "first": first.isoformat(), "last": rand_recent(2).isoformat(),
+                "first": first, "last": rand_recent(2),
             })
             misconfig_count += 1
         print(f"  -> {misconfig_count} misconfigurations")
@@ -486,7 +486,7 @@ async def seed() -> None:
             assignee = assignees[i % len(assignees)]
             tid_ticket = str(uuid.uuid4())
             created_d = rand_past(30)
-            resolved = rand_past(7).isoformat() if ext_status == "Done" else None
+            resolved = rand_past(7) if ext_status == "Done" else None
             await session.execute(text("""
                 INSERT INTO tickets (id, tenant_id, vulnerability_id, provider, external_ticket_id,
                     external_ticket_url, external_status, project_key, assignee,
@@ -498,7 +498,7 @@ async def seed() -> None:
             """), {
                 "id": tid_ticket, "tid": str(tenant_id), "vid": vid, "ext_id": ext_id,
                 "ext_url": ext_url, "ext_status": ext_status, "assignee": assignee,
-                "created": created_d.isoformat(), "resolved": resolved,
+                "created": created_d, "resolved": resolved,
             })
             ticket_count += 1
         print(f"  -> {ticket_count} tickets")
@@ -517,8 +517,8 @@ async def seed() -> None:
             """), {
                 "id": nid, "tid": str(tenant_id), "title": title, "msg": message,
                 "sev": severity, "cat": category, "read": is_read,
-                "read_at": rand_recent(1).isoformat() if is_read else None,
-                "created": rand_recent(5).isoformat(),
+                "read_at": rand_recent(1) if is_read else None,
+                "created": rand_recent(5),
             })
         print(f"  -> {len(NOTIFICATIONS)} notifications")
 
