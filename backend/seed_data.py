@@ -228,7 +228,7 @@ async def seed() -> None:
             await session.execute(text("""
                 INSERT INTO connector_configs (id, tenant_id, connector_type, is_enabled, config, credentials_secret_arn,
                     last_sync_at, last_sync_status, last_sync_record_count, sync_interval_minutes, created_at, updated_at)
-                VALUES (:id, :tid, :ctype, true, :config::jsonb, :creds,
+                VALUES (:id, :tid, :ctype, true, CAST(:config AS jsonb), :creds,
                     :last_sync, 'SUCCESS', :count, 60, now(), now())
                 ON CONFLICT (tenant_id, connector_type) DO NOTHING
             """), {
@@ -258,8 +258,8 @@ async def seed() -> None:
                     device_category, risk_score, host_status, seen_by_sources, serial_number, model,
                     system_manufacturer, last_seen_at, external_ip, assigned_user, last_login_user,
                     managed_by, asset_type, created_at, updated_at)
-                VALUES (:id, :tid, :hostname, :ips::jsonb, :osn, :osv,
-                    'WORKSTATION', :risk, 'normal', :sources::jsonb, :serial, :model,
+                VALUES (:id, :tid, :hostname, CAST(:ips AS jsonb), :osn, :osv,
+                    'WORKSTATION', :risk, 'normal', CAST(:sources AS jsonb), :serial, :model,
                     :mfr, :seen, :ext_ip, :user, :user,
                     :mgr, 'WORKSTATION', now(), now())
                 ON CONFLICT (tenant_id, hostname) DO NOTHING
@@ -283,8 +283,8 @@ async def seed() -> None:
                 INSERT INTO assets (id, tenant_id, hostname, ip_addresses, os_name, os_version,
                     device_category, risk_score, host_status, seen_by_sources, serial_number, model,
                     system_manufacturer, last_seen_at, external_ip, asset_type, created_at, updated_at)
-                VALUES (:id, :tid, :hostname, :ips::jsonb, :osn, :osv,
-                    'SERVER', :risk, 'normal', :sources::jsonb, :serial, :model,
+                VALUES (:id, :tid, :hostname, CAST(:ips AS jsonb), :osn, :osv,
+                    'SERVER', :risk, 'normal', CAST(:sources AS jsonb), :serial, :model,
                     :mfr, :seen, :ext_ip, 'SERVER', now(), now())
                 ON CONFLICT (tenant_id, hostname) DO NOTHING
             """), {
@@ -305,8 +305,8 @@ async def seed() -> None:
                 INSERT INTO assets (id, tenant_id, hostname, ip_addresses, os_name, os_version,
                     device_category, risk_score, host_status, seen_by_sources, serial_number, model,
                     system_manufacturer, last_seen_at, asset_type, created_at, updated_at)
-                VALUES (:id, :tid, :hostname, :ips::jsonb, :osn, :osv,
-                    'NETWORK', :risk, 'normal', :sources::jsonb, :serial, :model,
+                VALUES (:id, :tid, :hostname, CAST(:ips AS jsonb), :osn, :osv,
+                    'NETWORK', :risk, 'normal', CAST(:sources AS jsonb), :serial, :model,
                     :mfr, :seen, 'NETWORK', now(), now())
                 ON CONFLICT (tenant_id, hostname) DO NOTHING
             """), {
@@ -329,8 +329,8 @@ async def seed() -> None:
                     device_category, risk_score, host_status, seen_by_sources, model,
                     system_manufacturer, last_seen_at, cloud_provider, cloud_resource_id,
                     asset_type, created_at, updated_at)
-                VALUES (:id, :tid, :hostname, :ips::jsonb, :osn, :osv,
-                    'OTHER', :risk, 'normal', :sources::jsonb, :model,
+                VALUES (:id, :tid, :hostname, CAST(:ips AS jsonb), :osn, :osv,
+                    'OTHER', :risk, 'normal', CAST(:sources AS jsonb), :model,
                     :mfr, :seen, :cloud, :crid,
                     'OTHER', now(), now())
                 ON CONFLICT (tenant_id, hostname) DO NOTHING
@@ -443,7 +443,7 @@ async def seed() -> None:
                     resource_region, cloud_provider, cloud_account_id, cloud_account_name,
                     source, remediation_info, status, first_detected_at, last_seen_at, created_at, updated_at)
                 VALUES (:id, :tid, :rule_id, :rule_name, :desc,
-                    :cat, :sev, :fw::jsonb, :rid, :rname, :rtype,
+                    :cat, :sev, CAST(:fw AS jsonb), :rid, :rname, :rtype,
                     :region, :cloud, :acct_id, :acct_name,
                     'WIZ', :rem, :status, :first, :last, now(), now())
                 ON CONFLICT (tenant_id, rule_id, resource_id, source) DO NOTHING
