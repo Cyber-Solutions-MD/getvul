@@ -63,10 +63,11 @@ Deploy using Azure Cloud Shell (browser-based, no local tools needed).
 ```bash
 # Choose your settings
 RESOURCE_GROUP="getvul-rg"
-LOCATION="uksouth"              # Change to your preferred region (westeurope often has capacity issues)
+LOCATION="germanywestcentral"   # Change to your preferred region
 VM_NAME="getvul-vm"
-VM_SIZE="Standard_B2ms"         # 2 vCPU, 8 GB RAM (~$30/mo)
-# If B2ms is unavailable, try: Standard_B2s, Standard_D2s_v5, Standard_D2as_v5
+VM_SIZE="Standard_D2s_v3"       # 2 vCPU, 8 GB RAM (~$84/mo)
+# If unavailable, try: Standard_B2ms, Standard_D2s_v5, Standard_D2as_v5
+# Tip: check available sizes with: az vm list-sizes --location $LOCATION --output table
 ADMIN_USER="getvul"
 REPO_URL="https://github.com/Cyber-Solutions-MD/getvul.git"
 ```
@@ -95,15 +96,20 @@ cat ~/.ssh/getvul.pub
 az vm create \
   --resource-group $RESOURCE_GROUP \
   --name $VM_NAME \
-  --image Ubuntu2204 \
+  --image Canonical:ubuntu-24_04-lts:server:latest \
   --size $VM_SIZE \
   --admin-username $ADMIN_USER \
   --ssh-key-values ~/.ssh/getvul.pub \
   --os-disk-size-gb 30 \
-  --storage-sku Premium_LRS \
   --public-ip-sku Standard \
   --output table
 ```
+
+> **Quota errors?** New Azure subscriptions often have 0 vCPU quota. If you get `QuotaExceeded` or `SkuNotAvailable`:
+> 1. Try a different region: `az group delete --name $RESOURCE_GROUP --yes && az group create --name $RESOURCE_GROUP --location eastus`
+> 2. Try a different size: `Standard_D2s_v3`, `Standard_D2s_v5`, `Standard_B2ms`
+> 3. Request quota increase: Portal → Quotas → Compute → select region → increase the VM family to 4 cores
+> 4. Or create the VM via the **Azure Portal UI** instead (Marketplace → Ubuntu Server 24.04 LTS → Create)
 
 Save the **publicIpAddress** from the output.
 
