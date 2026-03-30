@@ -32,9 +32,22 @@ else
     echo "[1/5] Docker already installed — skipping."
 fi
 
-# ── Step 2: Create .env if it doesn't exist ──
+# ── Step 2: Generate self-signed TLS cert if missing ──
+if [ ! -f "$APP_DIR/nginx/certs/server.key" ]; then
+    echo "[2/6] Generating self-signed TLS certificate..."
+    mkdir -p "$APP_DIR/nginx/certs"
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout "$APP_DIR/nginx/certs/server.key" \
+      -out "$APP_DIR/nginx/certs/server.crt" \
+      -subj "/CN=getvul" 2>/dev/null
+    echo "    Self-signed certificate created."
+else
+    echo "[2/6] TLS certificate exists — skipping."
+fi
+
+# ── Step 3: Create .env if it doesn't exist ──
 if [ ! -f "$APP_DIR/.env" ]; then
-    echo "[2/5] Creating environment file..."
+    echo "[3/6] Creating environment file..."
     cat > "$APP_DIR/.env" << 'ENVEOF'
 DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
 REDIS_URL=redis://redis:6379/0
@@ -47,15 +60,15 @@ ENVEOF
     echo "ENCRYPTION_KEY=$ENCRYPTION_KEY" >> "$APP_DIR/.env"
     echo "    Environment file created with generated secrets."
 else
-    echo "[2/5] Environment file exists — skipping."
+    echo "[3/6] Environment file exists — skipping."
 fi
 
 # ── Step 3: Build and start containers ──
-echo "[3/5] Building and starting containers (this takes 2-5 minutes)..."
+echo "[4/6] Building and starting containers (this takes 2-5 minutes)..."
 sudo docker compose up -d --build
 
 # ── Step 4: Wait for backend to be ready ──
-echo "[4/5] Waiting for backend to start..."
+echo "[5/6] Waiting for backend to start..."
 for i in $(seq 1 30); do
     if sudo docker compose exec -T backend python3 -c "print('ok')" &>/dev/null; then
         break
@@ -72,7 +85,7 @@ fi
 
 # ── Step 5: Set up auto-update cron ──
 if [ ! -f /usr/local/bin/getvul-update ]; then
-    echo "[5/5] Setting up daily auto-update..."
+    echo "[6/6] Setting up daily auto-update..."
     sudo tee /usr/local/bin/getvul-update > /dev/null << SCRIPT
 #!/bin/bash
 set -e
@@ -87,7 +100,7 @@ SCRIPT
     echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update > /dev/null
     echo "    Auto-update scheduled at 3:00 AM UTC daily."
 else
-    echo "[5/5] Auto-update already configured — skipping."
+    echo "[6/6] Auto-update already configured — skipping."
 fi
 
 # ── Done ──
