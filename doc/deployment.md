@@ -1,13 +1,6 @@
 # Deployment Guide
 
-GetVul runs as five Docker Compose services on a single VM. This guide covers local development and production deployment on GCP, AWS, and Azure with detailed step-by-step instructions.
-
-## Prerequisites
-
-- Docker and Docker Compose v2
-- Terraform >= 1.7
-- Git access to the repository
-- Domain name (optional, for TLS with Let's Encrypt)
+GetVul runs as five Docker Compose services on a single VM. This guide covers deployment using each cloud provider's native CLI — no Terraform required. All commands run in the browser-based cloud shell.
 
 ## Architecture
 
@@ -29,628 +22,724 @@ GetVul runs as five Docker Compose services on a single VM. This guide covers lo
 └─────────────────────────────────────────────┘
 ```
 
-- **nginx** -- Reverse proxy with TLS termination, security headers, rate limiting
-- **backend** -- FastAPI application server, runs Alembic migrations on startup
-- **frontend** -- Next.js 15 with React 19
-- **postgres** -- PostgreSQL 16, data persisted via Docker volume
-- **redis** -- Redis 7 for rate limiting and caching
-
-Daily auto-update from GitHub checks for new commits at 3:00 AM UTC, rebuilds containers, and restarts. TLS is provided via a self-signed certificate generated on first boot, with options for custom certs or Let's Encrypt.
+- **nginx** — Reverse proxy with TLS termination, security headers, rate limiting
+- **backend** — FastAPI application server, runs Alembic migrations on startup
+- **frontend** — Next.js 15 with React 19
+- **postgres** — PostgreSQL 16, data persisted via Docker volume
+- **redis** — Redis 7 for rate limiting and caching
 
 ---
 
 ## Local Development
 
 ```bash
-git clone <repo-url> && cd getvul
+git clone https://github.com/Cyber-Solutions-MD/getvul.git
+cd getvul
 cp .env.example .env   # Edit with your secrets
 docker compose up -d --build
 ```
 
-### Access
-
 | Endpoint | URL |
 |----------|-----|
 | Application (HTTPS) | `https://localhost` |
-| Application (HTTP, redirects) | `http://localhost` |
 | Frontend direct | `http://localhost:3000` |
-| Backend API | `http://localhost:8000` |
-| API docs (Swagger) | `http://localhost:8000/docs` |
-
-Hot reload is enabled for both backend (Uvicorn `--reload`) and frontend (Next.js dev server with volume mount).
+| Backend API | `http://localhost:8000/docs` |
 
 ---
 
-## Google Cloud Platform (GCP)
+## Microsoft Azure
 
-### Step 0: Clone the repository
+Deploy using Azure Cloud Shell (browser-based, no local tools needed).
 
-```bash
-# Clone the GetVul repository (contains Terraform configs under infra/)
-git clone https://github.com/Cyber-Solutions-MD/getvul.git
-cd getvul
+### Step 1: Open Azure Cloud Shell
 
-# Verify the infrastructure files exist
-ls infra/gcp/
-# Expected: main.tf  outputs.tf  startup.sh  variables.tf
-```
+1. Go to [https://portal.azure.com](https://portal.azure.com)
+2. Click the **Cloud Shell** icon (terminal icon) in the top navigation bar
+3. Select **Bash** (not PowerShell)
+4. If prompted, create a storage account for Cloud Shell
 
-### Step 1: Install prerequisites
+### Step 2: Set variables
 
 ```bash
-# Install Google Cloud CLI
-# macOS:
-brew install --cask google-cloud-sdk
-
-# Linux:
-curl https://sdk.cloud.google.com | bash
-exec -l $SHELL
-
-# Verify installation
-gcloud --version
-terraform --version
+# Choose your settings
+RESOURCE_GROUP="getvul-rg"
+LOCATION="westeurope"           # Change to your preferred region
+VM_NAME="getvul-vm"
+VM_SIZE="Standard_B2s"          # 2 vCPU, 4 GB RAM
+ADMIN_USER="getvul"
+REPO_URL="https://github.com/Cyber-Solutions-MD/getvul.git"
 ```
 
-### Step 2: Authenticate and select project
+### Step 3: Create resource group
 
 ```bash
-# Login to GCP
-gcloud auth login
-
-# Set application default credentials (used by Terraform)
-gcloud auth application-default login
-
-# List your projects
-gcloud projects list
-
-# Set your project
-gcloud config set project YOUR_PROJECT_ID
-
-# Enable required APIs
-gcloud services enable compute.googleapis.com
-gcloud services enable iam.googleapis.com
+az group create \
+  --name $RESOURCE_GROUP \
+  --location $LOCATION
 ```
 
-### Step 3: Prepare SSH key
+### Step 4: Generate SSH key (if you don't have one)
 
 ```bash
-# Generate a new SSH key pair if you don't have one
-ssh-keygen -t ed25519 -C "getvul-deploy" -f ~/.ssh/getvul
+# Generate SSH key in Cloud Shell
+ssh-keygen -t ed25519 -f ~/.ssh/getvul -N ""
 
-# Or use your existing key
-cat ~/.ssh/id_rsa.pub  # verify it exists
+# Display the public key (you'll need this)
+cat ~/.ssh/getvul.pub
 ```
 
-### Step 4: Deploy with Terraform
+### Step 5: Create the VM
 
 ```bash
-# Navigate to the GCP infrastructure directory
-cd infra/gcp
-
-# Initialize Terraform (downloads the Google provider)
-terraform init
-
-# Preview what will be created
-terraform plan \
-  -var="project_id=YOUR_PROJECT_ID" \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
-
-# Review the plan carefully, then apply
-terraform apply \
-  -var="project_id=YOUR_PROJECT_ID" \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
-
-# Type 'yes' when prompted
+az vm create \
+  --resource-group $RESOURCE_GROUP \
+  --name $VM_NAME \
+  --image Ubuntu2204 \
+  --size $VM_SIZE \
+  --admin-username $ADMIN_USER \
+  --ssh-key-values ~/.ssh/getvul.pub \
+  --os-disk-size-gb 30 \
+  --storage-sku Premium_LRS \
+  --public-ip-sku Standard \
+  --output table
 ```
 
-### Step 5: Verify the deployment
+Save the **publicIpAddress** from the output.
+
+### Step 6: Open firewall ports
 
 ```bash
-# Get the public IP
-terraform output ip_address
-
-# SSH into the VM (wait 2-3 minutes for startup script to complete)
-ssh -i ~/.ssh/getvul getvul@$(terraform output -raw ip_address)
-
-# Once inside the VM, check Docker containers are running
-docker compose -f /opt/getvul/docker-compose.yml ps
-
-# Check the startup script log for any errors
-sudo cat /var/log/syslog | grep startup-script | tail -50
-
-# View application logs
-docker compose -f /opt/getvul/docker-compose.yml logs -f backend
+# Open HTTP and HTTPS
+az vm open-port \
+  --resource-group $RESOURCE_GROUP \
+  --name $VM_NAME \
+  --port 80,443 \
+  --priority 100
 ```
 
-### Step 6: Access the application
+### Step 7: SSH into the VM and install the app
 
 ```bash
-# Open in browser (self-signed cert warning is expected)
-open https://$(terraform output -raw ip_address)
+# SSH into the VM (use the IP from Step 5)
+ssh -i ~/.ssh/getvul $ADMIN_USER@<PUBLIC_IP>
 ```
 
-### Step 7: Configure the environment
+Once inside the VM, run these commands:
 
 ```bash
-# SSH into the VM
-ssh -i ~/.ssh/getvul getvul@$(terraform output -raw ip_address)
+# Install Docker
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# Edit the environment file
-sudo nano /opt/getvul/.env
+# Add your user to docker group (no sudo needed for docker commands)
+sudo usermod -aG docker $USER
+newgrp docker
 
-# Set these required values:
-# JWT_SECRET_KEY=<run: openssl rand -hex 32>
-# ENCRYPTION_KEY=<run: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-# DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
-# REDIS_URL=redis://redis:6379/0
+# Clone the repository
+sudo git clone https://github.com/Cyber-Solutions-MD/getvul.git /opt/getvul
+sudo chown -R $USER:$USER /opt/getvul
+cd /opt/getvul
 
-# Restart after editing
-cd /opt/getvul && docker compose up -d
+# Create environment file
+cat > .env << 'ENVEOF'
+DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
+REDIS_URL=redis://redis:6379/0
+ENVIRONMENT=production
+DEBUG=false
+ENVEOF
+
+# Generate and add secrets
+echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> .env
+echo "ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' 2>/dev/null || openssl rand -base64 32)" >> .env
+
+# Start the application
+docker compose up -d --build
 ```
 
-### What it creates
+### Step 8: Verify
 
-| Resource | Details |
-|----------|---------|
-| GCE VM | e2-medium (2 vCPU, 4 GB RAM), 30 GB SSD, Container-Optimized OS |
-| Static external IP | `google_compute_address` |
-| Firewall (web) | Ports 80 and 443 open to 0.0.0.0/0 |
-| Firewall (SSH) | Port 22, restricted to `ssh_allowed_cidrs` |
-| Service account | Dedicated SA with `cloud-platform` scope |
-| Auto-update cron | Daily at 3:00 AM UTC |
+```bash
+# Check all 5 containers are running
+docker compose ps
 
-### Terraform variables
+# Expected: nginx, backend, frontend, postgres, redis — all "Up"
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `project_id` | (required) | GCP project ID |
-| `region` | `us-central1` | GCP region |
-| `zone` | `us-central1-a` | GCP zone |
-| `machine_type` | `e2-medium` | VM size |
-| `disk_size_gb` | `30` | Boot disk size |
-| `ssh_user` | `getvul` | SSH username |
-| `ssh_public_key` | (required) | SSH public key |
-| `ssh_allowed_cidrs` | `["0.0.0.0/0"]` | Restrict SSH source IPs |
-| `github_repo` | (repo default) | GitHub repository (owner/repo) |
-| `deploy_key` | `""` | SSH deploy key for private repos |
+# Check backend health
+curl -s http://localhost:8000/api/v1/health || echo "Backend starting..."
+
+# View logs if needed
+docker compose logs -f backend
+```
+
+### Step 9: Access the application
+
+Back in your browser, go to:
+
+```
+https://<PUBLIC_IP>
+```
+
+Accept the self-signed certificate warning (click Advanced > Proceed).
+
+### Step 10: Set up daily auto-update (optional)
+
+```bash
+# Create the update script
+sudo tee /usr/local/bin/getvul-update > /dev/null << 'SCRIPT'
+#!/bin/bash
+set -e
+LOG="/var/log/getvul-update.log"
+echo "$(date) — Checking for updates..." >> $LOG
+cd /opt/getvul
+git pull >> $LOG 2>&1
+docker compose up -d --build >> $LOG 2>&1
+echo "$(date) — Update complete" >> $LOG
+SCRIPT
+
+sudo chmod +x /usr/local/bin/getvul-update
+
+# Schedule daily at 3 AM UTC
+echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update
+```
 
 ### Restrict SSH access (recommended)
 
 ```bash
-# Only allow SSH from your office IP
-terraform apply \
-  -var="project_id=YOUR_PROJECT_ID" \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)" \
-  -var='ssh_allowed_cidrs=["203.0.113.0/24"]'
+# From Azure Cloud Shell — restrict SSH to your IP only
+MY_IP=$(curl -s ifconfig.me)
+az network nsg rule update \
+  --resource-group $RESOURCE_GROUP \
+  --nsg-name ${VM_NAME}NSG \
+  --name default-allow-ssh \
+  --source-address-prefixes $MY_IP
 ```
 
 ### Teardown
 
 ```bash
-cd infra/gcp
-terraform destroy \
-  -var="project_id=YOUR_PROJECT_ID" \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
+# Delete everything (VM, disk, network, IP — all in one command)
+az group delete --name $RESOURCE_GROUP --yes --no-wait
 ```
 
 ---
 
 ## Amazon Web Services (AWS)
 
-### Step 0: Clone the repository (if not already done)
+Deploy using AWS CloudShell (browser-based, no local tools needed).
+
+### Step 1: Open AWS CloudShell
+
+1. Go to [https://console.aws.amazon.com](https://console.aws.amazon.com)
+2. Click the **CloudShell** icon (terminal icon) in the top navigation bar
+3. Wait for the shell to initialize
+
+### Step 2: Set variables
 
 ```bash
-git clone https://github.com/Cyber-Solutions-MD/getvul.git
-cd getvul
-
-# Verify the infrastructure files exist
-ls infra/aws/
-# Expected: main.tf  outputs.tf  startup.sh  variables.tf
+# Choose your settings
+REGION="eu-west-1"              # Change to your preferred region
+INSTANCE_TYPE="t3.medium"       # 2 vCPU, 4 GB RAM
+KEY_NAME="getvul-key"
+SG_NAME="getvul-sg"
+REPO_URL="https://github.com/Cyber-Solutions-MD/getvul.git"
 ```
 
-### Step 1: Install prerequisites
+### Step 3: Create SSH key pair
 
 ```bash
-# Install AWS CLI
-# macOS:
-brew install awscli
+# Create key pair (saves private key locally)
+aws ec2 create-key-pair \
+  --region $REGION \
+  --key-name $KEY_NAME \
+  --query 'KeyMaterial' \
+  --output text > ~/.ssh/getvul.pem
 
-# Linux:
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip && sudo ./aws/install
-
-# Verify installation
-aws --version
-terraform --version
+chmod 400 ~/.ssh/getvul.pem
 ```
 
-### Step 2: Configure AWS credentials
+### Step 4: Create security group
 
 ```bash
-# Option A: Interactive configuration
-aws configure
-# Enter: AWS Access Key ID, Secret Access Key, Region (eu-west-1), Output format (json)
+# Get default VPC ID
+VPC_ID=$(aws ec2 describe-vpcs \
+  --region $REGION \
+  --filters Name=isDefault,Values=true \
+  --query 'Vpcs[0].VpcId' \
+  --output text)
 
-# Option B: Environment variables
-export AWS_ACCESS_KEY_ID="your-access-key"
-export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="eu-west-1"
+# Create security group
+SG_ID=$(aws ec2 create-security-group \
+  --region $REGION \
+  --group-name $SG_NAME \
+  --description "GetVul - HTTP, HTTPS, SSH" \
+  --vpc-id $VPC_ID \
+  --query 'GroupId' \
+  --output text)
 
-# Verify credentials work
-aws sts get-caller-identity
+# Allow HTTP (80), HTTPS (443), SSH (22)
+aws ec2 authorize-security-group-ingress --region $REGION --group-id $SG_ID --protocol tcp --port 80 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --region $REGION --group-id $SG_ID --protocol tcp --port 443 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --region $REGION --group-id $SG_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+echo "Security Group: $SG_ID"
 ```
 
-### Step 3: Prepare SSH key
+### Step 5: Find Ubuntu 22.04 AMI
 
 ```bash
-# Generate a new SSH key pair if you don't have one
-ssh-keygen -t ed25519 -C "getvul-deploy" -f ~/.ssh/getvul
+AMI_ID=$(aws ec2 describe-images \
+  --region $REGION \
+  --owners 099720109477 \
+  --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+  --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+  --output text)
 
-# Or use your existing key
-cat ~/.ssh/id_rsa.pub  # verify it exists
+echo "AMI: $AMI_ID"
 ```
 
-### Step 4: Deploy with Terraform
+### Step 6: Launch the instance
 
 ```bash
-# Navigate to the AWS infrastructure directory
-cd infra/aws
+# Get a subnet
+SUBNET_ID=$(aws ec2 describe-subnets \
+  --region $REGION \
+  --filters Name=vpc-id,Values=$VPC_ID \
+  --query 'Subnets[0].SubnetId' \
+  --output text)
 
-# Initialize Terraform (downloads the AWS provider)
-terraform init
+# Launch EC2 instance
+INSTANCE_ID=$(aws ec2 run-instances \
+  --region $REGION \
+  --image-id $AMI_ID \
+  --instance-type $INSTANCE_TYPE \
+  --key-name $KEY_NAME \
+  --security-group-ids $SG_ID \
+  --subnet-id $SUBNET_ID \
+  --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=30,VolumeType=gp3}' \
+  --metadata-options 'HttpTokens=required,HttpEndpoint=enabled' \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=getvul}]' \
+  --query 'Instances[0].InstanceId' \
+  --output text)
 
-# Preview what will be created
-terraform plan \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
+echo "Instance: $INSTANCE_ID"
 
-# Review the plan carefully, then apply
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
-
-# Type 'yes' when prompted
+# Wait for it to be running
+aws ec2 wait instance-running --region $REGION --instance-ids $INSTANCE_ID
+echo "Instance is running"
 ```
 
-### Step 5: Verify the deployment
+### Step 7: Allocate and associate Elastic IP
 
 ```bash
-# Get the Elastic IP
-terraform output instance_ip
+# Allocate static IP
+ALLOC_ID=$(aws ec2 allocate-address \
+  --region $REGION \
+  --query 'AllocationId' \
+  --output text)
 
-# SSH into the instance (wait 3-5 minutes for user data script to complete)
-ssh -i ~/.ssh/getvul ubuntu@$(terraform output -raw instance_ip)
+# Associate with instance
+aws ec2 associate-address \
+  --region $REGION \
+  --instance-id $INSTANCE_ID \
+  --allocation-id $ALLOC_ID
 
-# Once inside, check Docker containers
-docker compose -f /opt/getvul/docker-compose.yml ps
+# Get the public IP
+PUBLIC_IP=$(aws ec2 describe-addresses \
+  --region $REGION \
+  --allocation-ids $ALLOC_ID \
+  --query 'Addresses[0].PublicIp' \
+  --output text)
 
-# Check the user data startup log
-sudo cat /var/log/cloud-init-output.log | tail -100
-
-# View application logs
-docker compose -f /opt/getvul/docker-compose.yml logs -f backend
+echo "Public IP: $PUBLIC_IP"
 ```
 
-### Step 6: Access the application
+### Step 8: SSH into the instance and install the app
 
 ```bash
-# Open in browser (self-signed cert warning is expected)
-open https://$(terraform output -raw instance_ip)
-```
+# Wait 30 seconds for SSH to be ready
+sleep 30
 
-### Step 7: Configure the environment
-
-```bash
 # SSH into the instance
-ssh -i ~/.ssh/getvul ubuntu@$(terraform output -raw instance_ip)
-
-# Edit the environment file
-sudo nano /opt/getvul/.env
-
-# Set these required values:
-# JWT_SECRET_KEY=<run: openssl rand -hex 32>
-# ENCRYPTION_KEY=<run: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-# DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
-# REDIS_URL=redis://redis:6379/0
-
-# Restart after editing
-cd /opt/getvul && docker compose up -d
+ssh -i ~/.ssh/getvul.pem -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP
 ```
 
-### What it creates
-
-| Resource | Details |
-|----------|---------|
-| EC2 instance | t3.medium (2 vCPU, 4 GB RAM), 30 GB gp3, Ubuntu 22.04 LTS |
-| Elastic IP | `aws_eip` attached to the instance |
-| Security group | Ports 80, 443 open to 0.0.0.0/0; port 22 restricted to `ssh_allowed_cidrs` |
-| Key pair | Created from provided SSH public key |
-| Auto-update cron | Daily at 3:00 AM UTC |
-
-Uses the default VPC and first available subnet.
-
-### Terraform variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `region` | `eu-west-1` | AWS region |
-| `instance_type` | `t3.medium` | EC2 instance type |
-| `disk_size_gb` | `30` | Root EBS volume size |
-| `ssh_public_key` | (required) | SSH public key |
-| `ssh_allowed_cidrs` | `["0.0.0.0/0"]` | Restrict SSH source IPs |
-| `github_repo` | (repo default) | GitHub repository (owner/repo) |
-| `deploy_key` | `""` | SSH deploy key for private repos |
-
-### Deploy to a different region
+Once inside the instance, run these commands:
 
 ```bash
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)" \
-  -var="region=us-east-1"
+# Install Docker
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Add your user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Clone the repository
+sudo git clone https://github.com/Cyber-Solutions-MD/getvul.git /opt/getvul
+sudo chown -R $USER:$USER /opt/getvul
+cd /opt/getvul
+
+# Create environment file
+cat > .env << 'ENVEOF'
+DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
+REDIS_URL=redis://redis:6379/0
+ENVIRONMENT=production
+DEBUG=false
+ENVEOF
+
+# Generate and add secrets
+echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> .env
+echo "ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' 2>/dev/null || openssl rand -base64 32)" >> .env
+
+# Start the application
+docker compose up -d --build
 ```
 
-### Restrict SSH access (recommended)
+### Step 9: Verify
 
 ```bash
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)" \
-  -var='ssh_allowed_cidrs=["203.0.113.0/24"]'
+# Check all 5 containers are running
+docker compose ps
+
+# Check backend health
+curl -s http://localhost:8000/api/v1/health || echo "Backend starting..."
+```
+
+### Step 10: Access the application
+
+```
+https://<PUBLIC_IP>
+```
+
+### Set up daily auto-update (optional)
+
+```bash
+# Same as Azure — run inside the VM
+sudo tee /usr/local/bin/getvul-update > /dev/null << 'SCRIPT'
+#!/bin/bash
+set -e
+LOG="/var/log/getvul-update.log"
+echo "$(date) — Checking for updates..." >> $LOG
+cd /opt/getvul
+git pull >> $LOG 2>&1
+docker compose up -d --build >> $LOG 2>&1
+echo "$(date) — Update complete" >> $LOG
+SCRIPT
+
+sudo chmod +x /usr/local/bin/getvul-update
+echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update
+```
+
+### Restrict SSH (recommended)
+
+```bash
+# From AWS CloudShell — restrict SSH to your IP
+MY_IP=$(curl -s ifconfig.me)/32
+aws ec2 revoke-security-group-ingress --region $REGION --group-id $SG_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --region $REGION --group-id $SG_ID --protocol tcp --port 22 --cidr $MY_IP
 ```
 
 ### Teardown
 
 ```bash
-cd infra/aws
-terraform destroy \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
+# Terminate instance
+aws ec2 terminate-instances --region $REGION --instance-ids $INSTANCE_ID
+
+# Wait for termination
+aws ec2 wait instance-terminated --region $REGION --instance-ids $INSTANCE_ID
+
+# Release Elastic IP
+aws ec2 release-address --region $REGION --allocation-id $ALLOC_ID
+
+# Delete security group
+aws ec2 delete-security-group --region $REGION --group-id $SG_ID
+
+# Delete key pair
+aws ec2 delete-key-pair --region $REGION --key-name $KEY_NAME
 ```
 
 ---
 
-## Microsoft Azure
+## Google Cloud Platform (GCP)
 
-### Step 0: Clone the repository (if not already done)
+Deploy using GCP Cloud Shell (browser-based, no local tools needed).
+
+### Step 1: Open GCP Cloud Shell
+
+1. Go to [https://console.cloud.google.com](https://console.cloud.google.com)
+2. Select your project from the top dropdown
+3. Click the **Activate Cloud Shell** icon (terminal icon) in the top navigation bar
+4. Wait for the shell to initialize
+
+### Step 2: Set variables
 
 ```bash
-git clone https://github.com/Cyber-Solutions-MD/getvul.git
-cd getvul
+# Choose your settings
+PROJECT_ID=$(gcloud config get-value project)
+ZONE="us-central1-a"            # Change to your preferred zone
+MACHINE_TYPE="e2-medium"        # 2 vCPU, 4 GB RAM
+VM_NAME="getvul-vm"
+REPO_URL="https://github.com/Cyber-Solutions-MD/getvul.git"
 
-# Verify the infrastructure files exist
-ls infra/azure/
-# Expected: main.tf  outputs.tf  startup.sh  variables.tf
+echo "Project: $PROJECT_ID"
 ```
 
-### Step 1: Install prerequisites
+### Step 3: Enable required APIs
 
 ```bash
-# Install Azure CLI
-# macOS:
-brew install azure-cli
-
-# Linux (Ubuntu/Debian):
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-# Windows:
-# Download from https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-windows
-
-# Verify installation
-az --version
-terraform --version
+gcloud services enable compute.googleapis.com
 ```
 
-### Step 2: Authenticate to Azure
+### Step 4: Create firewall rules
 
 ```bash
-# Login to Azure (opens browser for authentication)
-az login
+# Allow HTTP and HTTPS from anywhere
+gcloud compute firewall-rules create getvul-web \
+  --allow tcp:80,tcp:443 \
+  --target-tags getvul \
+  --description "GetVul HTTP/HTTPS" \
+  --quiet
 
-# List your subscriptions
-az account list --output table
-
-# Set the subscription to use (if you have multiple)
-az account set --subscription "YOUR_SUBSCRIPTION_ID"
-
-# Verify the active subscription
-az account show --output table
+# Allow SSH (restrict later)
+gcloud compute firewall-rules create getvul-ssh \
+  --allow tcp:22 \
+  --target-tags getvul \
+  --description "GetVul SSH" \
+  --quiet
 ```
 
-### Step 3: Prepare SSH key
+### Step 5: Create the VM
 
 ```bash
-# Generate a new SSH key pair if you don't have one
-ssh-keygen -t ed25519 -C "getvul-deploy" -f ~/.ssh/getvul
+gcloud compute instances create $VM_NAME \
+  --zone=$ZONE \
+  --machine-type=$MACHINE_TYPE \
+  --boot-disk-size=30GB \
+  --boot-disk-type=pd-ssd \
+  --image-family=ubuntu-2204-lts \
+  --image-project=ubuntu-os-cloud \
+  --tags=getvul \
+  --metadata=enable-oslogin=true
 
-# Or use your existing key
-cat ~/.ssh/id_rsa.pub  # verify it exists
+# Get the external IP
+PUBLIC_IP=$(gcloud compute instances describe $VM_NAME \
+  --zone=$ZONE \
+  --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+
+echo "Public IP: $PUBLIC_IP"
 ```
 
-### Step 4: Deploy with Terraform
+### Step 6: Reserve a static IP (so it doesn't change on restart)
 
 ```bash
-# Navigate to the Azure infrastructure directory (from the repo root: getvul/)
-cd infra/azure
-# You should see: main.tf  outputs.tf  startup.sh  variables.tf
+# Reserve a static IP
+gcloud compute addresses create getvul-ip \
+  --region=$(echo $ZONE | sed 's/-[a-z]$//') \
+  --quiet
 
-# Initialize Terraform (downloads the Azure provider)
-terraform init
+STATIC_IP=$(gcloud compute addresses describe getvul-ip \
+  --region=$(echo $ZONE | sed 's/-[a-z]$//') \
+  --format='get(address)')
 
-# Preview what will be created
-terraform plan \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
+# Assign to the VM
+gcloud compute instances delete-access-config $VM_NAME \
+  --zone=$ZONE \
+  --access-config-name="external-nat" \
+  --quiet
 
-# Review the plan carefully — note the resource group, VM, VNet, NSG, and public IP
-# Then apply
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
+gcloud compute instances add-access-config $VM_NAME \
+  --zone=$ZONE \
+  --address=$STATIC_IP
 
-# Type 'yes' when prompted
-# This typically takes 2-4 minutes to provision all Azure resources
+echo "Static IP: $STATIC_IP"
 ```
 
-### Step 5: Verify the deployment
+### Step 7: SSH into the VM and install the app
 
 ```bash
-# Get the public IP address
-terraform output vm_ip
-
-# SSH into the VM (wait 3-5 minutes for custom_data script to complete)
-ssh -i ~/.ssh/getvul getvul@$(terraform output -raw vm_ip)
-
-# Once inside the VM, check Docker containers are running
-docker compose -f /opt/getvul/docker-compose.yml ps
-
-# Expected output: 5 containers (nginx, backend, frontend, postgres, redis) all "Up"
-
-# If containers aren't running yet, check the startup script progress
-sudo cat /var/log/cloud-init-output.log | tail -100
-
-# Look for "Docker Compose started successfully" at the end of the log
-
-# View application logs
-docker compose -f /opt/getvul/docker-compose.yml logs -f backend
+# GCP Cloud Shell has built-in SSH — no keys needed
+gcloud compute ssh $VM_NAME --zone=$ZONE
 ```
 
-### Step 6: Access the application
+Once inside the VM, run these commands:
 
 ```bash
-# Open in browser (self-signed cert warning is expected)
-open https://$(terraform output -raw vm_ip)
+# Install Docker
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# In Chrome: click "Advanced" > "Proceed to <ip> (unsafe)" to bypass self-signed cert warning
-# In Firefox: click "Advanced" > "Accept the Risk and Continue"
+# Add your user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Clone the repository
+sudo git clone https://github.com/Cyber-Solutions-MD/getvul.git /opt/getvul
+sudo chown -R $USER:$USER /opt/getvul
+cd /opt/getvul
+
+# Create environment file
+cat > .env << 'ENVEOF'
+DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
+REDIS_URL=redis://redis:6379/0
+ENVIRONMENT=production
+DEBUG=false
+ENVEOF
+
+# Generate and add secrets
+echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> .env
+echo "ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' 2>/dev/null || openssl rand -base64 32)" >> .env
+
+# Start the application
+docker compose up -d --build
 ```
 
-### Step 7: Configure the environment
+### Step 8: Verify
 
 ```bash
-# SSH into the VM
-ssh -i ~/.ssh/getvul getvul@$(terraform output -raw vm_ip)
+# Check all 5 containers are running
+docker compose ps
 
-# Edit the environment file
-sudo nano /opt/getvul/.env
-
-# Set these required values:
-# JWT_SECRET_KEY=<run: openssl rand -hex 32>
-# ENCRYPTION_KEY=<run: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-# DATABASE_URL=postgresql+asyncpg://getvul:getvul@postgres:5432/getvul
-# REDIS_URL=redis://redis:6379/0
-
-# Restart after editing
-cd /opt/getvul && docker compose up -d
+# Check backend health
+curl -s http://localhost:8000/api/v1/health || echo "Backend starting..."
 ```
 
-### Step 8: Set up a custom domain (optional)
+### Step 9: Access the application
+
+```
+https://<STATIC_IP>
+```
+
+### Set up daily auto-update (optional)
 
 ```bash
-# 1. Get the public IP
-terraform output vm_ip
+# Same as other clouds — run inside the VM
+sudo tee /usr/local/bin/getvul-update > /dev/null << 'SCRIPT'
+#!/bin/bash
+set -e
+LOG="/var/log/getvul-update.log"
+echo "$(date) — Checking for updates..." >> $LOG
+cd /opt/getvul
+git pull >> $LOG 2>&1
+docker compose up -d --build >> $LOG 2>&1
+echo "$(date) — Update complete" >> $LOG
+SCRIPT
 
-# 2. Create a DNS A record pointing your domain to this IP
-#    Example: getvul.your-company.com → <public-ip>
+sudo chmod +x /usr/local/bin/getvul-update
+echo "0 3 * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update
+```
 
-# 3. SSH into the VM and install Let's Encrypt
-ssh -i ~/.ssh/getvul getvul@$(terraform output -raw vm_ip)
+### Restrict SSH (recommended)
+
+```bash
+# From GCP Cloud Shell — restrict SSH to your IP
+MY_IP=$(curl -s ifconfig.me)
+gcloud compute firewall-rules update getvul-ssh \
+  --source-ranges=$MY_IP/32
+```
+
+### Teardown
+
+```bash
+# Delete the VM
+gcloud compute instances delete $VM_NAME --zone=$ZONE --quiet
+
+# Delete static IP
+gcloud compute addresses delete getvul-ip \
+  --region=$(echo $ZONE | sed 's/-[a-z]$//') --quiet
+
+# Delete firewall rules
+gcloud compute firewall-rules delete getvul-web --quiet
+gcloud compute firewall-rules delete getvul-ssh --quiet
+```
+
+---
+
+## Post-Deployment: First Login
+
+After the app is running:
+
+1. Open `https://<PUBLIC_IP>` in your browser
+2. Accept the self-signed certificate warning
+3. Register the first user — they automatically get the **OWNER** role
+4. Go to **Settings > General** to set your organization name, domain, and timezone
+5. Go to **Connectors** to add your first vulnerability scanner
+6. Trigger a sync and review findings in the **Vulnerabilities** dashboard
+
+---
+
+## TLS / SSL Certificates
+
+### Self-signed (default)
+
+Generated automatically on first boot. Browsers show a security warning — this is expected.
+
+### Custom certificate (via UI)
+
+1. Go to **Settings > General > TLS Certificate**
+2. Paste the PEM-encoded certificate chain and private key
+3. Nginx reloads automatically
+
+### Let's Encrypt (free, auto-renewing)
+
+```bash
+# SSH into the VM, then:
+
+# Stop nginx to free port 80
+cd /opt/getvul && docker compose stop nginx
+
+# Install certbot
 sudo apt install -y certbot
+
+# Get certificate (replace with your domain)
 sudo certbot certonly --standalone -d getvul.your-company.com
+
+# Install the certificate
 sudo cp /etc/letsencrypt/live/getvul.your-company.com/fullchain.pem /opt/getvul/nginx/certs/server.crt
 sudo cp /etc/letsencrypt/live/getvul.your-company.com/privkey.pem /opt/getvul/nginx/certs/server.key
-cd /opt/getvul && docker compose restart nginx
-```
 
-### What it creates
+# Restart nginx
+docker compose up -d nginx
 
-| Resource | Details |
-|----------|---------|
-| Resource group | `getvul-rg` in your chosen region |
-| Virtual network | `getvul-vnet` (10.0.0.0/16) with subnet `getvul-subnet` (10.0.1.0/24) |
-| Network security group | `getvul-nsg` with rules for HTTP (80), HTTPS (443), and SSH (22) |
-| Public IP address | Static Standard SKU (`getvul-ip`) |
-| Network interface | `getvul-nic` with NSG and public IP attached |
-| Linux VM | `getvul-vm`, Standard_B2s (2 vCPU, 4 GB RAM), 30 GB Premium SSD, Ubuntu 22.04 LTS |
-| Auto-update cron | Daily at 3:00 AM UTC (pulls latest code, rebuilds containers) |
-
-### Terraform variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `location` | `westeurope` | Azure region (e.g., `eastus`, `westus2`, `northeurope`) |
-| `vm_size` | `Standard_B2s` | VM size (2 vCPU, 4 GB RAM) |
-| `disk_size_gb` | `30` | OS disk size in GB |
-| `admin_username` | `getvul` | VM admin username for SSH |
-| `ssh_public_key` | (required) | Your SSH public key content |
-| `ssh_allowed_cidrs` | `["0.0.0.0/0"]` | IP ranges allowed for SSH (restrict in production) |
-| `github_repo` | (repo default) | GitHub repository in `owner/repo` format |
-| `deploy_key` | `""` | SSH deploy key for private repos |
-
-### Deploy to a different region
-
-```bash
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)" \
-  -var="location=eastus"
-```
-
-### Use a larger VM
-
-```bash
-# For larger deployments (500+ assets)
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)" \
-  -var="vm_size=Standard_B2ms" \
-  -var="disk_size_gb=50"
-```
-
-### Restrict SSH access (recommended for production)
-
-```bash
-# Only allow SSH from your office IP range
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)" \
-  -var='ssh_allowed_cidrs=["203.0.113.0/24"]'
-```
-
-### Verify Azure resources via CLI
-
-```bash
-# List all resources in the resource group
-az resource list --resource-group getvul-rg --output table
-
-# Check VM status
-az vm show --resource-group getvul-rg --name getvul-vm --show-details --output table
-
-# View NSG rules
-az network nsg rule list --resource-group getvul-rg --nsg-name getvul-nsg --output table
-```
-
-### Teardown
-
-```bash
-cd infra/azure
-terraform destroy \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)"
-
-# Or delete the entire resource group via Azure CLI (faster)
-az group delete --name getvul-rg --yes --no-wait
+# Set up auto-renewal
+echo "0 */12 * * * root certbot renew --quiet --deploy-hook 'cd /opt/getvul && docker compose restart nginx'" | sudo tee /etc/cron.d/certbot-renew
 ```
 
 ---
 
-## Private Repository Access
+## Database
 
-If your GetVul repository is private, you need a deploy key so the VM can clone and pull updates.
+- **Engine:** PostgreSQL 16 (`postgres:16-alpine`)
+- **Persistence:** Docker named volume (survives restarts)
+- **Migrations:** Alembic runs `upgrade head` on backend startup (24 total)
 
-### Generate a deploy key
+### Backup
 
 ```bash
-# Generate a dedicated key (no passphrase)
-ssh-keygen -t ed25519 -C "getvul-deploy-key" -f ~/.ssh/getvul-deploy -N ""
+docker compose exec postgres pg_dump -U getvul getvul > backup_$(date +%Y%m%d).sql
+```
 
-# Add the PUBLIC key to your GitHub repo:
-# GitHub > Repo > Settings > Deploy keys > Add deploy key
-cat ~/.ssh/getvul-deploy.pub
+### Restore
 
-# Pass the PRIVATE key to Terraform
-terraform apply \
-  -var="ssh_public_key=$(cat ~/.ssh/getvul.pub)" \
-  -var="deploy_key=$(cat ~/.ssh/getvul-deploy)"
+```bash
+docker compose exec -T postgres psql -U getvul getvul < backup_20260101.sql
 ```
 
 ---
@@ -659,250 +748,78 @@ terraform apply \
 
 ### Required
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://user:pass@postgres:5432/getvul` |
-| `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
-| `JWT_SECRET_KEY` | Secret for signing JWTs (64+ random characters) | (generate with `openssl rand -hex 32`) |
-| `ENCRYPTION_KEY` | Fernet key for encrypting stored credentials | (generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`) |
+| Variable | Description | How to generate |
+|----------|-------------|-----------------|
+| `DATABASE_URL` | PostgreSQL connection | `postgresql+asyncpg://getvul:getvul@postgres:5432/getvul` |
+| `REDIS_URL` | Redis connection | `redis://redis:6379/0` |
+| `JWT_SECRET_KEY` | JWT signing secret | `openssl rand -hex 32` |
+| `ENCRYPTION_KEY` | Credential encryption | `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 
 ### Optional
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENVIRONMENT` | `development` | Set to `production` for production deployments |
+| `ENVIRONMENT` | `development` | Set to `production` |
 | `DEBUG` | `true` | Set to `false` in production |
-| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
-| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
-| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins (JSON array) |
-| `RATE_LIMIT_REQUESTS` | `200` | Max requests per rate limit window |
-| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate limit window in seconds |
+| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed origins (JSON array) |
 
-### SMTP (for email and scheduled reports)
-
-| Variable | Description |
-|----------|-------------|
-| SMTP host | Mail server hostname |
-| SMTP port | Mail server port (587 for STARTTLS, 465 for SSL) |
-| SMTP username | Authentication username |
-| SMTP password | Authentication password |
-| SMTP TLS | Enable TLS (toggle) |
-| Sender email | From address for outgoing emails |
-
-Configure these in **Settings > SMTP** within the application.
-
-### SSO / OIDC
-
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_CLIENT_ID` | Google OIDC client ID |
-| `GOOGLE_CLIENT_SECRET` | Google OIDC client secret |
-| `AZURE_CLIENT_ID` | Azure AD OIDC client ID |
-| `AZURE_CLIENT_SECRET` | Azure AD OIDC client secret |
-| `AZURE_TENANT_ID` | Azure AD tenant ID |
-
----
-
-## TLS / SSL Certificates
-
-### Self-signed (default)
-
-A self-signed certificate is generated automatically on first boot by the nginx entrypoint. No action required. Browsers will show a security warning.
-
-### Custom certificate (via UI)
-
-1. Go to **Settings > General > TLS Certificate**
-2. Paste the PEM-encoded certificate chain and private key
-3. Nginx reloads automatically
-
-### Let's Encrypt
-
-```bash
-# SSH into the VM
-ssh -i ~/.ssh/getvul <user>@<ip>
-
-# Stop nginx temporarily to free port 80
-cd /opt/getvul && docker compose stop nginx
-
-# Install certbot and obtain certificate
-sudo apt install -y certbot
-sudo certbot certonly --standalone -d your-domain.example.com
-
-# Copy to nginx cert directory
-sudo cp /etc/letsencrypt/live/your-domain.example.com/fullchain.pem /opt/getvul/nginx/certs/server.crt
-sudo cp /etc/letsencrypt/live/your-domain.example.com/privkey.pem /opt/getvul/nginx/certs/server.key
-
-# Restart nginx
-docker compose up -d nginx
-
-# Set up auto-renewal (runs twice daily)
-echo "0 */12 * * * root certbot renew --quiet --deploy-hook 'cd /opt/getvul && docker compose restart nginx'" | sudo tee /etc/cron.d/certbot-renew
-```
-
-### Any CA-signed certificate
-
-```bash
-cp your-cert-chain.pem /opt/getvul/nginx/certs/server.crt
-cp your-private-key.pem /opt/getvul/nginx/certs/server.key
-docker compose -f /opt/getvul/docker-compose.yml restart nginx
-```
-
----
-
-## Database
-
-- **Engine:** PostgreSQL 16 running in Docker (`postgres:16-alpine`)
-- **Persistence:** Docker named volume (survives container restarts)
-- **Migrations:** Alembic runs `upgrade head` automatically on backend startup
-- **Total migrations:** 24 (from initial schema through containment status)
-
-### Backup
-
-```bash
-# Dump the database
-docker compose -f /opt/getvul/docker-compose.yml exec postgres \
-  pg_dump -U getvul getvul > backup_$(date +%Y%m%d).sql
-
-# Restore from backup
-docker compose -f /opt/getvul/docker-compose.yml exec -T postgres \
-  psql -U getvul getvul < backup_20260101.sql
-```
-
-### Manual migration commands
-
-```bash
-# Apply all pending migrations
-docker compose exec backend alembic upgrade head
-
-# Rollback one migration
-docker compose exec backend alembic downgrade -1
-
-# Create a new migration
-docker compose exec backend alembic revision --autogenerate -m "description"
-```
-
----
-
-## Auto-Update System
-
-A cron job installed by the startup script runs daily at **3:00 AM UTC**:
-
-1. Checks the GitHub repository for new commits on the default branch
-2. Pulls the latest code to `/opt/getvul`
-3. Rebuilds Docker images and restarts containers (`docker compose up -d --build`)
-4. Runs a health check against the backend API
-5. Logs all activity to `/var/log/getvul-update.log`
-
-### Manual trigger
-
-```bash
-sudo /usr/local/bin/getvul-update
-```
-
-### View update logs
-
-```bash
-sudo tail -f /var/log/getvul-update.log
-```
-
-### Disable auto-update
-
-```bash
-# Remove the cron job
-sudo rm /etc/cron.d/getvul-update
-```
-
----
-
-## CI/CD Pipeline
-
-The repository includes a GitHub Actions workflow with five jobs, triggered on push/PR to `main` or manually via `workflow_dispatch`.
-
-| Job | What it does |
-|-----|-------------|
-| **Backend** | ruff lint + format, mypy type check, Alembic migrations, pytest with coverage |
-| **Frontend** | npm install, ESLint, TypeScript type check (`tsc`), production build |
-| **Terraform Validate** | `terraform fmt -check`, `terraform init`, `terraform validate` |
-| **Semgrep SAST** | Static analysis with p/default, p/owasp-top-ten, p/secrets, p/dockerfile rulesets |
-| **OWASP ZAP DAST** | API scan (OpenAPI spec), baseline scan against backend and frontend |
+SMTP, SSO, and SLA settings are configured in the app UI under **Settings**.
 
 ---
 
 ## Troubleshooting
 
-### Containers not starting after deploy
+### Containers not starting
 
 ```bash
-# Check startup script output
-sudo cat /var/log/cloud-init-output.log | tail -100  # AWS/Azure
-sudo cat /var/log/syslog | grep startup-script        # GCP
-
 # Check Docker is running
 sudo systemctl status docker
 
-# Try starting manually
-cd /opt/getvul && docker compose up -d --build
+# View build/startup errors
+docker compose logs backend
+
+# Common fix: restart everything
+docker compose down && docker compose up -d --build
 ```
 
-### Backend crashes on startup
+### Cannot access web UI
 
 ```bash
-# Check backend logs
-docker compose -f /opt/getvul/docker-compose.yml logs backend
+# Check nginx is running
+docker compose ps nginx
 
-# Common issues:
-# - Missing .env file → copy .env.example and set values
-# - Database not ready → wait for postgres healthcheck, then restart backend
-# - Migration conflict → docker compose exec backend alembic upgrade head
+# Test locally on the VM
+curl -k https://localhost
+
+# Check firewall rules allow 80/443
+# Azure: az network nsg rule list ...
+# AWS:   aws ec2 describe-security-groups ...
+# GCP:   gcloud compute firewall-rules list
 ```
 
-### Cannot access the web UI
+### Database migration error
 
 ```bash
-# Verify nginx is running
-docker compose -f /opt/getvul/docker-compose.yml ps nginx
+# Run migrations manually
+docker compose exec backend alembic upgrade head
 
-# Check if ports are open (from your local machine)
-curl -k https://<vm-ip>
-
-# Check firewall/security group rules
-# GCP: gcloud compute firewall-rules list
-# AWS: aws ec2 describe-security-groups
-# Azure: az network nsg rule list --resource-group getvul-rg --nsg-name getvul-nsg
-```
-
-### Auto-update not working
-
-```bash
-# Check the cron job exists
-cat /etc/cron.d/getvul-update
-
-# Run manually and check output
-sudo /usr/local/bin/getvul-update
-
-# Check update logs
-sudo tail -50 /var/log/getvul-update.log
-
-# Verify git access
-cd /opt/getvul && git pull
+# Check migration status
+docker compose exec backend alembic current
 ```
 
 ---
 
 ## Production Checklist
 
-- [ ] Generate and set a strong `JWT_SECRET_KEY` (`openssl rand -hex 32`)
-- [ ] Generate and set a unique `ENCRYPTION_KEY` (Fernet key)
+- [ ] Set strong `JWT_SECRET_KEY` and `ENCRYPTION_KEY` in `.env`
 - [ ] Set `ENVIRONMENT=production` and `DEBUG=false`
-- [ ] Configure SMTP for email delivery (scheduled reports, notifications)
-- [ ] Install a proper TLS certificate (Let's Encrypt or CA-signed)
-- [ ] Restrict `ssh_allowed_cidrs` to known IP ranges
-- [ ] Configure `CORS_ORIGINS` for your production domain
-- [ ] Set up Google and/or Azure OIDC credentials for SSO
-- [ ] Create the initial admin user
-- [ ] Configure at least one vulnerability connector
-- [ ] Set SLA policy per severity level
-- [ ] Configure syslog forwarding to your SIEM
+- [ ] Install TLS certificate (Let's Encrypt or CA-signed)
+- [ ] Restrict SSH to known IP ranges
+- [ ] Configure SMTP for email (Settings > General > SMTP)
+- [ ] Create initial admin user
+- [ ] Add at least one vulnerability connector
+- [ ] Set SLA policy per severity (Settings > General > SLA)
+- [ ] Configure syslog forwarding to SIEM (Settings > Audit Log)
 - [ ] Set up database backup schedule
-- [ ] Review rate limiting configuration
-- [ ] Run the CI pipeline (Semgrep + ZAP) before going live
+- [ ] Enable daily auto-update cron
+- [ ] Run CI pipeline before going live
