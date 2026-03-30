@@ -87,9 +87,13 @@ fi
 echo "[6/7] Creating default admin user..."
 sudo docker compose exec -T backend python3 /app/create_admin.py 2>&1 || echo "    Skipped (backend not ready yet — register manually)."
 
-# ── Step 7: Set up auto-update cron ──
+# ── Step 7: Load seed/demo data ──
+echo "[7/8] Loading demo data..."
+sudo docker compose exec -T backend python3 /app/seed_data.py 2>&1 || echo "    Skipped."
+
+# ── Step 8: Set up auto-update cron ──
 if [ ! -f /usr/local/bin/getvul-update ]; then
-    echo "[7/7] Setting up auto-update..."
+    echo "[8/8] Setting up auto-update..."
     sudo tee /usr/local/bin/getvul-update > /dev/null << SCRIPT
 #!/bin/bash
 set -e
@@ -104,7 +108,7 @@ SCRIPT
     echo "0 * * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update > /dev/null
     echo "    Auto-update scheduled hourly."
 else
-    echo "[7/7] Auto-update already configured — skipping."
+    echo "[8/8] Auto-update already configured — skipping."
 fi
 
 # ── Done ──
