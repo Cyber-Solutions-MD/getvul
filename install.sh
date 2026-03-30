@@ -83,9 +83,49 @@ else
     echo "    Backend is starting... check logs with: docker compose logs -f backend"
 fi
 
-# ── Step 5: Set up auto-update cron ──
+# ── Step 6: Create default admin user ──
+echo "[6/7] Creating default admin user..."
+sudo docker compose exec -T backend python3 -c "
+import asyncio
+from app.db.session import async_session_factory
+from sqlalchemy import select, text
+
+async def create_admin():
+    async with async_session_factory() as db:
+        # Check if any user exists
+        result = await db.execute(text('SELECT COUNT(*) FROM users'))
+        count = result.scalar()
+        if count > 0:
+            print('    Users already exist — skipping.')
+            return
+
+        # Ensure a tenant exists
+        result = await db.execute(text('SELECT id FROM tenants LIMIT 1'))
+        tenant = result.scalar()
+        if not tenant:
+            await db.execute(text(
+                \"\"\"INSERT INTO tenants (id, name, slug, domain, is_active)
+                VALUES (gen_random_uuid(), 'GetVul', 'getvul', 'localhost', true)\"\"\"
+            ))
+            await db.commit()
+            result = await db.execute(text('SELECT id FROM tenants LIMIT 1'))
+            tenant = result.scalar()
+
+        from app.auth.password import hash_password
+        hashed = hash_password('Admin123!')
+        await db.execute(text(
+            \"\"\"INSERT INTO users (id, tenant_id, email, display_name, role, password_hash, is_active)
+            VALUES (gen_random_uuid(), :tid, 'admin@getvul.local', 'Admin', 'OWNER', :pw, true)\"\"\"
+        ), {'tid': str(tenant), 'pw': hashed})
+        await db.commit()
+        print('    Default admin user created.')
+
+asyncio.run(create_admin())
+" 2>/dev/null || echo "    Skipped (backend not ready yet — register manually)."
+
+# ── Step 7: Set up auto-update cron ──
 if [ ! -f /usr/local/bin/getvul-update ]; then
-    echo "[6/6] Setting up daily auto-update..."
+    echo "[7/7] Setting up auto-update..."
     sudo tee /usr/local/bin/getvul-update > /dev/null << SCRIPT
 #!/bin/bash
 set -e
@@ -100,7 +140,7 @@ SCRIPT
     echo "0 * * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update > /dev/null
     echo "    Auto-update scheduled hourly."
 else
-    echo "[6/6] Auto-update already configured — skipping."
+    echo "[7/7] Auto-update already configured — skipping."
 fi
 
 # ── Done ──
@@ -113,6 +153,9 @@ echo "  Access:  https://$(curl -sf ifconfig.me 2>/dev/null || echo '<your-vm-ip
 echo "  Logs:    sudo docker compose -f $APP_DIR/docker-compose.yml logs -f"
 echo "  Update:  sudo /usr/local/bin/getvul-update"
 echo ""
-echo "  First time? Open the URL above, accept the cert warning,"
-echo "  and register your admin account."
+echo "  Default login:"
+echo "    Email:    admin@getvul.local"
+echo "    Password: Admin123!"
+echo ""
+echo "  Change the password after first login."
 echo ""

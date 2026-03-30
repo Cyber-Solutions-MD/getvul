@@ -157,7 +157,11 @@ Open in your browser (use the IP from the install script output):
 https://<PUBLIC_IP>
 ```
 
-Accept the self-signed certificate warning, then register your admin account.
+Accept the self-signed certificate warning and log in with the default admin account:
+- **Email:** `admin@getvul.local`
+- **Password:** `Admin123!`
+
+**Change the password immediately after first login.**
 
 ### Restrict SSH access (recommended)
 
@@ -339,7 +343,11 @@ Open in your browser (use the IP from Step 7):
 https://<PUBLIC_IP>
 ```
 
-Accept the self-signed certificate warning, then register your admin account.
+Accept the self-signed certificate warning and log in with the default admin account:
+- **Email:** `admin@getvul.local`
+- **Password:** `Admin123!`
+
+**Change the password immediately after first login.**
 
 ### Restrict SSH (recommended)
 
@@ -490,7 +498,11 @@ Open in your browser (use the IP from Step 6):
 https://<STATIC_IP>
 ```
 
-Accept the self-signed certificate warning, then register your admin account.
+Accept the self-signed certificate warning and log in with the default admin account:
+- **Email:** `admin@getvul.local`
+- **Password:** `Admin123!`
+
+**Change the password immediately after first login.**
 
 ### Restrict SSH (recommended)
 
@@ -524,10 +536,13 @@ After the app is running:
 
 1. Open `https://<PUBLIC_IP>` in your browser
 2. Accept the self-signed certificate warning
-3. Register the first user — they automatically get the **OWNER** role
-4. Go to **Settings > General** to set your organization name, domain, and timezone
-5. Go to **Connectors** to add your first vulnerability scanner
-6. Trigger a sync and review findings in the **Vulnerabilities** dashboard
+3. Log in with the default admin account:
+   - **Email:** `admin@getvul.local`
+   - **Password:** `Admin123!`
+4. **Change the password immediately** (profile dropdown → Change Password)
+5. Go to **Settings > General** to set your organization name, domain, and timezone
+6. Go to **Connectors** to add your first vulnerability scanner
+7. Trigger a sync and review findings in the **Vulnerabilities** dashboard
 
 ---
 
