@@ -531,13 +531,13 @@ async def seed() -> None:
             uid = str(uuid.uuid4())
             await session.execute(text("""
                 INSERT INTO users (id, tenant_id, email, display_name, role, is_active,
-                    department, job_title, idp_source, groups, created_at, updated_at)
+                    department, job_title, idp_source, idp_subject, groups, created_at, updated_at)
                 VALUES (:id, :tid, :email, :name, 'VIEWER', :active,
-                    :dept, :title, 'google', '[]'::jsonb, now(), now())
+                    :dept, :title, 'google', :idp_sub, '[]'::jsonb, now(), now())
                 ON CONFLICT (tenant_id, email) DO NOTHING
             """), {
                 "id": uid, "tid": str(tenant_id), "email": email, "name": name,
-                "active": active, "dept": dept, "title": title,
+                "active": active, "dept": dept, "title": title, "idp_sub": f"google-{uid[:8]}",
             })
             user_count += 1
         print(f"  -> {user_count} directory users")
