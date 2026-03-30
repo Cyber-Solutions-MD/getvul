@@ -104,8 +104,8 @@ async def create_admin():
         tenant = result.scalar()
         if not tenant:
             await db.execute(text(
-                \"\"\"INSERT INTO tenants (id, name, slug, domain, is_active)
-                VALUES (gen_random_uuid(), 'GetVul', 'getvul', 'localhost', true)\"\"\"
+                \"\"\"INSERT INTO tenants (id, name, slug, domain, idp_provider, is_active)
+                VALUES (gen_random_uuid(), 'GetVul', 'getvul', 'localhost', 'LOCAL', true)\"\"\"
             ))
             await db.commit()
             result = await db.execute(text('SELECT id FROM tenants LIMIT 1'))
