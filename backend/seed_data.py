@@ -408,7 +408,7 @@ async def seed() -> None:
                     VALUES (:id, :tid, :cve, :name, :cvss,
                         :sev, :exploit, :kev, :aid, :source, :product,
                         :remediation, :rem_id, :status, :first, :last,
-                        :rem_at::timestamptz, :sla::timestamptz, :sla_b, now(), now())
+                        :rem_at, :sla, :sla_b, now(), now())
                     ON CONFLICT (tenant_id, cve_id, asset_id, source) DO NOTHING
                 """), {
                     "id": vid, "tid": str(tenant_id), "cve": cve_id, "name": vuln_name,
@@ -493,7 +493,7 @@ async def seed() -> None:
                     ticket_created_at, resolved_at, created_at, updated_at)
                 VALUES (:id, :tid, :vid, 'JIRA', :ext_id,
                     :ext_url, :ext_status, 'VULN', :assignee,
-                    :created, :resolved::timestamptz, now(), now())
+                    :created, :resolved, now(), now())
                 ON CONFLICT (tenant_id, external_ticket_id, provider) DO NOTHING
             """), {
                 "id": tid_ticket, "tid": str(tenant_id), "vid": vid, "ext_id": ext_id,
@@ -513,7 +513,7 @@ async def seed() -> None:
                 INSERT INTO notifications (id, tenant_id, title, message, severity, category,
                     is_read, read_at, email_sent, created_at, updated_at)
                 VALUES (:id, :tid, :title, :msg, :sev, :cat,
-                    :read, :read_at::timestamptz, false, :created, now())
+                    :read, :read_at, false, :created, now())
             """), {
                 "id": nid, "tid": str(tenant_id), "title": title, "msg": message,
                 "sev": severity, "cat": category, "read": is_read,
