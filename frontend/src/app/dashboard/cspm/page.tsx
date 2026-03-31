@@ -568,7 +568,7 @@ function ComplianceTab({ data, loading }: { data: ComplianceFramework[] | null; 
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {data.map((fw) => (
         <div
-          key={fw.framework}
+          key={fw.name}
           className={cn(
             "rounded-xl border bg-gray-900/50 p-5 transition-colors hover:bg-gray-800/40",
             passRateBorderColor(fw.pass_rate)
@@ -577,7 +577,7 @@ function ComplianceTab({ data, loading }: { data: ComplianceFramework[] | null; 
           {/* Framework name & pass rate */}
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-white">{fw.framework}</h3>
+              <h3 className="text-sm font-semibold text-white">{fw.name}</h3>
               <p className="mt-0.5 text-xs text-gray-500">{fw.total_controls} controls</p>
             </div>
             <div className="flex flex-col items-center">
