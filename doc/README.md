@@ -8,7 +8,7 @@ Comprehensive documentation for the GetVul unified vulnerability management plat
 |----------|-------------|
 | [Overview](overview.md) | Project overview, purpose, and complete feature set |
 | [Architecture](architecture.md) | System architecture, tech stack, data flow, project structure |
-| [Database Schema](database-schema.md) | All database tables, relationships, and 23 migrations |
+| [Database Schema](database-schema.md) | All database tables, relationships, and 24 migrations |
 | [Backend API](backend-api.md) | All API endpoints grouped by resource |
 | [Frontend](frontend.md) | Pages, components, state management, styling |
 | [Authentication](authentication.md) | Auth system, SSO, RBAC, password policy, JWT tokens |
@@ -21,7 +21,7 @@ Comprehensive documentation for the GetVul unified vulnerability management plat
 
 | Metric | Value |
 |--------|-------|
-| Database migrations | 23 |
+| Database migrations | 24 |
 | Connector types | 14 |
 | CI/CD pipeline jobs | 5 |
 | Dashboard pages | 10 |

@@ -1,5 +1,14 @@
 # Authentication and Authorization
 
+## Default Admin User
+
+The `install.sh` script automatically creates a default admin account via `create_admin.py`:
+- **Email:** `admin@getvul.local`
+- **Password:** `Admin123!`
+- **Role:** ADMIN
+
+Change the password immediately after first login.
+
 ## Authentication Methods
 
 ### Email/Password

@@ -50,7 +50,7 @@
 | Framework | FastAPI (Python 3.12) |
 | Database | PostgreSQL 16 (asyncpg async driver) |
 | ORM | SQLAlchemy 2.0 (async) |
-| Migrations | Alembic (22 migrations) |
+| Migrations | Alembic (24 migrations) |
 | Cache/Queue | Redis 7 |
 | Auth | JWT (python-jose), OAuth 2.0 OIDC (Google, Azure) |
 | HTTP Client | httpx (async) |
@@ -200,13 +200,13 @@ After vulnerabilities are ingested, a correlation pass identifies the same CVE d
 │                       │  └─────────────────┘   │  │
 │  ┌──────────────┐     │                       │  │
 │  │  Service      │     │  Auto-update cron    │  │
-│  │  Account      │     │  (daily at 3 AM UTC) │  │
+│  │  Account      │     │  (hourly)            │  │
 │  └──────────────┘     └───────────────────────┘  │
 └─────────────────────────────────────────────────┘
 
 Terraform provisions: static IP, firewall rules, service account, GCE VM
 Startup script: installs Docker, clones repo, starts app, sets up cron
-Auto-update: checks GitHub releases daily, pulls latest, restarts services
+Auto-update: checks GitHub hourly, pulls latest, restarts services
 ```
 
 ## Daily Snapshot Pipeline
@@ -296,7 +296,7 @@ getvul/
 │   │       ├── router.py           # Notification API routes
 │   │       └── alerts.py           # Alert engine (4 automated checks)
 │   ├── alembic/                    # Database migrations
-│   │   └── versions/               # 22 migration scripts
+│   │   └── versions/               # 24 migration scripts
 │   ├── tests/                      # pytest test suite
 │   ├── pyproject.toml              # Python dependencies
 │   ├── Dockerfile                  # Backend container

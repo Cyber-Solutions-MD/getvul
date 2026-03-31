@@ -98,7 +98,7 @@ Interactive API docs (Swagger): `http://localhost:8000/docs`
 |--------|----------|------|-------------|
 | GET | `/` | Viewer+ | List assets with filtering and pagination |
 | GET | `/stats` | Viewer+ | Asset statistics (by category, OS, risk range, coverage) |
-| GET | `/{asset_id}` | Viewer+ | Asset detail with vulnerability breakdown |
+| GET | `/{asset_id}` | Viewer+ | Asset detail with vulnerability breakdown and containment_status |
 | POST | `/{asset_id}/ignore` | Analyst+ | Ignore asset (exclude from remediations) |
 | POST | `/{asset_id}/unignore` | Analyst+ | Restore ignored asset |
 | POST | `/bulk-ignore` | Analyst+ | Bulk ignore multiple assets |

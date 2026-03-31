@@ -1,6 +1,6 @@
 # Database Schema
 
-GetVul uses PostgreSQL 16 with SQLAlchemy 2.0 (async). Migrations are managed by Alembic (22 migrations).
+GetVul uses PostgreSQL 16 with SQLAlchemy 2.0 (async). Migrations are managed by Alembic (24 migrations).
 
 ## Entity Relationship Diagram
 
@@ -165,6 +165,7 @@ Devices and cloud resources discovered by scanners.
 | building | VARCHAR | | Building location |
 | assigned_user | VARCHAR | | Assigned user |
 | managed_by | VARCHAR | | MDM system |
+| containment_status | VARCHAR | | CrowdStrike containment state (e.g., normal, contained) |
 | last_checkin_at | TIMESTAMP | | Last MDM check-in |
 | mdm_details | JSONB | | Extra MDM metadata |
 | jamf_id | VARCHAR | | Jamf computer ID |
@@ -469,3 +470,5 @@ In-app and email alerts for security events.
 | 020 | Add SLA tracking fields (sla_deadline, sla_breached, sla_policy) |
 | 021 | Add daily_snapshots table |
 | 022 | Add notifications table (in-app + email alerts) |
+| 023 | Add idp_subject to users (NOT NULL for SSO subject ID) |
+| 024 | Add containment_status to assets (CrowdStrike containment state) |

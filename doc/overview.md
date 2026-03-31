@@ -10,7 +10,7 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 - Aggregate vulnerabilities from 6 scanner sources: CrowdStrike Falcon Spotlight, Tenable Nessus, Microsoft Defender for Endpoint, Wiz, Qualys VMDR, Rapid7 InsightVM
 - Normalize into a common schema with CVE, severity, CVSS, exploit status, CISA KEV
 - Cross-source correlation: same CVE detected by 2+ scanners on the same asset
-- Severity-based views with drill-down filtering
+- Severity-based views with drill-down filtering and device category (asset type) filter
 - CVE ignore: exclude specific CVEs from remediations and ticket automation
 - Saved search filters with automation rule creation
 
@@ -18,6 +18,7 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 - Automatic device classification: WORKSTATION, SERVER, NETWORK, MOBILE, OTHER
 - Risk scoring: piecewise log curve (knee at raw=120, score=45) with severity weights, exploit multiplier, and KEV multiplier
 - Asset ignore: exclude assets from remediations and ticket automation
+- CrowdStrike containment status tracking (normal, contained, etc.) displayed in asset detail
 - Scanner enrichment: serial number, last login user, host status, model, file paths
 - Jamf Pro MDM enrichment: FileVault, SIP, Gatekeeper, building, department
 - Humaans HR enrichment: full name, email, GitHub, LinkedIn, Element handles, teams
@@ -106,6 +107,12 @@ GetVul is a **unified vulnerability management platform** that aggregates vulner
 - Google avatar sync with profile images
 - Groups export to CSV
 - Expandable rows showing all devices per user with vuln counts and risk scores
+
+### Automated Setup
+- Single `install.sh` script handles full deployment (8 steps: Docker, TLS, .env, build, health check, admin user, seed data, auto-update cron)
+- Default admin account created automatically: `admin@getvul.local` / `Admin123!`
+- Seed demo data: 25 assets, 150+ vulnerabilities, 20 CSPM findings, 10 Jira tickets, 15 users, 5 notifications, 7 connectors
+- Hourly auto-update cron keeps the deployment current
 
 ### Dark/Light Theme
 - Theme toggle (Sun/Moon icon) in the header

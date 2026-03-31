@@ -21,7 +21,7 @@ GetVul supports 14 connector types across 4 categories:
 - **Base URL:** Configurable (us-1, us-2, eu-1)
 - **Sync strategy:** Per-severity queries (CRITICAL then HIGH then MEDIUM then LOW), batch device/remediation/evaluation logic resolution
 - **Fields synced:** CVE, severity, CVSS, product, version, remediation, file paths, exploit status, CISA KEV, host details (serial, model, login user, host status, platform)
-- **Enrichment:** Serial number, last login user, host status, model info merged into asset records
+- **Enrichment:** Serial number, last login user, host status, model info, containment status merged into asset records
 
 ### Tenable Nessus
 - **Data:** Vulnerability scan results

@@ -1,5 +1,13 @@
 # Security
 
+## Default Admin Credentials
+
+The install script creates a default admin account:
+- **Email:** `admin@getvul.local`
+- **Password:** `Admin123!`
+
+**Change this password immediately after first login.** The default credentials are well-known and must not be used in production without being changed. Navigate to the profile dropdown and select Change Password.
+
 ## Authentication Security
 - Passwords hashed with bcrypt (per-user salt)
 - JWT tokens with short-lived access (15 min) and longer refresh (7 days)

@@ -142,12 +142,15 @@ sudo chown -R $USER:$USER /opt/getvul
 bash /opt/getvul/install.sh
 ```
 
-The script automatically:
-- Installs Docker and Docker Compose
-- Creates `.env` with generated secrets (JWT key, encryption key)
-- Builds and starts all 5 containers (2-5 minutes)
-- Sets up daily auto-update cron at 3 AM UTC
-- Prints the access URL when done
+The install script runs 8 steps automatically:
+1. Installs Docker and Docker Compose
+2. Generates a self-signed TLS certificate
+3. Creates `.env` with auto-generated secrets (JWT key, encryption key, `NEXT_PUBLIC_API_URL=""`)
+4. Builds and starts all 5 containers (2-5 minutes)
+5. Waits for backend health check to pass
+6. Creates default admin user (`admin@getvul.local` / `Admin123!`) via `create_admin.py`
+7. Seeds demo data via `seed_data.py` (25 assets, 150+ vulns, 20 CSPM findings, 10 Jira tickets, 15 users, 5 notifications, 7 connectors)
+8. Sets up hourly auto-update cron
 
 ### Step 8: Access the application
 
@@ -333,7 +336,7 @@ sudo chown -R $USER:$USER /opt/getvul
 bash /opt/getvul/install.sh
 ```
 
-The script automatically installs Docker, creates `.env` with generated secrets, builds all containers, and sets up daily auto-update.
+The script runs 8 steps: Docker install, TLS cert generation, `.env` creation with auto-generated secrets, container build, backend health check, admin user creation, seed demo data, and hourly auto-update cron.
 
 ### Step 9: Access the application
 
@@ -488,7 +491,7 @@ sudo chown -R $USER:$USER /opt/getvul
 bash /opt/getvul/install.sh
 ```
 
-The script automatically installs Docker, creates `.env` with generated secrets, builds all containers, and sets up daily auto-update.
+The script runs 8 steps: Docker install, TLS cert generation, `.env` creation with auto-generated secrets, container build, backend health check, admin user creation, seed demo data, and hourly auto-update cron.
 
 ### Step 8: Access the application
 
@@ -620,6 +623,7 @@ docker compose exec -T postgres psql -U getvul getvul < backup_20260101.sql
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | `""` | Must be empty string for production (frontend uses relative API paths through nginx) |
 | `ENVIRONMENT` | `development` | Set to `production` |
 | `DEBUG` | `true` | Set to `false` in production |
 | `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed origins (JSON array) |
@@ -677,10 +681,10 @@ docker compose exec backend alembic current
 - [ ] Install TLS certificate (Let's Encrypt or CA-signed)
 - [ ] Restrict SSH to known IP ranges
 - [ ] Configure SMTP for email (Settings > General > SMTP)
-- [ ] Create initial admin user
+- [ ] Change default admin password (`admin@getvul.local` / `Admin123!`)
 - [ ] Add at least one vulnerability connector
 - [ ] Set SLA policy per severity (Settings > General > SLA)
 - [ ] Configure syslog forwarding to SIEM (Settings > Audit Log)
 - [ ] Set up database backup schedule
-- [ ] Enable daily auto-update cron
+- [ ] Verify hourly auto-update cron is active (set up by install.sh)
 - [ ] Run CI pipeline before going live

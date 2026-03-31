@@ -49,7 +49,7 @@ Tabbed interface with two views:
 - Classify button for bulk device categorization (Admin only)
 - Recompute risk scores button (Admin only)
 - Ignore/unignore assets
-- Click asset for detail view with vulnerability list and MDM info
+- Click asset for detail view with vulnerability list, MDM info, and CrowdStrike containment status
 
 ### Users (`/dashboard/users`)
 - Unified directory view merging identity provider users and device owners
@@ -141,6 +141,8 @@ Tabbed interface with two views:
 | FilterBar | Reusable filter dropdowns and toggles |
 | Modal | Dialog overlay for forms and confirmations |
 | DataTable | Sortable, selectable table with bulk actions |
+| ConfirmModal | Custom in-app confirmation dialog (replaces browser confirm/alert) |
+| Toast | In-app toast notifications for success, error, and info feedback |
 
 ### Dashboard Components
 | Component | Purpose |
@@ -158,6 +160,8 @@ Tabbed interface with two views:
 ## HTTP Client (`lib/api.ts`)
 
 Wrapper around the native `fetch` API:
+- All API calls use relative URLs (routed through nginx); no hardcoded backend host
+- `NEXT_PUBLIC_API_URL` must be set to `""` (empty string) in docker-compose.yml for production
 - Automatically adds `Authorization: Bearer <token>` header
 - Auto-refreshes token on 401 response
 - Redirects to login on refresh failure
