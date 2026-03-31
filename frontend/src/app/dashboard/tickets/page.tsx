@@ -6,7 +6,7 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "";
 
 /** Raw fetch with auth headers — for cases where we need the Response object */
 async function apiFetch(path: string, options?: RequestInit): Promise<Response> {

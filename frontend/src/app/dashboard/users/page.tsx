@@ -317,7 +317,7 @@ function GroupsPanel() {
   const filtered = search ? groups.filter(g => g.name.toLowerCase().includes(search.toLowerCase())) : groups;
 
   async function handleExport() {
-    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const API = process.env.NEXT_PUBLIC_API_URL || "";
     const token = typeof window !== "undefined" ? localStorage.getItem("getvul_token") || "" : "";
     const resp = await fetch(`${API}/api/v1/tenant/groups/export`, {
       headers: { Authorization: `Bearer ${token}` },

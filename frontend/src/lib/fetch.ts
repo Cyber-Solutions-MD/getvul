@@ -25,7 +25,7 @@ export async function authedFetch(url: string, options?: RequestInit): Promise<R
   return resp;
 }
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 /**
  * Proxy object that lazily computes headers on property access.

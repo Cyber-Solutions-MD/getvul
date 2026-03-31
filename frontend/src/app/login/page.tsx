@@ -93,7 +93,7 @@ export default function LoginPage() {
             <form onSubmit={async (e) => {
               e.preventDefault(); setError(""); setSuccess(""); setSubmitting(true);
               try {
-                const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                const API = process.env.NEXT_PUBLIC_API_URL || "";
                 const resp = await fetch(`${API}/auth/forgot-password`, {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ email }),
@@ -128,7 +128,7 @@ export default function LoginPage() {
             <form onSubmit={async (e) => {
               e.preventDefault(); setError(""); setSuccess(""); setSubmitting(true);
               try {
-                const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                const API = process.env.NEXT_PUBLIC_API_URL || "";
                 const resp = await fetch(`${API}/auth/reset-password`, {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ token: resetToken, new_password: newPassword }),

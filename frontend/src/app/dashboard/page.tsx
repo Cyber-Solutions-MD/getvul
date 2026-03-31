@@ -422,7 +422,7 @@ function ReportBuilder() {
   async function handleGenerate() {
     setGenerating(true);
     try {
-      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API = process.env.NEXT_PUBLIC_API_URL || "";
       const token = typeof window !== "undefined" ? localStorage.getItem("getvul_token") || "dev-token" : "dev-token";
       const params = new URLSearchParams({ format });
       severities.forEach(s => params.append("severity", s));

@@ -1088,7 +1088,7 @@ function BrandingConfig() {
       const formData = new FormData();
       formData.append("file", logoFile);
       const token = localStorage.getItem("getvul_token") || "";
-      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API = process.env.NEXT_PUBLIC_API_URL || "";
       const resp = await fetch(`${API}/api/v1/tenant/branding/logo`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -1251,7 +1251,7 @@ function AddUserButton({ onAdded }: { onAdded: () => void }) {
   useEffect(() => {
     if (open && mode === "import") {
       setLoadingPeople(true);
-      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API = process.env.NEXT_PUBLIC_API_URL || "";
       const token = localStorage.getItem("getvul_token") || "dev-token";
       fetch(`${API}/api/v1/tickets/assignees`, {
         headers: { Authorization: `Bearer ${token}` },
