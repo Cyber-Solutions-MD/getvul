@@ -669,7 +669,7 @@ async with LifespanManager(app_a) as mgr_a, LifespanManager(app_b) as mgr_b:
 
 **Table is empty:** Every factual claim in this research is verified against an official source (redis-py docs, Redis command refs, FastAPI docs, httpx docs, asgi-lifespan README) or cited from existing project files. No `[ASSUMED]` claims. The planner can proceed without user confirmation on factual matters; the only outstanding decisions are explicitly delegated to Claude's discretion in CONTEXT.md.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `create_app()` live in `backend/app/main.py` or a new `backend/app/factory.py`?**
    - What we know: D-15 mandates a factory; the current `app = FastAPI(...)` at `main.py:57` works for prod via uvicorn's `app.main:app` import path.
