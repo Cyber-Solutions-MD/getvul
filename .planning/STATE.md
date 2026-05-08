@@ -13,10 +13,10 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-08)
 | Field | Value |
 |-------|-------|
 | Active milestone | v1.0 Production Readiness |
-| Active phase | Phase 1 — Multi-Replica State |
-| Last action | 2026-05-08 — `/gsd-discuss-phase 1` complete; CONTEXT.md committed (`d6b4e12`) |
-| Resume file | [.planning/phases/01-multi-replica-state/01-CONTEXT.md](phases/01-multi-replica-state/01-CONTEXT.md) |
-| Next action | `/clear` then `/gsd-plan-phase 1` |
+| Active phase | Phase 1 — Multi-Replica State (Ready to execute) |
+| Last action | 2026-05-08 — `/gsd-plan-phase 1` complete; 4 plans across 3 waves committed (`178fb3c`) |
+| Resume file | [.planning/phases/01-multi-replica-state/01-00-PLAN.md](phases/01-multi-replica-state/01-00-PLAN.md) |
+| Next action | `/clear` then `/gsd-execute-phase 1` |
 
 ## Audit Reference
 
