@@ -60,14 +60,18 @@ async def app_factory(redis_test_url):
 async def single_app(flushed_redis, app_factory):
     """One app instance with lifespan running and an httpx client.
 
-    Yields (client, app). Used by single-replica unit tests in test_oidc_state.py
-    and test_rate_limit.py.
+    Yields (client, app) where `app` is the original FastAPI instance — so
+    tests can access `app.state.redis` (set by lifespan) and other FastAPI
+    attributes. The httpx client routes through `LifespanManager`'s wrapped
+    ASGI callable so requests still execute against the lifespan-managed app.
+    Used by single-replica unit tests in test_oidc_state.py and
+    test_rate_limit.py.
     """
     app = app_factory()
     async with LifespanManager(app) as mgr, AsyncClient(
         transport=ASGITransport(app=mgr.app), base_url="http://testserver"
     ) as client:
-        yield client, mgr.app
+        yield client, app
 
 
 @pytest_asyncio.fixture(scope="function")
