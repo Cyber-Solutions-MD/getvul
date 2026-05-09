@@ -17,7 +17,7 @@ The install script creates a default admin account:
 - Password history prevents reuse of last N passwords (configurable: 3, 5, 10, 24)
 - Email-based password reset with time-limited single-use tokens
 - Generic response on forgot-password to prevent email enumeration
-- Per-tenant API rate limiting: 200 requests per 60 seconds (Redis-backed)
+- Per-tenant API rate limiting: 200 requests per 60 seconds (Redis-backed sliding window)
 
 ## Security Headers
 
