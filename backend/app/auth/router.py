@@ -5,7 +5,10 @@ from __future__ import annotations
 import secrets
 from typing import Annotated
 
+import redis.asyncio as redis
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -24,21 +27,29 @@ from app.auth.service import (
     upsert_user,
 )
 from app.db.session import get_db
+from app.redis_client import get_redis
 
 router = APIRouter()
-
-# In-memory state store (use Redis in production)
-_pending_states: dict[str, str] = {}
+logger = structlog.get_logger()
 
 
 @router.get("/login/{provider}", response_model=AuthorizationURL)
-async def login(provider: str):
+async def login(
+    provider: str,
+    redis_client: Annotated[redis.Redis, Depends(get_redis)],
+):
     """Initiate SSO login — returns the authorization URL to redirect the user to."""
     if provider not in ("google", "azure"):
         raise HTTPException(status_code=400, detail="Unsupported provider. Use 'google' or 'azure'.")
 
     state = secrets.token_urlsafe(32)
-    _pending_states[state] = provider
+    try:
+        ok = await redis_client.set(f"oidc:state:{state}", provider, ex=600, nx=True)
+    except RedisError as e:
+        logger.warning("redis_unavailable", subsystem="oidc_state", error=str(e))
+        raise HTTPException(status_code=503, detail="Auth backend unavailable")
+    if not ok:
+        raise HTTPException(status_code=500, detail="State collision — retry")
 
     oidc = get_provider(provider)
     authorization_url = oidc.get_authorization_url(state=state)
@@ -52,10 +63,14 @@ async def callback(
     code: Annotated[str, Query()],
     state: Annotated[str, Query()],
     db: Annotated[AsyncSession, Depends(get_db)],
+    redis_client: Annotated[redis.Redis, Depends(get_redis)],
 ):
     """Handle the OIDC callback — exchange code, upsert user, issue JWTs."""
-    # Validate state
-    stored_provider = _pending_states.pop(state, None)
+    try:
+        stored_provider = await redis_client.getdel(f"oidc:state:{state}")
+    except RedisError as e:
+        logger.warning("redis_unavailable", subsystem="oidc_state", error=str(e))
+        raise HTTPException(status_code=503, detail="Auth backend unavailable")
     if stored_provider is None or stored_provider != provider:
         raise HTTPException(status_code=400, detail="Invalid or expired state parameter")
 
