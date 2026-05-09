@@ -1,0 +1,174 @@
+# Roadmap: GetVul
+
+## Overview
+
+GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, SLA, CSPM, notifications, reports). Its first GSD milestone is **production-readiness**: closing the blockers identified in the 2026-05-08 audit so a real customer can run this beyond the demo VM. Eight phases, each scoped to a single audit blocker so they can ship and verify independently.
+
+## Milestones
+
+- 🚧 **v1.0 Production Readiness** — Phases 1–8 (in progress)
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+- [ ] **Phase 1: Multi-Replica State** — Move OIDC state and rate limiter from in-process dicts to Redis
+- [ ] **Phase 2: CI Gating** — Re-enable push/PR triggers and remove `|| true` masks so CI can block bad merges
+- [ ] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback
+- [ ] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager
+- [ ] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY`
+- [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin
+- [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod
+- [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
+
+## Phase Details
+
+### Phase 1: Multi-Replica State
+**Goal**: Two backend replicas behind a load balancer can complete an OIDC login and share rate-limit budget without race conditions or lost state.
+**Depends on**: Nothing (greenfield against current code)
+**Requirements**: PROD-01-01, PROD-01-02, PROD-01-03
+**Success Criteria** (what must be TRUE):
+  1. `_pending_states` dict is gone from [backend/app/auth/router.py](backend/app/auth/router.py); state lives in Redis with TTL
+  2. `_rate_limit_store` defaultdict is gone from [backend/app/main.py](backend/app/main.py); counter lives in Redis
+  3. Integration test boots two backend processes against one Redis and verifies (a) OIDC callback succeeds when initiated by replica A and finished by replica B, and (b) rate-limit budget is shared
+  4. [doc/security.md:20](doc/security.md#L20) claim "Redis-backed rate limiting" is now true
+**Plans**: 4 plans
+
+Plans:
+- [x] 01-00-PLAN.md — Wave 0 foundation: asgi-lifespan dev dep, create_app() factory, Redis client in lifespan, get_redis dep, shared test fixtures
+- [x] 01-01-PLAN.md — Redis-backed OIDC state store (SET NX EX 600 + GETDEL) with PROD-01-01 unit tests
+- [x] 01-02-PLAN.md — Redis-backed per-tenant rate limiter (sorted-set sliding window) + PROD-01-02 tests + doc/security.md parity
+- [x] 01-03-PLAN.md — Cross-replica integration test suite (2 apps + 1 Redis) for PROD-01-03
+
+### Phase 2: CI Gating
+**Goal**: A PR with a failing test, type error, or lint error cannot be merged to main.
+**Depends on**: Phase 1 (so the new tests are wired in before CI is enforced)
+**Requirements**: PROD-02-01, PROD-02-02, PROD-02-03, PROD-02-04
+**Success Criteria** (what must be TRUE):
+  1. [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on push to main and on every PR
+  2. Backend mypy step fails the workflow when types are wrong (no `|| true`)
+  3. Frontend lint and tsc steps fail the workflow on errors
+  4. ZAP findings have an explicit policy: either gate the build above an agreed severity, or run as a labeled non-blocking workflow
+  5. Branch protection on `main` requires CI green (documented in [doc/deployment.md](doc/deployment.md))
+**Plans**: TBD (likely 2)
+
+Plans:
+- [ ] 02-01: Re-enable triggers and remove failure masks
+- [ ] 02-02: ZAP policy decision and branch-protection docs
+
+### Phase 3: Update Path Reconciliation
+**Goal**: There is exactly one way that production gets new code, and operators have a tested rollback procedure.
+**Depends on**: Phase 2 (CI must gate releases first)
+**Requirements**: PROD-03-01, PROD-03-02, PROD-03-03, PROD-03-04
+**Success Criteria** (what must be TRUE):
+  1. Either the hourly auto-update cron in [install.sh](install.sh) or the GH-Actions release CD in [.github/workflows/cd.yml](.github/workflows/cd.yml) is removed (or made strictly opt-in via flag); they no longer race
+  2. CD pinning is to a release tag, not `git reset --hard origin/main`
+  3. [doc/deployment.md](doc/deployment.md) has a "Rollback" section with the exact commands to revert to the prior release
+  4. A dry-run rollback has been performed on a test VM and recorded in the phase verification
+**Plans**: TBD (likely 2)
+
+Plans:
+- [ ] 03-01: Choose canonical update mechanism + remove the other
+- [ ] 03-02: Tag-pinned CD + rollback runbook
+
+### Phase 4: Doc/Code Parity
+**Goal**: README, security docs, source code, and the API surface tell the same story about what the product is and what it does.
+**Depends on**: Nothing (independent of 1–3, can run in parallel)
+**Requirements**: PROD-04-01, PROD-04-02, PROD-04-03, PROD-04-04, PROD-04-05
+**Success Criteria** (what must be TRUE):
+  1. Every header listed in [doc/security.md](doc/security.md) is actually emitted by either Nginx or the FastAPI middleware (verified by curl + ZAP rule)
+  2. [README.md](README.md) lists 6 scanner sources, matching [doc/overview.md](doc/overview.md)
+  3. `VulnSource` enum at [backend/app/vulnerabilities/models.py:31](backend/app/vulnerabilities/models.py#L31) includes `QUALYS` and `RAPID7`; existing rows backfilled or migrated
+  4. Filtering vulns by `source=QUALYS` and `source=RAPID7` returns expected rows in a regression test
+  5. `aws_region` / `secrets_manager_prefix` config and `boto3` dep are either implemented end-to-end or removed (no dead config)
+**Plans**: TBD (likely 3)
+
+Plans:
+- [ ] 04-01: Ship CSP and COOP headers + ZAP regression
+- [ ] 04-02: VulnSource enum + Qualys/Rapid7 source filter regression
+- [ ] 04-03: Secrets Manager — implement or remove (decision in discuss-phase)
+
+### Phase 5: Encryption Key Lifecycle
+**Goal**: An operator can confidently lose, restore, and rotate `ENCRYPTION_KEY` without losing connector credentials.
+**Depends on**: Nothing
+**Requirements**: PROD-05-01, PROD-05-02, PROD-05-03, PROD-05-04
+**Success Criteria** (what must be TRUE):
+  1. [doc/security.md](doc/security.md) has a section "Encryption Key Backup & Rotation" with concrete commands and an RTO statement
+  2. A rotation CLI exists (e.g. `python -m app.encryption rotate --new-key <key>`) that re-encrypts every `connector_config.credentials_secret_arn` row in a single transaction with verification
+  3. Backend startup logs a loud warning if `settings.encryption_key` matches the placeholder value or is unset
+  4. End-to-end test: encrypt with key A → rotate to key B → decrypt all rows successfully → revert to key A → fail to decrypt (verifying rotation actually rotated)
+**Plans**: TBD (likely 2)
+
+Plans:
+- [ ] 05-01: Rotation CLI + transactional re-encryption
+- [ ] 05-02: Operator runbook + startup placeholder check
+
+### Phase 6: Default Admin Hardening
+**Goal**: A fresh install.sh deploy cannot remain on the default `Admin123!` password by accident; the operator is forced through a rotation.
+**Depends on**: Nothing (orthogonal to other phases)
+**Requirements**: PROD-06-01, PROD-06-02, PROD-06-03, PROD-06-04
+**Success Criteria** (what must be TRUE):
+  1. New `users.must_change_password` column (boolean, default false) added by Alembic migration
+  2. [backend/create_admin.py](backend/create_admin.py) sets the flag to true on the seeded admin
+  3. Auth dependency rejects all non-`/auth/change-password` calls with 403 + `password_change_required` reason while the flag is set
+  4. Frontend login flow reads the flag from `/auth/me` and routes to a force-rotation page
+  5. Successful rotation clears the flag and emits an `auth.first_login_rotation` audit event
+**Plans**: TBD (likely 2)
+
+Plans:
+- [ ] 06-01: Migration + backend enforcement
+- [ ] 06-02: Frontend force-rotation flow
+
+### Phase 7: Health and Observability
+**Goal**: Operators and load balancers can distinguish a starting backend from a healthy one, and production logs are machine-parseable.
+**Depends on**: Nothing
+**Requirements**: PROD-07-01, PROD-07-02, PROD-07-03, PROD-07-04
+**Success Criteria** (what must be TRUE):
+  1. `GET /health` is a no-dependency liveness probe (always 200 if the process is alive)
+  2. `GET /ready` checks Postgres `SELECT 1` and Redis `PING`, each with ≤500ms timeout, returns 503 on failure
+  3. Nginx `proxy_pass` for backend uses `/ready` for upstream health
+  4. structlog output is JSON when `ENVIRONMENT=production`, human-readable in dev
+  5. Failure modes have a documented operator response (DB down → 503 + alert; Redis down → 503 + alert)
+**Plans**: TBD (likely 1–2)
+
+Plans:
+- [ ] 07-01: Split liveness/readiness probes + Nginx wiring
+- [ ] 07-02: JSON structlog in production
+
+### Phase 8: Test Coverage Floor
+**Goal**: A regression in any implemented connector, the rule engine, or SLA logic is caught by CI.
+**Depends on**: Phase 2 (CI must actually run the tests)
+**Requirements**: PROD-08-01, PROD-08-02, PROD-08-03, PROD-08-04
+**Success Criteria** (what must be TRUE):
+  1. `backend/tests/test_connectors/` has at least one happy-path test per implemented connector type, using mocked HTTP responses
+  2. Ticket rule engine has tests for: rule fires when schedule due, daily-cap enforced (commit `b92ebf4` regression), dedup against existing tickets
+  3. SLA breach detection has tests for: due-date computation per severity, OPEN→breached transition, at-risk window 72h before due
+  4. Tenant-isolation regression suite extended to cover `/api/v1/search`, `/api/v1/notifications`, `/api/v1/reports`
+  5. Backend coverage ratchets up by ≥10% from baseline (record baseline in Phase 2)
+**Plans**: TBD (likely 3)
+
+Plans:
+- [ ] 08-01: Connector happy-path tests with mocked HTTP
+- [ ] 08-02: Ticket rule engine + SLA service tests
+- [ ] 08-03: Tenant-isolation regression for search/notifications/reports
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order. Phases 1, 4, 5, 6, 7 have no inter-dependencies and can be parallelized via workstreams; Phase 2 must precede Phase 3 and Phase 8.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Multi-Replica State | v1.0 Production Readiness | 0/4 | Planned | - |
+| 2. CI Gating | v1.0 Production Readiness | 0/2 | Not started | - |
+| 3. Update Path Reconciliation | v1.0 Production Readiness | 0/2 | Not started | - |
+| 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Not started | - |
+| 5. Encryption Key Lifecycle | v1.0 Production Readiness | 0/2 | Not started | - |
+| 6. Default Admin Hardening | v1.0 Production Readiness | 0/2 | Not started | - |
+| 7. Health and Observability | v1.0 Production Readiness | 0/2 | Not started | - |
+| 8. Test Coverage Floor | v1.0 Production Readiness | 0/3 | Not started | - |
+
+---
+*Roadmap created: 2026-05-08 from audit findings*
