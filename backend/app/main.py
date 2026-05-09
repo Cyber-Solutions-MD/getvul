@@ -1,15 +1,17 @@
 """GetVul API — entry point."""
 
 import time
+import uuid
 import uuid as _uuid
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timezone
 
 import redis.asyncio as redis
+import structlog
 from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from redis.exceptions import RedisError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -27,6 +29,8 @@ from app.tenants.router import router as tenant_router
 from app.ticketing.router import router as tickets_router
 from app.users.router import router as users_router
 from app.vulnerabilities.router import router as vuln_router
+
+logger = structlog.get_logger()
 
 
 @asynccontextmanager
@@ -96,13 +100,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 # ── Tenant rate limiting middleware ──
 
-_rate_limit_store: dict[str, list[float]] = defaultdict(list)
 RATE_LIMIT_REQUESTS = 200  # max requests per window
 RATE_LIMIT_WINDOW = 60  # seconds
 
 
 class TenantRateLimitMiddleware(BaseHTTPMiddleware):
-    """Per-tenant rate limiting for API endpoints."""
+    """Per-tenant rate limiting via Redis sorted-set sliding window."""
 
     async def dispatch(self, request: Request, call_next):
         if not request.url.path.startswith("/api/"):
@@ -120,14 +123,31 @@ class TenantRateLimitMiddleware(BaseHTTPMiddleware):
             except Exception:
                 pass
 
-        now = time.time()
-        window_start = now - RATE_LIMIT_WINDOW
-        hits = _rate_limit_store[tenant_key]
-        # Prune old entries
-        _rate_limit_store[tenant_key] = [t for t in hits if t > window_start]
-        hits = _rate_limit_store[tenant_key]
+        redis_client = request.app.state.redis
+        key = f"ratelimit:{tenant_key}"
+        now_ms = int(time.time() * 1000)
+        window_start_ms = now_ms - RATE_LIMIT_WINDOW * 1000
+        # Unique member defeats sub-ms ZADD duplicate-member coalescing (Pitfall 1).
+        member = f"{now_ms}:{uuid.uuid4().hex[:8]}"
 
-        if len(hits) >= RATE_LIMIT_REQUESTS:
+        try:
+            async with redis_client.pipeline(transaction=True) as pipe:
+                pipe.zremrangebyscore(key, 0, window_start_ms)
+                pipe.zadd(key, {member: now_ms})
+                pipe.zcard(key)
+                pipe.expire(key, RATE_LIMIT_WINDOW)
+                results = await pipe.execute()
+        except RedisError as e:
+            logger.warning(
+                "redis_unavailable",
+                subsystem="rate_limiter",
+                error=str(e),
+                tenant_id=tenant_key if tenant_key != "anonymous" else None,
+            )
+            return await call_next(request)
+
+        count = results[2]
+        if count > RATE_LIMIT_REQUESTS:
             from starlette.responses import JSONResponse
 
             return JSONResponse(
@@ -136,7 +156,6 @@ class TenantRateLimitMiddleware(BaseHTTPMiddleware):
                 headers={"Retry-After": str(RATE_LIMIT_WINDOW)},
             )
 
-        hits.append(now)
         return await call_next(request)
 
 
