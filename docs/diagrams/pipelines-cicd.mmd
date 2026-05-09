@@ -1,0 +1,32 @@
+%% docs/12-pipelines-cicd.md — CI/CD overview
+flowchart LR
+    DEV[Developer<br/>git push] --> BR[branch on GitHub]
+    BR --> WD[manual dispatch<br/>workflow_dispatch only<br/>see PROD-02]
+    WD --> CI
+
+    subgraph CI [ci.yml — 5 jobs]
+        BE[backend<br/>ruff · format · mypy* · alembic · pytest+cov]
+        FE[frontend<br/>npm install · lint* · tsc* · build]
+        TF[terraform<br/>fmt · init -backend=false · validate]
+        SAST[semgrep<br/>semgrep ci]
+        DAST[zap dast<br/>3 scans · continue-on-error]
+        BE -.depends.-> DAST
+        FE -.depends.-> DAST
+    end
+
+    REL[GitHub release<br/>published] --> CD
+    MANUAL[Manual cd dispatch] --> CD
+
+    subgraph CD [cd.yml — deploy to GCE]
+        SSH[SSH to VM]
+        PULL[git fetch + reset --hard origin/main]
+        BUILD[docker compose build --no-cache]
+        UP[docker compose up -d]
+        HC[health-check loop]
+        VER[verify external /health]
+        SSH --> PULL --> BUILD --> UP --> HC --> VER
+    end
+
+    CRON[Hourly cron on VM<br/>install.sh:108] -.also pulls.-> BUILD
+
+    note["* = soft-fail today<br/>(|| true / continue-on-error)<br/>Phase 2 removes the masks"]

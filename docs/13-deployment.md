@@ -1,6 +1,16 @@
-# Deployment Guide
+# 13 — Deployment
 
-GetVul runs as five Docker Compose services on a single VM. This guide covers deployment using each cloud provider's native CLI — no Terraform required. All commands run in the browser-based cloud shell.
+GetVul runs as five Docker Compose services on a single VM. This guide covers manual deployment using each cloud provider's native CLI — no Terraform required. For Terraform-based provisioning see [infra/](../infra/). For local development see [04-installation.md](04-installation.md). For CI/CD see [12-pipelines-cicd.md](12-pipelines-cicd.md).
+
+## Environments
+
+| Environment | Topology | Where |
+|-------------|----------|-------|
+| **Local dev** | `docker compose up` on a developer laptop | [04-installation.md](04-installation.md) |
+| **CI ephemeral** | [docker-compose.ci.yml](../docker-compose.ci.yml) — slim stack for ZAP DAST | [12-pipelines-cicd.md](12-pipelines-cicd.md) |
+| **Production (single)** | One Linux VM (GCP / AWS / Azure) running `docker compose up -d` | this doc |
+
+There is no separate **staging** environment. CD goes straight to production.
 
 ## Architecture
 
@@ -686,5 +696,84 @@ docker compose exec backend alembic current
 - [ ] Set SLA policy per severity (Settings > General > SLA)
 - [ ] Configure syslog forwarding to SIEM (Settings > Audit Log)
 - [ ] Set up database backup schedule
-- [ ] Verify hourly auto-update cron is active (set up by install.sh)
+- [ ] Verify auto-update cron is active (set up by install.sh) — **or disable it** if you've adopted CD-based releases (see PROD-03 in [12-pipelines-cicd.md](12-pipelines-cicd.md))
 - [ ] Run CI pipeline before going live
+
+---
+
+## Provisioning with Terraform
+
+The [infra/](../infra/) directory contains parallel modules for all three clouds. Today **GCP is the only actively deployed target**; AWS and Azure templates validate in CI but aren't used for production.
+
+| Module | Resource set |
+|--------|--------------|
+| [infra/gcp/](../infra/gcp/) | static IP, firewall (80/443/22), service account, GCE instance (`e2-medium`, `cos-cloud/cos-stable`, 30 GB SSD), startup script |
+| [infra/aws/](../infra/aws/) | VPC data sources, security group (80/443/22), key pair, EC2 (Ubuntu 22.04 LTS, IMDSv2 required), Elastic IP |
+| [infra/azure/](../infra/azure/) | Resource group, VNet 10.0.0.0/16 + Subnet 10.0.1.0/24, NSG (HTTP/HTTPS/SSH), public IP, NIC, Linux VM (Ubuntu 22.04, Premium SSD) |
+
+To apply (GCP):
+
+```bash
+cd infra/gcp
+terraform init
+terraform apply -var=project_id=<your-gcp-project> -var=ssh_public_key="$(cat ~/.ssh/id_ed25519.pub)"
+```
+
+The startup script in [infra/gcp/startup.sh](../infra/gcp/startup.sh) clones the repo to `/opt/getvul`, generates a default `.env` template (with `CHANGE-ME` placeholders), runs `docker compose up -d --build`, and sets up a daily cron at 03:00 UTC for `auto-update`.
+
+> Note the install path divergence: `install.sh` in the repo writes an **hourly** cron (line 108), while `infra/gcp/startup.sh` writes a **daily** cron (line 78). PROD-03 reconciles this.
+
+## Release process
+
+Two flows exist today (one of them is going away in Phase 3):
+
+1. **Auto-update cron (default after `install.sh`)** — every hour, `getvul-update` runs `git pull` then `docker compose up -d --build`. Logs to `/var/log/getvul-update.log`. Always deploys whatever is on `main`.
+2. **CD on GitHub release** — see [12-pipelines-cicd.md](12-pipelines-cicd.md). SSH from the runner, `git fetch`, `git reset --hard origin/main`, rebuild, health-check, prune.
+
+PROD-03 will pick one and disable the other.
+
+## Rollback
+
+There is **no scripted rollback procedure** today (PROD-03-04 will fix this). The manual procedure:
+
+```bash
+# SSH to the VM
+ssh deploy@$VM_IP
+cd /opt/getvul
+
+# Find the previous good SHA
+git log --oneline -10
+
+# Reset to it
+git reset --hard <previous-sha>
+
+# Rebuild and restart
+docker compose up -d --build
+
+# Verify
+curl -sf http://localhost:8000/health
+```
+
+Notes:
+
+- This does **not** roll back database migrations. If the bad release added a migration that's destructive, you'll need to write a manual down-migration or restore from backup.
+- The auto-update cron will silently re-deploy the bad SHA on its next tick. Disable the cron during a rollback: `sudo rm /etc/cron.d/getvul-update`.
+
+## Backups
+
+GetVul currently has **no backup policy** baked in. The only persistent state is:
+
+| What | Where | Backup status |
+|------|-------|---------------|
+| Postgres data | Docker named volume `pgdata` | ✗ Not backed up by anything in the repo. Set up `pg_dump` on a schedule. |
+| Connector credentials | encrypted in `connector_configs.credentials_secret_arn` (DB) | covered by Postgres backup, but only decryptable with `ENCRYPTION_KEY` |
+| `ENCRYPTION_KEY` | `/opt/getvul/.env` on host | ✗ Not backed up. **Lose this and every connector credential is unrecoverable.** PROD-05 addresses this. |
+| `JWT_SECRET_KEY` | `/opt/getvul/.env` on host | Less critical — rotating it just invalidates active sessions |
+| TLS certs | `/opt/getvul/nginx/certs/` | regenerated by `nginx/entrypoint.sh` if missing |
+| Redis | in-memory only | ephemeral by design (rate limiter + OIDC state are short-lived) |
+
+A reasonable starting point: nightly `pg_dump | gzip` to an off-host bucket, plus a one-time secure copy of `/opt/getvul/.env` to a password manager or KMS.
+
+## Feature flags
+
+There is no feature-flag system. Behavioral toggles are environment-variable-driven only.

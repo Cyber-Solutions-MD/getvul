@@ -1,337 +1,209 @@
-# Architecture
+# 02 — Architecture
 
-## System Diagram
+GetVul is a single-VM, container-based application. Five Docker services sit behind one Nginx reverse proxy. All scanner integrations are pull-based and run in an in-process scheduler inside the FastAPI backend.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                         Data Sources                                   │
-├──────────┬────────┬──────────┬──────┬─────────┬────────────┬──────────┤
-│CrowdStrike│ Nessus │ Defender │ Wiz  │ Qualys  │  Rapid7    │          │
-└─────┬─────┴───┬────┴────┬─────┴──┬───┴────┬────┴─────┬──────┘          │
-      │         │         │        │        │          │                 │
-      └─────────┴─────────┴───┬────┴────────┴──────────┘                 │
-                              │                                          │
-├──────────┬──────────┬───────┤────────┬──────────┬─────────────────────┤
-│ Humaans  │ Jamf Pro │ Intune│  Okta  │  Google  │  Azure Entra ID    │
-│  (HR)    │  (MDM)   │ (MDM) │ (IdP)  │  (IdP)   │     (IdP)          │
-└─────┬────┴────┬─────┴──┬────┴───┬────┴────┬─────┴────────┬───────────┘
-      └─────────┴────────┴────────┴─────────┴──────────────┘
-                              │
-                     ┌────────▼──────────┐
-                     │     Nginx         │
-                     │  TLS 1.2/1.3      │
-                     │  Rate Limiting    │
-                     └────────┬──────────┘
-                              │
-                 ┌────────────┼───────────────┐
-                 │            │               │
-        ┌────────▼──────┐ ┌──▼────────┐ ┌────▼───────┐
-        │  Backend API  │ │  Frontend  │ │  Redis     │
-        │  (FastAPI)    │ │  (Next.js  │ │  (cache)   │
-        │  Python 3.12  │ │   15)      │ └────────────┘
-        └────────┬──────┘ └───────────┘
-                 │
-        ┌────────▼──────┐
-        │  PostgreSQL   │
-        │  16           │
-        └────────┬──────┘
-                 │
-        ┌────────▼──────────┐     ┌──────────────┐
-        │  Ticketing        │     │  SMTP        │
-        │  (Asana / Jira)   │     │  (Reports)   │
-        └───────────────────┘     └──────────────┘
-```
+## High-level system
 
-## Tech Stack
+```mermaid
+flowchart TB
+    subgraph "External integrations"
+        SCN["6 scanners<br/>CrowdStrike · Nessus · Defender<br/>Wiz · Qualys · Rapid7"]
+        IDP["3 IdPs<br/>Google · Azure · Okta"]
+        MDM["3 MDM/HR<br/>Jamf · Intune · Humaans"]
+        TKT["Ticketing<br/>Jira · Asana"]
+        SMTP["SMTP server"]
+        SIEM["Syslog/SIEM (CEF)"]
+    end
 
-### Backend
-| Component | Technology |
-|-----------|-----------|
-| Framework | FastAPI (Python 3.12) |
-| Database | PostgreSQL 16 (asyncpg async driver) |
-| ORM | SQLAlchemy 2.0 (async) |
-| Migrations | Alembic (24 migrations) |
-| Cache/Queue | Redis 7 |
-| Auth | JWT (python-jose), OAuth 2.0 OIDC (Google, Azure) |
-| HTTP Client | httpx (async) |
-| Encryption | cryptography (Fernet symmetric) |
-| Scheduler | APScheduler (background sync jobs) |
-| Validation | Pydantic 2.0 |
-| Retry Logic | Tenacity |
-| Logging | structlog |
-| PDF Reports | fpdf2 |
+    subgraph "User"
+        BROW[Browser]
+    end
 
-### Frontend
-| Component | Technology |
-|-----------|-----------|
-| Framework | Next.js 15 (React 19) |
-| Language | TypeScript |
-| Styling | Tailwind CSS + PostCSS |
-| Icons | Lucide React |
-| Charts | Recharts |
-| HTTP | Native fetch API (with wrapper) |
+    subgraph "Single VM (Docker Compose)"
+        NGX["nginx<br/>:80, :443<br/>TLS, security headers, rate limit"]
+        FE["frontend<br/>Next.js 15 / React 19<br/>:3000"]
+        BE["backend<br/>FastAPI + SQLAlchemy 2.0 async<br/>:8000<br/>+ in-process scheduler"]
+        PG[("postgres :5432<br/>JSONB, 24 migrations")]
+        RED[("redis :6379<br/>OIDC state · rate limiter")]
+    end
 
-### Infrastructure
-| Component | Technology |
-|-----------|-----------|
-| Containers | Docker + Docker Compose (5 services) |
-| IaC | Terraform 1.7 (AWS + GCP) |
-| CI/CD | GitHub Actions (5 jobs) |
-| Reverse Proxy | Nginx (TLS, rate limiting, security headers) |
-
-## Data Flow -- Connector Sync Pipeline
-
-```
-1. APScheduler fires based on sync_interval_minutes
-       |
-2. Picks up enabled ConnectorConfig for each tenant
-       |
-3. trigger_background_sync() enqueues task
-       |
-4. Worker calls run_sync(connector_config)
-       |
-5. Connector instantiated (e.g., CrowdStrikeConnector)
-       |
-6. authenticate(credentials, config) -> obtains access token
-       |
-7. fetch_vulnerabilities() -> list[NormalizedVulnerability]
-       |
-8. For each vulnerability:
-     a. _upsert_asset() -> get-or-create Asset by hostname
-     b. _upsert_vulnerability() -> get-or-create Vulnerability
-     c. Update asset.seen_by_sources array
-       |
-9. fetch_misconfigurations() -> list[NormalizedMisconfiguration]
-       |
-10. For each misconfiguration: _upsert_misconfiguration()
-       |
-11. SyncLog recorded (status, counts, errors)
-       |
-12. ConnectorConfig.last_sync_at/status/record_count updated
-       |
-13. Enrichment pass: Jamf/Humaans/Intune data merged into assets
-       |
-14. Classification pass: unclassified assets assigned device_category
-       |
-15. Risk score recalculation for affected assets
-       |
-16. Correlation pass: detect same CVE across multiple scanners
+    BROW -->|HTTPS| NGX
+    NGX -->|/| FE
+    NGX -->|/api/, /auth/| BE
+    FE -->|fetch /api/| BE
+    BE --> PG
+    BE --> RED
+    BE -->|pull| SCN
+    BE -->|pull| IDP
+    BE -->|pull| MDM
+    BE -->|push| TKT
+    BE -->|send| SMTP
+    BE -->|forward| SIEM
 ```
 
-## Device Classification Flow
+Source: [diagrams/architecture-system.mmd](diagrams/architecture-system.mmd).
 
-```
-1. Assets ingested from any source (device_category = null)
-       |
-2. Admin triggers POST /api/v1/assets/classify
-       |
-3. For each unclassified asset, classify by priority:
-     a. CrowdStrike product_type_desc mapping
-     b. Hostname patterns (regex)
-     c. OS patterns (Windows/macOS/Linux/mobile)
-     d. Platform hints
-     e. Default to OTHER
-       |
-4. device_category updated on Asset record
-```
+## Request flow (browser → API)
 
-## Risk Scoring Algorithm
+```mermaid
+sequenceDiagram
+    participant U as Browser
+    participant N as nginx
+    participant F as frontend (Next.js)
+    participant B as backend (FastAPI)
+    participant R as Redis
+    participant P as Postgres
 
-```
-1. Raw score = SUM(severity_weight * exploit_multiplier * kev_multiplier)
-     - Severity weights: CRITICAL=40, HIGH=10, MEDIUM=3, LOW=1
-     - Exploit multiplier: 2x if exploit_available
-     - KEV multiplier: 1.5x if in CISA KEV catalog
-
-2. Piecewise log curve normalization (0-100 scale):
-     - Knee point: raw=120 maps to score=45
-     - Below knee: linear scaling
-     - Above knee: logarithmic compression
+    U->>N: GET https://app/dashboard
+    N->>F: proxy_pass /
+    F-->>U: HTML + JS bundle
+    U->>F: useAuth() loads token from localStorage
+    U->>N: GET /api/v1/vulnerabilities/stats<br/>Authorization: Bearer <jwt>
+    N->>B: proxy_pass /api/ (rate-limited 30 r/s)
+    B->>B: SecurityHeaders middleware
+    B->>B: TenantRateLimit middleware
+    B->>R: ZREMRANGEBYSCORE / ZADD / ZCARD / EXPIRE
+    R-->>B: count
+    B->>B: get_current_user → JWT decode
+    B->>P: SELECT ... WHERE tenant_id = $1
+    P-->>B: rows
+    B-->>U: JSON
 ```
 
-## Correlation Process
+Middleware order is wired in [backend/app/main.py:179-188](../backend/app/main.py#L179-L188): `CORSMiddleware` → `SecurityHeadersMiddleware` → `TenantRateLimitMiddleware`.
 
-After vulnerabilities are ingested, a correlation pass identifies the same CVE detected by multiple scanners on the same asset:
+## Connector sync pipeline
 
-1. Query vulnerabilities grouped by `(tenant_id, cve_id, asset_id)`
-2. Where `COUNT(DISTINCT source) > 1`
-3. Create/update `VulnerabilityCorrelation` record
-4. Set `sources_count` and `confidence` (HIGH if 3+ sources, MEDIUM if 2)
+The in-process scheduler ([backend/app/connectors/scheduler.py](../backend/app/connectors/scheduler.py)) wakes every ~60s and runs four parallel workstreams.
 
-## Notification and Alert Engine Flow
+```mermaid
+flowchart TD
+    A[Scheduler tick<br/>~60s] --> B{For each tenant}
+    B --> C[Connector syncs<br/>due if last_sync_at + sync_interval_minutes &lt;= now]
+    B --> D[Ticket rules<br/>run_all_due_rules]
+    B --> E[Scheduled reports<br/>run_due_reports]
+    B --> F[SLA breach checks<br/>check_sla_breaches]
 
-```
-1. APScheduler triggers alert checks on schedule
-       |
-2. run_alert_checks() iterates all active tenants
-       |
-3. For each tenant, runs 4 automated checks:
-     a. _check_new_critical_vulns() — CRITICAL vulns detected in last 2 hours
-     b. _check_sla_breaches() — vulns with SLA due within 24 hours
-     c. _check_sync_failures() — enabled connectors with failed sync status
-     d. _check_risk_score_changes() — assets with 20+ point risk spike vs yesterday
-       |
-4. Deduplication: checks if matching notification already exists
-   within lookback window (2h / 24h / 4h per check type)
-       |
-5. Creates Notification record (broadcast or user-targeted)
-       |
-6. Sends email to OWNER and ADMIN users (for critical alerts)
-       |
-7. Frontend polls /api/v1/notifications/unread-count for bell badge
+    C --> G[run_sync per connector]
+    G --> H[authenticate]
+    H --> I[fetch_vulnerabilities + fetch_misconfigurations]
+    I --> J[upsert Asset, Vulnerability, Misconfiguration]
+    J --> K[Asset enrichment Jamf/Humaans/Intune]
+    K --> L[Device classification]
+    L --> M[Risk score recompute]
+    M --> N[Cross-source correlation]
+    N --> O[SyncLog row]
+
+    D --> D1[Evaluate filter -> create per-host or per-remediation tickets]
+    E --> E1[Generate PDF/CSV/TXT -> SMTP send]
+    F --> F1[Mark sla_breached, emit notifications + email]
 ```
 
-## GCP Deployment Architecture
+Source: [diagrams/sync-pipeline.mmd](diagrams/sync-pipeline.mmd).
 
-```
-┌─────────────────────────────────────────────────┐
-│              Google Cloud Platform                │
-│                                                   │
-│  ┌──────────────┐     ┌───────────────────────┐  │
-│  │  Static IP    │────>│  GCE VM (COS image)   │  │
-│  │  (External)   │     │                       │  │
-│  └──────────────┘     │  ┌─────────────────┐   │  │
-│                       │  │ Docker Compose   │   │  │
-│  ┌──────────────┐     │  │  - nginx         │   │  │
-│  │  Firewall     │     │  │  - backend       │   │  │
-│  │  (80, 443,    │     │  │  - frontend      │   │  │
-│  │   SSH)        │     │  │  - postgres      │   │  │
-│  └──────────────┘     │  │  - redis         │   │  │
-│                       │  └─────────────────┘   │  │
-│  ┌──────────────┐     │                       │  │
-│  │  Service      │     │  Auto-update cron    │  │
-│  │  Account      │     │  (hourly)            │  │
-│  └──────────────┘     └───────────────────────┘  │
-└─────────────────────────────────────────────────┘
+## Authentication flow (OIDC, post-Phase 1)
 
-Terraform provisions: static IP, firewall rules, service account, GCE VM
-Startup script: installs Docker, clones repo, starts app, sets up cron
-Auto-update: checks GitHub hourly, pulls latest, restarts services
-```
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend (any replica)
+    participant R as Redis (db 0)
+    participant P as Provider (Google/Azure)
 
-## Daily Snapshot Pipeline
-
-```
-1. Scheduler triggers daily at configured time
-       |
-2. Computes current metrics per tenant:
-     - Total/open vulnerabilities by severity
-     - Risk score distribution
-     - SLA compliance stats
-     - MTTR calculation
-       |
-3. Stores snapshot in daily_snapshots table
-       |
-4. Dashboard trend charts query snapshot history
+    U->>F: Click "Sign in with Google"
+    F->>B: GET /auth/login/google?tenant_id=...
+    B->>B: generate state token (256-bit)
+    B->>R: SET oidc:state:{state} provider EX 600 NX
+    R-->>B: OK
+    B-->>F: { authorization_url }
+    F-->>U: redirect to provider
+    U->>P: authenticate
+    P-->>U: redirect to /auth/callback/google?code=...&state=...
+    U->>B: GET /auth/callback/google?code=...&state=...<br/>(may land on a DIFFERENT replica)
+    B->>R: GETDEL oidc:state:{state}
+    R-->>B: provider | nil
+    alt state missing or wrong provider
+        B-->>F: 400 invalid_state
+    else state valid
+        B->>P: exchange code for tokens
+        P-->>B: id_token, access_token
+        B->>B: upsert user, issue JWT access + refresh
+        B-->>F: { access_token, refresh_token }
+    end
 ```
 
-## Project Structure
+The `SET ... NX EX 600` + `GETDEL` pair is what makes the flow safe across replicas: the state can be created by one replica and consumed by another, and replay is blocked because `GETDEL` is atomic. If Redis is unreachable the backend fails closed (HTTP 503) — bypassing state validation would be a CSRF defect (decision D-06 in [.planning/phases/01-multi-replica-state/01-CONTEXT.md](../.planning/phases/01-multi-replica-state/01-CONTEXT.md)).
+
+## Rate-limiter mechanics
+
+`TenantRateLimitMiddleware` ([backend/app/main.py:107-159](../backend/app/main.py#L107-L159)) implements a sliding-window rate limit per tenant using a Redis sorted set:
+
+1. Extract `tenant_id` from JWT (without DB validation; "anonymous" if missing).
+2. Build key `ratelimit:{tenant_id}`.
+3. In one `MULTI/EXEC` pipeline: `ZREMRANGEBYSCORE` (drop entries older than the window), `ZADD` (insert `{now_ms}:{uuid8}` with score `now_ms`), `ZCARD` (count), `EXPIRE` (set TTL = window).
+4. If `ZCARD > 200` → return 429 with `Retry-After`.
+5. On `RedisError` → log `redis_unavailable` and **fail open** (limiter is a safety valve, not a security boundary — decision D-05).
+
+The unique uuid suffix on the ZADD member defeats sub-millisecond ZADD coalescing — verified by the 6-test suite in [backend/tests/test_rate_limit.py](../backend/tests/test_rate_limit.py).
+
+## Risk scoring
+
+Per-asset risk score computation ([backend/app/assets/service.py](../backend/app/assets/service.py)):
 
 ```
-getvul/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                 # FastAPI entry, health, export, reports, certs
-│   │   ├── config.py               # Settings (env vars)
-│   │   ├── encryption.py           # Fernet encrypt/decrypt
-│   │   ├── pagination.py           # Shared pagination logic
-│   │   ├── dependencies.py         # FastAPI dependency aliases
-│   │   ├── seed.py                 # Demo data seeder
-│   │   ├── dev_routes.py           # Dev-only endpoints
-│   │   ├── export.py               # CSV export service
-│   │   ├── reports.py              # Scheduled reports model + CRUD
-│   │   ├── email.py                # SMTP email delivery
-│   │   ├── certificates.py         # TLS cert management
-│   │   ├── audit.py                # Audit logging + syslog/SIEM
-│   │   ├── enrich_assets.py        # Asset enrichment from HR/MDM
-│   │   ├── auth/                   # Authentication module
-│   │   │   ├── jwt.py              # JWT create/decode
-│   │   │   ├── providers.py        # OIDC providers (Google, Azure)
-│   │   │   ├── router.py           # Auth routes
-│   │   │   ├── rbac.py             # Role-based access control
-│   │   │   └── dependencies.py     # Auth dependencies
-│   │   ├── db/                     # Database layer
-│   │   │   ├── session.py          # Async engine, session factory
-│   │   │   └── base.py             # Base classes, mixins
-│   │   ├── connectors/             # External integrations
-│   │   │   ├── base.py             # Abstract connector + normalized types
-│   │   │   ├── crowdstrike.py      # CrowdStrike Falcon connector
-│   │   │   ├── jamf.py             # Jamf Pro MDM connector
-│   │   │   ├── sync.py             # Sync orchestration
-│   │   │   ├── scheduler.py        # APScheduler background jobs
-│   │   │   ├── tester.py           # Connector credential testing
-│   │   │   ├── service.py          # Connector CRUD service
-│   │   │   ├── schemas.py          # All 14 connector type definitions
-│   │   │   └── router.py           # Connector API routes
-│   │   ├── vulnerabilities/        # Vulnerability management
-│   │   │   ├── models.py           # Vulnerability + Correlation models
-│   │   │   ├── service.py          # Query/filter/stats/SLA service
-│   │   │   ├── remediation_service.py  # Grouped remediations
-│   │   │   ├── schemas.py          # Pydantic request/response models
-│   │   │   └── router.py           # Vulnerability API routes
-│   │   ├── assets/                 # Asset management
-│   │   │   ├── models.py           # Asset model
-│   │   │   ├── classification.py   # Device type classification
-│   │   │   ├── service.py          # Asset query + risk scoring
-│   │   │   ├── schemas.py          # Pydantic models
-│   │   │   └── router.py           # Asset API routes
-│   │   ├── cspm/                   # Cloud posture management
-│   │   │   ├── models.py           # Misconfiguration model
-│   │   │   ├── service.py          # CSPM query service
-│   │   │   ├── schemas.py          # Pydantic models
-│   │   │   └── router.py           # CSPM API routes
-│   │   ├── ticketing/              # Ticketing integration
-│   │   │   ├── models.py           # Ticket, TicketRule, ConnectorConfig, SyncLog
-│   │   │   ├── service.py          # Ticket CRUD + automation
-│   │   │   └── router.py           # Ticket API routes
-│   │   ├── tenants/                # Tenant and user management
-│   │   │   ├── models.py           # Tenant + User models
-│   │   │   ├── service.py          # Tenant/user CRUD
-│   │   │   └── router.py           # Tenant API routes
-│   │   ├── users/                  # User directory views
-│   │   │   └── router.py           # User list + stats routes
-│   │   └── notifications/          # Notification and alert system
-│   │       ├── models.py           # Notification model
-│   │       ├── service.py          # Notification CRUD + email delivery
-│   │       ├── router.py           # Notification API routes
-│   │       └── alerts.py           # Alert engine (4 automated checks)
-│   ├── alembic/                    # Database migrations
-│   │   └── versions/               # 24 migration scripts
-│   ├── tests/                      # pytest test suite
-│   ├── pyproject.toml              # Python dependencies
-│   ├── Dockerfile                  # Backend container
-│   └── alembic.ini                 # Alembic config
-├── frontend/
-│   ├── src/
-│   │   ├── app/                    # Next.js pages
-│   │   │   ├── layout.tsx          # Root layout
-│   │   │   ├── page.tsx            # Landing/redirect
-│   │   │   ├── login/              # Login page
-│   │   │   ├── dashboard/          # Main dashboard + sub-pages
-│   │   │   ├── vulnerabilities/    # Vulnerability views
-│   │   │   ├── assets/             # Asset views
-│   │   │   ├── tickets/            # Ticket views
-│   │   │   ├── integrations/       # Connector views
-│   │   │   └── settings/           # Settings views
-│   │   ├── components/             # React components
-│   │   ├── lib/                    # API client, utilities
-│   │   └── types/                  # TypeScript type definitions
-│   ├── package.json                # Node dependencies
-│   ├── Dockerfile                  # Frontend container
-│   ├── tailwind.config.ts          # Tailwind configuration
-│   └── tsconfig.json               # TypeScript config
-├── infra/                          # Terraform IaC
-│   ├── main.tf                     # AWS provider setup
-│   ├── variables.tf                # AWS variables
-│   ├── outputs.tf                  # AWS outputs
-│   └── gcp/                        # GCP deployment
-│       ├── main.tf                 # GCE VM, firewall, static IP, service account
-│       ├── variables.tf            # GCP variables
-│       ├── outputs.tf              # GCP outputs
-│       └── startup.sh              # VM startup script (Docker, clone, auto-update)
-├── .github/workflows/ci.yml       # CI/CD pipeline (5 jobs)
-├── docker-compose.yml              # Development stack (5 services)
-├── docker-compose.ci.yml           # CI DAST testing stack
-├── Makefile                        # Dev commands
-└── .env.example                    # Environment template
+raw = Σ severity_weight × exploit_multiplier × kev_multiplier
+        severity_weights:    CRITICAL=40 HIGH=10 MEDIUM=3 LOW=1
+        exploit_multiplier:  2.0 if exploit_available else 1.0
+        kev_multiplier:      1.5 if cisa_kev else 1.0
+
+score = piecewise_log(raw):
+        knee at raw=120, score=45
+        below knee → linear
+        above knee → log compression to 100
 ```
+
+Triggered by `POST /api/v1/assets/recompute-risk-scores` (Admin+) and automatically after each connector sync.
+
+## Cross-source correlation
+
+After every vulnerability sync, the correlation pass groups vulns by `(tenant_id, cve_id, asset_id)` and emits a `vulnerability_correlations` row when `COUNT(DISTINCT source) > 1`. Confidence: `HIGH` if ≥3 sources, `MEDIUM` if 2.
+
+## Notification engine
+
+Four scheduled checks per active tenant:
+
+| Check | Lookback | Dedup key |
+|-------|----------|-----------|
+| New critical vuln | 2h | `(tenant_id, category, cve_id)` |
+| SLA breach warning | 24h | `(tenant_id, category, cve_id)` |
+| Connector sync failure | 4h | `(tenant_id, category, connector_id)` |
+| Risk score spike | 24h | `(tenant_id, category, asset_id)` |
+
+Notifications are stored in `notifications` table (broadcast or per-user) and emailed to OWNER + ADMIN for critical events. Frontend polls `/api/v1/notifications/unread-count` for the bell badge.
+
+## Single-VM deployment topology
+
+```mermaid
+flowchart LR
+    subgraph "Cloud (GCP / AWS / Azure)"
+        STIP[Static IP]
+        FW[Firewall: 80, 443, 22 from allowlist]
+        VM["VM: e2-medium / t3.medium / Standard_B2s<br/>30GB SSD, COS or Ubuntu 22.04"]
+        SA[Service account / IAM role]
+    end
+    subgraph "VM"
+        DC["Docker Compose<br/>nginx · backend · frontend · postgres · redis"]
+        CRON["cron: getvul-update<br/>(hourly per install.sh)"]
+    end
+    STIP --> FW --> VM
+    VM --> DC
+    VM --> CRON
+    CRON -->|git pull + rebuild| DC
+```
+
+Terraform templates exist for all three clouds ([infra/gcp/](../infra/gcp/), [infra/aws/](../infra/aws/), [infra/azure/](../infra/azure/)). GCP is primary; the others validate in CI but are not actively deployed. See [13-deployment.md](13-deployment.md).
+
+## Project structure
+
+For the per-folder walkthrough see [07-project-structure.md](07-project-structure.md). For per-module responsibilities see [08-core-modules.md](08-core-modules.md).

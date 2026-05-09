@@ -1,39 +1,130 @@
-# Security
+# 16 — Security
 
-## Default Admin Credentials
+This combines what used to live in `doc/security.md` and `doc/authentication.md`. Authentication, authorization, secret handling, security headers, and the CI/CD security pipeline are all here.
+
+For threat-model artefacts produced during phase development see `.planning/phases/<N>/<N>-SECURITY.md` (currently optional — `workflow.security_enforcement` is on by default but no SECURITY.md has been produced for Phase 1 yet; the four review-warning items in `.planning/phases/01-multi-replica-state/01-REVIEW.md` are the working list).
+
+## Authentication
+
+### Methods
+
+**Email + password**
+- Registration: `POST /auth/register` (requires existing tenant domain)
+- Login: `POST /auth/login` returns JWT access + refresh tokens
+- Passwords hashed with bcrypt (per-user salt) — [backend/app/auth/password.py](../backend/app/auth/password.py)
+- Validated against the tenant `password_policy` JSONB (length, complexity, history)
+
+**SSO (OIDC)**
+- Google Workspace: `GET /auth/login/google?tenant_id=...`
+- Azure Entra ID: `GET /auth/login/azure?tenant_id=...`
+- After Phase 1, OIDC state is stored in Redis with `SET ... NX EX 600` and consumed atomically with `GETDEL` — see [02-architecture.md](02-architecture.md#authentication-flow-oidc-post-phase-1). This makes the flow safe across replicas; the previous in-memory `_pending_states` dict was a single-replica defect (D-06).
+- If Redis is unreachable, the callback **fails closed** with HTTP 503 — bypassing state validation would be a CSRF defect.
+- SSO **enforcement** can be enabled per tenant; per-user `allow_password_login` overrides it for break-glass accounts.
+
+**Password reset**
+- `POST /auth/forgot-password` (public) — generates time-limited single-use token, emails it via tenant SMTP
+- `POST /auth/reset-password` (public) — validates token, applies new password against policy
+- Always returns a generic success response — prevents email enumeration
+
+### Token management
+
+| Token | Default TTL | Algorithm | Where |
+|-------|-------------|-----------|-------|
+| Access | 15 min | HS256 | `JWT_SECRET_KEY` env var |
+| Refresh | 7 days | HS256 | same |
+
+Frontend ([frontend/src/lib/api.ts](../frontend/src/lib/api.ts)) auto-refreshes on 401 and redirects to `/login` if the refresh fails. Token payload includes `sub`, `tenant_id`, `email`, `role`, `type`, `jti`, `iat`, `exp`.
+
+### Default admin credentials
 
 The install script creates a default admin account:
 - **Email:** `admin@getvul.local`
 - **Password:** `Admin123!`
 
-**Change this password immediately after first login.** The default credentials are well-known and must not be used in production without being changed. Navigate to the profile dropdown and select Change Password.
+**Change this password immediately after first login.** The default credentials are well-known and must not be used in production without being changed. Phase 6 (PROD-06) will force a first-login rotation.
 
-## Authentication Security
-- Passwords hashed with bcrypt (per-user salt)
-- JWT tokens with short-lived access (15 min) and longer refresh (7 days)
-- Auto-refresh on 401 with login redirect on failure
-- SSO enforcement available (Google Workspace / Azure Entra ID OIDC)
-- Configurable password policy (length, complexity, history)
-- Password history prevents reuse of last N passwords (configurable: 3, 5, 10, 24)
-- Email-based password reset with time-limited single-use tokens
-- Generic response on forgot-password to prevent email enumeration
-- Per-tenant API rate limiting: 200 requests per 60 seconds (Redis-backed sliding window)
+## Authorization (RBAC)
 
-## Security Headers
+Roles and integer levels defined in [backend/app/auth/rbac.py](../backend/app/auth/rbac.py):
 
-Applied by both Nginx and the backend application:
+| Role | Level | Typical permissions |
+|------|-------|---------------------|
+| OWNER | 40 | Full control: settings, IdP, SSO enforcement, user management, certificates, SLA policy |
+| ADMIN | 30 | Connectors, user list, audit log, bulk actions, SMTP config |
+| ANALYST | 20 | Update vuln status, create tickets, manage rules, change own password, saved filters |
+| VIEWER | 10 | Read-only access to all dashboards and data |
 
-| Header | Value |
-|--------|-------|
-| X-Content-Type-Options | nosniff |
-| X-Frame-Options | DENY |
-| Cross-Origin-Resource-Policy | same-origin |
-| Cross-Origin-Opener-Policy | same-origin |
-| Content-Security-Policy | Restricts script-src, style-src, img-src, connect-src, frame-ancestors, form-action, base-uri, object-src |
-| Permissions-Policy | Restricts camera, microphone, geolocation, etc. |
-| Referrer-Policy | strict-origin-when-cross-origin |
-| Cache-Control | no-store on API routes |
-| X-Powered-By | Disabled / removed |
+### Permission matrix
+
+| Action | Owner | Admin | Analyst | Viewer |
+|--------|:-----:|:-----:|:-------:|:------:|
+| View dashboards | ✓ | ✓ | ✓ | ✓ |
+| Export CSV | ✓ | ✓ | ✓ | ✓ |
+| Update vuln status | ✓ | ✓ | ✓ | — |
+| Create tickets | ✓ | ✓ | ✓ | — |
+| Manage automation rules | ✓ | ✓ | ✓ | — |
+| Ignore CVEs / assets | ✓ | ✓ | ✓ | — |
+| Manage connectors | ✓ | ✓ | — | — |
+| View audit log | ✓ | ✓ | — | — |
+| Manage users | ✓ | ✓ | — | — |
+| Change user roles | ✓ | — | — | — |
+| Update org settings | ✓ | — | — | — |
+| Manage certificates | ✓ | — | — | — |
+| Configure SSO enforcement | ✓ | — | — | — |
+| Set SLA policy | ✓ | — | — | — |
+| Delete users | ✓ | — | — | — |
+
+`Depends(require_role(min_role))` is the standard pattern — every protected endpoint declares its minimum role.
+
+## Password policy
+
+Configurable per tenant in `Settings → Authentication`. Stored in `tenants.password_policy` (JSONB).
+
+| Setting | Options | Default |
+|---------|---------|---------|
+| Minimum length | 6, 8, 10, 12, 16 | 8 |
+| Require uppercase (A-Z) | on/off | off |
+| Require lowercase (a-z) | on/off | off |
+| Require digit (0-9) | on/off | off |
+| Require symbol (!@#$%) | on/off | off |
+| Password history | off, 3, 5, 10, 24 | off |
+
+Enforced on registration and password change. Old hashes are kept in `users.password_history` and compared on change.
+
+---
+
+## Security headers
+
+### From the FastAPI `SecurityHeadersMiddleware` ([main.py:86-98](../backend/app/main.py#L86-L98))
+
+| Header | Value | Notes |
+|--------|-------|-------|
+| `X-Content-Type-Options` | `nosniff` | applied to all responses |
+| `X-Frame-Options` | `DENY` | applied to all responses |
+| `Cross-Origin-Resource-Policy` | `same-origin` | applied to all responses |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | applied to all responses |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | applied to all responses |
+| `Cache-Control` | `no-store, no-cache, must-revalidate, max-age=0` | only on `/api/` and `/auth/` paths |
+| `Pragma` | `no-cache` | only on `/api/` and `/auth/` paths |
+
+### Drift — documented but not yet emitted
+
+| Header | Doc claim | Reality |
+|--------|-----------|---------|
+| `Content-Security-Policy` | listed as enabled in older docs | ✗ **not** emitted by `SecurityHeadersMiddleware` (PROD-04-01) |
+| `Cross-Origin-Opener-Policy` | listed as enabled in older docs | ✗ **not** emitted by `SecurityHeadersMiddleware` (PROD-04-01) |
+
+The frontend's [frontend/next.config.js](../frontend/next.config.js) does ship a CSP from the Next.js side covering its own routes — but the API responses don't carry one yet. PROD-04-01 will land both headers on backend responses.
+
+### From Nginx ([nginx/nginx.conf:29-32](../nginx/nginx.conf#L29-L32) and `:119`)
+
+| Header | Value | Where |
+|--------|-------|-------|
+| `X-Frame-Options` | `SAMEORIGIN` | `add_header always` (HTTP and HTTPS) |
+| `X-Content-Type-Options` | `nosniff` | `add_header always` |
+| `X-XSS-Protection` | `1; mode=block` | `add_header always` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | `add_header always` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | HTTPS server only ([line 119](../nginx/nginx.conf#L119)) |
 
 ## TLS / SSL
 - Nginx reverse proxy with TLS 1.2/1.3 termination

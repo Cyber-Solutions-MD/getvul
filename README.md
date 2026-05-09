@@ -2,32 +2,35 @@
 
 **Unified Vulnerability Aggregation Platform**
 
-GetVul collects vulnerability data from CrowdStrike Spotlight, Nessus Professional, Microsoft Defender for Endpoint, and Wiz — normalizes it into a single merged database — and enables teams to take action by creating tickets in Jira or GitHub.
+GetVul collects vulnerability data from six enterprise scanners — CrowdStrike Falcon Spotlight, Tenable Nessus, Microsoft Defender for Endpoint, Wiz, Qualys VMDR, and Rapid7 InsightVM — normalizes it into a single merged database, enriches assets with identity/MDM/HR data (Google, Azure, Okta, Humaans, Jamf, Intune), and enables teams to act through Asana or Jira tickets.
 
 ## Architecture
 
 ```
-┌─────────────┐  ┌─────────┐  ┌──────────┐  ┌─────┐
-│ CrowdStrike │  │ Nessus  │  │ Defender │  │ Wiz │
-└──────┬──────┘  └────┬────┘  └────┬─────┘  └──┬──┘
-       │              │            │            │
-       └──────────────┴─────┬──────┴────────────┘
-                            │
-                    ┌───────▼────────┐
-                    │  GetVul API    │
-                    │  (FastAPI)     │
-                    └───────┬────────┘
-                            │
-                  ┌─────────▼──────────┐
-                  │  PostgreSQL (RDS)  │
-                  │  Merged Vuln DB    │
-                  └─────────┬──────────┘
-                            │
-                    ┌───────▼────────┐
-                    │  Dashboard     │──► Jira / GitHub
-                    │  (Next.js)     │    Tickets
-                    └────────────────┘
+┌─────────────┐ ┌─────────┐ ┌──────────┐ ┌─────┐ ┌────────┐ ┌────────┐
+│ CrowdStrike │ │ Nessus  │ │ Defender │ │ Wiz │ │ Qualys │ │ Rapid7 │
+└──────┬──────┘ └────┬────┘ └────┬─────┘ └──┬──┘ └────┬───┘ └────┬───┘
+       │             │           │          │         │          │
+       └─────────────┴───────────┴────┬─────┴─────────┴──────────┘
+                                      │
+                              ┌───────▼────────┐
+                              │  GetVul API    │
+                              │  (FastAPI)     │
+                              └───────┬────────┘
+                                      │
+                        ┌─────────────┴─────────────┐
+                ┌───────▼────────┐         ┌────────▼────────┐
+                │  PostgreSQL 16 │         │     Redis 7     │
+                │  (24 migrations)│        │ (state + limit) │
+                └───────┬────────┘         └─────────────────┘
+                        │
+                ┌───────▼────────┐
+                │  Dashboard     │──► Asana / Jira tickets
+                │  (Next.js 15)  │
+                └────────────────┘
 ```
+
+Full architecture, request flow, and data-model diagrams: [docs/](docs/).
 
 ## Quick Start
 

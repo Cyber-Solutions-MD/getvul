@@ -1,4 +1,6 @@
-# Connectors and Integrations
+# 11 — Integrations
+
+This document covers every third-party system GetVul talks to: vulnerability scanners, ticketing systems, identity providers, and HR/MDM systems. For the data they populate, see [09-data-model.md](09-data-model.md). For request flow, see [02-architecture.md](02-architecture.md).
 
 ## Overview
 
@@ -147,3 +149,108 @@ GetVul supports 14 connector types across 4 categories:
 | SUCCESS | Sync completed without errors |
 | FAILED | Sync failed (error_message populated) |
 | PARTIAL | Sync completed with some errors |
+
+---
+
+## Ticketing in depth (Asana + Jira)
+
+### Ticket types
+
+**Per-host tickets** — One task per affected host listing all its remediations.
+- Title: `[CRITICAL] Remediate server-01 — 9 vulns (1 critical)`
+- Body: host details + numbered remediation actions with CVE IDs, file paths, exploit/KEV flags
+- Assignee: HR-linked user email from Humaans match
+- Due date: highest-severity SLA
+
+**Per-remediation tickets** — One task per remediation action listing all affected hosts.
+- Title: `[CRITICAL] Update OpenSSL to 3.1.5 — 2 hosts`
+- Body: remediation action + affected hosts with per-host CVE breakdown
+- Assignee: configurable (fixed user)
+
+### Automation rules
+
+Automatically create tickets on a schedule for hosts matching saved-filter conditions.
+
+| Setting | Options |
+|---------|---------|
+| Saved filter | Required reference to a saved vulnerability/remediation filter |
+| Schedule | 1h, 6h, 12h, 1 day, 7 days |
+| Max tickets per run | 5, 10, 25, 50, 100 |
+| Grouping | per-host or per-remediation |
+| Assignee | auto (HR-linked) or fixed user |
+
+The scheduler ticks every ~60s and triggers rules whose `last_run_at + schedule <= now`. Dedup: rules skip hosts/remediations that already have an open ticket.
+
+### Daily ticket-status sync
+
+```mermaid
+flowchart LR
+    A[Scheduler tick] --> B{For each open ticket}
+    B --> C[Query external provider]
+    C -->|external task complete| D[Mark vulns REMEDIATED]
+    C -->|partial| E[Post progress comment]
+    C -->|all GetVul vulns resolved| F[Auto-close external task]
+    D --> G[Update external_status]
+    E --> G
+    F --> G
+```
+
+### Ticket lifecycle states
+
+`CREATE` (manual or rule-driven) → `TRACK` (visible in `/dashboard/tickets`) → `SYNC` (daily check) → `PROGRESS` (partial remediation comment) → `AUTO-CLOSE` (when all related vulns are resolved) → `CLOSE` (manual override) → `DELETE` (removes from both systems, reopens IN_PROGRESS vulns to OPEN).
+
+### SLA-based due dates
+
+| Severity | Default SLA |
+|----------|-------------|
+| CRITICAL | 3 days |
+| HIGH | 14 days |
+| MEDIUM | 30 days |
+| LOW | 90 days |
+
+Configurable per tenant in `Settings → SLA Policy`.
+
+### Bulk actions
+
+Multi-select tickets in the UI for: **Close**, **Comment**, **Sync Update**, **Delete**.
+
+### Ticketing API endpoints
+
+See [10-api-reference.md](10-api-reference.md#tickets-apiv1tickets) — `/api/v1/tickets/*` (17 endpoints, including `/rules/*` for automation rule CRUD).
+
+---
+
+## Outbound integrations not covered above
+
+| Integration | Direction | Where in code | Purpose |
+|-------------|-----------|---------------|---------|
+| SMTP | outbound | [backend/app/email.py](../backend/app/email.py) | Password reset emails, scheduled report delivery, alert digests. Per-tenant config in `tenants.smtp_config`. |
+| Syslog (CEF) | outbound | [backend/app/audit.py](../backend/app/audit.py) | Audit log forwarding to SIEMs. Per-tenant config in `tenants.syslog_config`. |
+
+## Inbound integrations
+
+GetVul does **not** receive webhooks today. All integrations are pull-based via the in-process scheduler. Adding inbound webhooks would require deciding whether to use Redis pub/sub or a dedicated worker — currently out of scope.
+
+## Where to set credentials
+
+All connector credentials are configured through the UI at `/dashboard/connectors`. Click the connector card → "Edit" → paste credentials. They are encrypted with Fernet ([backend/app/encryption.py](../backend/app/encryption.py)) before being stored in `connector_configs.credentials_secret_arn`.
+
+You **never** put scanner credentials in `.env`. The only exceptions are `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` for the SSO login flow itself — those go in `.env`. See [05-configuration.md](05-configuration.md).
+
+## Provider docs
+
+| Provider | Docs |
+|----------|------|
+| CrowdStrike Falcon Spotlight | https://falcon.crowdstrike.com/documentation/ |
+| Tenable Nessus | https://docs.tenable.com/nessus/ |
+| Microsoft Defender for Endpoint | https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/ |
+| Wiz | https://docs.wiz.io/ |
+| Qualys VMDR | https://docs.qualys.com/en/vm/ |
+| Rapid7 InsightVM | https://docs.rapid7.com/insightvm/ |
+| Asana | https://developers.asana.com/ |
+| Jira (Cloud) | https://developer.atlassian.com/cloud/jira/platform/ |
+| Google Workspace | https://developers.google.com/workspace/admin/directory |
+| Microsoft Graph (Azure / Intune) | https://learn.microsoft.com/en-us/graph/ |
+| Okta | https://developer.okta.com/docs/ |
+| Humaans | https://docs.humaans.io/ |
+| Jamf Pro | https://developer.jamf.com/ |

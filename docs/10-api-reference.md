@@ -1,8 +1,10 @@
-# Backend API Reference
+# 10 — API Reference
 
-The GetVul backend is a FastAPI application (Python 3.12) serving a REST API.
+The GetVul backend is a FastAPI application (Python 3.12) serving a REST API. ~99 endpoints across 9 routers plus inline routes in [backend/app/main.py](../backend/app/main.py).
 
-Interactive API docs (Swagger): `http://localhost:8000/docs`
+Interactive API docs (Swagger UI): `http://localhost:8000/docs` — only mounted when `DEBUG=true` (see [05-configuration.md](05-configuration.md)).
+
+For middleware behavior (CORS, security headers, per-tenant rate limit), see [02-architecture.md](02-architecture.md). For RBAC roles, see [16-security.md](16-security.md).
 
 ## Route Overview
 
@@ -278,5 +280,130 @@ Logo and branding configuration (company name, tagline, primary/accent colors) a
 
 ### Rate Limiting
 - Per-tenant rate limiting: 200 requests per 60 seconds
-- Tracked via Redis
-- Returns HTTP 429 when exceeded
+- Tracked via Redis sorted set (`ratelimit:{tenant_id}`)
+- Returns HTTP 429 with `Retry-After: 60` when exceeded
+- See [TenantRateLimitMiddleware](../backend/app/main.py#L107) for the implementation
+
+---
+
+## Example requests and responses
+
+### Login (email/password)
+
+```bash
+curl -sS -X POST http://localhost:8000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@getvul.local","password":"Admin123!"}'
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "user": {
+    "id": "...",
+    "email": "admin@getvul.local",
+    "role": "OWNER",
+    "tenant_id": "..."
+  }
+}
+```
+
+### Initiate Google SSO
+
+```bash
+curl -sS 'http://localhost:8000/auth/login/google?tenant_id=demo'
+```
+
+```json
+{
+  "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=..."
+}
+```
+
+State is stored in Redis as `oidc:state:{state}` with 10-minute TTL ([02-architecture.md](02-architecture.md)).
+
+### List vulnerabilities (filtered)
+
+```bash
+curl -sS 'http://localhost:8000/api/v1/vulnerabilities?severity=CRITICAL&exploit_available=true&page=1&page_size=25' \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "...",
+      "cve_id": "CVE-2024-3094",
+      "severity": "CRITICAL",
+      "cvss_v3_score": 10.0,
+      "exploit_available": true,
+      "cisa_kev": true,
+      "asset": { "id": "...", "hostname": "build-runner-03" },
+      "source": "CROWDSTRIKE",
+      "status": "OPEN",
+      "sla_deadline": "2026-05-12T00:00:00Z",
+      "sla_breached": false
+    }
+  ],
+  "total": 17,
+  "page": 1,
+  "pages": 1
+}
+```
+
+### Update vulnerability status
+
+```bash
+curl -sS -X PATCH http://localhost:8000/api/v1/vulnerabilities/$VULN_ID/status \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"status":"REMEDIATED","note":"Patched in build 2026.05.09"}'
+```
+
+```json
+{ "id": "...", "status": "REMEDIATED", "remediated_at": "2026-05-09T12:00:00Z" }
+```
+
+### Trigger a connector sync
+
+```bash
+curl -sS -X POST http://localhost:8000/api/v1/connectors/$CONNECTOR_ID/sync \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{ "status": "RUNNING", "sync_log_id": "...", "started_at": "2026-05-09T12:00:00Z" }
+```
+
+Poll `GET /api/v1/connectors/{id}/sync-status` to follow progress.
+
+### Global search
+
+```bash
+curl -sS 'http://localhost:8000/api/v1/search?q=openssl&limit=5' -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "vulnerabilities": [ { "cve_id": "CVE-2024-3094", "asset_hostname": "..." }, ... ],
+  "assets":          [ { "hostname": "...", "risk_score": 78 } ],
+  "users":           [],
+  "tickets":         [],
+  "misconfigurations": []
+}
+```
+
+### CSV export
+
+```bash
+curl -sS -o vulns.csv 'http://localhost:8000/api/v1/export/vulnerabilities?severity=CRITICAL&format=csv' \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+The `{resource}` path parameter accepts `vulnerabilities`, `assets`, `users`, `tickets`, `remediations`, `summary`. `format=pdf|csv|txt` with severity, status, source, exploit/KEV, device_type, section filters as query params.
+
+## OpenAPI
+
+The full OpenAPI 3 schema is served at `http://localhost:8000/openapi.json` when `DEBUG=true`. The CI DAST job ([12-pipelines-cicd.md](12-pipelines-cicd.md)) feeds this schema to ZAP for endpoint coverage.

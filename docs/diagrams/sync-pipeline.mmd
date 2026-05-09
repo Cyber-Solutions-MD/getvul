@@ -1,0 +1,21 @@
+%% docs/02-architecture.md — Connector sync pipeline
+flowchart TD
+    A[Scheduler tick<br/>~60s] --> B{For each tenant}
+    B --> C[Connector syncs<br/>due if last_sync_at + sync_interval_minutes &lt;= now]
+    B --> D[Ticket rules<br/>run_all_due_rules]
+    B --> E[Scheduled reports<br/>run_due_reports]
+    B --> F[SLA breach checks<br/>check_sla_breaches]
+
+    C --> G[run_sync per connector]
+    G --> H[authenticate]
+    H --> I[fetch_vulnerabilities + fetch_misconfigurations]
+    I --> J[upsert Asset, Vulnerability, Misconfiguration]
+    J --> K[Asset enrichment Jamf/Humaans/Intune]
+    K --> L[Device classification]
+    L --> M[Risk score recompute]
+    M --> N[Cross-source correlation]
+    N --> O[SyncLog row]
+
+    D --> D1[Evaluate filter -> create per-host or per-remediation tickets]
+    E --> E1[Generate PDF/CSV/TXT -> SMTP send]
+    F --> F1[Mark sla_breached, emit notifications + email]
