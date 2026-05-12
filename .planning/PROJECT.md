@@ -38,18 +38,30 @@ A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlate
 - ✓ **DEPLOY-01**: One-command install.sh on a single VM (Docker + TLS + admin + seed) — v0.1
 - ✓ **SEARCH-01**: Global search across vulns, assets, users, tickets, CSPM (Cmd+K) — v0.1
 
-### Active
+### Active — v2.0 UI/UX Redesign
 
-<!-- Production-readiness milestone scope, derived from audit blockers (§5) and next steps (§8). -->
+<!-- Frontend rebuild against the validated Wiz-inspired sunset-palette design system. Backed by 6 sketches + 43 design decisions in .claude/skills/sketch-findings-getvul/. -->
 
-- [x] **PROD-01**: Multi-replica safe — OIDC state and rate limiter on Redis (Phase 01, 2026-05-09)
-- [ ] **PROD-02**: CI gating — push/PR triggers re-enabled, no `|| true` masks
-- [ ] **PROD-03**: Single canonical update path — auto-update cron and CD release flow reconciled
-- [ ] **PROD-04**: Doc/code parity — CSP/COOP headers shipped, README scanner count, `VulnSource` enum
-- [ ] **PROD-05**: Encryption-key backup/rotation story documented and supported
-- [ ] **PROD-06**: Default-admin hardening — force password change on first login
-- [ ] **PROD-07**: Health endpoint checks DB + Redis connectivity
-- [ ] **PROD-08**: Connector and ticket-rule test coverage above zero
+- [ ] **UX-01**: `/login` rebuilt — split-screen with gradient mesh + SSO-primary form
+- [ ] **UX-02**: `/dashboard` rebuilt — action-first hero with stat strip + activity feed
+- [ ] **UX-03**: `/vulnerabilities` rebuilt — chip-bar filters + side-panel drill-down + state patterns
+- [ ] **UX-04**: `/assets` + `/assets/[id]` rebuilt — list + two-column detail with metadata rail + risk ring
+- [ ] **UX-05**: `/tickets` + `/tickets/[id]` rebuilt — list + detail with provider identity (Jira/Asana/GitHub)
+- [ ] **UX-06**: Remaining screens (CSPM, connectors, users, settings) rebuilt against established primitives
+- [ ] **UX-07**: Mobile + a11y + perf quality-gate pass closing the milestone
+
+### Deferred — v1.0 Production Readiness (resume as v1.1 when ready)
+
+<!-- Originally planned as v1.0 Phases 2–8. v1.0 Phase 1 (Multi-Replica State) shipped 2026-05-09. The remaining backend hardening work is parked while v2.0 UI/UX Redesign takes precedence — backend and frontend don't share files, so v1.0 can resume in parallel or sequentially without conflict. -->
+
+- [x] **PROD-01**: Multi-replica safe — OIDC state and rate limiter on Redis (Phase 01, 2026-05-09) ✓
+- [ ] **PROD-02**: CI gating — push/PR triggers re-enabled, no `|| true` masks *(deferred)*
+- [ ] **PROD-03**: Single canonical update path — auto-update cron and CD release flow reconciled *(deferred)*
+- [ ] **PROD-04**: Doc/code parity — CSP/COOP headers shipped, README scanner count, `VulnSource` enum *(deferred)*
+- [ ] **PROD-05**: Encryption-key backup/rotation story documented and supported *(deferred)*
+- [ ] **PROD-06**: Default-admin hardening — force password change on first login *(deferred)*
+- [ ] **PROD-07**: Health endpoint checks DB + Redis connectivity *(deferred)*
+- [ ] **PROD-08**: Connector and ticket-rule test coverage above zero *(deferred)*
 
 ### Out of Scope
 
@@ -105,5 +117,32 @@ A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlate
 | Postgres 16 + JSONB for flexible enrichment payloads | Avoids per-vendor side tables | ✓ Good |
 | Cross-source correlation via `vulnerability_correlations` table with FK per source | Materialized for fast read queries | ✓ Good |
 
+## Current Milestone: v2.0 UI/UX Redesign
+
+**Goal:** Rebuild every authenticated screen against the validated Wiz-inspired sunset-palette design system. Replace v1's `!important`-hack light theme and missing primitives with a production-quality UI consumed by every screen.
+
+**Design contract:** `.claude/skills/sketch-findings-getvul/` — 43 validated decisions across 7 reference files (foundation tokens, app shell, page layouts, state patterns, visual language, interaction patterns, copy voice). Auto-loaded during UI implementation per CLAUDE.md routing.
+
+**Why now:** v1.0 Phase 1 (multi-replica state) shipped. v1.0 phases 2–8 are backend hardening and can ship in parallel as a future v1.1 milestone — they don't share files with the frontend rebuild. The 6-sketch design exploration (2026-05-12) replaced the rolled-back v2-01 "Tactical Carbon" attempt; aesthetic direction + layout patterns are now locked.
+
+**Anti-pattern guarded:** No foundation-only phase. Tokens, primitives, and screens land *together* in each vertical-slice phase. The first slice (`/login`) extracts the minimal token set it needs and primitives expand outward; subsequent phases add only the new tokens / primitives their screen requires.
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-05-09 after Phase 01 (multi-replica state) completion*
+*Last updated: 2026-05-12 — v2.0 UI/UX Redesign milestone kicked off; v1.0 phases 2–8 deferred.*
