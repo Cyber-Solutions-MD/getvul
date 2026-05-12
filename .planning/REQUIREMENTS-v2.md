@@ -107,15 +107,19 @@ These ship as part of UX-01 (`/login` vertical slice) so they're consumed by rea
 
 ## Traceability
 
-To be filled in by the roadmapper after roadmap creation:
+Roadmap mapping (50/50 v2.0 requirements covered; future + out-of-scope intentionally unmapped):
 
-| Requirement | Phase |
-|-------------|-------|
-| UX-01-* | _TBD_ |
-| UX-02-* | _TBD_ |
-| UX-03-*, UX-S-* | _TBD_ |
-| UX-04-* | _TBD_ |
-| UX-05-* | _TBD_ |
-| UX-06-* | _TBD_ |
-| UX-07-* | _TBD_ |
-| UX-F-* | _TBD (embedded in first vertical slice)_ |
+| Requirement Group | Phase | Phase Name |
+|-------------------|-------|------------|
+| UX-01-01..05 | Phase 9 | `/login` + Foundation |
+| UX-F-01..04 | Phase 9 | `/login` + Foundation (embedded — no standalone foundation phase) |
+| UX-02-01..06 | Phase 10 | `/dashboard` |
+| UX-03-01..06 | Phase 11 | `/vulnerabilities` + State Patterns |
+| UX-S-01..05 | Phase 11 | `/vulnerabilities` + State Patterns (cross-cutting; established here, reused everywhere after) |
+| UX-04-01..05 | Phase 12 | `/assets` List + Detail |
+| UX-05-01..06 | Phase 13 | `/tickets` List + Detail |
+| UX-06-01..04 | Phase 14 | Remaining Screens |
+| UX-07-01..07 | Phase 15 | Mobile + a11y + Perf Quality Gate |
+| UX-D-01..06 | — | Future Requirements (deferred — not mapped) |
+
+**Coverage check:** 50 active requirements mapped across 7 phases. UX-F-* embedded in Phase 9 (per anti-foundation-only-phase decision). UX-S-* land in Phase 11 and become the contract reused by Phases 12–14 (verified in each later phase's UAT).
