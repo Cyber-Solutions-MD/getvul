@@ -2,7 +2,7 @@
 sketch: 002
 name: dashboard-sunset
 question: "Which information hierarchy answers 'what should I work on right now?' best — and does sunset palette + restrained polish scale to a data-heavy screen?"
-winner: null
+winner: "B"
 tags: [dashboard, layout, hierarchy, navigation-shell]
 ---
 

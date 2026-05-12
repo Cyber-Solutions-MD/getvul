@@ -23,7 +23,16 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 | # | Name | Design Question | Winner | Tags |
 |---|------|----------------|--------|------|
 | 001 | login-sunset | Does the sunset palette + Wiz-style polish feel premium in pixels, and which "fancy level" is right? | **A · Split-screen** | login, palette, layout, polish-level |
-| 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | _pending_ | dashboard, layout, hierarchy, navigation-shell |
+| 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | **B · Action-first hero** | dashboard, layout, hierarchy, navigation-shell |
+
+## Validated decisions (from sketch 002 → B)
+
+- **D-14:** GetVul's user is a *doer*, not a reporter. Dashboard hero answers "what to do now" with a primary CTA, not a stat grid. Stats are secondary, demoted to a thin strip below the hero.
+- **D-15:** Hero card pattern: gradient eyebrow + pulsing-dot urgency indicator + big numeric headline + supporting sentence + action buttons (snooze + CTA). The "fancy" lives in the eyebrow and pulse, not the card chrome.
+- **D-16:** Activity feed belongs in a right sidebar at desktop widths, not full-width below. Keeps the main column scannable and the feed glanceable.
+- **D-17:** Persistent UI shell: sidebar with gradient brand mark + gradient-strip active-nav indicator (with subtle glow). Topbar with search-as-input (⌘K affordance), icon buttons (bell, help), avatar chip. This shell carries to every authenticated screen.
+- **D-18:** Severity glyphs (■ ▲ ◆ ○ □) work alongside color tokens — confirmed legible at table row sizes. Three-axis encoding (color + glyph + size) survived the dense-data context.
+- **D-19:** Triage rows show severity glyph + CVE-ID + description + asset + score + SLA pill. Score color matches severity (≥9 red, ≥7 orange, ≥5 amber). SLA pill states: overdue / soon / ok.
 
 ## Validated decisions (from sketch 001 → A)
 
