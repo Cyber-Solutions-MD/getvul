@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetVul /vulnerabilities — Sunset palette sketch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="../themes/sunset.css" />
+  <style>
+    body { padding-top: 56px; }
+
+    /* ─── Variant nav ─── */
+    #variant-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: rgba(8, 6, 15, 0.85);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding: 10px 20px;
+      display: flex; gap: 6px; align-items: center;
+      font-family: var(--font-sans);
+    }
+    #variant-nav .label { color: var(--color-text-faint); font-size: var(--text-xs); margin-right: 12px; }
+    .variant-tab {
+      padding: 6px 14px; border-radius: var(--radius-md);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .variant-tab:hover { background: var(--color-surface); color: var(--color-text); }
+    .variant-tab.active { background: var(--color-surface-2); color: var(--color-text); box-shadow: 0 0 0 1px var(--color-border); }
+    .variant-tab .star { color: var(--color-amber); margin-left: 6px; }
+    .variant { display: none; }
+    .variant.active { display: block; }
+
+    /* ═══════════════ SHARED CHROME ═══════════════ */
+    .app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 56px); }
+    .sidebar {
+      background: var(--color-bg-darker);
+      border-right: 1px solid var(--color-border-subtle);
+      padding: 24px 16px;
+      display: flex; flex-direction: column; gap: 24px;
+    }
+    .sidebar .brand { display: inline-flex; align-items: center; gap: 10px; padding: 4px 8px; font-family: var(--font-display); font-weight: 800; letter-spacing: var(--tracking-tight); }
+    .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--gradient-sunset); display: grid; place-items: center; box-shadow: var(--glow-pink); }
+    .brand-mark svg { width: 16px; height: 16px; color: white; }
+    .brand-name { font-size: var(--text-base); color: var(--color-text); }
+    .sidebar-section { display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-section-title { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-faint); padding: 0 12px; margin-bottom: 4px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: var(--radius-md);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .nav-item:hover { background: var(--color-surface); color: var(--color-text); }
+    .nav-item.active { background: var(--color-surface); color: var(--color-text); position: relative; }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: -16px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0;
+      background: var(--gradient-sunset-vertical);
+      box-shadow: var(--glow-pink);
+    }
+    .nav-item svg { width: 16px; height: 16px; flex: none; }
+    .nav-item .count { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-faint); }
+    .nav-item.active .count { color: var(--color-pink); }
+
+    .main { padding: 28px 32px 32px; overflow: hidden; display: flex; flex-direction: column; }
+    .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+    .topbar .search {
+      flex: 1; max-width: 480px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 14px;
+      background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+    }
+    .topbar .search svg { width: 14px; height: 14px; opacity: 0.6; }
+    .topbar .search .kbd { margin-left: auto; font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); color: var(--color-text-faint); }
+    .topbar .actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .icon-btn { width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border-subtle); display: grid; place-items: center; color: var(--color-text-muted); transition: all var(--motion-fast); }
+    .icon-btn:hover { color: var(--color-text); border-color: var(--color-border); }
+    .icon-btn svg { width: 16px; height: 16px; }
+    .user-chip { display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 4px; border-radius: var(--radius-full); background: var(--color-surface); border: 1px solid var(--color-border-subtle); }
+    .user-chip .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--gradient-sunset); color: white; display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; }
+    .user-chip .name { font-size: var(--text-sm); color: var(--color-text); }
+
+    /* ─── Page header (vulnerabilities) ─── */
+    .page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+    .page-head h1 { margin: 0; font-size: var(--text-3xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
+    .page-head h1 .count { font-family: var(--font-mono); color: var(--color-text-muted); font-weight: 500; margin-left: 8px; font-size: var(--text-xl); letter-spacing: 0; }
+    .page-head .subtitle { color: var(--color-text-muted); font-size: var(--text-sm); margin-top: 4px; }
+    .page-head-actions { display: flex; gap: 8px; align-items: center; }
+
+    .view-toggle { display: inline-flex; padding: 3px; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); }
+    .view-toggle button { padding: 5px 12px; border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--color-text-muted); transition: all var(--motion-fast); }
+    .view-toggle button.active { background: var(--color-surface-2); color: var(--color-text); }
+
+    .btn-cta { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--radius-md); background: var(--gradient-sunset); color: white; font-size: var(--text-sm); font-weight: 600; box-shadow: var(--glow-cta); transition: all var(--motion-fast); }
+    .btn-cta:hover { transform: translateY(-1px); box-shadow: 0 12px 36px rgba(236, 72, 153, 0.5); }
+    .btn-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border-subtle); color: var(--color-text); font-size: var(--text-xs); font-weight: 500; transition: all var(--motion-fast); }
+    .btn-secondary:hover { background: var(--color-surface-2); border-color: var(--color-border); }
+    .btn-secondary svg { width: 13px; height: 13px; }
+    .btn-ghost { padding: 6px 10px; border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: var(--text-xs); transition: color var(--motion-fast); }
+    .btn-ghost:hover { color: var(--color-text); }
+    .btn-ghost.active { color: var(--color-text); background: var(--color-surface-2); }
+
+    /* ─── Severity glyph + pill helpers ─── */
+    .sev-glyph { font-family: var(--font-mono); font-weight: 600; }
+    .sev-glyph.critical { color: var(--color-severity-critical); }
+    .sev-glyph.high     { color: var(--color-severity-high); }
+    .sev-glyph.medium   { color: var(--color-severity-medium); }
+    .sev-glyph.low      { color: var(--color-severity-low); }
+    .sev-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 500; line-height: 1.4;
+    }
+    .sev-pill.critical { background: rgba(248, 113, 113, 0.12); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .sev-pill.high     { background: rgba(251, 146, 60, 0.12); color: var(--color-severity-high);     border: 1px solid rgba(251, 146, 60, 0.3); }
+    .sev-pill.medium   { background: rgba(251, 191, 36, 0.10); color: var(--color-severity-medium);   border: 1px solid rgba(251, 191, 36, 0.3); }
+    .sev-pill.low      { background: rgba(167, 139, 250, 0.12); color: var(--color-severity-low);      border: 1px solid rgba(167, 139, 250, 0.3); }
+
+    .kev-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 7px; border-radius: 4px;
+      background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.3);
+      color: var(--color-severity-critical); font-size: 10px; font-family: var(--font-mono); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .exploit-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 7px; border-radius: 4px;
+      background: rgba(251, 146, 60, 0.10); border: 1px solid rgba(251, 146, 60, 0.25);
+      color: var(--color-severity-high); font-size: 10px; font-family: var(--font-mono); font-weight: 500;
+    }
+
+    /* ─── Table atoms ─── */
+    .table-wrap {
+      flex: 1;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .vuln-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    .vuln-table thead { background: var(--color-surface-2); position: sticky; top: 0; z-index: 1; }
+    .vuln-table th {
+      padding: 10px 12px; text-align: left;
+      font-size: 11px; font-weight: 600; color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--color-border-subtle);
+      white-space: nowrap;
+    }
+    .vuln-table tbody tr { border-bottom: 1px solid var(--color-border-subtle); transition: background var(--motion-fast); cursor: pointer; }
+    .vuln-table tbody tr:hover { background: var(--color-surface-2); }
+    .vuln-table tbody tr.selected { background: var(--color-pink-soft); }
+    .vuln-table tbody tr.row-active { background: var(--color-surface-2); box-shadow: inset 3px 0 0 0 var(--color-pink); }
+    .vuln-table td { padding: 12px; vertical-align: middle; color: var(--color-text); }
+    .vuln-table td.mono { font-family: var(--font-mono); font-size: var(--text-xs); }
+    .vuln-table td.muted { color: var(--color-text-muted); }
+    .vuln-table .cell-check { width: 36px; padding-left: 14px; padding-right: 0; }
+    .vuln-table .cell-cve { font-family: var(--font-mono); color: var(--color-text); font-weight: 500; min-width: 140px; }
+    .vuln-table .cell-product { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); }
+    .vuln-table .cell-asset { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); }
+    .vuln-table .cell-score { font-family: var(--font-mono); font-weight: 600; text-align: right; }
+    .vuln-table .cell-rem { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: var(--text-xs); }
+    .vuln-table .cell-status { color: var(--color-text-muted); font-size: var(--text-xs); }
+    .vuln-table .cell-due { font-family: var(--font-mono); font-size: 11px; }
+
+    /* Comfortable vs dense rows */
+    .vuln-table.dense td { padding: 7px 12px; font-size: 12px; line-height: 1.4; }
+    .vuln-table.dense .cell-cve { font-size: 12px; }
+
+    /* Checkbox */
+    .checkbox { width: 16px; height: 16px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-2); display: grid; place-items: center; transition: all var(--motion-fast); cursor: pointer; }
+    .checkbox.checked { background: var(--gradient-sunset); border-color: transparent; }
+    .checkbox.checked::after { content: ''; width: 8px; height: 5px; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) translate(1px, -1px); }
+
+    /* Table footer / pagination */
+    .table-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; border-top: 1px solid var(--color-border-subtle);
+      background: var(--color-bg);
+      font-size: var(--text-xs); color: var(--color-text-muted);
+    }
+    .pager { display: flex; align-items: center; gap: 4px; }
+    .pager button { padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: 11px; font-family: var(--font-mono); transition: all var(--motion-fast); }
+    .pager button:hover { background: var(--color-surface-2); color: var(--color-text); }
+    .pager button.active { background: var(--color-pink-soft); color: var(--color-pink); border-color: var(--color-pink); }
+    .pager button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Bulk-action floating bar */
+    .bulk-bar {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 9000;
+      background: rgba(36, 27, 64, 0.95);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full);
+      padding: 8px 12px 8px 20px;
+      display: flex; align-items: center; gap: 14px;
+      box-shadow: var(--shadow-elevated);
+      animation: bulk-rise var(--motion-base) var(--ease-decelerate);
+    }
+    @keyframes bulk-rise { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+    .bulk-bar .count { font-size: var(--text-sm); color: var(--color-text); font-weight: 500; }
+    .bulk-bar .count .num { color: var(--color-pink); font-family: var(--font-mono); }
+    .bulk-bar .sep { width: 1px; height: 18px; background: var(--color-border); }
+    .bulk-action { padding: 6px 12px; border-radius: var(--radius-md); font-size: var(--text-xs); color: var(--color-text); transition: background var(--motion-fast); display: inline-flex; align-items: center; gap: 6px; }
+    .bulk-action:hover { background: var(--color-surface); }
+    .bulk-action svg { width: 13px; height: 13px; }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT A — Pinned filter drawer + comfortable rows   */
+    /* ═══════════════════════════════════════════════════ */
+    .var-a .body-grid { display: grid; grid-template-columns: 280px 1fr; gap: 20px; flex: 1; min-height: 0; }
+    .var-a .filter-drawer {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      display: flex; flex-direction: column; gap: 22px;
+      max-height: calc(100vh - 200px); overflow: auto;
+    }
+    .filter-section h4 { margin: 0 0 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); font-weight: 600; }
+    .filter-section .filter-search {
+      width: 100%; padding: 8px 12px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); color: var(--color-text); font-size: var(--text-sm);
+    }
+    .filter-section .filter-search:focus { outline: none; border-color: var(--color-violet); box-shadow: 0 0 0 3px var(--color-violet-soft); }
+    .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--color-surface-2); border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-muted); font-size: 11px;
+      transition: all var(--motion-fast);
+      cursor: pointer;
+    }
+    .chip:hover { color: var(--color-text); border-color: var(--color-border); }
+    .chip.active { background: var(--color-pink-soft); border-color: var(--color-pink); color: var(--color-pink); }
+    .chip .glyph { font-family: var(--font-mono); }
+    .chip-count { font-family: var(--font-mono); font-size: 10px; opacity: 0.7; }
+
+    .toggle-row { display: flex; flex-direction: column; gap: 8px; }
+    .toggle-line { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-size: var(--text-sm); color: var(--color-text); }
+    .toggle-line .lbl { display: flex; align-items: center; gap: 8px; }
+    .toggle-line .lbl svg { width: 14px; height: 14px; color: var(--color-text-muted); }
+    .toggle-line .count { font-family: var(--font-mono); font-size: 11px; color: var(--color-text-faint); }
+    .switch { position: relative; width: 30px; height: 18px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: 999px; cursor: pointer; transition: all var(--motion-fast); }
+    .switch::after { content: ''; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--color-text-muted); transition: all var(--motion-fast); }
+    .switch.on { background: var(--gradient-sunset); border-color: transparent; }
+    .switch.on::after { left: 13px; background: white; }
+
+    .saved-filters .saved-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--color-text-muted);
+      transition: all var(--motion-fast);
+      cursor: pointer;
+    }
+    .saved-filters .saved-row:hover { background: var(--color-surface-2); color: var(--color-text); }
+    .saved-filters .saved-row .icon { font-size: 11px; opacity: 0.5; }
+    .saved-filters .saved-row.active { color: var(--color-pink); }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT B — Collapsible rail + dense table            */
+    /* ═══════════════════════════════════════════════════ */
+    .var-b .body-grid { display: grid; grid-template-columns: 54px 1fr; gap: 16px; flex: 1; min-height: 0; transition: grid-template-columns var(--motion-base) var(--ease-standard); }
+    .var-b .body-grid.expanded { grid-template-columns: 280px 1fr; }
+    .var-b .filter-rail {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 10px;
+      display: flex; flex-direction: column; gap: 6px; align-items: center;
+      overflow: hidden;
+      transition: padding var(--motion-base);
+    }
+    .var-b .body-grid.expanded .filter-rail { align-items: stretch; padding: 18px; gap: 22px; }
+    .rail-icon-btn {
+      width: 34px; height: 34px; border-radius: var(--radius-md);
+      background: var(--color-surface-2); border: 1px solid var(--color-border-subtle);
+      display: grid; place-items: center;
+      color: var(--color-text-muted);
+      position: relative;
+      transition: all var(--motion-fast);
+    }
+    .rail-icon-btn:hover { color: var(--color-text); border-color: var(--color-border); }
+    .rail-icon-btn.has-active::after { content: ''; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--color-pink); }
+    .rail-icon-btn svg { width: 16px; height: 16px; }
+    .var-b .body-grid.expanded .rail-icon-btn { display: none; }
+    .var-b .filter-rail .full-content { display: none; }
+    .var-b .body-grid.expanded .filter-rail .full-content { display: contents; }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT C — Chip bar + side-panel drill-down          */
+    /* ═══════════════════════════════════════════════════ */
+    .var-c .filter-bar {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      margin-bottom: 14px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    }
+    .var-c .filter-bar .filter-search { width: 220px; padding: 7px 12px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); color: var(--color-text); font-size: var(--text-sm); }
+    .var-c .filter-bar .filter-search:focus { outline: none; border-color: var(--color-violet); box-shadow: 0 0 0 3px var(--color-violet-soft); }
+    .var-c .filter-bar .group-label { font-size: 11px; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+    .var-c .filter-bar .sep { width: 1px; height: 20px; background: var(--color-border-subtle); }
+    .var-c .filter-bar .saved-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--color-violet-soft); border: 1px solid rgba(167, 139, 250, 0.3); color: var(--color-violet);
+      font-size: 11px; font-weight: 500;
+    }
+    .var-c .filter-bar .clear-link { margin-left: auto; font-size: 11px; color: var(--color-text-muted); }
+    .var-c .filter-bar .clear-link:hover { color: var(--color-pink); }
+
+    .var-c .work-area { display: grid; grid-template-columns: 1fr; flex: 1; min-height: 0; gap: 16px; transition: grid-template-columns var(--motion-base) var(--ease-standard); }
+    .var-c .work-area.drilled { grid-template-columns: 1fr 420px; }
+    .var-c .drill-panel {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      overflow: auto;
+      max-height: calc(100vh - 200px);
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .var-c .work-area.drilled .drill-panel { display: flex; }
+    .drill-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .drill-head .close { color: var(--color-text-faint); padding: 4px; border-radius: var(--radius-sm); }
+    .drill-head .close:hover { color: var(--color-text); background: var(--color-surface-2); }
+    .drill-head .close svg { width: 14px; height: 14px; }
+    .drill-title { font-family: var(--font-mono); font-size: var(--text-lg); font-weight: 600; color: var(--color-text); }
+    .drill-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .drill-section h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); font-weight: 600; }
+    .drill-section p { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.55; }
+    .drill-cvss {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      padding: 12px; background: var(--color-surface-2); border-radius: var(--radius-md); border: 1px solid var(--color-border-subtle);
+    }
+    .drill-cvss .num { font-family: var(--font-mono); font-size: var(--text-3xl); font-weight: 700; line-height: 1; }
+    .drill-cvss .num.critical { background: linear-gradient(120deg, #F87171, #FB923C); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .drill-cvss .lbl { font-size: 11px; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+    .drill-cvss .row-val { font-size: var(--text-sm); color: var(--color-text); margin-top: 4px; }
+    .drill-hosts { display: flex; flex-direction: column; gap: 6px; }
+    .drill-host {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
+      padding: 8px 10px; background: var(--color-surface-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-subtle);
+      font-size: var(--text-xs);
+    }
+    .drill-host .name { font-family: var(--font-mono); color: var(--color-text); }
+    .drill-host .tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--color-bg-darker); color: var(--color-text-muted); font-family: var(--font-mono); }
+
+    /* ─── Card view (mobile / explicit cards mode) ─── */
+    .vuln-cards { display: none; flex-direction: column; gap: 8px; padding: 12px; }
+    .vuln-card {
+      background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+      padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .vuln-card .row1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .vuln-card .cve { font-family: var(--font-mono); font-weight: 600; font-size: var(--text-sm); }
+    .vuln-card .desc { font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.4; }
+    .vuln-card .row3 { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--color-text-faint); }
+    .vuln-card .row3 .asset { font-family: var(--font-mono); }
+
+    /* ─── Sketch toolbar ─── */
+    #sketch-tools {
+      position: fixed; bottom: 16px; right: 16px; z-index: 9999;
+      font-family: system-ui; font-size: 12px;
+      background: rgba(0, 0, 0, 0.78); color: white;
+      padding: 8px 12px; border-radius: 10px;
+      opacity: 0.4; transition: opacity 0.2s;
+      display: flex; gap: 10px; align-items: center;
+    }
+    #sketch-tools:hover { opacity: 1; }
+    #sketch-tools select, #sketch-tools button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; }
+    #sketch-tools button:hover { background: rgba(255,255,255,0.2); }
+    #sketch-tools .sep { color: rgba(255,255,255,0.3); }
+
+    /* Mobile responsive */
+    @media (max-width: 900px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .var-a .body-grid { grid-template-columns: 1fr; }
+      .var-a .filter-drawer { max-height: none; }
+      .var-b .body-grid { grid-template-columns: 1fr; }
+      .var-b .filter-rail { display: none; }
+      .var-c .work-area.drilled { grid-template-columns: 1fr; }
+      .var-c .drill-panel { position: fixed; inset: 56px 0 0 0; max-height: none; border-radius: 0; z-index: 9000; }
+      .vuln-table { display: none; }
+      .vuln-cards { display: flex; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Variant Nav -->
+<div id="variant-nav">
+  <span class="label">003 · /vulnerabilities · sunset</span>
+  <button class="variant-tab active" onclick="showVariant(event, 'a')">A · Pinned drawer + comfortable</button>
+  <button class="variant-tab" onclick="showVariant(event, 'b')">B · Collapsible rail + dense</button>
+  <button class="variant-tab" onclick="showVariant(event, 'c')">C · Chip bar + side panel</button>
+</div>
+
+<!-- Shared SVG defs -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4H10v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h2M3 13h2M19 19l-3-2M5 19l3-2M12 2v4"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5M9 8V2M15 8V2M5 11h14l-1 6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6m-10 0H1m17.5-6.5L15 7m-6 10l-3.5 3.5M19 18.5L15 15m-6-6L5.5 5.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+  <symbol id="i-ticket-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="9" y1="12" x2="15" y2="12"/></symbol>
+  <symbol id="i-snooze" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+  <symbol id="i-chev-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></symbol>
+  <symbol id="i-chev-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+</svg>
+
+<!-- Sidebar template (inlined per variant to keep it simple) -->
+
+<!-- ═════════════════ VARIANT A — Pinned drawer + comfortable rows ═════════════════ -->
+<div id="variant-a" class="variant active">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item active" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-a">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Vulnerabilities <span class="count">1,247</span></h1>
+          <p class="subtitle">Filtered to 89 results — <span style="color: var(--color-pink);">14 critical</span>, 28 SLA-at-risk.</p>
+        </div>
+        <div class="page-head-actions">
+          <div class="view-toggle">
+            <button class="active">By CVE</button>
+            <button>By host</button>
+          </div>
+          <button class="btn-secondary"><svg><use href="#i-download"/></svg>Export</button>
+          <button class="btn-cta"><svg><use href="#i-bolt"/></svg>Triage queue</button>
+        </div>
+      </div>
+
+      <div class="body-grid">
+        <!-- Filter drawer -->
+        <aside class="filter-drawer">
+          <div class="filter-section">
+            <h4>Search</h4>
+            <input class="filter-search" placeholder="CVE, product, host…" />
+          </div>
+
+          <div class="filter-section">
+            <h4>Severity</h4>
+            <div class="filter-chips">
+              <div class="chip active"><span class="glyph sev-glyph critical">■</span> Critical <span class="chip-count">14</span></div>
+              <div class="chip active"><span class="glyph sev-glyph high">▲</span> High <span class="chip-count">62</span></div>
+              <div class="chip"><span class="glyph sev-glyph medium">◆</span> Medium <span class="chip-count">312</span></div>
+              <div class="chip"><span class="glyph sev-glyph low">○</span> Low <span class="chip-count">859</span></div>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <h4>Quick toggles</h4>
+            <div class="toggle-row">
+              <div class="toggle-line">
+                <span class="lbl"><svg><use href="#i-shield"/></svg>CISA KEV only</span>
+                <span class="switch on"></span>
+              </div>
+              <div class="toggle-line">
+                <span class="lbl"><svg><use href="#i-bolt"/></svg>Exploit available</span>
+                <span class="switch"></span>
+              </div>
+              <div class="toggle-line">
+                <span class="lbl"><svg><use href="#i-snooze"/></svg>Hide snoozed</span>
+                <span class="switch on"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <h4>Source</h4>
+            <div class="filter-chips">
+              <div class="chip">Tenable <span class="chip-count">487</span></div>
+              <div class="chip active">Qualys <span class="chip-count">312</span></div>
+              <div class="chip">Rapid7 <span class="chip-count">198</span></div>
+              <div class="chip">AWS Inspector <span class="chip-count">250</span></div>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <h4>Status</h4>
+            <div class="filter-chips">
+              <div class="chip active">Open <span class="chip-count">1,021</span></div>
+              <div class="chip">In progress <span class="chip-count">88</span></div>
+              <div class="chip">Resolved <span class="chip-count">138</span></div>
+            </div>
+          </div>
+
+          <div class="filter-section saved-filters">
+            <h4>Saved filters</h4>
+            <div class="saved-row active"><span>● Today's triage</span><span class="icon">★</span></div>
+            <div class="saved-row"><span>○ KEV + critical</span></div>
+            <div class="saved-row"><span>○ Prod hosts</span></div>
+            <div class="saved-row"><span>○ Last 7 days</span></div>
+            <button class="btn-secondary" style="margin-top: 8px; align-self: flex-start;"><svg><use href="#i-save"/></svg>Save current</button>
+          </div>
+        </aside>
+
+        <!-- Table -->
+        <div class="table-wrap">
+          <table class="vuln-table" id="table-a"></table>
+          <div class="vuln-cards" id="cards-a"></div>
+          <div class="table-foot">
+            <span>Showing <span class="num" style="font-family: var(--font-mono); color: var(--color-text);">1–10</span> of <span class="num" style="font-family: var(--font-mono); color: var(--color-text);">89</span></span>
+            <div class="pager">
+              <button disabled>‹</button>
+              <button class="active">1</button>
+              <button>2</button>
+              <button>3</button>
+              <button>…</button>
+              <button>9</button>
+              <button>›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT B — Collapsible rail + dense table ═════════════════ -->
+<div id="variant-b" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item active" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-b">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Vulnerabilities <span class="count">1,247</span></h1>
+          <p class="subtitle">3 filters active · 89 results · Critical, High, Qualys</p>
+        </div>
+        <div class="page-head-actions">
+          <div class="view-toggle">
+            <button class="active">By CVE</button>
+            <button>By host</button>
+          </div>
+          <button class="btn-secondary"><svg><use href="#i-download"/></svg>Export</button>
+          <button class="btn-cta"><svg><use href="#i-bolt"/></svg>Triage queue</button>
+        </div>
+      </div>
+
+      <div class="body-grid" id="grid-b">
+        <!-- Collapsed rail (default) -->
+        <aside class="filter-rail">
+          <button class="rail-icon-btn" onclick="toggleRail()" title="Expand filters"><svg><use href="#i-filter"/></svg></button>
+          <button class="rail-icon-btn has-active" title="Severity (2 active)"><svg style="color: var(--color-pink);"><use href="#i-tag"/></svg></button>
+          <button class="rail-icon-btn has-active" title="CISA KEV only"><svg style="color: var(--color-pink);"><use href="#i-shield"/></svg></button>
+          <button class="rail-icon-btn" title="Exploit"><svg><use href="#i-bolt"/></svg></button>
+          <button class="rail-icon-btn" title="Source"><svg><use href="#i-plug"/></svg></button>
+          <button class="rail-icon-btn" title="Saved filters"><svg><use href="#i-save"/></svg></button>
+        </aside>
+
+        <div class="table-wrap">
+          <table class="vuln-table dense" id="table-b"></table>
+          <div class="vuln-cards" id="cards-b"></div>
+          <div class="table-foot">
+            <span>Showing <span class="num" style="font-family: var(--font-mono); color: var(--color-text);">1–16</span> of <span class="num" style="font-family: var(--font-mono); color: var(--color-text);">89</span></span>
+            <div class="pager">
+              <button disabled>‹</button>
+              <button class="active">1</button>
+              <button>2</button>
+              <button>3</button>
+              <button>…</button>
+              <button>6</button>
+              <button>›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT C — Chip bar + side panel ═════════════════ -->
+<div id="variant-c" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item active" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-c">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Vulnerabilities <span class="count">1,247</span></h1>
+          <p class="subtitle">89 results · click any row for details</p>
+        </div>
+        <div class="page-head-actions">
+          <div class="view-toggle">
+            <button class="active">By CVE</button>
+            <button>By host</button>
+          </div>
+          <button class="btn-secondary"><svg><use href="#i-download"/></svg>Export</button>
+          <button class="btn-cta"><svg><use href="#i-bolt"/></svg>Triage queue</button>
+        </div>
+      </div>
+
+      <!-- Inline chip-bar filter -->
+      <div class="filter-bar">
+        <input class="filter-search" placeholder="Search CVE, product…" />
+        <span class="sep"></span>
+        <div class="chip active"><span class="sev-glyph critical">■</span> Critical</div>
+        <div class="chip active"><span class="sev-glyph high">▲</span> High</div>
+        <span class="sep"></span>
+        <div class="chip active">Qualys</div>
+        <div class="chip active">CISA KEV</div>
+        <span class="sep"></span>
+        <span class="saved-pill">★ Today's triage</span>
+        <a href="#" class="clear-link" onclick="event.preventDefault();">Clear all</a>
+      </div>
+
+      <div class="work-area" id="work-c">
+        <div class="table-wrap">
+          <table class="vuln-table" id="table-c"></table>
+          <div class="vuln-cards" id="cards-c"></div>
+          <div class="table-foot">
+            <span>Showing <span class="num" style="font-family: var(--font-mono); color: var(--color-text);">1–10</span> of <span class="num" style="font-family: var(--font-mono); color: var(--color-text);">89</span></span>
+            <div class="pager">
+              <button disabled>‹</button>
+              <button class="active">1</button>
+              <button>2</button>
+              <button>3</button>
+              <button>…</button>
+              <button>9</button>
+              <button>›</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drill-down panel (right) -->
+        <aside class="drill-panel" id="drill-c">
+          <div class="drill-head">
+            <div>
+              <div class="drill-title">CVE-2024-3094</div>
+              <div class="drill-meta" style="margin-top: 6px;">
+                <span class="sev-pill critical"><span class="sev-glyph critical">■</span> Critical</span>
+                <span class="kev-badge">★ CISA KEV</span>
+                <span class="exploit-badge">⚡ exploit available</span>
+              </div>
+            </div>
+            <button class="close" onclick="toggleDrill(false)"><svg><use href="#i-x"/></svg></button>
+          </div>
+
+          <div class="drill-section">
+            <h4>Description</h4>
+            <p>Malicious code was discovered in the upstream <span class="mono" style="color: var(--color-text);">xz-utils</span> tarballs, starting with version 5.6.0. Through a series of complex obfuscations, the liblzma build process extracts a prebuilt object file that injects a backdoor into sshd authentication. RCE risk on systems with liblzma linked into sshd.</p>
+          </div>
+
+          <div class="drill-section">
+            <h4>CVSS 3.1</h4>
+            <div class="drill-cvss">
+              <div>
+                <div class="num critical">9.8</div>
+                <div class="lbl">Base score</div>
+              </div>
+              <div>
+                <div class="row-val mono">AV:N / AC:L / PR:N / UI:N</div>
+                <div class="lbl" style="margin-top: 8px;">Vector</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="drill-section">
+            <h4>Affected hosts (3)</h4>
+            <div class="drill-hosts">
+              <div class="drill-host"><span class="name">prod-db-01</span><span class="tag">prod</span><span class="tag">linux</span></div>
+              <div class="drill-host"><span class="name">prod-db-02</span><span class="tag">prod</span><span class="tag">linux</span></div>
+              <div class="drill-host"><span class="name">staging-db-01</span><span class="tag">stage</span><span class="tag">linux</span></div>
+            </div>
+          </div>
+
+          <div class="drill-section">
+            <h4>Remediation</h4>
+            <p>Downgrade <span class="mono" style="color: var(--color-text);">xz-utils</span> to a version &lt; 5.6.0. Distribution maintainers (Debian, Fedora, Arch) have already published fixed packages — confirm your package manager has the latest index, then apply system update and restart sshd. Verify with <span class="mono" style="color: var(--color-text);">xz --version</span>.</p>
+          </div>
+
+          <div class="drill-section">
+            <h4>Actions</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn-cta" style="justify-content: center;"><svg><use href="#i-ticket-plus"/></svg>Create Jira ticket</button>
+              <button class="btn-secondary" style="justify-content: center; padding: 9px;"><svg><use href="#i-snooze"/></svg>Snooze 24h</button>
+              <button class="btn-secondary" style="justify-content: center; padding: 9px;"><svg><use href="#i-link"/></svg>Copy NVD link</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Floating bulk-action bar (variant A demo) -->
+<div id="bulk-bar" class="bulk-bar" style="display: none;">
+  <span class="count"><span class="num">3</span> selected</span>
+  <span class="sep"></span>
+  <button class="bulk-action"><svg><use href="#i-ticket-plus"/></svg>Create tickets</button>
+  <button class="bulk-action"><svg><use href="#i-snooze"/></svg>Snooze</button>
+  <button class="bulk-action"><svg><use href="#i-tag"/></svg>Tag</button>
+  <button class="bulk-action"><svg><use href="#i-check"/></svg>Resolve</button>
+  <span class="sep"></span>
+  <button class="bulk-action" onclick="clearSelection()"><svg><use href="#i-x"/></svg></button>
+</div>
+
+<!-- Sketch toolbar -->
+<div id="sketch-tools">
+  <span>theme</span>
+  <select id="theme-switcher" onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'">
+    <option value="sunset">sunset</option>
+  </select>
+  <span class="sep">·</span>
+  <span>viewport</span>
+  <button onclick="setViewport('mobile')">375</button>
+  <button onclick="setViewport('tablet')">768</button>
+  <button onclick="setViewport('desktop')">full</button>
+</div>
+
+<script>
+  // ─── Variant switching ───
+  function showVariant(e, id) {
+    document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).classList.add('active');
+    e.currentTarget.classList.add('active');
+    document.getElementById('bulk-bar').style.display = 'none';
+  }
+
+  function setViewport(size) {
+    const widths = { mobile: '375px', tablet: '768px', desktop: '100%' };
+    document.body.style.maxWidth = widths[size];
+    document.body.style.margin = size === 'desktop' ? '0' : '0 auto';
+    document.body.style.boxShadow = size === 'desktop' ? 'none' : '0 0 0 1px rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.5)';
+  }
+
+  // ─── Rail toggle (variant B) ───
+  function toggleRail() {
+    const g = document.getElementById('grid-b');
+    g.classList.toggle('expanded');
+    const railIcon = g.querySelector('.rail-icon-btn');
+    if (g.classList.contains('expanded')) {
+      // populate expanded rail with filter content (reuses variant-a filter sections)
+      const rail = g.querySelector('.filter-rail');
+      if (!rail.dataset.populated) {
+        const content = `
+          <div class="filter-section">
+            <h4 style="display: flex; align-items: center; justify-content: space-between;">
+              <span>Filters</span>
+              <button onclick="toggleRail()" style="color: var(--color-text-faint); padding: 2px;"><svg width="14" height="14"><use href="#i-x"/></svg></button>
+            </h4>
+            <input class="filter-search" placeholder="CVE, product, host…" />
+          </div>
+          <div class="filter-section">
+            <h4>Severity</h4>
+            <div class="filter-chips">
+              <div class="chip active"><span class="glyph sev-glyph critical">■</span> Critical <span class="chip-count">14</span></div>
+              <div class="chip active"><span class="glyph sev-glyph high">▲</span> High <span class="chip-count">62</span></div>
+              <div class="chip"><span class="glyph sev-glyph medium">◆</span> Medium <span class="chip-count">312</span></div>
+              <div class="chip"><span class="glyph sev-glyph low">○</span> Low <span class="chip-count">859</span></div>
+            </div>
+          </div>
+          <div class="filter-section">
+            <h4>Quick toggles</h4>
+            <div class="toggle-row">
+              <div class="toggle-line"><span class="lbl"><svg><use href="#i-shield"/></svg>CISA KEV only</span><span class="switch on"></span></div>
+              <div class="toggle-line"><span class="lbl"><svg><use href="#i-bolt"/></svg>Exploit available</span><span class="switch"></span></div>
+            </div>
+          </div>
+        `;
+        rail.innerHTML = content;
+        rail.dataset.populated = '1';
+      }
+    } else {
+      // restore icon rail
+      const rail = g.querySelector('.filter-rail');
+      rail.innerHTML = `
+        <button class="rail-icon-btn" onclick="toggleRail()" title="Expand filters"><svg><use href="#i-filter"/></svg></button>
+        <button class="rail-icon-btn has-active" title="Severity (2 active)"><svg style="color: var(--color-pink);"><use href="#i-tag"/></svg></button>
+        <button class="rail-icon-btn has-active" title="CISA KEV only"><svg style="color: var(--color-pink);"><use href="#i-shield"/></svg></button>
+        <button class="rail-icon-btn" title="Exploit"><svg><use href="#i-bolt"/></svg></button>
+        <button class="rail-icon-btn" title="Source"><svg><use href="#i-plug"/></svg></button>
+        <button class="rail-icon-btn" title="Saved filters"><svg><use href="#i-save"/></svg></button>
+      `;
+      delete rail.dataset.populated;
+    }
+  }
+
+  // ─── Drill panel toggle (variant C) ───
+  function toggleDrill(force) {
+    const w = document.getElementById('work-c');
+    if (force === false) { w.classList.remove('drilled'); document.querySelectorAll('#table-c tr.row-active').forEach(t => t.classList.remove('row-active')); return; }
+    w.classList.add('drilled');
+  }
+
+  // ─── Build data + rows ───
+  const VULNS = [
+    { glyph:'■', sev:'critical', cve:'CVE-2024-3094',  product:'xz-utils 5.6.1 / openssh-server 9.6', score:9.8, kev:true, exploit:true, rem:'Downgrade to xz < 5.6.0; apt update', source:'Qualys', asset:'prod-db-01', due:'overdue', dueLabel:'-2h SLA' },
+    { glyph:'■', sev:'critical', cve:'CVE-2024-21626', product:'runc 1.1.11 / container runtime', score:8.6, kev:true, exploit:true, rem:'Update runc ≥ 1.1.12, restart docker', source:'Tenable', asset:'runner-04', due:'soon', dueLabel:'4h left' },
+    { glyph:'▲', sev:'high', cve:'CVE-2023-44487', product:'nginx 1.24.0 / HTTP/2', score:7.5, kev:false, exploit:true, rem:'Apply http2 rapid-reset patch', source:'Qualys', asset:'api-gw-02', due:'soon', dueLabel:'18h left' },
+    { glyph:'▲', sev:'high', cve:'CVE-2024-27316', product:'Apache httpd 2.4.58 / mod_h2', score:7.5, kev:false, exploit:false, rem:'Upgrade Apache to 2.4.59+', source:'Tenable', asset:'web-01', due:'ok', dueLabel:'3d left' },
+    { glyph:'■', sev:'critical', cve:'CVE-2024-1086', product:'Linux kernel 6.5 / nf_tables', score:7.8, kev:true, exploit:true, rem:'Apply kernel 6.7.4+, reboot', source:'Rapid7', asset:'k8s-worker-09', due:'soon', dueLabel:'12h left' },
+    { glyph:'◆', sev:'medium', cve:'CVE-2024-2511', product:'OpenSSL 3.2 / session cache', score:5.9, kev:false, exploit:false, rem:'Upgrade OpenSSL to 3.2.2', source:'Qualys', asset:'lb-staging-01', due:'ok', dueLabel:'5d left' },
+    { glyph:'▲', sev:'high', cve:'CVE-2024-28182', product:'nghttp2 1.59 / HTTP/2', score:7.5, kev:false, exploit:false, rem:'Upgrade nghttp2 to 1.61.0', source:'AWS Inspector', asset:'api-gw-03', due:'ok', dueLabel:'2d left' },
+    { glyph:'■', sev:'critical', cve:'CVE-2024-23897', product:'Jenkins 2.441 / CLI', score:9.8, kev:true, exploit:true, rem:'Update Jenkins to 2.442+', source:'Tenable', asset:'ci-jenkins-01', due:'overdue', dueLabel:'-8h SLA' },
+    { glyph:'◆', sev:'medium', cve:'CVE-2024-25638', product:'dnsjava 3.5.2', score:5.4, kev:false, exploit:false, rem:'Upgrade dnsjava to 3.6.0+', source:'AWS Inspector', asset:'jvm-app-04', due:'ok', dueLabel:'6d left' },
+    { glyph:'▲', sev:'high', cve:'CVE-2024-22195', product:'Jinja2 3.1.2', score:7.2, kev:false, exploit:false, rem:'Upgrade Jinja2 to 3.1.3', source:'Qualys', asset:'data-pipeline-02', due:'ok', dueLabel:'4d left' },
+  ];
+
+  const DENSE_EXTRAS = [
+    { glyph:'◆', sev:'medium', cve:'CVE-2024-1597', product:'PostgreSQL JDBC 42.6.0', score:6.5, kev:false, exploit:false, rem:'Upgrade JDBC to 42.6.2+', source:'Qualys', asset:'app-server-12', due:'ok', dueLabel:'7d left' },
+    { glyph:'○', sev:'low', cve:'CVE-2023-50386', product:'Apache Zookeeper 3.8', score:3.1, kev:false, exploit:false, rem:'Upgrade Zookeeper to 3.8.4+', source:'Tenable', asset:'kafka-zk-02', due:'ok', dueLabel:'12d left' },
+    { glyph:'▲', sev:'high', cve:'CVE-2024-32002', product:'git 2.43.0', score:7.7, kev:false, exploit:false, rem:'Update git to 2.45.0+', source:'AWS Inspector', asset:'ci-runner-07', due:'ok', dueLabel:'2d left' },
+    { glyph:'◆', sev:'medium', cve:'CVE-2024-1488', product:'cups-browsed', score:6.4, kev:false, exploit:false, rem:'Update cups-browsed to 2.0.1+', source:'Rapid7', asset:'desk-print-01', due:'ok', dueLabel:'8d left' },
+    { glyph:'◆', sev:'medium', cve:'CVE-2024-26581', product:'Linux kernel nft_set_rbtree', score:5.5, kev:false, exploit:false, rem:'Apply kernel patch', source:'Qualys', asset:'edge-router-03', due:'ok', dueLabel:'4d left' },
+    { glyph:'○', sev:'low', cve:'CVE-2024-21885', product:'Node.js 18 / cli', score:3.7, kev:false, exploit:false, rem:'Upgrade Node 18.19.1+', source:'AWS Inspector', asset:'lambda-fn-22', due:'ok', dueLabel:'10d left' },
+  ];
+
+  function scoreColor(s) {
+    if (s >= 9) return 'var(--color-severity-critical)';
+    if (s >= 7) return 'var(--color-severity-high)';
+    if (s >= 4) return 'var(--color-severity-medium)';
+    return 'var(--color-severity-low)';
+  }
+  function dueClass(due) { return 'sev-pill ' + (due === 'overdue' ? 'critical' : due === 'soon' ? 'high' : 'medium'); }
+  function dueColor(due) {
+    if (due === 'overdue') return 'background: rgba(248, 113, 113, 0.15); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3);';
+    if (due === 'soon') return 'background: rgba(251, 146, 60, 0.15); color: var(--color-severity-high); border: 1px solid rgba(251, 146, 60, 0.3);';
+    return 'background: rgba(74, 222, 128, 0.12); color: var(--color-success); border: 1px solid rgba(74, 222, 128, 0.3);';
+  }
+
+  function tableHTML(opts) {
+    const showCheck = !!opts.check;
+    const showAsset = !!opts.asset;
+    const showRem = !!opts.rem;
+    const cols = [];
+    if (showCheck) cols.push('<th class="cell-check"></th>');
+    cols.push('<th>Severity</th>');
+    cols.push('<th>CVE</th>');
+    cols.push('<th>Product</th>');
+    if (showAsset) cols.push('<th>Asset</th>');
+    cols.push('<th style="text-align:right;">CVSS</th>');
+    if (showRem) cols.push('<th>Remediation</th>');
+    cols.push('<th>Status</th>');
+    cols.push('<th style="text-align:right;">SLA</th>');
+    return cols;
+  }
+
+  function renderTable(tableId, options) {
+    const t = document.getElementById(tableId);
+    if (!t) return;
+    const data = options.dense ? VULNS.concat(DENSE_EXTRAS) : VULNS;
+    const cols = tableHTML(options);
+    const headHTML = '<thead><tr>' + cols.join('') + '</tr></thead>';
+    const rows = data.map((v, i) => {
+      const cells = [];
+      if (options.check) cells.push(`<td class="cell-check"><div class="checkbox" onclick="toggleRow(event, this, '${tableId}')"></div></td>`);
+      cells.push(`<td><span class="sev-pill ${v.sev}"><span class="sev-glyph ${v.sev}">${v.glyph}</span> ${v.sev[0].toUpperCase()+v.sev.slice(1)}</span></td>`);
+      cells.push(`<td class="cell-cve">${v.cve}</td>`);
+      cells.push(`<td class="cell-product">${v.product}</td>`);
+      if (options.asset) cells.push(`<td class="cell-asset">${v.asset}</td>`);
+      cells.push(`<td class="cell-score" style="color: ${scoreColor(v.score)};">${v.score}</td>`);
+      if (options.rem) cells.push(`<td class="cell-rem">${v.rem}</td>`);
+      const badges = [];
+      if (v.kev) badges.push('<span class="kev-badge">★ KEV</span>');
+      if (v.exploit) badges.push('<span class="exploit-badge">⚡ exploit</span>');
+      cells.push(`<td class="cell-status">${badges.join(' ') || '<span style="opacity:.4;">—</span>'}</td>`);
+      cells.push(`<td style="text-align:right;"><span class="cell-due" style="${dueColor(v.due)} padding: 2px 8px; border-radius: 999px;">${v.dueLabel}</span></td>`);
+      const clickHandler = options.drill ? `onclick="rowClick(event, ${i}, '${tableId}')"` : '';
+      return `<tr ${clickHandler}>${cells.join('')}</tr>`;
+    }).join('');
+    t.innerHTML = headHTML + '<tbody>' + rows + '</tbody>';
+  }
+
+  function renderCards(cardsId) {
+    const el = document.getElementById(cardsId);
+    if (!el) return;
+    el.innerHTML = VULNS.map(v => `
+      <div class="vuln-card">
+        <div class="row1">
+          <span class="sev-pill ${v.sev}"><span class="sev-glyph ${v.sev}">${v.glyph}</span> ${v.sev[0].toUpperCase()+v.sev.slice(1)}</span>
+          <span class="cve">${v.cve}</span>
+        </div>
+        <div class="desc">${v.product}</div>
+        <div class="row3">
+          <span class="asset">${v.asset}</span>
+          <span class="cell-due" style="${dueColor(v.due)} padding: 2px 8px; border-radius: 999px; font-family: var(--font-mono); font-size: 10px;">${v.dueLabel}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  renderTable('table-a', { check: true, asset: true, rem: true });
+  renderTable('table-b', { dense: true, asset: true, rem: false });
+  renderTable('table-c', { asset: true, rem: false, drill: true });
+  renderCards('cards-a'); renderCards('cards-b'); renderCards('cards-c');
+
+  // ─── Row selection (variant A) ───
+  function toggleRow(e, el, tableId) {
+    e.stopPropagation();
+    el.classList.toggle('checked');
+    el.closest('tr').classList.toggle('selected', el.classList.contains('checked'));
+    const t = document.getElementById(tableId);
+    const checked = t.querySelectorAll('.checkbox.checked').length;
+    const bar = document.getElementById('bulk-bar');
+    if (checked > 0) {
+      bar.style.display = 'flex';
+      bar.querySelector('.count .num').textContent = checked;
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+  function clearSelection() {
+    document.querySelectorAll('.checkbox.checked').forEach(c => c.classList.remove('checked'));
+    document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
+    document.getElementById('bulk-bar').style.display = 'none';
+  }
+
+  // ─── Row click (variant C drill-down) ───
+  function rowClick(e, idx, tableId) {
+    document.querySelectorAll('#' + tableId + ' tr.row-active').forEach(r => r.classList.remove('row-active'));
+    e.currentTarget.classList.add('row-active');
+    toggleDrill(true);
+  }
+</script>
+
+</body>
+</html>

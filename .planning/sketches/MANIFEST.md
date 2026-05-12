@@ -24,6 +24,7 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 |---|------|----------------|--------|------|
 | 001 | login-sunset | Does the sunset palette + Wiz-style polish feel premium in pixels, and which "fancy level" is right? | **A · Split-screen** | login, palette, layout, polish-level |
 | 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | **B · Action-first hero** | dashboard, layout, hierarchy, navigation-shell |
+| 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | _pending_ | vulnerabilities, table, filters, density, drill-down |
 
 ## Validated decisions (from sketch 002 → B)
 
