@@ -25,7 +25,21 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 | 001 | login-sunset | Does the sunset palette + Wiz-style polish feel premium in pixels, and which "fancy level" is right? | **A · Split-screen** | login, palette, layout, polish-level |
 | 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | **B · Action-first hero** | dashboard, layout, hierarchy, navigation-shell |
 | 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | **C · Chip bar + side panel** | vulnerabilities, table, filters, density, drill-down |
-| 004 | states-sunset | How should empty / loading / error states feel in the sunset world? | _pending_ (3 complementary states, not competing) | states, empty, loading, error, patterns |
+| 004 | states-sunset | How should empty / loading / error states feel in the sunset world? | All 3 approved; **C · Error (partial failure)** is the lead pattern | states, empty, loading, error, patterns |
+
+## Validated decisions (from sketch 004)
+
+- **D-26 (loading):** Skeleton chip bar + skeleton table rows with gradient shimmer. **Per-connector progress strip** showing which sources have returned and which are still loading, with running count ("3 of 4 sources · 312 found so far"). Sidebar counts get skeleton too. Never a black screen — show partial data as it arrives.
+- **D-27 (empty — filtered to zero):** Centered card with sunset-gradient icon + glow. Headline explaining *what* matched zero. Body explaining *why* (active filters listed inside the card as redundant-but-helpful context). Three CTAs at three tiers: clear-all (gradient primary), broaden-one-axis (secondary), broaden-everything (secondary). Bottom: violet "lightbulb" suggestion turning the dead-end into an opportunity ("save this as a watch").
+- **D-28 (error — partial failure):** Realistic case for GetVul. Lead pattern across all error variants. Amber (not red) inline banner with: title + sub (HTTP code, last sync, retry count, request ID) + actions (View trace + Retry now). **Per-source status cards** in a row (one per connector) showing ok/fail status. Stale rows in the table get amber background tint + `stale` pill on source column. Footer note repeats the partial-data caveat with retry links. **Never replace the screen with a generic error when partial data is available.**
+
+## Deferred (acknowledged, not blocking milestone planning)
+
+- Total-failure error state (all sources down) — D-29 placeholder, sketch later
+- First-time-empty / no-connectors-yet onboarding state — separate pattern
+- Quiet/win empty state (when all critical items are resolved or snoozed) — friendly version
+- Toast notifications for transient errors — pattern not yet sketched
+- Dashboard's empty state (different from /vulnerabilities)
 
 ## Validated decisions (from sketch 003 → C)
 

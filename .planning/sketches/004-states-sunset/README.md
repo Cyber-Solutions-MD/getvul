@@ -2,7 +2,7 @@
 sketch: 004
 name: states-sunset
 question: "How should empty / loading / error states feel in the sunset world — and what's the right level of detail for each?"
-winner: "all three needed"
+winner: "all three approved; C (error partial-failure) is the lead pattern"
 tags: [states, empty, loading, error, patterns]
 ---
 
