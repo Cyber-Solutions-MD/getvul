@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: UI/UX Redesign
-status: Roadmap created — ready for Phase 9 planning
-last_updated: "2026-05-12T12:00:00.000Z"
+status: Phase 9 context captured — ready for planning
+last_updated: "2026-05-12T13:00:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 0
@@ -27,9 +27,9 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
-| Active phase | None yet — roadmap landed; awaiting Phase 9 plan |
-| Last action | 2026-05-12 — v2.0 roadmap created in [.planning/ROADMAP.md](ROADMAP.md); 7 vertical-slice phases (9–15); 50/50 v2.0 requirements mapped |
-| Next action | `/gsd-discuss-phase 9` (recommended) or `/gsd-plan-phase 9` for the first vertical slice (`/login` + foundation) |
+| Active phase | 9 — `/login` + Foundation (context captured 2026-05-12) |
+| Last action | 2026-05-12 — Phase 9 context captured in [.planning/phases/09-login-foundation/09-CONTEXT.md](phases/09-login-foundation/09-CONTEXT.md); 53 implementation decisions across 4 areas (token + theme plumbing, primitive build strategy, shell scaffold scope, login content + modes) |
+| Next action | `/clear` then `/gsd-plan-phase 9` to produce PLAN.md for the first vertical slice |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -64,4 +64,4 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - **Anti-pattern guarded:** No foundation-only phase. UX-F-01..F-04 (token system, theme architecture, persistent shell, first primitive set) ride inside Phase 9. The rolled-back v2-01 attempt failed because it shipped foundation without a visible screen ("looks worse than before"). v2.0 ships visible screens from day one.
 
 ---
-*Last updated: 2026-05-12 — v2.0 roadmap created (Phases 9–15)*
+*Last updated: 2026-05-12 — Phase 9 context captured (53 decisions)*
