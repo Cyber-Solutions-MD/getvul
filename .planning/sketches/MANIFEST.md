@@ -27,6 +27,7 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 | 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | **C · Chip bar + side panel** | vulnerabilities, table, filters, density, drill-down |
 | 004 | states-sunset | How should empty / loading / error states feel in the sunset world? | All 3 approved; **C · Error (partial failure)** is the lead pattern | states, empty, loading, error, patterns |
 | 005 | asset-detail-sunset | Which detail-page layout + risk-score viz fits the sunset world? | **B · Two-column + metadata rail** | asset-detail, layout, risk-score, detail-page-pattern |
+| 006 | tickets-sunset | How should tickets be listed + detailed, and how should provider identity (Jira/Asana/GitHub) read? | _pending_ | tickets, list, detail, kanban, provider-identity, sla |
 
 ## Validated decisions (from sketch 005 → B)
 
