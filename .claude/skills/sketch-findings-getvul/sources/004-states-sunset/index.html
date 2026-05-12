@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetVul — Empty / Loading / Error states</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="../themes/sunset.css" />
+  <style>
+    body { padding-top: 56px; }
+
+    /* ─── Variant nav ─── */
+    #variant-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: rgba(8, 6, 15, 0.85);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding: 10px 20px;
+      display: flex; gap: 6px; align-items: center;
+      font-family: var(--font-sans);
+    }
+    #variant-nav .label { color: var(--color-text-faint); font-size: var(--text-xs); margin-right: 12px; }
+    .variant-tab { padding: 6px 14px; border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--text-sm); transition: all var(--motion-fast); }
+    .variant-tab:hover { background: var(--color-surface); color: var(--color-text); }
+    .variant-tab.active { background: var(--color-surface-2); color: var(--color-text); box-shadow: 0 0 0 1px var(--color-border); }
+    .variant-tab .star { color: var(--color-amber); margin-left: 6px; }
+    .variant { display: none; }
+    .variant.active { display: block; }
+
+    /* ═══════════════ SHARED CHROME ═══════════════ */
+    .app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 56px); }
+    .sidebar { background: var(--color-bg-darker); border-right: 1px solid var(--color-border-subtle); padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+    .sidebar .brand { display: inline-flex; align-items: center; gap: 10px; padding: 4px 8px; font-family: var(--font-display); font-weight: 800; letter-spacing: var(--tracking-tight); }
+    .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--gradient-sunset); display: grid; place-items: center; box-shadow: var(--glow-pink); }
+    .brand-mark svg { width: 16px; height: 16px; color: white; }
+    .brand-name { font-size: var(--text-base); color: var(--color-text); }
+    .sidebar-section { display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-section-title { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-faint); padding: 0 12px; margin-bottom: 4px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--text-sm); transition: all var(--motion-fast); }
+    .nav-item:hover { background: var(--color-surface); color: var(--color-text); }
+    .nav-item.active { background: var(--color-surface); color: var(--color-text); position: relative; }
+    .nav-item.active::before { content: ''; position: absolute; left: -16px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: var(--gradient-sunset-vertical); box-shadow: var(--glow-pink); }
+    .nav-item svg { width: 16px; height: 16px; flex: none; }
+    .nav-item .count { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-faint); }
+    .nav-item.active .count { color: var(--color-pink); }
+
+    .main { padding: 28px 32px 32px; overflow: hidden; display: flex; flex-direction: column; }
+    .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+    .topbar .search { flex: 1; max-width: 480px; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--text-sm); }
+    .topbar .search svg { width: 14px; height: 14px; opacity: 0.6; }
+    .topbar .search .kbd { margin-left: auto; font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); color: var(--color-text-faint); }
+    .topbar .actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .icon-btn { width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border-subtle); display: grid; place-items: center; color: var(--color-text-muted); transition: all var(--motion-fast); }
+    .icon-btn:hover { color: var(--color-text); border-color: var(--color-border); }
+    .icon-btn svg { width: 16px; height: 16px; }
+    .user-chip { display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 4px; border-radius: var(--radius-full); background: var(--color-surface); border: 1px solid var(--color-border-subtle); }
+    .user-chip .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--gradient-sunset); color: white; display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; }
+    .user-chip .name { font-size: var(--text-sm); color: var(--color-text); }
+
+    .page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+    .page-head h1 { margin: 0; font-size: var(--text-3xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
+    .page-head h1 .count { font-family: var(--font-mono); color: var(--color-text-muted); font-weight: 500; margin-left: 8px; font-size: var(--text-xl); }
+    .page-head .subtitle { color: var(--color-text-muted); font-size: var(--text-sm); margin-top: 4px; }
+    .page-head-actions { display: flex; gap: 8px; align-items: center; }
+    .view-toggle { display: inline-flex; padding: 3px; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); }
+    .view-toggle button { padding: 5px 12px; border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--color-text-muted); transition: all var(--motion-fast); }
+    .view-toggle button.active { background: var(--color-surface-2); color: var(--color-text); }
+    .btn-cta { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: var(--radius-md); background: var(--gradient-sunset); color: white; font-size: var(--text-sm); font-weight: 600; box-shadow: var(--glow-cta); transition: all var(--motion-fast); }
+    .btn-cta:hover { transform: translateY(-1px); box-shadow: 0 12px 36px rgba(236, 72, 153, 0.5); }
+    .btn-cta.sm { padding: 8px 14px; }
+    .btn-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border-subtle); color: var(--color-text); font-size: var(--text-sm); font-weight: 500; transition: all var(--motion-fast); }
+    .btn-secondary:hover { background: var(--color-surface-2); border-color: var(--color-border); }
+    .btn-secondary.sm { padding: 6px 12px; font-size: var(--text-xs); }
+    .btn-secondary svg { width: 13px; height: 13px; }
+    .btn-ghost { padding: 6px 10px; border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: var(--text-xs); transition: color var(--motion-fast); }
+    .btn-ghost:hover { color: var(--color-text); }
+
+    /* Chip-bar filter (from sketch 003) */
+    .filter-bar { background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .filter-bar .filter-search { width: 220px; padding: 7px 12px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); color: var(--color-text); font-size: var(--text-sm); }
+    .filter-bar .filter-search:focus { outline: none; border-color: var(--color-violet); box-shadow: 0 0 0 3px var(--color-violet-soft); }
+    .filter-bar .sep { width: 1px; height: 20px; background: var(--color-border-subtle); }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: 11px; transition: all var(--motion-fast); cursor: pointer; }
+    .chip:hover { color: var(--color-text); border-color: var(--color-border); }
+    .chip.active { background: var(--color-pink-soft); border-color: var(--color-pink); color: var(--color-pink); }
+    .chip .glyph { font-family: var(--font-mono); }
+    .filter-bar .saved-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--color-violet-soft); border: 1px solid rgba(167, 139, 250, 0.3); color: var(--color-violet); font-size: 11px; font-weight: 500; }
+    .filter-bar .clear-link { margin-left: auto; font-size: 11px; color: var(--color-text-muted); }
+    .filter-bar .clear-link:hover { color: var(--color-pink); }
+
+    /* Severity helpers */
+    .sev-glyph { font-family: var(--font-mono); font-weight: 600; }
+    .sev-glyph.critical { color: var(--color-severity-critical); }
+    .sev-glyph.high { color: var(--color-severity-high); }
+    .sev-glyph.medium { color: var(--color-severity-medium); }
+    .sev-glyph.low { color: var(--color-severity-low); }
+    .sev-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+    .sev-pill.critical { background: rgba(248, 113, 113, 0.12); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .sev-pill.high { background: rgba(251, 146, 60, 0.12); color: var(--color-severity-high); border: 1px solid rgba(251, 146, 60, 0.3); }
+    .kev-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.3); color: var(--color-severity-critical); font-size: 10px; font-family: var(--font-mono); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .exploit-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; background: rgba(251, 146, 60, 0.10); border: 1px solid rgba(251, 146, 60, 0.25); color: var(--color-severity-high); font-size: 10px; font-family: var(--font-mono); }
+
+    /* Table base */
+    .table-wrap { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; }
+    .vuln-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    .vuln-table thead { background: var(--color-surface-2); }
+    .vuln-table th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--color-border-subtle); white-space: nowrap; }
+    .vuln-table tbody tr { border-bottom: 1px solid var(--color-border-subtle); }
+    .vuln-table td { padding: 12px; vertical-align: middle; color: var(--color-text); }
+    .vuln-table .cell-cve { font-family: var(--font-mono); color: var(--color-text); font-weight: 500; min-width: 140px; }
+    .vuln-table .cell-product { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: var(--text-xs); }
+    .vuln-table .cell-asset { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); }
+    .vuln-table .cell-score { font-family: var(--font-mono); font-weight: 600; text-align: right; }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT A — LOADING                                   */
+    /* ═══════════════════════════════════════════════════ */
+    .skeleton {
+      background: linear-gradient(90deg, var(--color-surface-2) 0%, var(--color-border) 50%, var(--color-surface-2) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s linear infinite;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    .skel-pill {
+      background: linear-gradient(90deg, rgba(236, 72, 153, 0.08) 0%, rgba(167, 139, 250, 0.12) 50%, rgba(236, 72, 153, 0.08) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s linear infinite;
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 999px;
+    }
+
+    .var-a .loading-banner {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .var-a .loading-banner .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--color-border);
+      border-top-color: var(--color-pink);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      flex: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .var-a .loading-banner .text { font-size: var(--text-sm); color: var(--color-text); }
+    .var-a .loading-banner .text .sub { color: var(--color-text-muted); font-size: var(--text-xs); margin-top: 2px; }
+    .var-a .loading-banner .progress { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+    .var-a .loading-banner .conn-dot { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); font-size: 10px; font-family: var(--font-mono); color: var(--color-text-muted); }
+    .var-a .loading-banner .conn-dot.done { color: var(--color-success); border-color: rgba(74, 222, 128, 0.3); }
+    .var-a .loading-banner .conn-dot.loading { color: var(--color-pink); border-color: rgba(236, 72, 153, 0.3); }
+    .var-a .loading-banner .conn-dot .pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT B — EMPTY                                     */
+    /* ═══════════════════════════════════════════════════ */
+    .var-b .empty-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 64px 40px 56px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .var-b .empty-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 30%, var(--color-pink-soft) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .var-b .empty-card > * { position: relative; }
+    .var-b .empty-icon {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--gradient-sunset);
+      display: grid; place-items: center;
+      box-shadow: var(--glow-pink);
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .var-b .empty-icon::after {
+      content: ''; position: absolute; inset: -6px; border-radius: 50%;
+      background: var(--gradient-sunset); opacity: 0.3; filter: blur(20px); z-index: -1;
+    }
+    .var-b .empty-icon svg { width: 32px; height: 32px; color: white; }
+    .var-b .empty-card h2 { margin: 0; font-size: var(--text-2xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
+    .var-b .empty-card .empty-sub { color: var(--color-text-muted); font-size: var(--text-base); max-width: 420px; margin: 0; line-height: 1.55; }
+    .var-b .empty-card .filter-summary {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+      padding: 14px 18px; margin-top: 8px;
+      background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+      max-width: 480px;
+    }
+    .var-b .empty-card .filter-summary .lbl { font-size: 11px; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 0.06em; width: 100%; margin-bottom: 4px; }
+    .var-b .empty-actions { display: flex; gap: 10px; margin-top: 12px; }
+    .var-b .secondary-suggestion {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; margin-top: 20px;
+      background: var(--color-violet-soft); border: 1px solid rgba(167, 139, 250, 0.2);
+      border-radius: var(--radius-md);
+      max-width: 480px;
+      font-size: var(--text-sm); color: var(--color-text-muted);
+    }
+    .var-b .secondary-suggestion .icon { width: 24px; height: 24px; border-radius: 6px; background: var(--color-violet-soft); display: grid; place-items: center; color: var(--color-violet); flex: none; }
+    .var-b .secondary-suggestion .icon svg { width: 14px; height: 14px; }
+    .var-b .secondary-suggestion a { color: var(--color-violet); font-weight: 500; }
+    .var-b .secondary-suggestion a:hover { color: var(--color-pink); }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT C — ERROR (partial failure)                   */
+    /* ═══════════════════════════════════════════════════ */
+    .var-c .error-banner {
+      background: linear-gradient(90deg, rgba(251, 146, 60, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%);
+      border: 1px solid rgba(251, 146, 60, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      margin-bottom: 14px;
+      display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center;
+    }
+    .var-c .error-banner .icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(251, 146, 60, 0.2);
+      display: grid; place-items: center;
+      color: var(--color-amber);
+      flex: none;
+    }
+    .var-c .error-banner .icon svg { width: 18px; height: 18px; }
+    .var-c .error-banner .text .title { font-size: var(--text-sm); font-weight: 600; color: var(--color-text); }
+    .var-c .error-banner .text .sub { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 4px; }
+    .var-c .error-banner .text .sub .mono { font-family: var(--font-mono); color: var(--color-text); }
+    .var-c .error-banner .actions { display: flex; gap: 8px; }
+
+    .var-c .source-status {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    .var-c .source-card {
+      flex: 1; min-width: 160px;
+      padding: 12px 14px;
+      background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .var-c .source-card.failed { border-color: rgba(248, 113, 113, 0.3); background: rgba(248, 113, 113, 0.04); }
+    .var-c .source-card .head { display: flex; align-items: center; justify-content: space-between; }
+    .var-c .source-card .name { font-size: var(--text-sm); font-weight: 600; color: var(--color-text); }
+    .var-c .source-card .status-pill { font-family: var(--font-mono); font-size: 10px; padding: 1px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .var-c .source-card .status-pill.ok { background: var(--color-success-soft); color: var(--color-success); border: 1px solid rgba(74, 222, 128, 0.3); }
+    .var-c .source-card .status-pill.fail { background: rgba(248, 113, 113, 0.12); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .var-c .source-card .meta { font-size: 11px; color: var(--color-text-faint); font-family: var(--font-mono); }
+    .var-c .source-card .retry-link { font-size: 11px; color: var(--color-pink); font-weight: 500; align-self: flex-start; }
+    .var-c .source-card .retry-link:hover { color: var(--color-amber); }
+
+    .var-c .stale-row { background: rgba(251, 146, 60, 0.04); }
+    .var-c .stale-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(251, 146, 60, 0.12); color: var(--color-amber); border: 1px solid rgba(251, 146, 60, 0.25); font-family: var(--font-mono); }
+
+    /* Sketch toolbar */
+    #sketch-tools { position: fixed; bottom: 16px; right: 16px; z-index: 9999; font-family: system-ui; font-size: 12px; background: rgba(0, 0, 0, 0.78); color: white; padding: 8px 12px; border-radius: 10px; opacity: 0.4; transition: opacity 0.2s; display: flex; gap: 10px; align-items: center; }
+    #sketch-tools:hover { opacity: 1; }
+    #sketch-tools select, #sketch-tools button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; }
+    #sketch-tools button:hover { background: rgba(255,255,255,0.2); }
+    #sketch-tools .sep { color: rgba(255,255,255,0.3); }
+
+    @media (max-width: 900px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .var-c .error-banner { grid-template-columns: 1fr; text-align: left; }
+      .var-c .error-banner .actions { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <span class="label">004 · states · sunset</span>
+  <button class="variant-tab active" onclick="showVariant(event, 'a')">A · Loading</button>
+  <button class="variant-tab" onclick="showVariant(event, 'b')">B · Empty (filtered to 0)</button>
+  <button class="variant-tab" onclick="showVariant(event, 'c')">C · Error (partial failure) <span class="star">★ lead</span></button>
+</div>
+
+<!-- Shared SVG defs -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4H10v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h2M3 13h2M19 19l-3-2M5 19l3-2M12 2v4"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5M9 8V2M15 8V2M5 11h14l-1 6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6m-10 0H1m17.5-6.5L15 7m-6 10l-3.5 3.5M19 18.5L15 15m-6-6L5.5 5.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="i-lightbulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+</svg>
+
+<!-- Reusable sidebar (variant scope) -->
+
+<!-- ═════════════════ VARIANT A — LOADING ═════════════════ -->
+<div id="variant-a" class="variant active">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item active" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count"><span class="skeleton" style="width:32px;height:10px;"></span></span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets</a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-a">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Vulnerabilities <span class="count"><span class="skeleton" style="width:60px;height:18px;vertical-align:middle;"></span></span></h1>
+          <p class="subtitle">Loading from 4 sources — last sync 12 minutes ago.</p>
+        </div>
+        <div class="page-head-actions">
+          <div class="view-toggle"><button class="active">By CVE</button><button>By host</button></div>
+          <button class="btn-secondary"><svg><use href="#i-download"/></svg>Export</button>
+          <button class="btn-cta sm"><svg><use href="#i-bolt"/></svg>Triage queue</button>
+        </div>
+      </div>
+
+      <!-- Live loading indicator with per-source progress -->
+      <div class="loading-banner">
+        <div class="spinner"></div>
+        <div class="text">
+          <div>Fetching vulnerabilities from <span style="color: var(--color-pink);">3 of 4 sources</span>…</div>
+          <div class="sub">312 found so far · this usually takes 2–3 seconds</div>
+        </div>
+        <div class="progress">
+          <span class="conn-dot done">✓ Qualys · 287</span>
+          <span class="conn-dot done">✓ AWS · 18</span>
+          <span class="conn-dot loading"><span class="pulse"></span>Tenable · 7</span>
+          <span class="conn-dot">Rapid7 · waiting</span>
+        </div>
+      </div>
+
+      <!-- Skeleton chip bar -->
+      <div class="filter-bar">
+        <span class="skeleton" style="width:200px;height:28px;border-radius:8px;"></span>
+        <span class="sep"></span>
+        <span class="skel-pill" style="width:88px;height:22px;"></span>
+        <span class="skel-pill" style="width:72px;height:22px;"></span>
+        <span class="sep"></span>
+        <span class="skel-pill" style="width:80px;height:22px;"></span>
+        <span class="skel-pill" style="width:96px;height:22px;"></span>
+      </div>
+
+      <!-- Skeleton table rows -->
+      <div class="table-wrap">
+        <table class="vuln-table">
+          <thead><tr>
+            <th>Severity</th><th>CVE</th><th>Product</th><th>Asset</th>
+            <th style="text-align:right;">CVSS</th><th>Status</th><th style="text-align:right;">SLA</th>
+          </tr></thead>
+          <tbody id="skeleton-rows"></tbody>
+        </table>
+        <div style="padding: 12px 14px; border-top: 1px solid var(--color-border-subtle); background: var(--color-bg); font-size: var(--text-xs); color: var(--color-text-faint); text-align: center;">
+          <span style="display: inline-flex; align-items: center; gap: 8px;"><span class="skeleton" style="width:14px;height:14px;border-radius:50%;"></span> Loading more rows…</span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT B — EMPTY ═════════════════ -->
+<div id="variant-b" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item active" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-b">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Vulnerabilities <span class="count">1,247</span></h1>
+          <p class="subtitle">5 filters active · 0 results</p>
+        </div>
+        <div class="page-head-actions">
+          <div class="view-toggle"><button class="active">By CVE</button><button>By host</button></div>
+          <button class="btn-secondary"><svg><use href="#i-download"/></svg>Export</button>
+          <button class="btn-cta sm"><svg><use href="#i-bolt"/></svg>Triage queue</button>
+        </div>
+      </div>
+
+      <!-- Active filters still visible so user sees what they applied -->
+      <div class="filter-bar">
+        <input class="filter-search" placeholder="Search CVE, product…" value="hyperion" />
+        <span class="sep"></span>
+        <div class="chip active"><span class="glyph sev-glyph critical">■</span> Critical</div>
+        <div class="chip active"><span class="glyph sev-glyph high">▲</span> High</div>
+        <span class="sep"></span>
+        <div class="chip active">CISA KEV</div>
+        <div class="chip active">Exploit available</div>
+        <div class="chip active">Source: Tenable</div>
+        <a href="#" class="clear-link" onclick="event.preventDefault();">Clear all</a>
+      </div>
+
+      <!-- The empty card -->
+      <div class="empty-card" style="flex: 1;">
+        <div class="empty-icon"><svg><use href="#i-sparkles"/></svg></div>
+        <h2>Nothing matches all 5 filters</h2>
+        <p class="empty-sub">No vulnerabilities are simultaneously Critical or High <em>and</em> on CISA KEV <em>and</em> have an active exploit <em>and</em> from Tenable <em>and</em> contain "hyperion." That's a tight net — relax one or two and try again.</p>
+
+        <div class="filter-summary">
+          <span class="lbl">Currently filtered by</span>
+          <div class="chip active"><span class="glyph sev-glyph critical">■</span> Critical</div>
+          <div class="chip active"><span class="glyph sev-glyph high">▲</span> High</div>
+          <div class="chip active">CISA KEV</div>
+          <div class="chip active">Exploit available</div>
+          <div class="chip active">Source: Tenable</div>
+          <div class="chip active">search: "hyperion"</div>
+        </div>
+
+        <div class="empty-actions">
+          <button class="btn-cta">Clear all filters</button>
+          <button class="btn-secondary">Include Medium severity</button>
+          <button class="btn-secondary">Search all sources</button>
+        </div>
+
+        <div class="secondary-suggestion">
+          <div class="icon"><svg><use href="#i-lightbulb"/></svg></div>
+          <div>This is a sharp query. <a href="#" onclick="event.preventDefault();">Save it as "Hyperion KEV watch"</a> — you'll be notified when anything matches.</div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT C — ERROR (partial failure) ═════════════════ -->
+<div id="variant-c" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item active" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">935</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-c">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn" style="border-color: rgba(251, 146, 60, 0.4); color: var(--color-amber);"><svg><use href="#i-alert"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Vulnerabilities <span class="count">935</span></h1>
+          <p class="subtitle"><span style="color: var(--color-amber);">⚠ Partial data</span> · 3 of 4 sources returned · 312 hidden</p>
+        </div>
+        <div class="page-head-actions">
+          <div class="view-toggle"><button class="active">By CVE</button><button>By host</button></div>
+          <button class="btn-secondary"><svg><use href="#i-download"/></svg>Export</button>
+          <button class="btn-cta sm"><svg><use href="#i-bolt"/></svg>Triage queue</button>
+        </div>
+      </div>
+
+      <!-- Error banner -->
+      <div class="error-banner">
+        <div class="icon"><svg><use href="#i-alert"/></svg></div>
+        <div class="text">
+          <div class="title">Tenable connector is unreachable</div>
+          <div class="sub">Last successful sync: <span class="mono">2h 14m ago</span> · HTTP <span class="mono">503 Service Unavailable</span> · Tried 3 times · Request ID <span class="mono">req_8f2a91c</span></div>
+        </div>
+        <div class="actions">
+          <button class="btn-secondary sm">View trace</button>
+          <button class="btn-secondary sm"><svg><use href="#i-refresh"/></svg>Retry now</button>
+        </div>
+      </div>
+
+      <!-- Per-source status card row -->
+      <div class="source-status">
+        <div class="source-card">
+          <div class="head"><span class="name">Qualys</span><span class="status-pill ok">ok</span></div>
+          <div class="meta">487 vulns · synced 4m ago</div>
+        </div>
+        <div class="source-card failed">
+          <div class="head"><span class="name">Tenable</span><span class="status-pill fail">503</span></div>
+          <div class="meta">stale · 312 vulns · 2h 14m ago</div>
+          <a href="#" class="retry-link" onclick="event.preventDefault();">Retry → or view connector settings</a>
+        </div>
+        <div class="source-card">
+          <div class="head"><span class="name">Rapid7</span><span class="status-pill ok">ok</span></div>
+          <div class="meta">198 vulns · synced 4m ago</div>
+        </div>
+        <div class="source-card">
+          <div class="head"><span class="name">AWS Inspector</span><span class="status-pill ok">ok</span></div>
+          <div class="meta">250 vulns · synced 3m ago</div>
+        </div>
+      </div>
+
+      <!-- Filter bar (data we DO have) -->
+      <div class="filter-bar" style="margin-top: 14px;">
+        <input class="filter-search" placeholder="Search CVE, product…" />
+        <span class="sep"></span>
+        <div class="chip active"><span class="glyph sev-glyph critical">■</span> Critical</div>
+        <div class="chip active"><span class="glyph sev-glyph high">▲</span> High</div>
+        <span class="sep"></span>
+        <span class="saved-pill">★ Today's triage</span>
+        <a href="#" class="clear-link" onclick="event.preventDefault();">Clear all</a>
+      </div>
+
+      <!-- Table — partial data shown -->
+      <div class="table-wrap">
+        <table class="vuln-table">
+          <thead><tr>
+            <th>Severity</th><th>CVE</th><th>Product</th><th>Source</th><th>Asset</th>
+            <th style="text-align:right;">CVSS</th><th style="text-align:right;">SLA</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="sev-pill critical"><span class="sev-glyph critical">■</span> Critical</span></td>
+              <td class="cell-cve">CVE-2024-3094</td>
+              <td class="cell-product">xz-utils 5.6.1 / openssh-server 9.6</td>
+              <td><span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: var(--color-success-soft); color: var(--color-success); font-family: var(--font-mono);">Qualys</span></td>
+              <td class="cell-asset">prod-db-01</td>
+              <td class="cell-score" style="color: var(--color-severity-critical);">9.8</td>
+              <td style="text-align:right;"><span style="font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(248, 113, 113, 0.15); color: var(--color-severity-critical);">-2h SLA</span></td>
+            </tr>
+            <tr class="stale-row">
+              <td><span class="sev-pill critical"><span class="sev-glyph critical">■</span> Critical</span></td>
+              <td class="cell-cve">CVE-2024-23897</td>
+              <td class="cell-product">Jenkins 2.441 / CLI</td>
+              <td><span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: rgba(251, 146, 60, 0.15); color: var(--color-amber); font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 4px;">Tenable <span class="stale-pill">stale</span></span></td>
+              <td class="cell-asset">ci-jenkins-01</td>
+              <td class="cell-score" style="color: var(--color-severity-critical);">9.8</td>
+              <td style="text-align:right;"><span style="font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(248, 113, 113, 0.15); color: var(--color-severity-critical);">-8h SLA</span></td>
+            </tr>
+            <tr>
+              <td><span class="sev-pill high"><span class="sev-glyph high">▲</span> High</span></td>
+              <td class="cell-cve">CVE-2023-44487</td>
+              <td class="cell-product">nginx 1.24.0 / HTTP/2</td>
+              <td><span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: var(--color-success-soft); color: var(--color-success); font-family: var(--font-mono);">Qualys</span></td>
+              <td class="cell-asset">api-gw-02</td>
+              <td class="cell-score" style="color: var(--color-severity-high);">7.5</td>
+              <td style="text-align:right;"><span style="font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(251, 146, 60, 0.15); color: var(--color-severity-high);">18h left</span></td>
+            </tr>
+            <tr>
+              <td><span class="sev-pill high"><span class="sev-glyph high">▲</span> High</span></td>
+              <td class="cell-cve">CVE-2024-1086</td>
+              <td class="cell-product">Linux kernel 6.5 / nf_tables</td>
+              <td><span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: var(--color-success-soft); color: var(--color-success); font-family: var(--font-mono);">Rapid7</span></td>
+              <td class="cell-asset">k8s-worker-09</td>
+              <td class="cell-score" style="color: var(--color-severity-high);">7.8</td>
+              <td style="text-align:right;"><span style="font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(251, 146, 60, 0.15); color: var(--color-severity-high);">12h left</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="padding: 12px 14px; border-top: 1px solid var(--color-border-subtle); background: var(--color-bg); font-size: var(--text-xs); color: var(--color-text-faint); text-align: center;">
+          ⚠ Some results may be incomplete because Tenable hasn't responded since <span class="mono">2h 14m ago</span>. <a href="#" style="color: var(--color-pink);" onclick="event.preventDefault();">Retry Tenable</a> or <a href="#" style="color: var(--color-pink);" onclick="event.preventDefault();">view connector logs</a>.
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Sketch toolbar -->
+<div id="sketch-tools">
+  <span>theme</span>
+  <select id="theme-switcher" onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'">
+    <option value="sunset">sunset</option>
+  </select>
+  <span class="sep">·</span>
+  <span>viewport</span>
+  <button onclick="setViewport('mobile')">375</button>
+  <button onclick="setViewport('tablet')">768</button>
+  <button onclick="setViewport('desktop')">full</button>
+</div>
+
+<script>
+  function showVariant(e, id) {
+    document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).classList.add('active');
+    e.currentTarget.classList.add('active');
+  }
+  function setViewport(size) {
+    const widths = { mobile: '375px', tablet: '768px', desktop: '100%' };
+    document.body.style.maxWidth = widths[size];
+    document.body.style.margin = size === 'desktop' ? '0' : '0 auto';
+    document.body.style.boxShadow = size === 'desktop' ? 'none' : '0 0 0 1px rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.5)';
+  }
+
+  // Build skeleton rows for variant A
+  const skelBody = document.getElementById('skeleton-rows');
+  const widths = [
+    [80, 130, 200, 110, 40, 100, 60],
+    [70, 140, 180, 120, 36, 80,  68],
+    [80, 130, 220, 100, 40, 100, 60],
+    [70, 140, 160, 130, 36, 80,  68],
+    [80, 130, 190, 120, 40, 100, 60],
+    [70, 140, 210, 110, 36, 80,  68],
+    [80, 130, 175, 120, 40, 100, 60],
+    [70, 140, 195, 100, 36, 80,  68],
+  ];
+  if (skelBody) {
+    skelBody.innerHTML = widths.map(w => `
+      <tr>
+        <td><span class="skel-pill" style="width:${w[0]}px;height:20px;display:inline-block;"></span></td>
+        <td><span class="skeleton" style="width:${w[1]}px;height:14px;"></span></td>
+        <td><span class="skeleton" style="width:${w[2]}px;height:12px;"></span></td>
+        <td><span class="skeleton" style="width:${w[3]}px;height:12px;"></span></td>
+        <td style="text-align:right;"><span class="skeleton" style="width:${w[4]}px;height:14px;"></span></td>
+        <td><span class="skeleton" style="width:${w[5]}px;height:14px;border-radius:4px;"></span></td>
+        <td style="text-align:right;"><span class="skel-pill" style="width:${w[6]}px;height:18px;display:inline-block;"></span></td>
+      </tr>
+    `).join('');
+  }
+</script>
+
+</body>
+</html>

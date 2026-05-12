@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetVul /tickets — Sunset palette sketch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="../themes/sunset.css" />
+  <style>
+    body { padding-top: 56px; }
+
+    /* Variant nav */
+    #variant-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 9998; background: rgba(8, 6, 15, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--color-border-subtle); padding: 10px 20px; display: flex; gap: 6px; align-items: center; font-family: var(--font-sans); }
+    #variant-nav .label { color: var(--color-text-faint); font-size: var(--text-xs); margin-right: 12px; }
+    .variant-tab { padding: 6px 14px; border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--text-sm); transition: all var(--motion-fast); }
+    .variant-tab:hover { background: var(--color-surface); color: var(--color-text); }
+    .variant-tab.active { background: var(--color-surface-2); color: var(--color-text); box-shadow: 0 0 0 1px var(--color-border); }
+    .variant-tab .star { color: var(--color-amber); margin-left: 6px; }
+    .variant { display: none; }
+    .variant.active { display: block; }
+
+    /* App shell */
+    .app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 56px); }
+    .sidebar { background: var(--color-bg-darker); border-right: 1px solid var(--color-border-subtle); padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+    .sidebar .brand { display: inline-flex; align-items: center; gap: 10px; padding: 4px 8px; font-family: var(--font-display); font-weight: 800; letter-spacing: var(--tracking-tight); }
+    .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--gradient-sunset); display: grid; place-items: center; box-shadow: var(--glow-pink); }
+    .brand-mark svg { width: 16px; height: 16px; color: white; }
+    .brand-name { font-size: var(--text-base); color: var(--color-text); }
+    .sidebar-section { display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-section-title { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-faint); padding: 0 12px; margin-bottom: 4px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--text-sm); transition: all var(--motion-fast); }
+    .nav-item:hover { background: var(--color-surface); color: var(--color-text); }
+    .nav-item.active { background: var(--color-surface); color: var(--color-text); position: relative; }
+    .nav-item.active::before { content: ''; position: absolute; left: -16px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: var(--gradient-sunset-vertical); box-shadow: var(--glow-pink); }
+    .nav-item svg { width: 16px; height: 16px; flex: none; }
+    .nav-item .count { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-faint); }
+    .nav-item.active .count { color: var(--color-pink); }
+
+    .main { padding: 22px 32px 48px; overflow: hidden; display: flex; flex-direction: column; }
+    .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .topbar .search { flex: 1; max-width: 480px; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--text-sm); }
+    .topbar .search svg { width: 14px; height: 14px; opacity: 0.6; }
+    .topbar .search .kbd { margin-left: auto; font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); color: var(--color-text-faint); }
+    .topbar .actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .icon-btn { width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border-subtle); display: grid; place-items: center; color: var(--color-text-muted); transition: all var(--motion-fast); }
+    .icon-btn:hover { color: var(--color-text); border-color: var(--color-border); }
+    .icon-btn svg { width: 16px; height: 16px; }
+    .user-chip { display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 4px; border-radius: var(--radius-full); background: var(--color-surface); border: 1px solid var(--color-border-subtle); }
+    .user-chip .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--gradient-sunset); color: white; display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; }
+    .user-chip .name { font-size: var(--text-sm); color: var(--color-text); }
+
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--color-text-faint); margin-bottom: 14px; }
+    .breadcrumb a { color: var(--color-text-muted); }
+    .breadcrumb a:hover { color: var(--color-pink); }
+    .breadcrumb .sep { opacity: 0.4; }
+    .breadcrumb .current { color: var(--color-text); font-family: var(--font-mono); }
+
+    .page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .page-head h1 { margin: 0; font-size: var(--text-3xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
+    .page-head h1 .count { font-family: var(--font-mono); color: var(--color-text-muted); font-weight: 500; margin-left: 8px; font-size: var(--text-xl); }
+    .page-head .subtitle { color: var(--color-text-muted); font-size: var(--text-sm); margin-top: 4px; }
+    .page-head-actions { display: flex; gap: 8px; align-items: center; }
+
+    .btn-cta { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: var(--radius-md); background: var(--gradient-sunset); color: white; font-size: var(--text-sm); font-weight: 600; box-shadow: var(--glow-cta); transition: all var(--motion-fast); }
+    .btn-cta:hover { transform: translateY(-1px); box-shadow: 0 12px 36px rgba(236, 72, 153, 0.5); }
+    .btn-cta.sm { padding: 7px 12px; font-size: var(--text-xs); }
+    .btn-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border-subtle); color: var(--color-text); font-size: var(--text-xs); font-weight: 500; transition: all var(--motion-fast); }
+    .btn-secondary:hover { background: var(--color-surface-2); border-color: var(--color-border); }
+    .btn-secondary svg { width: 13px; height: 13px; }
+    .btn-ghost { padding: 6px 10px; border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: var(--text-xs); transition: color var(--motion-fast); }
+    .btn-ghost:hover { color: var(--color-text); }
+
+    .card { background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: 18px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .card-head h3 { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .mono { font-family: var(--font-mono); }
+
+    /* Severity */
+    .sev-glyph { font-family: var(--font-mono); font-weight: 600; }
+    .sev-glyph.critical { color: var(--color-severity-critical); }
+    .sev-glyph.high { color: var(--color-severity-high); }
+    .sev-glyph.medium { color: var(--color-severity-medium); }
+    .sev-glyph.low { color: var(--color-severity-low); }
+    .sev-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+    .sev-pill.critical { background: rgba(248, 113, 113, 0.12); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .sev-pill.high { background: rgba(251, 146, 60, 0.12); color: var(--color-severity-high); border: 1px solid rgba(251, 146, 60, 0.3); }
+    .sev-pill.medium { background: rgba(251, 191, 36, 0.10); color: var(--color-severity-medium); border: 1px solid rgba(251, 191, 36, 0.3); }
+    .sev-pill.low { background: rgba(167, 139, 250, 0.12); color: var(--color-severity-low); border: 1px solid rgba(167, 139, 250, 0.3); }
+
+    /* Provider marks */
+    .provider {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 2px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 500; font-family: var(--font-mono);
+    }
+    .provider.jira    { background: rgba(38, 132, 255, 0.12); color: #5C9CFF; border: 1px solid rgba(38, 132, 255, 0.3); }
+    .provider.asana   { background: rgba(241, 80, 110, 0.12); color: #FF8AA0; border: 1px solid rgba(241, 80, 110, 0.3); }
+    .provider.github  { background: rgba(167, 139, 250, 0.12); color: var(--color-violet); border: 1px solid rgba(167, 139, 250, 0.3); }
+    .provider-mark { width: 14px; height: 14px; border-radius: 3px; display: grid; place-items: center; flex: none; }
+    .provider-mark.jira   { background: linear-gradient(135deg, #5C9CFF, #2684FF); }
+    .provider-mark.asana  { background: linear-gradient(135deg, #FF8AA0, #F1506E); }
+    .provider-mark.github { background: linear-gradient(135deg, #C7BAFF, #A78BFA); }
+    .provider-mark svg { width: 9px; height: 9px; color: white; }
+
+    /* Status pills */
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 500; line-height: 1.4;
+    }
+    .status-pill.open       { background: var(--color-violet-soft); color: var(--color-violet); border: 1px solid rgba(167, 139, 250, 0.3); }
+    .status-pill.inprogress { background: var(--color-amber-soft); color: var(--color-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .status-pill.completed  { background: var(--color-success-soft); color: var(--color-success); border: 1px solid rgba(74, 222, 128, 0.3); }
+    .status-pill.blocked    { background: rgba(248, 113, 113, 0.12); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* SLA pill */
+    .sla-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 8px; border-radius: 999px;
+      font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    }
+    .sla-pill.overdue { background: rgba(248, 113, 113, 0.15); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .sla-pill.soon    { background: rgba(251, 146, 60, 0.15); color: var(--color-severity-high); border: 1px solid rgba(251, 146, 60, 0.3); }
+    .sla-pill.ok      { background: rgba(74, 222, 128, 0.12); color: var(--color-success); border: 1px solid rgba(74, 222, 128, 0.3); }
+
+    /* Assignee chip */
+    .assignee-chip { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--color-text-muted); }
+    .assignee-chip .avatar { width: 20px; height: 20px; border-radius: 50%; background: var(--gradient-sunset); color: white; display: grid; place-items: center; font-size: 9px; font-weight: 600; }
+    .assignee-chip .avatar.violet { background: linear-gradient(135deg, var(--color-violet), var(--color-pink)); }
+    .assignee-chip .avatar.amber  { background: linear-gradient(135deg, var(--color-amber), var(--color-pink)); }
+
+    /* Chip-bar filter (reused pattern) */
+    .filter-bar { background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .filter-bar .filter-search { width: 220px; padding: 7px 12px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); color: var(--color-text); font-size: var(--text-sm); }
+    .filter-bar .filter-search:focus { outline: none; border-color: var(--color-violet); box-shadow: 0 0 0 3px var(--color-violet-soft); }
+    .filter-bar .sep { width: 1px; height: 20px; background: var(--color-border-subtle); }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: 11px; transition: all var(--motion-fast); cursor: pointer; }
+    .chip:hover { color: var(--color-text); border-color: var(--color-border); }
+    .chip.active { background: var(--color-pink-soft); border-color: var(--color-pink); color: var(--color-pink); }
+    .filter-bar .clear-link { margin-left: auto; font-size: 11px; color: var(--color-text-muted); }
+    .filter-bar .clear-link:hover { color: var(--color-pink); }
+
+    /* Table base */
+    .table-wrap { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; }
+    .vuln-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    .vuln-table thead { background: var(--color-surface-2); }
+    .vuln-table th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--color-border-subtle); white-space: nowrap; }
+    .vuln-table tbody tr { border-bottom: 1px solid var(--color-border-subtle); transition: background var(--motion-fast); cursor: pointer; }
+    .vuln-table tbody tr:hover { background: var(--color-surface-2); }
+    .vuln-table tbody tr.row-active { background: var(--color-surface-2); box-shadow: inset 3px 0 0 0 var(--color-pink); }
+    .vuln-table td { padding: 12px; vertical-align: middle; color: var(--color-text); }
+    .vuln-table .cell-id { font-family: var(--font-mono); color: var(--color-text); font-weight: 500; min-width: 110px; }
+    .vuln-table .cell-title { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .vuln-table .cell-vulns { font-family: var(--font-mono); text-align: center; font-size: var(--text-xs); }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT A — List + side panel                         */
+    /* ═══════════════════════════════════════════════════ */
+    .var-a .work-area { display: grid; grid-template-columns: 1fr; flex: 1; min-height: 0; gap: 16px; transition: grid-template-columns var(--motion-base) var(--ease-standard); }
+    .var-a .work-area.drilled { grid-template-columns: 1fr 420px; }
+    .var-a .drill-panel {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      overflow: auto;
+      max-height: calc(100vh - 200px);
+      display: none;
+      flex-direction: column; gap: 18px;
+    }
+    .var-a .work-area.drilled .drill-panel { display: flex; }
+    .drill-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .drill-head .close { color: var(--color-text-faint); padding: 4px; border-radius: var(--radius-sm); }
+    .drill-head .close:hover { color: var(--color-text); background: var(--color-surface-2); }
+    .drill-head .close svg { width: 14px; height: 14px; }
+    .drill-title { font-family: var(--font-mono); font-size: var(--text-lg); font-weight: 600; color: var(--color-text); }
+    .drill-meta-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .drill-section h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); font-weight: 600; }
+    .drill-section p { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.55; }
+
+    /* Mini vuln list inside drill panel */
+    .mini-vuln {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+      padding: 8px 10px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+    }
+    .mini-vuln + .mini-vuln { margin-top: 4px; }
+    .mini-vuln .cve { font-family: var(--font-mono); color: var(--color-text); }
+    .mini-vuln .score { font-family: var(--font-mono); font-weight: 600; }
+
+    /* Timeline for ticket activity */
+    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+    .timeline::before { content: ''; position: absolute; left: 13px; top: 14px; bottom: 14px; width: 1px; background: var(--color-border-subtle); }
+    .timeline-item { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 10px 0; align-items: start; position: relative; }
+    .timeline-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--color-surface); border: 2px solid var(--color-border-subtle); display: grid; place-items: center; color: var(--color-text-muted); z-index: 1; }
+    .timeline-dot svg { width: 12px; height: 12px; }
+    .timeline-dot.success { background: var(--color-success-soft); border-color: rgba(74, 222, 128, 0.4); color: var(--color-success); }
+    .timeline-dot.pink    { background: var(--color-pink-soft);    border-color: rgba(236, 72, 153, 0.4); color: var(--color-pink); }
+    .timeline-dot.amber   { background: var(--color-amber-soft);   border-color: rgba(245, 158, 11, 0.4); color: var(--color-amber); }
+    .timeline-dot.violet  { background: var(--color-violet-soft);  border-color: rgba(167, 139, 250, 0.4); color: var(--color-violet); }
+    .timeline-body { font-size: var(--text-sm); color: var(--color-text); padding-top: 4px; }
+    .timeline-body .who { font-weight: 500; }
+    .timeline-body .what { color: var(--color-text-muted); }
+    .timeline-body .ref { font-family: var(--font-mono); color: var(--color-text); }
+    .timeline-body .time { font-size: 11px; color: var(--color-text-faint); margin-top: 2px; font-family: var(--font-mono); }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT B — Dedicated detail page                     */
+    /* ═══════════════════════════════════════════════════ */
+    .var-b .body-grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
+    .var-b .meta-header { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .var-b .meta-header .id-block { display: flex; flex-direction: column; gap: 4px; }
+    .var-b .meta-header h1 { margin: 0; font-size: var(--text-2xl); font-weight: 700; }
+    .var-b .meta-header .sub-id { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); }
+    .var-b .meta-header .actions { margin-left: auto; display: flex; gap: 10px; }
+    .var-b .right-rail { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 80px; align-self: start; }
+    .meta-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .meta-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-bottom: 1px solid var(--color-border-subtle); }
+    .meta-row:last-child { border-bottom: none; }
+    .meta-row .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-faint); }
+    .meta-row .val { font-size: var(--text-sm); color: var(--color-text); }
+    .meta-row .val.mono { font-family: var(--font-mono); font-size: var(--text-xs); }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT C — Kanban board                              */
+    /* ═══════════════════════════════════════════════════ */
+    .var-c .kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; flex: 1; min-height: 0; }
+    .var-c .column {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex; flex-direction: column;
+      max-height: calc(100vh - 200px);
+    }
+    .var-c .column-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 4px 12px; margin-bottom: 4px;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .var-c .column-head .title { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); font-weight: 600; color: var(--color-text); }
+    .var-c .column-head .count { font-family: var(--font-mono); font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--color-surface-2); color: var(--color-text-muted); border: 1px solid var(--color-border-subtle); }
+    .var-c .column-head .add { color: var(--color-text-faint); padding: 4px; border-radius: 4px; }
+    .var-c .column-head .add:hover { color: var(--color-pink); background: var(--color-surface-2); }
+    .var-c .column-head .add svg { width: 14px; height: 14px; }
+    .var-c .column-body { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding: 4px 2px; }
+    .kanban-card {
+      background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+      padding: 12px; display: flex; flex-direction: column; gap: 8px;
+      cursor: grab; transition: all var(--motion-fast);
+    }
+    .kanban-card:hover { border-color: var(--color-border-strong); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+    .kanban-card .top-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .kanban-card .id { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); }
+    .kanban-card .title { font-size: var(--text-sm); color: var(--color-text); font-weight: 500; line-height: 1.4; }
+    .kanban-card .vuln-summary { display: flex; gap: 6px; align-items: center; font-size: 11px; font-family: var(--font-mono); color: var(--color-text-muted); }
+    .kanban-card .vuln-summary .crit { color: var(--color-severity-critical); }
+    .kanban-card .vuln-summary .hi   { color: var(--color-severity-high); }
+    .kanban-card .bottom-row { display: flex; align-items: center; justify-content: space-between; }
+
+    /* Sketch toolbar */
+    #sketch-tools { position: fixed; bottom: 16px; right: 16px; z-index: 9999; font-family: system-ui; font-size: 12px; background: rgba(0, 0, 0, 0.78); color: white; padding: 8px 12px; border-radius: 10px; opacity: 0.4; transition: opacity 0.2s; display: flex; gap: 10px; align-items: center; }
+    #sketch-tools:hover { opacity: 1; }
+    #sketch-tools select, #sketch-tools button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; }
+    #sketch-tools button:hover { background: rgba(255,255,255,0.2); }
+    #sketch-tools .sep { color: rgba(255,255,255,0.3); }
+
+    @media (max-width: 1000px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .var-a .work-area.drilled { grid-template-columns: 1fr; }
+      .var-a .drill-panel { position: fixed; inset: 56px 0 0 0; max-height: none; border-radius: 0; z-index: 9000; }
+      .var-b .body-grid { grid-template-columns: 1fr; }
+      .var-b .right-rail { position: static; }
+      .var-c .kanban { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <span class="label">006 · /tickets · sunset</span>
+  <button class="variant-tab active" onclick="showVariant(event, 'a')">A · List + side panel <span class="star">★ selected</span></button>
+  <button class="variant-tab" onclick="showVariant(event, 'b')">B · Dedicated detail page</button>
+  <button class="variant-tab" onclick="showVariant(event, 'c')">C · Kanban board</button>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4H10v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="14" rx="4"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5M9 8V2M15 8V2M5 11h14l-1 6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></symbol>
+  <symbol id="i-ticket-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="9" y1="12" x2="15" y2="12"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-comment" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+  <symbol id="i-jira-stack" viewBox="0 0 24 24" fill="currentColor"><path d="M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z"/></symbol>
+  <symbol id="i-asana-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="3"/><circle cx="14" cy="7" r="3"/><circle cx="14" cy="17" r="3"/></symbol>
+  <symbol id="i-gh-issue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2" fill="currentColor"/></symbol>
+</svg>
+
+<!-- Reusable sidebar -->
+
+<!-- ═════════════════ VARIANT A — List + side panel ═════════════════ -->
+<div id="variant-a" class="variant active">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item active" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search tickets, CVEs, assets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Tickets <span class="count">23</span></h1>
+          <p class="subtitle">8 overdue · 6 due in 72h · click any row for details</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn-secondary"><svg><use href="#i-refresh"/></svg>Sync status</button>
+          <button class="btn-cta sm"><svg><use href="#i-plus"/></svg>New ticket</button>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input class="filter-search" placeholder="Search ticket, CVE…" />
+        <span class="sep"></span>
+        <div class="chip active">Open</div>
+        <div class="chip active">In progress</div>
+        <div class="chip">Completed</div>
+        <span class="sep"></span>
+        <div class="chip active">Jira</div>
+        <div class="chip active">Asana</div>
+        <div class="chip">GitHub</div>
+        <span class="sep"></span>
+        <div class="chip active" style="background: rgba(248, 113, 113, 0.15); border-color: rgba(248, 113, 113, 0.4); color: var(--color-severity-critical);">Only SLA-at-risk</div>
+        <a href="#" class="clear-link" onclick="event.preventDefault();">Clear all</a>
+      </div>
+
+      <div class="work-area" id="work-a">
+        <div class="table-wrap">
+          <table class="vuln-table">
+            <thead><tr>
+              <th>Severity</th><th>Provider</th><th>Ticket</th><th>Title</th>
+              <th style="text-align:center;">Vulns</th><th>Assignee</th>
+              <th>Status</th><th style="text-align:right;">SLA</th>
+            </tr></thead>
+            <tbody id="ticket-rows-a"></tbody>
+          </table>
+          <div style="padding: 10px 14px; border-top: 1px solid var(--color-border-subtle); background: var(--color-bg); font-size: var(--text-xs); color: var(--color-text-muted); display: flex; justify-content: space-between;">
+            <span>Showing <span class="mono" style="color: var(--color-text);">1–10</span> of <span class="mono" style="color: var(--color-text);">23</span></span>
+            <span>Last sync <span class="mono" style="color: var(--color-text);">4m ago</span></span>
+          </div>
+        </div>
+
+        <aside class="drill-panel" id="drill-a">
+          <div class="drill-head">
+            <div>
+              <div class="drill-title">JIRA-2841</div>
+              <div class="drill-meta-row" style="margin-top: 6px;">
+                <span class="provider jira"><div class="provider-mark jira"><svg><use href="#i-jira-stack"/></svg></div>Jira</span>
+                <span class="status-pill inprogress"><span class="dot"></span> In progress</span>
+                <span class="sla-pill overdue">−2h SLA</span>
+              </div>
+            </div>
+            <button class="close" onclick="toggleDrillA(false)"><svg><use href="#i-x"/></svg></button>
+          </div>
+
+          <h3 style="margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--color-text);">Patch xz-utils backdoor on prod-db-01</h3>
+
+          <div class="drill-section">
+            <h4>Linked vulnerabilities (3)</h4>
+            <div>
+              <div class="mini-vuln">
+                <span class="sev-pill critical"><span class="sev-glyph critical">■</span> Critical</span>
+                <div><div class="cve">CVE-2024-3094</div></div>
+                <span class="score" style="color: var(--color-severity-critical);">9.8</span>
+              </div>
+              <div class="mini-vuln">
+                <span class="sev-pill high"><span class="sev-glyph high">▲</span> High</span>
+                <div><div class="cve">CVE-2024-1086</div></div>
+                <span class="score" style="color: var(--color-severity-high);">7.8</span>
+              </div>
+              <div class="mini-vuln">
+                <span class="sev-pill medium"><span class="sev-glyph medium">◆</span> Medium</span>
+                <div><div class="cve">CVE-2024-2511</div></div>
+                <span class="score" style="color: var(--color-severity-medium);">5.9</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="drill-section">
+            <h4>Description</h4>
+            <p>Backdoor RCE in xz-utils discovered in liblzma 5.6.0+. Affects <span class="mono" style="color: var(--color-text);">prod-db-01</span> running openssh-server 9.6. Rollback to xz-utils &lt; 5.6.0 and restart sshd. Verify via <span class="mono" style="color: var(--color-text);">xz --version</span>.</p>
+          </div>
+
+          <div class="drill-section">
+            <h4>Activity</h4>
+            <div class="timeline">
+              <div class="timeline-item">
+                <div class="timeline-dot pink"><svg><use href="#i-ticket-plus"/></svg></div>
+                <div class="timeline-body"><span class="who">Ana</span> <span class="what">created this ticket from CVE-2024-3094</span><div class="time">1h ago</div></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot violet"><svg><use href="#i-comment"/></svg></div>
+                <div class="timeline-body"><span class="who">Diego</span> <span class="what">assigned themselves</span><div class="time">52m ago</div></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot amber"><svg><use href="#i-comment"/></svg></div>
+                <div class="timeline-body"><span class="who">Diego</span> <span class="what">commented: "Apt repos updated, rolling restart at 17:00 UTC"</span><div class="time">28m ago</div></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot"><svg><use href="#i-refresh"/></svg></div>
+                <div class="timeline-body"><span class="who">Jira</span> <span class="what">status changed: Open → In progress</span><div class="time">28m ago</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="drill-section">
+            <h4>Details</h4>
+            <div class="meta-grid" style="grid-template-columns: 1fr 1fr;">
+              <div class="meta-row"><span class="lbl">Assignee</span><div class="val"><div class="assignee-chip"><div class="avatar">DS</div>Diego Salgado</div></div></div>
+              <div class="meta-row"><span class="lbl">Created</span><span class="val mono">1h ago</span></div>
+              <div class="meta-row"><span class="lbl">Asset</span><span class="val mono">prod-db-01</span></div>
+              <div class="meta-row"><span class="lbl">Due</span><span class="val mono">overdue · −2h</span></div>
+            </div>
+          </div>
+
+          <div class="drill-section">
+            <h4>Actions</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn-cta" style="justify-content: center;"><svg><use href="#i-link"/></svg>Open in Jira</button>
+              <button class="btn-secondary" style="justify-content: center; padding: 9px;"><svg><use href="#i-edit"/></svg>Edit assignee / due date</button>
+              <button class="btn-secondary" style="justify-content: center; padding: 9px;"><svg><use href="#i-check"/></svg>Mark as completed</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT B — Dedicated detail page ═════════════════ -->
+<div id="variant-b" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item active" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-b" style="overflow: auto;">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search tickets, CVEs, assets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="breadcrumb">
+        <a href="#">Tickets</a>
+        <span class="sep">/</span>
+        <span class="current">JIRA-2841</span>
+      </div>
+
+      <div class="meta-header">
+        <div class="id-block">
+          <h1>Patch xz-utils backdoor on prod-db-01</h1>
+          <div class="sub-id">
+            <span class="provider jira"><div class="provider-mark jira"><svg><use href="#i-jira-stack"/></svg></div>JIRA-2841</span>
+            <span class="status-pill inprogress"><span class="dot"></span> In progress</span>
+            <span class="sla-pill overdue">−2h SLA</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn-secondary"><svg><use href="#i-edit"/></svg>Edit</button>
+          <button class="btn-secondary"><svg><use href="#i-link"/></svg>Open in Jira</button>
+          <button class="btn-cta"><svg><use href="#i-check"/></svg>Mark completed</button>
+        </div>
+      </div>
+
+      <div class="body-grid">
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="card">
+            <div class="card-head"><h3>Linked vulnerabilities <span style="font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--color-pink-soft); color: var(--color-pink); border: 1px solid rgba(236, 72, 153, 0.3); margin-left: 6px;">3</span></h3><button class="btn-ghost">View in /vulnerabilities →</button></div>
+            <div>
+              <div class="mini-vuln" style="padding: 12px;"><span class="sev-pill critical"><span class="sev-glyph critical">■</span> Critical</span><div><div class="cve">CVE-2024-3094</div><div style="font-size: var(--text-xs); color: var(--color-text-faint); margin-top: 2px;">xz-utils 5.6.1 / openssh-server 9.6 — backdoor RCE</div></div><span class="score" style="color: var(--color-severity-critical);">9.8</span></div>
+              <div class="mini-vuln" style="padding: 12px;"><span class="sev-pill high"><span class="sev-glyph high">▲</span> High</span><div><div class="cve">CVE-2024-1086</div><div style="font-size: var(--text-xs); color: var(--color-text-faint); margin-top: 2px;">Linux kernel nf_tables priv. escalation</div></div><span class="score" style="color: var(--color-severity-high);">7.8</span></div>
+              <div class="mini-vuln" style="padding: 12px;"><span class="sev-pill medium"><span class="sev-glyph medium">◆</span> Medium</span><div><div class="cve">CVE-2024-2511</div><div style="font-size: var(--text-xs); color: var(--color-text-faint); margin-top: 2px;">OpenSSL session cache memory leak</div></div><span class="score" style="color: var(--color-severity-medium);">5.9</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Description</h3></div>
+            <p style="margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.6;">Backdoor RCE discovered in <span class="mono" style="color: var(--color-text);">xz-utils</span> versions 5.6.0+. Affects <span class="mono" style="color: var(--color-text);">prod-db-01</span> running openssh-server 9.6 linked against liblzma. Rollback to xz-utils &lt; 5.6.0 (Ubuntu has shipped fixed 5.4.6 in security repo). Restart sshd. Verify via <span class="mono" style="color: var(--color-text);">xz --version</span>. Coordination required with Platform Eng for sshd restart during maintenance window 17:00 UTC.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Activity</h3><span style="font-size: var(--text-xs); color: var(--color-text-faint);">4 events</span></div>
+            <div class="timeline">
+              <div class="timeline-item"><div class="timeline-dot pink"><svg><use href="#i-ticket-plus"/></svg></div><div class="timeline-body"><span class="who">Ana</span> <span class="what">created this ticket from</span> <span class="ref">CVE-2024-3094</span> · 3 linked vulnerabilities pulled in<div class="time">1h ago</div></div></div>
+              <div class="timeline-item"><div class="timeline-dot violet"><svg><use href="#i-comment"/></svg></div><div class="timeline-body"><span class="who">Diego</span> <span class="what">assigned themselves</span><div class="time">52m ago</div></div></div>
+              <div class="timeline-item"><div class="timeline-dot amber"><svg><use href="#i-comment"/></svg></div><div class="timeline-body"><span class="who">Diego</span> <span class="what">commented:</span> "Apt repos updated to security 5.4.6, rolling restart at 17:00 UTC."<div class="time">28m ago</div></div></div>
+              <div class="timeline-item"><div class="timeline-dot"><svg><use href="#i-refresh"/></svg></div><div class="timeline-body"><span class="who">Jira</span> <span class="what">status changed:</span> <span class="ref">Open → In progress</span><div class="time">28m ago</div></div></div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border-subtle);">
+              <input class="filter-search" style="flex: 1; width: auto;" placeholder="Add a comment…" />
+              <button class="btn-cta sm"><svg><use href="#i-comment"/></svg>Comment</button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="right-rail">
+          <div class="card">
+            <div class="card-head"><h3>Details</h3></div>
+            <div class="meta-grid">
+              <div class="meta-row"><span class="lbl">Status</span><div class="val"><span class="status-pill inprogress"><span class="dot"></span> In progress</span></div></div>
+              <div class="meta-row"><span class="lbl">Priority</span><div class="val"><span class="sev-pill critical"><span class="sev-glyph critical">■</span> Critical</span></div></div>
+              <div class="meta-row"><span class="lbl">SLA</span><div class="val"><span class="sla-pill overdue">−2h overdue</span></div></div>
+              <div class="meta-row"><span class="lbl">Due date</span><span class="val mono">2026-05-12 15:00 UTC</span></div>
+              <div class="meta-row"><span class="lbl">Created</span><span class="val mono">1h ago</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>People</h3><button class="btn-ghost">Reassign</button></div>
+            <div class="meta-grid">
+              <div class="meta-row">
+                <span class="lbl">Assignee</span>
+                <div class="val"><div class="assignee-chip"><div class="avatar">DS</div>Diego Salgado · Platform Eng</div></div>
+              </div>
+              <div class="meta-row">
+                <span class="lbl">Reporter</span>
+                <div class="val"><div class="assignee-chip"><div class="avatar violet">AS</div>Ana Sokolova</div></div>
+              </div>
+              <div class="meta-row">
+                <span class="lbl">Watchers</span>
+                <div class="val" style="display: flex; gap: -6px;">
+                  <div class="assignee-chip"><div class="avatar amber">JK</div></div>
+                  <div class="assignee-chip"><div class="avatar violet">MR</div></div>
+                  <span style="font-size: var(--text-xs); color: var(--color-text-muted); margin-left: 4px;">+3</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Asset</h3></div>
+            <div class="meta-grid">
+              <div class="meta-row"><span class="lbl">Hostname</span><span class="val mono">prod-db-01</span></div>
+              <div class="meta-row"><span class="lbl">OS</span><span class="val">Ubuntu 22.04 LTS</span></div>
+              <div class="meta-row"><span class="lbl">Cloud</span><span class="val mono">AWS us-east-1</span></div>
+              <div class="meta-row"><span class="lbl">Risk score</span><span class="val mono" style="color: var(--color-severity-critical);">86</span></div>
+            </div>
+            <a href="#" class="btn-secondary" style="margin-top: 12px; justify-content: center; text-decoration: none;" onclick="event.preventDefault();">View asset →</a>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT C — Kanban ═════════════════ -->
+<div id="variant-c" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-shield"/></svg></div><span class="brand-name">GetVul</span></div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item active" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search tickets, CVEs, assets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Tickets <span class="count">23</span></h1>
+          <p class="subtitle">Drag cards between columns to update status · 8 overdue</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn-secondary"><svg><use href="#i-refresh"/></svg>Sync</button>
+          <button class="btn-cta sm"><svg><use href="#i-plus"/></svg>New ticket</button>
+        </div>
+      </div>
+
+      <div class="filter-bar" style="margin-bottom: 18px;">
+        <input class="filter-search" placeholder="Search…" />
+        <span class="sep"></span>
+        <div class="chip active">Jira</div>
+        <div class="chip active">Asana</div>
+        <div class="chip">GitHub</div>
+        <span class="sep"></span>
+        <div class="chip active">Mine</div>
+        <div class="chip">All</div>
+      </div>
+
+      <div class="kanban">
+        <div class="column">
+          <div class="column-head">
+            <div class="title"><span class="status-pill open"><span class="dot"></span> Open</span></div>
+            <div style="display: flex; gap: 8px; align-items: center;"><span class="count">5</span><button class="add"><svg><use href="#i-plus"/></svg></button></div>
+          </div>
+          <div class="column-body" id="kanban-open"></div>
+        </div>
+        <div class="column">
+          <div class="column-head">
+            <div class="title"><span class="status-pill inprogress"><span class="dot"></span> In progress</span></div>
+            <div style="display: flex; gap: 8px; align-items: center;"><span class="count">6</span><button class="add"><svg><use href="#i-plus"/></svg></button></div>
+          </div>
+          <div class="column-body" id="kanban-inprogress"></div>
+        </div>
+        <div class="column">
+          <div class="column-head">
+            <div class="title"><span class="status-pill completed"><span class="dot"></span> Completed</span></div>
+            <div style="display: flex; gap: 8px; align-items: center;"><span class="count">12</span><button class="add"><svg><use href="#i-plus"/></svg></button></div>
+          </div>
+          <div class="column-body" id="kanban-completed"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Sketch toolbar -->
+<div id="sketch-tools">
+  <span>theme</span>
+  <select id="theme-switcher" onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'">
+    <option value="sunset">sunset</option>
+  </select>
+  <span class="sep">·</span>
+  <span>viewport</span>
+  <button onclick="setViewport('mobile')">375</button>
+  <button onclick="setViewport('tablet')">768</button>
+  <button onclick="setViewport('desktop')">full</button>
+</div>
+
+<script>
+  function showVariant(e, id) {
+    document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).classList.add('active');
+    e.currentTarget.classList.add('active');
+  }
+  function setViewport(size) {
+    const widths = { mobile: '375px', tablet: '768px', desktop: '100%' };
+    document.body.style.maxWidth = widths[size];
+    document.body.style.margin = size === 'desktop' ? '0' : '0 auto';
+    document.body.style.boxShadow = size === 'desktop' ? 'none' : '0 0 0 1px rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.5)';
+  }
+
+  function toggleDrillA(force) {
+    const w = document.getElementById('work-a');
+    if (force === false) { w.classList.remove('drilled'); document.querySelectorAll('#variant-a tr.row-active').forEach(t => t.classList.remove('row-active')); return; }
+    w.classList.add('drilled');
+  }
+
+  // Tickets data
+  const TICKETS = [
+    { id:'JIRA-2841', provider:'jira',   marker:'jira-stack',    title:'Patch xz-utils backdoor on prod-db-01',       sev:'critical', glyph:'■', vulns:3,  ch:[2,1], asgn:{i:'DS',c:''},      status:'inprogress', sla:'overdue', slaLabel:'-2h SLA' },
+    { id:'JIRA-2840', provider:'jira',   marker:'jira-stack',    title:'Jenkins CLI arbitrary file read — ci-jenkins-01',  sev:'critical', glyph:'■', vulns:1,  ch:[1,0], asgn:{i:'MR',c:'violet'},status:'inprogress', sla:'overdue', slaLabel:'-8h SLA' },
+    { id:'ASA-12-93', provider:'asana',  marker:'asana-dots',    title:'Kernel nf_tables priv escalation — k8s workers',   sev:'high',     glyph:'▲', vulns:7,  ch:[1,4], asgn:{i:'JK',c:'amber'}, status:'inprogress', sla:'soon',    slaLabel:'4h left' },
+    { id:'JIRA-2839', provider:'jira',   marker:'jira-stack',    title:'HTTP/2 rapid reset — api-gw-02',              sev:'high',     glyph:'▲', vulns:2,  ch:[0,2], asgn:{i:'DS',c:''},      status:'open',       sla:'soon',    slaLabel:'18h left' },
+    { id:'ASA-12-94', provider:'asana',  marker:'asana-dots',    title:'Apache httpd memory exhaustion',              sev:'high',     glyph:'▲', vulns:1,  ch:[0,1], asgn:{i:'JK',c:'amber'}, status:'open',       sla:'ok',      slaLabel:'3d left' },
+    { id:'GH-127',    provider:'github', marker:'gh-issue',      title:'OpenSSL session cache leak — lb-staging-01',  sev:'medium',   glyph:'◆', vulns:1,  ch:[0,0], asgn:{i:'MR',c:'violet'},status:'open',       sla:'ok',      slaLabel:'5d left' },
+    { id:'JIRA-2820', provider:'jira',   marker:'jira-stack',    title:'dnsjava upgrade — jvm-app-04',                sev:'medium',   glyph:'◆', vulns:1,  ch:[0,0], asgn:{i:'DS',c:''},      status:'open',       sla:'ok',      slaLabel:'6d left' },
+    { id:'ASA-12-95', provider:'asana',  marker:'asana-dots',    title:'PostgreSQL JDBC upgrade — data layer',        sev:'medium',   glyph:'◆', vulns:1,  ch:[0,0], asgn:{i:'JK',c:'amber'}, status:'open',       sla:'ok',      slaLabel:'7d left' },
+    { id:'JIRA-2789', provider:'jira',   marker:'jira-stack',    title:'Jinja2 template injection fix',               sev:'high',     glyph:'▲', vulns:1,  ch:[0,1], asgn:{i:'DS',c:''},      status:'completed',  sla:'ok',      slaLabel:'done 2d ago' },
+    { id:'ASA-12-78', provider:'asana',  marker:'asana-dots',    title:'Node.js 18 CLI arg injection',                sev:'low',      glyph:'○', vulns:1,  ch:[0,0], asgn:{i:'JK',c:'amber'}, status:'completed',  sla:'ok',      slaLabel:'done 5d ago' },
+  ];
+
+  function statusPill(s) {
+    if (s === 'open') return '<span class="status-pill open"><span class="dot"></span> Open</span>';
+    if (s === 'inprogress') return '<span class="status-pill inprogress"><span class="dot"></span> In progress</span>';
+    if (s === 'completed') return '<span class="status-pill completed"><span class="dot"></span> Completed</span>';
+  }
+
+  // Render A list rows
+  const aBody = document.getElementById('ticket-rows-a');
+  if (aBody) {
+    aBody.innerHTML = TICKETS.slice(0,8).map((t, idx) => `
+      <tr onclick="rowClickA(event, ${idx})">
+        <td><span class="sev-pill ${t.sev}"><span class="sev-glyph ${t.sev}">${t.glyph}</span> ${t.sev[0].toUpperCase()+t.sev.slice(1)}</span></td>
+        <td><span class="provider ${t.provider}"><div class="provider-mark ${t.provider}"><svg><use href="#i-${t.marker}"/></svg></div>${t.provider[0].toUpperCase()+t.provider.slice(1)}</span></td>
+        <td class="cell-id">${t.id}</td>
+        <td class="cell-title">${t.title}</td>
+        <td class="cell-vulns" style="text-align:center;">${t.vulns}${t.ch[0] ? ` <span style="color: var(--color-severity-critical);">·${t.ch[0]}</span>` : ''}${t.ch[1] ? ` <span style="color: var(--color-severity-high);">·${t.ch[1]}</span>` : ''}</td>
+        <td><div class="assignee-chip"><div class="avatar ${t.asgn.c}">${t.asgn.i}</div></div></td>
+        <td>${statusPill(t.status)}</td>
+        <td style="text-align:right;"><span class="sla-pill ${t.sla}">${t.slaLabel}</span></td>
+      </tr>
+    `).join('');
+  }
+  function rowClickA(e, idx) {
+    document.querySelectorAll('#variant-a tr.row-active').forEach(t => t.classList.remove('row-active'));
+    e.currentTarget.classList.add('row-active');
+    toggleDrillA(true);
+  }
+
+  // Render Kanban
+  function renderKanbanCol(elId, status) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = TICKETS.filter(t => t.status === status).map(t => `
+      <div class="kanban-card">
+        <div class="top-row">
+          <span class="provider ${t.provider}" style="padding: 1px 6px;"><div class="provider-mark ${t.provider}"><svg><use href="#i-${t.marker}"/></svg></div>${t.id}</span>
+          <span class="sla-pill ${t.sla}" style="font-size: 10px;">${t.slaLabel}</span>
+        </div>
+        <div class="title">${t.title}</div>
+        <div class="vuln-summary">
+          <span class="sev-pill ${t.sev}" style="padding: 1px 6px;"><span class="sev-glyph ${t.sev}">${t.glyph}</span></span>
+          <span>${t.vulns} vuln${t.vulns!==1?'s':''}</span>
+          ${t.ch[0] ? `<span class="crit">·${t.ch[0]} critical</span>` : ''}
+          ${t.ch[1] ? `<span class="hi">·${t.ch[1]} high</span>` : ''}
+        </div>
+        <div class="bottom-row">
+          <div class="assignee-chip"><div class="avatar ${t.asgn.c}">${t.asgn.i}</div></div>
+          <span style="font-size: 11px; color: var(--color-text-faint); font-family: var(--font-mono);">${t.id.split('-')[0]}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+  renderKanbanCol('kanban-open', 'open');
+  renderKanbanCol('kanban-inprogress', 'inprogress');
+  renderKanbanCol('kanban-completed', 'completed');
+</script>
+
+</body>
+</html>
