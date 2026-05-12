@@ -23,6 +23,7 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 | # | Name | Design Question | Winner | Tags |
 |---|------|----------------|--------|------|
 | 001 | login-sunset | Does the sunset palette + Wiz-style polish feel premium in pixels, and which "fancy level" is right? | **A · Split-screen** | login, palette, layout, polish-level |
+| 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | _pending_ | dashboard, layout, hierarchy, navigation-shell |
 
 ## Validated decisions (from sketch 001 → A)
 
