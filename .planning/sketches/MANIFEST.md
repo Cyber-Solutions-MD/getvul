@@ -26,6 +26,7 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 | 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | **B · Action-first hero** | dashboard, layout, hierarchy, navigation-shell |
 | 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | **C · Chip bar + side panel** | vulnerabilities, table, filters, density, drill-down |
 | 004 | states-sunset | How should empty / loading / error states feel in the sunset world? | All 3 approved; **C · Error (partial failure)** is the lead pattern | states, empty, loading, error, patterns |
+| 005 | asset-detail-sunset | Which detail-page layout + risk-score viz fits the sunset world? | _pending_ | asset-detail, layout, risk-score, detail-page-pattern |
 
 ## Validated decisions (from sketch 004)
 
