@@ -2,7 +2,7 @@
 sketch: 001
 name: login-sunset
 question: "Does the sunset palette (pink → violet → amber on deep plum) plus Wiz-style polish actually feel premium in pixels — and which 'fancy level' is right for GetVul?"
-winner: null
+winner: "A"
 tags: [login, palette, layout, polish-level]
 ---
 

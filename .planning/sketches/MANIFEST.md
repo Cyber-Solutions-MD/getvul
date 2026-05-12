@@ -22,7 +22,16 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 
 | # | Name | Design Question | Winner | Tags |
 |---|------|----------------|--------|------|
-| 001 | login-sunset | Does the sunset palette + Wiz-style polish feel premium in pixels, and which "fancy level" is right? | _pending_ | login, palette, layout, polish-level |
+| 001 | login-sunset | Does the sunset palette + Wiz-style polish feel premium in pixels, and which "fancy level" is right? | **A · Split-screen** | login, palette, layout, polish-level |
+
+## Validated decisions (from sketch 001 → A)
+
+- **D-08:** Sunset palette works. Pink → violet → amber on deep plum reads as premium and warm without crossing into crypto/dating-app territory.
+- **D-09:** Restrained polish wins. "Fancy" should be contained to one zone of the screen (e.g., a visual side panel, a hero block), not surrounding the form/data. Glassmorphism + iridescent strokes were too loud.
+- **D-10:** Split-screen layout language is canonical for hero/landing surfaces (login, signup, marketing). Form lives in a clean dark panel; visual + copy + UI peek lives on the gradient side.
+- **D-11:** Animated gradient mesh as the "loud" visual element. Subtle drift, not aggressive motion. Confined to dedicated zones.
+- **D-12:** Gradient CTA button (pink→violet→amber) is the universal primary-action treatment — used across all variants and survived to the winner.
+- **D-13:** Real product preview (the floating glassy vuln-list peek in the visual zone) is more compelling than abstract gradients alone. The "what is this product" is shown, not just stated.
 
 ## Process commitments
 
