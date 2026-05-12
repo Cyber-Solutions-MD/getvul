@@ -2,7 +2,7 @@
 sketch: 006
 name: tickets-sunset
 question: "How should tickets be listed and detailed — and how should provider identity (Jira / Asana / GitHub) read in the sunset world?"
-winner: null
+winner: "A (primary view); B inherits asset-detail pattern for /tickets/[id]; C deferred as future 'Board view' toggle"
 tags: [tickets, list, detail, kanban, provider-identity, sla, status-workflow]
 ---
 

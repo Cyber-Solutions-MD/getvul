@@ -27,7 +27,18 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 | 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | **C · Chip bar + side panel** | vulnerabilities, table, filters, density, drill-down |
 | 004 | states-sunset | How should empty / loading / error states feel in the sunset world? | All 3 approved; **C · Error (partial failure)** is the lead pattern | states, empty, loading, error, patterns |
 | 005 | asset-detail-sunset | Which detail-page layout + risk-score viz fits the sunset world? | **B · Two-column + metadata rail** | asset-detail, layout, risk-score, detail-page-pattern |
-| 006 | tickets-sunset | How should tickets be listed + detailed, and how should provider identity (Jira/Asana/GitHub) read? | _pending_ | tickets, list, detail, kanban, provider-identity, sla |
+| 006 | tickets-sunset | How should tickets be listed + detailed, and how should provider identity (Jira/Asana/GitHub) read? | **A · List + side panel** (primary) · B inherits asset-detail for `/tickets/[id]` · C deferred as future Board view | tickets, list, detail, kanban, provider-identity, sla |
+
+## Validated decisions (from sketch 006)
+
+- **D-36:** **List routes use the side-panel drill-down pattern** uniformly (`/vulnerabilities` and `/tickets` share this shape). Consistency across the product — analyst learns one pattern, applies everywhere.
+- **D-37:** **Provider identity uses small gradient marks + tinted chips, not real logos.** Jira → cool blue (`#5C9CFF`), Asana → coral (`#FF8AA0`), GitHub → violet (matches sunset accent). Recognizable without licensed assets and consistent with the visual system.
+- **D-38:** **SLA pills are three-tier** with monospace text: overdue (red, e.g. `−2h SLA`) · soon (amber, e.g. `4h left`) · ok (green, e.g. `3d left`). Always right-aligned in tables. Mono font keeps time deltas scannable.
+- **D-39:** **Status workflow uses a separate color family from severity** so the eye separates them: Open → violet · In progress → amber · Completed → green. Each pill has a colored dot prefix for extra scannability.
+- **D-40:** **Vulnerability count column uses condensed format**: `3 ·2 ·1` (total · critical-count · high-count, color-coded by severity). Distribution at a glance without a separate column.
+- **D-41:** **Watcher / contributor lists use avatar stacks** with `+N` overflow for excess (Gmail / Linear / GitHub pattern). Avatar uses sunset gradient or amber/violet variant for visual variety.
+- **D-42:** **Ticket detail page** (`/tickets/[id]`) follows the `/assets/[id]` pattern — two-column with sticky right rail. Main column: linked vulns, description, activity timeline, comment input. Rail: Details + People + Asset. Cross-references the linked asset's own detail page.
+- **D-43:** **Kanban is a future alternative view, not the primary**, accessible via a "List / Board" toggle in the page-head. Primary route is always List. Defer the implementation; the toggle UI is the entry point.
 
 ## Validated decisions (from sketch 005 → B)
 
