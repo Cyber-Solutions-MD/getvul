@@ -26,7 +26,16 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 | 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | **B · Action-first hero** | dashboard, layout, hierarchy, navigation-shell |
 | 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | **C · Chip bar + side panel** | vulnerabilities, table, filters, density, drill-down |
 | 004 | states-sunset | How should empty / loading / error states feel in the sunset world? | All 3 approved; **C · Error (partial failure)** is the lead pattern | states, empty, loading, error, patterns |
-| 005 | asset-detail-sunset | Which detail-page layout + risk-score viz fits the sunset world? | _pending_ | asset-detail, layout, risk-score, detail-page-pattern |
+| 005 | asset-detail-sunset | Which detail-page layout + risk-score viz fits the sunset world? | **B · Two-column + metadata rail** | asset-detail, layout, risk-score, detail-page-pattern |
+
+## Validated decisions (from sketch 005 → B)
+
+- **D-30:** **Detail pages use two-column layout with a sticky right metadata rail.** Main column carries the workflow content (vulnerabilities, remediation timeline, related actions). Right rail (340px, sticky) carries identity context (risk score, owner, host metadata, tags). Identity stays visible while the user scrolls work.
+- **D-31:** **Risk score visualization is a circular gradient ring** with the score number in the center and a 4-row breakdown next to it (critical exposures · SLA breaches · CISA KEV count · 7-day delta). The gradient stroke uses the sunset gradient (pink → violet → amber). The breakdown explains *why* the score is what it is — number alone is not enough.
+- **D-32:** **Severity breakdown ribbon** (■2 · ▲3 · ◆1 · ○1) appears at the top of any nested vulnerability list. Quick at-a-glance distribution before scanning rows.
+- **D-33:** **Owner card** pattern: avatar (gradient sunset, initials) + name + role + IdP source pill (`Okta` / `Google` / `Azure` etc. in monospace, small chrome) + email below. Reassign action in the card header for ownership transfer.
+- **D-34:** **Risk delta indicator**: up-arrow + red = "getting worse" (▲ +12 7d). Down-arrow + green = "improving" (▼ -8). Confirmed as security-domain-appropriate signal language (higher score = more risk).
+- **D-35:** **Breadcrumb pattern** for detail pages: `Assets / prod-db-01` — section parent linked, current page in mono color. Always above the page title.
 
 ## Validated decisions (from sketch 004)
 

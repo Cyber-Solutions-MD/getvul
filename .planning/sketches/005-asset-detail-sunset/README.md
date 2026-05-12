@@ -2,7 +2,7 @@
 sketch: 005
 name: asset-detail-sunset
 question: "How should the asset detail page lay out — and which risk-score visualization works best with the sunset palette?"
-winner: null
+winner: "B"
 tags: [asset-detail, layout, risk-score, detail-page-pattern, metadata-sidebar]
 ---
 
