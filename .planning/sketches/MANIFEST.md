@@ -24,7 +24,40 @@ Origin: [.planning/notes/redesign-direction-v2.md](../notes/redesign-direction-v
 |---|------|----------------|--------|------|
 | 001 | login-sunset | Does the sunset palette + Wiz-style polish feel premium in pixels, and which "fancy level" is right? | **A · Split-screen** | login, palette, layout, polish-level |
 | 002 | dashboard-sunset | Which information hierarchy answers "what should I work on right now?" — and does the palette scale to a data-heavy screen? | **B · Action-first hero** | dashboard, layout, hierarchy, navigation-shell |
-| 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | _pending_ | vulnerabilities, table, filters, density, drill-down |
+| 003 | vulnerabilities-sunset | Does sunset palette survive a dense data table? Which filter UX + density + drill-down combo fits GetVul's workflow? | **C · Chip bar + side panel** | vulnerabilities, table, filters, density, drill-down |
+
+## Validated decisions (from sketch 003 → C)
+
+- **D-20:** Sunset palette **survives** dense severity data. The deep-plum background lets red/orange/yellow severity pills breathe without becoming a fruit salad. Confirmed at full-screen and at 375px card view.
+- **D-21:** **Horizontal filter bar > vertical filter drawer.** Filters live in an inline chip bar above the table (search field + severity chips + source chips + saved-filter pill in violet + clear-all link). Frees the full table width for data. Easier to share via URL.
+- **D-22:** **Side-panel drill-down** is the canonical pattern for "scan → drill → act → close." Click a row to open a 420px right-side panel; table dims to ~60%. Panel includes: severity + KEV + exploit pills · description · CVSS score with vector · affected hosts list · remediation paragraph · action buttons (gradient CTA "Create Jira ticket" + secondary "Snooze 24h" + "Copy NVD link"). Close via × button or click another row to swap.
+- **D-23:** Severity glyphs (■ ▲ ◆ ○ □) survive both table rows and mobile cards. Three-axis encoding (color + glyph + size) holds up under density.
+- **D-24:** Tables collapse to card view at 375px width — severity pill + CVE on row 1, product on row 2, asset + SLA pill on row 3. No horizontal scroll, no truncation.
+- **D-25:** The "Triage queue" gradient CTA in the top-right **anchors** rather than fights with severity color. It sits in a different zone (action column) than the data (rows), so the eye reads them separately.
+
+## Summary of validated direction across all 3 sketches
+
+| Surface | Pattern |
+|---|---|
+| Visual language | Wiz-inspired premium SaaS, **sunset palette** (pink → violet → amber on deep plum), restrained polish (gradient/glow only in CTAs + brand mark + active-nav strip + severity, not elsewhere) |
+| Layout | **Sidebar nav (left, 220px) + topbar + main**. Sidebar has gradient brand mark + section labels + gradient-strip active indicator. Topbar has ⌘K search + bell + help + avatar chip. |
+| Login | **Split-screen** — gradient mesh + tagline + product peek on left, clean form on right. SSO buttons primary, password fields secondary. Gradient CTA. |
+| Dashboard | **Action-first hero** — eyebrow + pulsing dot + "3 critical CVEs need your eyes" + Start triage CTA. Stats demoted to a strip. Right sidebar activity feed. |
+| Data table | **Chip bar filters + side panel drill-down**. Sunset palette survives severity color. Tables collapse to cards on mobile. |
+| Severity | **Three-axis encoding** — color (red/orange/yellow/violet/blue) + Unicode glyph (■ ▲ ◆ ○ □) + size. Survives dense-data context. |
+| CTAs | **Single gradient pill** (pink → violet → amber, `--glow-cta`), used across every screen as the primary action. Secondary actions are dark-surface bordered. |
+| Motion | Subtle: hover lifts (1px), gradient drift (24s), pulsing urgency dot (2s). No page transitions designed yet. |
+| Type | **Inter** body, **JetBrains Mono** for identifiers (CVE IDs, hostnames, scores, durations, counts). Locked. |
+
+## What's not yet validated (deferred)
+
+- Empty / loading / error states (REDESIGN_PLAN flagged as top pain point)
+- Light theme — sunset translates to dark naturally; light variant untested
+- Asset detail page, ticket flow, connector onboarding
+- Settings page (was tabbed in v1, should be sidebar-of-categories per REDESIGN_PLAN)
+- Mobile bottom-nav (sidebar collapses to hamburger; bottom-nav design deferred to v2-10 equivalent)
+- Charts beyond the trend bar chart (sankey for connector health, ring for risk distribution)
+- Page transitions / route-change motion
 
 ## Validated decisions (from sketch 002 → B)
 

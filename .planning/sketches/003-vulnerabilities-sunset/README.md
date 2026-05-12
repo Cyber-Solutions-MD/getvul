@@ -2,7 +2,7 @@
 sketch: 003
 name: vulnerabilities-sunset
 question: "Does the sunset palette survive a dense data table? Which filter UX + density + drill-down combination matches GetVul's workflow best?"
-winner: null
+winner: "C"
 tags: [vulnerabilities, table, filters, density, drill-down]
 ---
 
