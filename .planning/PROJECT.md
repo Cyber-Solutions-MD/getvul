@@ -42,7 +42,7 @@ A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlate
 
 <!-- Frontend rebuild against the validated Wiz-inspired sunset-palette design system. Backed by 6 sketches + 43 design decisions in .claude/skills/sketch-findings-getvul/. -->
 
-- [ ] **UX-01**: `/login` rebuilt — split-screen with gradient mesh + SSO-primary form
+- [x] **UX-01**: `/login` rebuilt — split-screen with gradient mesh + SSO-primary form *(Phase 09, 2026-05-13 — token system, 6 primitives, persistent shell, sanitized `?next=` redirect, three-mode state machine; 12 manual browser smoke checks pending in 09-HUMAN-UAT.md)*
 - [ ] **UX-02**: `/dashboard` rebuilt — action-first hero with stat strip + activity feed
 - [ ] **UX-03**: `/vulnerabilities` rebuilt — chip-bar filters + side-panel drill-down + state patterns
 - [ ] **UX-04**: `/assets` + `/assets/[id]` rebuilt — list + two-column detail with metadata rail + risk ring
@@ -145,4 +145,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-12 — v2.0 UI/UX Redesign milestone kicked off; v1.0 phases 2–8 deferred.*
+*Last updated: 2026-05-13 — Phase 09 (`/login` + Foundation) complete: sunset token system, 6 primitives (Button/Input/SsoButton/GradientText/Form/DropdownMenu), persistent `(authed)` shell, `/login` rewrite with sanitized `?next=` redirect + three-mode state machine. Manual browser smoke checks pending.*
