@@ -45,8 +45,9 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside
-      // D-41: hide on viewports <=999px; visible on >=1000px (verbatim D-41 — uses Tailwind 3.4 arbitrary-variant max-[999px] to match exactly, NOT `lg` which is 1024px)
+    <nav
+      // D-41: hide on viewports <=999px; visible on >=1000px (verbatim D-41 — uses Tailwind 3.4 arbitrary-variant max-[999px] to match exactly, NOT `lg` which is 1024px).
+      // <nav> (not <aside>) — the sidebar's role IS navigation; aria-label disambiguates against the in-page <nav> chrome if any.
       className="max-[999px]:hidden flex w-[220px] shrink-0 flex-col border-r border-border bg-bg-darker min-h-screen"
       aria-label="Primary navigation"
     >
@@ -68,13 +69,16 @@ export function Sidebar() {
       <div className="mt-auto">
         <NavSection items={UNLABELED_ITEMS} pathname={pathname} />
       </div>
-    </aside>
+    </nav>
   );
 }
 
 function NavSection({ label, items, pathname }: { label?: string; items: NavItem[]; pathname: string | null }) {
+  // Wrapper is a plain <div> (not <nav>) because the outer <aside aria-label="Primary
+  // navigation"> is already the single navigation landmark. Nesting <nav> elements
+  // without unique aria-labels trips axe's landmark-unique rule (D-30 a11y bar).
   return (
-    <nav className="px-3 py-2">
+    <div className="px-3 py-2">
       {label && (
         <div className="px-3 pt-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-text-faint">
           {label}
@@ -114,6 +118,6 @@ function NavSection({ label, items, pathname }: { label?: string; items: NavItem
           );
         })}
       </ul>
-    </nav>
+    </div>
   );
 }
