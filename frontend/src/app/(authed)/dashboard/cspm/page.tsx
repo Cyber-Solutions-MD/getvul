@@ -37,7 +37,7 @@ interface PaginatedFindings {
 }
 
 interface ComplianceFramework {
-  framework: string;
+  name: string;
   total_controls: number;
   passed: number;
   failed: number;

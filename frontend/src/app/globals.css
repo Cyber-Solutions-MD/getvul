@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import './styles/sunset.css';
+@import '../styles/sunset.css';
 
 /* Light-theme architecture only — visual polish deferred per D-06. */
 :root[data-theme="light"] {

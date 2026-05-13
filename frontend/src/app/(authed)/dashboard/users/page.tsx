@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import ExportButton from "@/components/ui/ExportButton";
@@ -13,7 +13,7 @@ const SOURCE_COLORS: Record<string, string> = {
   local: "bg-gray-500/20 text-gray-400",
 };
 
-export default function UsersPage() {
+function UsersPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [stats, setStats] = useState<any>(null);
@@ -426,4 +426,15 @@ function timeAgo(iso: string): string {
   const diffDays = Math.floor(diffHrs / 24);
   if (diffDays < 30) return `${diffDays}d ago`;
   return `${Math.floor(diffDays / 30)}mo ago`;
+}
+
+// Suspense wrapper required because UsersPageInner calls useSearchParams().
+// Next 15 statically prerenders client pages by default; useSearchParams
+// triggers a CSR bailout that must be wrapped in Suspense.
+export default function UsersPage() {
+  return (
+    <Suspense fallback={null}>
+      <UsersPageInner />
+    </Suspense>
+  );
 }
