@@ -2,20 +2,26 @@
 phase: 09-login-foundation
 plan: 06
 type: verification
-status: human_needed
+status: complete
 verified_automated: 2026-05-13T07:03:11Z
-verified_manual: pending
+verified_manual: 2026-05-13T17:10:00Z
 verified_goal_backward: 2026-05-13T10:20:00Z
-nyquist_compliant: false
-score: 9/9 success-criteria-and-requirements verified by code; 12 manual smoke rows still pending
+nyquist_compliant: true
+score: 9/9 success-criteria-and-requirements verified by code; 12/12 manual smoke rows PASS (2 in-session fixes shipped)
 ---
 
 # Phase 9 — Verification Log
 
 **Automated gate verified:** 2026-05-13T07:03:11Z
-**Manual smoke verified:** PENDING (12 rows below await human browser session)
+**Manual smoke verified:** 2026-05-13T17:10:00Z — 12/12 PASS (details in `09-HUMAN-UAT.md`)
 **Goal-backward audit verified:** 2026-05-13T10:20:00Z (verifier — see final section)
-**Status:** automated-pass · goal-backward-pass · manual-pending
+**Status:** automated-pass · goal-backward-pass · manual-pass · COMPLETE
+
+**Two defects surfaced and fixed during the manual smoke pass:**
+1. **WR-03 mitigation** — Light theme radio in `UserChip` is now `disabled` with an `In progress` badge until D-06 / UX-D-03 ships polished light overrides. (Discovered Test 7; user-chip.tsx edit.)
+2. **Middleware location + matcher** — `frontend/middleware.ts` moved to `frontend/src/middleware.ts` (Next 15 with `src/app/` requires it inside `src/`); matcher updated to list bare paths separately (`/assets` and `/assets/:path*`, not just the latter). Curl-verified all five legacy roots return HTTP 308 to `/dashboard/...`. (Discovered Test 12.)
+
+Both fixes verified by full test suite (53/53 passing) + `tsc --noEmit` (0 errors) + restart of dev server with end-to-end curl probes.
 
 > Wave 5 verification per `09-06-PLAN.md`. The automated phase gate (test, lint, build, tsc, !important, font-swap, HSL-bridge sweep, file inventory, deletion confirmation, orphaned-import scan) has run and is captured below. The 12-row Manual Smoke section is intentionally empty pending the human verifier's browser session — Plan 09-06 is marked `autonomous: false` for exactly this reason. A goal-backward audit was performed by the verifier as a second pass; results appended at the end.
 
@@ -119,19 +125,19 @@ Conclusion: zero orphaned imports, zero dead references introduced by the Wave 2
 
 | #   | Behavior                                                                                  | Requirement      | Status   | Notes |
 | --- | ----------------------------------------------------------------------------------------- | ---------------- | -------- | ----- |
-| 1   | Split-screen renders correctly at 1280px — mesh left, form right, side-by-side with the sketch | UX-01-01         | pending  |       |
-| 2   | Mobile collapse at 360px — no horizontal scroll on `/login` or `/dashboard`               | UX-01-01 + D-41  | pending  |       |
-| 3   | Inter + JetBrains Mono load without FOIT (DevTools Network panel, two woff2 requests, `display:swap` honored) | UX-01-04         | pending  |       |
-| 4   | End-to-end login → seed admin → land on `/dashboard` inside the `(authed)` shell          | Phase 9 §5 + §6  | pending  |       |
-| 5   | `?next=` preservation — `/login?next=/dashboard/vulnerabilities` lands at target after login | Phase 9 §5 + D-50 | pending |       |
-| 6   | Open-redirect mitigation (runtime) — `?next=//evil.com`, `?next=https://evil.com`, `?next=/\evil.com` all land at `/dashboard` | Pitfall 10       | pending  |       |
-| 7   | Theme toggle persists across reload — UserChip → Theme: Light → reload → still light, no flash | D-38 + D-13      | pending  |       |
-| 8   | Reduced-motion honored — macOS Reduce-motion ON → `/login` gradient mesh is static        | D-12             | pending  |       |
-| 9a  | `/dev/primitives` accessible in dev mode (renders the state matrix)                       | D-31             | pending  |       |
-| 9b  | `/dev/primitives` returns 404 in production build (`npm run build && npm run start`)     | D-31 + OQ 6      | pending  |       |
-| 10  | Forgot-password flow → generic confirmation (Pitfall 9) `If that email is registered, a reset token is on its way.` | UX-01-04 + Pitfall 9 | pending |   |
-| 11  | `?reset=TOKEN` deep-link → reset mode + token pre-filled, SSO HIDDEN, autofocus on new password | D-43         | pending  |       |
-| 12  | Legacy URL redirects — `/assets` → `/dashboard/assets` (308); `/tickets/T-001` → `/dashboard/tickets/T-001` | Open Question 2 | pending |       |
+| 1   | Split-screen renders correctly at 1280px — mesh left, form right, side-by-side with the sketch | UX-01-01         | PASS  | Visual fidelity confirmed.    |
+| 2   | Mobile collapse at 360px — no horizontal scroll on `/login` or `/dashboard`               | UX-01-01 + D-41  | PASS  | Verified at iPhone 14 Pro Max (430×932). Mobile replacement nav is scoped to Phase 15. |
+| 3   | Inter + JetBrains Mono load without FOIT (DevTools Network panel, two woff2 requests, `display:swap` honored) | UX-01-04         | PASS  | Two distinct woff2 files (41.5 kB + 49.4 kB), both 200, DOMContentLoaded 112ms / Load 547ms; no `data-theme` hydration warnings. |
+| 4   | End-to-end login → seed admin → land on `/dashboard` inside the `(authed)` shell          | Phase 9 §5 + §6  | PASS  | Land inside `(authed)` shell; no white flash; D-35 active-state confirmed. |
+| 5   | `?next=` preservation — `/login?next=/dashboard/vulnerabilities` lands at target after login | Phase 9 §5 + D-50 | PASS | Verified with `?next=%2Fdashboard%2Ftickets`. |
+| 6   | Open-redirect mitigation (runtime) — `?next=//evil.com`, `?next=https://evil.com`, `?next=/\evil.com` all land at `/dashboard` | Pitfall 10       | PASS  | All three malicious values sanitized; landed on `/dashboard` not off-site. |
+| 7   | Theme toggle persists across reload — UserChip → Theme: Light → reload → still light, no flash | D-38 + D-13      | PASS  | Mechanism + persistence (`localStorage.getvul_theme`) + `<html data-theme="…">` attribute verified. WR-03 visual brokenness in Light confirmed and mitigated: Light radio now `disabled` with `In progress` badge until D-06 / UX-D-03. |
+| 8   | Reduced-motion honored — macOS Reduce-motion ON → `/login` gradient mesh is static        | D-12             | PASS  | Both directions verified — static under reduce-motion ON, drift returns when OFF. |
+| 9a  | `/dev/primitives` accessible in dev mode (renders the state matrix)                       | D-31             | PASS  | Full state matrix renders: Button variants/sizes/states/asChild; Input types incl. password eye-toggle + error red border + disabled; SsoButton both providers; GradientText accent. |
+| 9b  | `/dev/primitives` returns 404 in production build (`npm run build && npm run start`)     | D-31 + OQ 6      | PASS  | `npm run build && npm run start`; `curl http://localhost:3000/dev/primitives` returned HTTP 404. Runtime `NODE_ENV === 'production' && notFound()` gate fires as designed. |
+| 10  | Forgot-password flow → generic confirmation (Pitfall 9) `If that email is registered, a reset token is on its way.` | UX-01-04 + Pitfall 9 | PASS | Mode-gating + anti-enumeration verbatim copy confirmed; `Back to sign in` restores login mode. |
+| 11  | `?reset=TOKEN` deep-link → reset mode + token pre-filled, SSO HIDDEN, autofocus on new password | D-43         | PASS  | All four sub-criteria verified at `/login?reset=test-token-123`. |
+| 12  | Legacy URL redirects — `/assets` → `/dashboard/assets` (308); `/tickets/T-001` → `/dashboard/tickets/T-001` | Open Question 2 | PASS (with in-session fix) | Initial test failed (HTTP 404). Root cause: `middleware.ts` was at `frontend/middleware.ts` but Next 15 with `src/app/` requires `frontend/src/middleware.ts`; additionally `/assets/:path*` matcher didn't match bare `/assets`. Both fixed in-session. All 5 legacy roots curl-verified returning HTTP 308 to `/dashboard/...`. See `09-HUMAN-UAT.md` Gaps for recommended integration-test follow-up. |
 
 **How to run the smoke pass:** see Task 2 in `09-06-PLAN.md` for the verbatim 12-step browser script. Two terminal tabs (backend via `install.sh` setup, frontend via `cd frontend && npm run dev`); seed admin credentials from `install.sh` default; DevTools open at the start; OS-level reduced-motion toggled for #8; clean `npm run build && npm run start` swap for #9b.
 
@@ -139,16 +145,16 @@ Conclusion: zero orphaned imports, zero dead references introduced by the Wave 2
 
 ## Sign-off
 
-> Populate after the manual smoke pass completes.
+> Manual smoke pass complete 2026-05-13T17:10:00Z. Two in-session fixes shipped during testing; both verified.
 
 | Criterion                              | Status |
 | -------------------------------------- | ------ |
 | All automated checks green             | PASS (with `npm run lint` documented deferred — see Open Items) |
-| All manual smoke rows pass             | PENDING |
-| Variant-A visual fidelity matched      | PENDING |
-| No open security concerns              | PENDING |
+| All manual smoke rows pass             | PASS — 12/12 (see `09-HUMAN-UAT.md`) |
+| Variant-A visual fidelity matched      | PASS — Test 1 confirmed at 1280px |
+| No open security concerns              | PASS — Pitfall 9 (anti-enumeration) and Pitfall 10 (open-redirect) confirmed in browser |
 
-**Phase 9 status:** automated-pass · goal-backward-pass · manual-pending — sign-off blocked on human verifier completing rows 1–12.
+**Phase 9 status:** automated-pass · goal-backward-pass · manual-pass · COMPLETE.
 
 ---
 
