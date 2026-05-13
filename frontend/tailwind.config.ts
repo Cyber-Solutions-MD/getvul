@@ -9,8 +9,9 @@ const config: Config = {
         // Surfaces (D-09)
         bg:           'var(--color-bg)',
         'bg-darker':  'var(--color-bg-darker)',
-        surface:      'var(--color-surface)',
-        'surface-2':  'var(--color-surface-2)',
+        surface:         'var(--color-surface)',
+        'surface-2':     'var(--color-surface-2)',
+        'surface-glass': 'var(--color-surface-glass)',
         // Borders
         border:           'var(--color-border)',
         'border-subtle':  'var(--color-border-subtle)',
