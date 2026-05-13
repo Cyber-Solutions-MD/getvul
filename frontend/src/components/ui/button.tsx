@@ -54,6 +54,25 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const Comp = asChild ? Slot : 'button';
+    // Radix Slot requires a single React element as its child. When asChild=true,
+    // the consumer's child already wraps content as needed — we pass it through
+    // unchanged so Slot can merge our props (className, ref, disabled, etc.) onto it.
+    // leftIcon/rightIcon/loading affordances are intentionally only rendered when
+    // asChild=false (i.e., we own the <button> wrapper). D-23: asChild is polymorphism,
+    // not a full feature parity guarantee.
+    if (asChild) {
+      return (
+        <Comp
+          ref={ref}
+          className={cn(buttonVariants({ variant, size }), className)}
+          disabled={disabled || loading}
+          aria-busy={loading || undefined}
+          {...props}
+        >
+          {children}
+        </Comp>
+      );
+    }
     return (
       <Comp
         ref={ref}
