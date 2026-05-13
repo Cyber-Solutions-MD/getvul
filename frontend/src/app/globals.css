@@ -2,126 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  /* Dark theme (default) */
-  :root,
-  .dark {
-    --bg-primary: #030712;
-    --bg-secondary: #0a0f1a;
-    --bg-card: #111827;
-    --bg-hover: #1f2937;
-    --bg-input: #1f2937;
-    --border-primary: #1f2937;
-    --border-secondary: #374151;
-    --text-primary: #ffffff;
-    --text-secondary: #d1d5db;
-    --text-muted: #9ca3af;
-    --text-faint: #6b7280;
+@import './styles/sunset.css';
 
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 222.2 47.4% 11.2%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 223 47% 11%;
-    --muted-foreground: 215.4 16.3% 56.9%;
-    --accent: 216 34% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
-    --ring: 224 64% 33%;
-    color-scheme: dark;
+/* Light-theme architecture only — visual polish deferred per D-06. */
+:root[data-theme="light"] {
+  --color-bg:            #FAF7F2;
+  --color-bg-darker:     #F2EDE5;
+  --color-surface:       #FFFFFF;
+  --color-surface-2:     #F7F2EA;
+  --color-surface-glass: rgba(255, 255, 255, 0.65);
+  --color-border:        #E5DDD0;
+  --color-border-subtle: #EFE9DF;
+  --color-border-strong: #D4C9B5;
+  --color-text:          #1A1430;
+  --color-text-muted:    #5C5474;
+  --color-text-faint:    #8A8298;
+  --color-text-inverse:  #F0E8FF;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Global focus-visible — D-11 */
+*:focus-visible {
+  outline: 2px solid var(--color-violet);
+  outline-offset: 2px;
+}
+
+/* Pink-tinted selection — D-14 */
+::selection {
+  background: var(--color-pink);
+  color: var(--color-text-inverse);
+}
+
+/* Sunset-tinted scrollbar — D-14 */
+html { scrollbar-color: var(--color-border-strong) var(--color-bg); }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 6px; }
+
+/* Reduced-motion override — D-12. The only force-priority declarations in this file. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
+}
 
-  /* Light theme */
-  .light {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f9fafb;
-    --bg-card: #ffffff;
-    --bg-hover: #f3f4f6;
-    --bg-input: #f9fafb;
-    --border-primary: #e5e7eb;
-    --border-secondary: #d1d5db;
-    --text-primary: #111827;
-    --text-secondary: #374151;
-    --text-muted: #6b7280;
-    --text-faint: #9ca3af;
-
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 47.4% 11.2%;
-    color-scheme: light;
-  }
-
-  /* Theme-aware overrides for hardcoded Tailwind dark classes */
-  .light .bg-gray-950 { background-color: var(--bg-primary) !important; }
-  .light .bg-gray-900 { background-color: var(--bg-secondary) !important; }
-  .light .bg-gray-900\/50 { background-color: rgba(249,250,251,0.5) !important; }
-  .light .bg-gray-900\/70 { background-color: rgba(249,250,251,0.7) !important; }
-  .light .bg-gray-800 { background-color: var(--bg-hover) !important; }
-  .light .bg-gray-800\/50 { background-color: rgba(243,244,246,0.5) !important; }
-  .light .bg-gray-800\/30 { background-color: rgba(243,244,246,0.3) !important; }
-  .light .bg-gray-700 { background-color: #e5e7eb !important; }
-
-  .light .text-white { color: var(--text-primary) !important; }
-  .light .text-gray-300 { color: var(--text-secondary) !important; }
-  .light .text-gray-400 { color: var(--text-muted) !important; }
-  .light .text-gray-500 { color: var(--text-faint) !important; }
-  .light .text-gray-600 { color: #9ca3af !important; }
-
-  .light .border-gray-800 { border-color: var(--border-primary) !important; }
-  .light .border-gray-700 { border-color: var(--border-secondary) !important; }
-  .light .border-gray-800\/50 { border-color: rgba(229,231,235,0.5) !important; }
-
-  .light .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-primary) !important; }
-  .light .divide-gray-700 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-secondary) !important; }
-  .light .divide-gray-800\/50 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(229,231,235,0.5) !important; }
-
-  .light .bg-gray-950\/80 { background-color: rgba(255,255,255,0.8) !important; }
-
-  .light .placeholder-gray-500::placeholder { color: #9ca3af !important; }
-  .light .placeholder-gray-600::placeholder { color: #6b7280 !important; }
-
-  .light .hover\:bg-gray-800:hover { background-color: var(--bg-hover) !important; }
-  .light .hover\:bg-gray-800\/50:hover { background-color: rgba(243,244,246,0.5) !important; }
-  .light .hover\:bg-gray-700:hover { background-color: #e5e7eb !important; }
-  .light .hover\:text-white:hover { color: var(--text-primary) !important; }
-  .light .hover\:text-gray-300:hover { color: var(--text-secondary) !important; }
-  .light .hover\:border-gray-600:hover { border-color: #d1d5db !important; }
-  .light .hover\:border-gray-700:hover { border-color: #d1d5db !important; }
-
-  .light .focus\:border-indigo-500:focus { border-color: #6366f1 !important; }
-
-  .light input, .light select, .light textarea {
-    background-color: var(--bg-input) !important;
-    color: var(--text-primary) !important;
-    border-color: var(--border-secondary) !important;
-  }
-
-  * {
-    border-color: hsl(var(--border));
-  }
-  body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-  }
+/* Animation keyframes — D-15. Phase 9 only consumes gradient-drift; others
+   are pre-declared so phases 10+ don't need to touch globals.css again. */
+@keyframes pulse-urgency {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.6); }
+  50%      { box-shadow: 0 0 0 8px rgba(248, 113, 113, 0); }
+}
+@keyframes gradient-drift {
+  0%, 100% { transform: scale(1) translate(0, 0); }
+  50%      { transform: scale(1.1) translate(-2%, 1%); }
+}
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+@keyframes cta-shine-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
