@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import tailwindcssAnimate from 'tailwindcss-animate';
 
 const config: Config = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
@@ -92,7 +93,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],  // D-16: NO @tailwindcss/forms, NO @tailwindcss/typography
+  plugins: [tailwindcssAnimate],  // D-16: NO @tailwindcss/forms, NO @tailwindcss/typography. tailwindcss-animate added by Wave 1 — shadcn-generated DropdownMenu animation classes (data-[state=open]:animate-in, fade-out-0, zoom-out-95, slide-in-from-top-2, etc.) require it.
 };
 
 export default config;
