@@ -42,11 +42,19 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // `/assets/:path*` only matches when there IS a trailing path segment
+  // (i.e. /assets/foo), so the bare /assets has to be listed separately
+  // or the middleware never runs and Next falls through to 404.
   matcher: [
+    '/assets',
     '/assets/:path*',
+    '/integrations',
     '/integrations/:path*',
+    '/settings',
     '/settings/:path*',
+    '/tickets',
     '/tickets/:path*',
+    '/vulnerabilities',
     '/vulnerabilities/:path*',
   ],
 };
