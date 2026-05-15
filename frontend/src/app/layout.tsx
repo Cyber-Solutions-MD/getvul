@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth';
 import { ThemeProvider } from '@/lib/theme';
+import { Providers } from './providers';
 
 const fontSans = Inter({
   subsets: ['latin'],
@@ -54,7 +55,14 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          {/* <Providers> mounts QueryClientProvider at the ROOT layout so /login
+              and (authed)/* share one TanStack cache. Pre-Phase 10, the provider
+              lived inside (authed)/layout.tsx; logout's qc.clear() (D-D-09)
+              forced the hoist — AuthProvider must be a descendant of
+              QueryClientProvider on every route. */}
+          <Providers>
+            <AuthProvider>{children}</AuthProvider>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>
