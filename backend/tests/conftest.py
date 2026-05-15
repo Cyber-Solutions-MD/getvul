@@ -6,12 +6,27 @@ Phase 1 requires:
     (httpx.ASGITransport does NOT trigger lifespan — D-15, RESEARCH Pitfall 2).
   - Two independent app instances for the cross-replica integration suite
     (PROD-01-03).
+
+Phase 10 adds (Plan 10-01):
+  - A small fixture surface for backend behavioural tests against the live
+    SQLAlchemy session: `db_session`, `tenant_a` / `tenant_b`, role-scoped
+    users (`analyst_user`, `viewer_user`, `analyst_user_b`), and an
+    authenticated `client` that injects each role's JWT and bypasses
+    `get_current_user` via FastAPI dependency_overrides (so we do NOT have
+    to spin up the OIDC flow or seed an IdP per test).
+  - All fixtures skip cleanly with `pytest.skip(reason=...)` if Postgres is
+    not reachable so the suite does not error during collection on
+    environments without a running database (CI provides one; sandboxed
+    dev environments may not).
 """
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncIterator
+from typing import Any
 
+import pytest
 import pytest_asyncio
 import redis.asyncio as redis
 from asgi_lifespan import LifespanManager
@@ -92,3 +107,184 @@ async def two_apps(flushed_redis, app_factory):
         ) as client_b,
     ):
         yield client_a, client_b
+
+
+# ── Phase 10 fixtures (Plan 10-01) ──────────────────────────────────────────
+#
+# These fixtures provide a behavioural-test surface against a real Postgres.
+# They are intentionally narrow (only the keys called out in the plan's
+# <interfaces> block) so existing Phase 1 / Phase 9 fixtures stay untouched.
+#
+# Skip semantics: if Postgres is unreachable (no DATABASE_URL or connection
+# fails) each fixture skips with a clear reason so pytest can still collect
+# files cleanly in sandboxed environments.
+# ────────────────────────────────────────────────────────────────────────────
+
+
+async def _db_reachable() -> bool:
+    """Return True iff the configured DATABASE_URL accepts a connection."""
+    try:
+        from sqlalchemy import text
+
+        from app.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            await session.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session(redis_test_url) -> AsyncIterator[Any]:
+    """Yield an AsyncSession; skip the test if Postgres is unreachable.
+
+    Used by behavioural tests that need direct DB access (seeding, asserting
+    audit rows, etc). Phase 10-01 tests reference this fixture by name.
+    """
+    if not await _db_reachable():
+        pytest.skip("Postgres not reachable — set DATABASE_URL to a live instance")
+    from app.db.session import async_session_factory
+
+    async with async_session_factory() as session:
+        try:
+            yield session
+        finally:
+            await session.rollback()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def tenant_a(db_session) -> AsyncIterator[uuid.UUID]:
+    """Create an isolated tenant for the test; cleaned up afterwards."""
+    from app.tenants.models import Tenant
+
+    tenant = Tenant(
+        name=f"Tenant A {uuid.uuid4().hex[:8]}",
+        slug=f"tenant-a-{uuid.uuid4().hex[:8]}",
+        domain=f"tenant-a-{uuid.uuid4().hex[:8]}.test",
+        idp_provider="GOOGLE",
+        idp_tenant_id="test-a",
+    )
+    db_session.add(tenant)
+    await db_session.flush()
+    yield tenant.id
+    # cleanup is implicit via rollback in db_session fixture
+
+
+@pytest_asyncio.fixture(scope="function")
+async def tenant_b(db_session) -> AsyncIterator[uuid.UUID]:
+    """Create a second tenant for cross-tenant (IDOR) tests."""
+    from app.tenants.models import Tenant
+
+    tenant = Tenant(
+        name=f"Tenant B {uuid.uuid4().hex[:8]}",
+        slug=f"tenant-b-{uuid.uuid4().hex[:8]}",
+        domain=f"tenant-b-{uuid.uuid4().hex[:8]}.test",
+        idp_provider="GOOGLE",
+        idp_tenant_id="test-b",
+    )
+    db_session.add(tenant)
+    await db_session.flush()
+    yield tenant.id
+
+
+# Convenience alias — most Phase-10 tests use a single tenant and ask for
+# `tenant_id`. This is the same as `tenant_a` so test code can read naturally.
+@pytest_asyncio.fixture(scope="function")
+async def tenant_id(tenant_a) -> uuid.UUID:
+    return tenant_a
+
+
+async def _make_user(db_session, tenant_id: uuid.UUID, role: str, email_prefix: str):
+    from app.auth.schemas import CurrentUser
+    from app.tenants.models import User
+
+    u = User(
+        tenant_id=tenant_id,
+        email=f"{email_prefix}-{uuid.uuid4().hex[:8]}@test.local",
+        display_name=f"{role} test",
+        role=role,
+        idp_subject=f"test-{uuid.uuid4().hex[:8]}",
+    )
+    db_session.add(u)
+    await db_session.flush()
+    return CurrentUser(id=u.id, tenant_id=u.tenant_id, email=u.email, role=u.role)
+
+
+@pytest_asyncio.fixture(scope="function")
+async def analyst_user(db_session, tenant_a):
+    """ANALYST role user in tenant_a."""
+    return await _make_user(db_session, tenant_a, "ANALYST", "analyst-a")
+
+
+@pytest_asyncio.fixture(scope="function")
+async def viewer_user(db_session, tenant_a):
+    """VIEWER role user in tenant_a."""
+    return await _make_user(db_session, tenant_a, "VIEWER", "viewer-a")
+
+
+@pytest_asyncio.fixture(scope="function")
+async def admin_user(db_session, tenant_a):
+    """ADMIN role user in tenant_a."""
+    return await _make_user(db_session, tenant_a, "ADMIN", "admin-a")
+
+
+@pytest_asyncio.fixture(scope="function")
+async def analyst_user_b(db_session, tenant_b):
+    """ANALYST role user in tenant_b — used for IDOR / cross-tenant tests."""
+    return await _make_user(db_session, tenant_b, "ANALYST", "analyst-b")
+
+
+def _make_authed_client(app, user) -> AsyncClient:
+    """Build an httpx client whose every request is authed as `user`.
+
+    Uses FastAPI's dependency_overrides to bypass JWT decoding entirely —
+    so tests do NOT have to mint real tokens or invoke OIDC. This is the
+    standard FastAPI test pattern.
+    """
+    from app.auth.dependencies import get_current_user
+
+    async def _override():
+        return user
+
+    app.dependency_overrides[get_current_user] = _override
+
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://testserver")
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(redis_test_url, db_session, analyst_user) -> AsyncIterator[AsyncClient]:
+    """An authenticated httpx client wired as the analyst user in tenant A.
+
+    Default for Phase 10 behavioural tests; if a test needs a different
+    role (e.g. viewer for RBAC checks) it should use `client_for(user)`
+    via the `client_factory` fixture.
+    """
+    from app.main import create_app
+
+    app = create_app()
+    async with LifespanManager(app):
+        async with _make_authed_client(app, analyst_user) as ac:
+            yield ac
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client_factory(redis_test_url, db_session) -> AsyncIterator:
+    """Return a callable `(user) -> AsyncClient` so a single test can
+    switch identities (e.g. seed as analyst, attack as viewer).
+    """
+    from app.main import create_app
+
+    app = create_app()
+    clients: list[AsyncClient] = []
+    async with LifespanManager(app):
+
+        def _factory(user):
+            ac = _make_authed_client(app, user)
+            clients.append(ac)
+            return ac
+
+        yield _factory
+        for ac in clients:
+            await ac.aclose()
