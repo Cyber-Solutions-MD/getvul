@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, distinct, func, select
+from pydantic import BaseModel, Field
+from sqlalchemy import case, distinct, func, select, update as sql_update
 
 from app.assets.models import Asset
 from app.auth.rbac import require_analyst, require_viewer
@@ -304,6 +305,101 @@ async def update_status(
 
     await audit(db, user, "vuln.status_update", "vulnerability", str(vuln_id), {"status": body.status})
     return {"message": "Status updated", "status": body.status}
+
+
+# ── Phase 10 / Plan 01: snooze + unsnooze (D-B-04 / D-H-07 / D-H-08) ────────
+
+
+class SnoozeBody(BaseModel):
+    """POST /{vuln_id}/snooze body.
+
+    `until` defaults to now+1h server-side, bounded to <=30 days per V11
+    (T-10-02). The frontend Hero CTA `Snooze 1h` POSTs `{}` and lets the
+    server fill in the timestamp.
+    """
+
+    until: datetime | None = Field(
+        default=None,
+        description="ISO timestamp; default = now + 1h. Bounded to <=30 days per V11.",
+    )
+
+
+@router.post("/{vuln_id}/snooze")
+async def snooze_vuln(
+    vuln_id: uuid.UUID,
+    body: SnoozeBody,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+):
+    """Snooze a vulnerability — sets status='SUPPRESSED'.
+
+    Default `until` is now+1h. Maximum is now+30 days (V11 bound, T-10-02).
+    `WHERE id = vuln_id AND tenant_id = user.tenant_id` is the IDOR
+    mitigation (T-10-01, ASVS V4/V8): cross-tenant requests receive 404,
+    NOT 403 — rows you can't see don't exist.
+    """
+    now = datetime.now(UTC)
+    until = body.until or (now + timedelta(hours=1))
+    # Normalise naive datetimes that the client may have sent without a tz
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=UTC)
+
+    if until <= now:
+        raise HTTPException(400, "snooze 'until' must be in the future")
+    if until > now + timedelta(days=30):
+        raise HTTPException(400, "snooze 'until' may not exceed 30 days")
+
+    result = await db.execute(
+        sql_update(Vulnerability)
+        .where(
+            Vulnerability.id == vuln_id,
+            Vulnerability.tenant_id == user.tenant_id,  # IDOR filter — ASVS V4/V8
+        )
+        .values(status="SUPPRESSED", updated_at=now)
+    )
+    if result.rowcount == 0:
+        # IDOR pattern: foreign rows are indistinguishable from missing rows.
+        raise HTTPException(404, "Vulnerability not found")
+
+    from app.audit import audit
+
+    await audit(db, user, "vuln.snooze", "vulnerability", str(vuln_id), {"until": until.isoformat()})
+    await db.commit()
+    return {"message": "Snoozed", "until": until.isoformat()}
+
+
+@router.post("/{vuln_id}/unsnooze")
+async def unsnooze_vuln(
+    vuln_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+):
+    """Reverse a snooze — resets status='OPEN'.
+
+    Backs the D-H-08 Undo toast. Idempotent: re-firing on an already-OPEN
+    vuln returns 200 because the 8s toast window can dispatch twice if the
+    user double-clicks. Separate route from /snooze (rather than re-using
+    /snooze with `until=null`) so the `vuln.unsnooze` audit event is
+    distinguishable from `vuln.snooze` in auditor reconstructions
+    (T-10-04a). Same tenant_id IDOR filter (T-10-04b).
+    """
+    now = datetime.now(UTC)
+    result = await db.execute(
+        sql_update(Vulnerability)
+        .where(
+            Vulnerability.id == vuln_id,
+            Vulnerability.tenant_id == user.tenant_id,  # IDOR filter — ASVS V4/V8
+        )
+        .values(status="OPEN", updated_at=now)
+    )
+    if result.rowcount == 0:
+        raise HTTPException(404, "Vulnerability not found")
+
+    from app.audit import audit
+
+    await audit(db, user, "vuln.unsnooze", "vulnerability", str(vuln_id), {})
+    await db.commit()
+    return {"message": "Unsnoozed"}
 
 
 @router.post("/cve/{cve_id}/ignore")
