@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -63,6 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  // D-D-09 / T-10-11 — clear the TanStack cache on logout so a subsequent
+  // user on a shared machine can't see the previous user's cached data.
+  // Safe to call useQueryClient() here because <Providers> mounts
+  // QueryClientProvider at the root layout, above AuthProvider, on every route.
+  const qc = useQueryClient();
 
   // Load token from storage on mount
   useEffect(() => {
@@ -224,8 +230,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }).catch(() => {});
     clearAuth();
+    // D-D-09: drop the TanStack cache so the next user on a shared device
+    // doesn't see this user's queried data. T-10-11 information-disclosure
+    // mitigation. Called between clearAuth() and router.replace so the
+    // /login render starts with an empty cache.
+    qc.clear();
     router.replace("/login");
-  }, [token, router]);
+  }, [token, router, qc]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, loginSSO, logout, token }}>

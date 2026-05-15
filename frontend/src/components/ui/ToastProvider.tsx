@@ -1,11 +1,16 @@
 "use client";
 import { createContext, useCallback, useContext, useState } from "react";
-import Toast, { type ToastData } from "./Toast";
+import Toast, { type ToastData, type ToastAction } from "./Toast";
 
+// ToastInput is the public API for callers. Phase 9 callers pass {title?, message, variant?}
+// and continue to work — `duration` defaults to 3000 in Toast.tsx and `action` is optional.
 interface ToastInput {
   title?: string;
   message: string;
   variant?: "success" | "error" | "info";
+  // Phase 10 additions (D-H-08 — snooze undo flow):
+  duration?: number;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
@@ -27,6 +32,7 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
 
   const addToast = useCallback((input: ToastInput) => {
     const id = `toast-${++toastCounter}-${Date.now()}`;
+    // Spread carries `duration` + `action` through to Toast (additive surface).
     setToasts((prev) => [...prev, { id, ...input }]);
   }, []);
 
