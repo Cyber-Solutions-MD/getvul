@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -82,6 +83,9 @@ class VulnerabilityFilter(BaseModel):
     search: str | None = Field(None, description="Search CVE ID or product name")
     age_days_min: int | None = Field(None, ge=0)
     age_days_max: int | None = Field(None, ge=0)
+    # Phase 10 / D-T-01: 'triage' opts in to KEV → CVSS desc → SLA-due asc.
+    # Default (None) preserves existing severity-case-then-last_seen ordering.
+    sort: Literal["triage", "severity"] | None = None
 
 
 # ── Requests ──
@@ -109,6 +113,45 @@ class SourceCount(BaseModel):
     count: int
 
 
+class TileValue(BaseModel):
+    """One tile in the Phase 10 dashboard StatStrip.
+
+    Warning-6 fix: `value` is `int | str` because the `mttr_30d` tile is
+    formatted server-side as e.g. "4.2d" while critical_open / sla_at_risk
+    / kev are integers. Frontend TS type is `number | string`.
+    """
+
+    value: int | str
+    delta: int | None = None
+    delta_direction: Literal["up", "down", "flat"] | None = None
+
+
+class DashboardTiles(BaseModel):
+    """The 4 tiles rendered in the StatStrip per D-S-01..04."""
+
+    critical_open: TileValue
+    sla_at_risk: TileValue
+    kev: TileValue
+    mttr_30d: TileValue
+
+
+class TopVuln(BaseModel):
+    """Highest-CVSS OPEN CRITICAL row for the Hero per D-B-02 / D-H-03.
+
+    Blocker-2 fix: `id` (UUID) is required so the frontend Hero CTA can
+    fire POST /vulnerabilities/{id}/snooze and /unsnooze. `cve_id` is the
+    human-facing label; `id` is the IDOR-safe primary key.
+    """
+
+    id: uuid.UUID
+    cve_id: str | None = None
+    host: str | None = None
+    path: str | None = None
+    cvss: Decimal | None = None
+    on_kev: bool = False
+    exploited: bool = False
+
+
 class DashboardStats(BaseModel):
     total_vulnerabilities: int
     open_vulnerabilities: int
@@ -118,3 +161,10 @@ class DashboardStats(BaseModel):
     cisa_kev_count: int
     correlated_cves: int
     mttr_days: float | None = None
+    # ── Phase 10 additive extensions (D-B-02 / D-O-01) ──
+    dashboard_tiles: DashboardTiles | None = None
+    top_vuln: TopVuln | None = None
+    vuln_open_count: int = 0
+    asset_total_count: int = 0
+    ticket_open_count: int = 0
+    onboarding_state: Literal["no_scanners", "no_data_yet", "ready"] = "no_scanners"

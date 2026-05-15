@@ -40,6 +40,12 @@ async def list_vulns(
     user: Annotated[CurrentUser, Depends(require_viewer)],
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    limit: int | None = Query(
+        None,
+        ge=1,
+        le=200,
+        description="Alias for page_size — Phase 10 frontend Top-5 card uses ?limit=5",
+    ),
     severity: list[str] | None = Query(None),
     source: list[str] | None = Query(None),
     status: list[str] | None = Query(None),
@@ -50,8 +56,12 @@ async def list_vulns(
     search: str | None = Query(None),
     age_days_min: int | None = Query(None, ge=0),
     age_days_max: int | None = Query(None, ge=0),
+    # D-T-01: ?sort=triage opts in to KEV → CVSS desc → SLA-due asc ordering.
+    sort: str | None = Query(None, description="Optional sort mode: 'triage' or 'severity'"),
 ):
     """List vulnerabilities with filtering and pagination."""
+    # Pydantic-validated sort: route into VulnerabilityFilter, which uses
+    # Literal['triage','severity'] so unknown values surface as 422.
     filters = VulnerabilityFilter(
         severity=severity,
         source=source,
@@ -63,8 +73,11 @@ async def list_vulns(
         search=search,
         age_days_min=age_days_min,
         age_days_max=age_days_max,
+        sort=sort,
     )
-    pagination = PaginationParams(page=page, page_size=page_size)
+    # `limit` is the Phase-10-friendly alias; page_size remains the canonical name.
+    effective_page_size = limit if limit is not None else page_size
+    pagination = PaginationParams(page=page, page_size=effective_page_size)
     return await list_vulnerabilities(db, user.tenant_id, filters, pagination)
 
 

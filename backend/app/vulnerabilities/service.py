@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Select, case, func, or_, select, update
+from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
@@ -79,7 +79,19 @@ async def list_vulnerabilities(
         _apply_filters(select(Vulnerability), tenant_id, filters)
         .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
         .add_columns(Asset.hostname.label("asset_hostname"))
-        .order_by(
+    )
+
+    # D-T-01: 'triage' sort = KEV desc → CVSS desc → SLA-due asc.
+    # nulls_last() so missing CVSS / SLA dates don't bubble to the top.
+    if filters.sort == "triage":
+        data_q = data_q.order_by(
+            desc(Vulnerability.cisa_kev),
+            nulls_last(desc(Vulnerability.cvss_v3_score)),
+            nulls_last(asc(Vulnerability.sla_due_at)),
+        )
+    else:
+        # Existing severity-case ordering — unchanged.
+        data_q = data_q.order_by(
             case(
                 (Vulnerability.severity == "CRITICAL", 1),
                 (Vulnerability.severity == "HIGH", 2),
@@ -89,9 +101,8 @@ async def list_vulnerabilities(
             ),
             Vulnerability.last_seen_at.desc(),
         )
-        .offset(pagination.offset)
-        .limit(pagination.page_size)
-    )
+
+    data_q = data_q.offset(pagination.offset).limit(pagination.page_size)
     results = (await db.execute(data_q)).all()
 
     items = []
@@ -279,6 +290,20 @@ async def get_dashboard_stats(
     )
     mttr = (await db.execute(mttr_q)).scalar_one()
 
+    # ── Phase 10 / Plan 01 additive fields ──
+    # Computed in dashboard.py for isolation; every helper is tenant-scoped.
+    from app.vulnerabilities.dashboard import (
+        compute_dashboard_tiles_v10,
+        compute_nav_counts_v10,
+        compute_top_vuln_v10,
+        detect_onboarding_state,
+    )
+
+    dashboard_tiles = await compute_dashboard_tiles_v10(db, tenant_id)
+    top_vuln = await compute_top_vuln_v10(db, tenant_id)
+    nav_counts = await compute_nav_counts_v10(db, tenant_id)
+    onboarding_state = await detect_onboarding_state(db, tenant_id)
+
     return DashboardStats(
         total_vulnerabilities=total,
         open_vulnerabilities=open_count,
@@ -288,4 +313,10 @@ async def get_dashboard_stats(
         cisa_kev_count=kev_count,
         correlated_cves=correlated,
         mttr_days=round(float(mttr), 1) if mttr else None,
+        dashboard_tiles=dashboard_tiles,
+        top_vuln=top_vuln,
+        vuln_open_count=nav_counts["vuln_open_count"],
+        asset_total_count=nav_counts["asset_total_count"],
+        ticket_open_count=nav_counts["ticket_open_count"],
+        onboarding_state=onboarding_state,
     )
