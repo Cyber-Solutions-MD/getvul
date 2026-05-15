@@ -45,7 +45,10 @@ describe('useTopTriage', () => {
     await waitFor(() => {
       expect(qc.getQueryCache().findAll().length).toBeGreaterThan(0);
     });
-    const opts = qc.getQueryCache().findAll()[0]!.options;
+    const opts = qc.getQueryCache().findAll()[0]!.options as unknown as Record<
+      string,
+      unknown
+    >;
     expect(opts.staleTime).toBe(60_000);
     expect(opts.retry).toBe(0);
   });

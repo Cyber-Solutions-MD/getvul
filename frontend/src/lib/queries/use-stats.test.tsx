@@ -64,7 +64,12 @@ describe('useStats', () => {
     await waitFor(() => {
       expect(qc.getQueryCache().findAll().length).toBeGreaterThan(0);
     });
-    const opts = qc.getQueryCache().findAll()[0]!.options;
+    // QueryCache.options is typed narrowly; the runtime carries the full
+    // useQuery argument set (D-D-06/07 fields). Cast to read them.
+    const opts = qc.getQueryCache().findAll()[0]!.options as unknown as Record<
+      string,
+      unknown
+    >;
     expect(opts.staleTime).toBe(60_000);
     expect(opts.retry).toBe(1);
     expect(opts.refetchOnWindowFocus).toBe(true);

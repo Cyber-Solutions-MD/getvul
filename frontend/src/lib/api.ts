@@ -39,7 +39,7 @@ export async function api<T = any>(
   path: string,
   options: FetchOptions = {}
 ): Promise<T> {
-  const { token, headers: customHeaders, ...rest } = options;
+  const { token, headers: customHeaders, signal, ...rest } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -47,14 +47,16 @@ export async function api<T = any>(
     ...(customHeaders as Record<string, string>),
   };
 
-  let res = await fetch(`${API_URL}${path}`, { headers, ...rest });
+  // Phase 10 / RESEARCH Pattern 5: signal pass-through is explicit so
+  // TanStack Query can cancel both the initial fetch and the post-refresh retry.
+  let res = await fetch(`${API_URL}${path}`, { headers, signal, ...rest });
 
   // Auto-refresh on 401
   if (res.status === 401 && !token) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
       headers.Authorization = `Bearer ${getToken()}`;
-      res = await fetch(`${API_URL}${path}`, { headers, ...rest });
+      res = await fetch(`${API_URL}${path}`, { headers, signal, ...rest });
     } else {
       // Refresh failed — redirect to login
       if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
