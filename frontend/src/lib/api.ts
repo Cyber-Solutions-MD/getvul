@@ -29,6 +29,10 @@ async function tryRefreshToken(): Promise<boolean> {
 
 interface FetchOptions extends RequestInit {
   token?: string;
+  // Phase 10 (D-D / RESEARCH Pattern 5): explicit AbortSignal pass-through so
+  // TanStack Query can cancel in-flight fetches when a query unmounts or refetches.
+  // Already inherited via RequestInit; annotated here for discoverability + grep.
+  signal?: AbortSignal | null;
 }
 
 export async function api<T = any>(
