@@ -55,7 +55,7 @@ created: 2026-05-15
 | UX-02-02 | `/stats.dashboard_tiles` returns 4 tiles + delta_7d computed from `DailySnapshot` | behavioral, integration | pytest | `pytest backend/tests/test_dashboard_tiles.py` | ❌ W0 | ⬜ |
 | UX-02-03 | TrendChart renders stacked bars with 4 severity colors via CSS variables | behavioral, regression | unit | `vitest run frontend/src/components/ui/trend-chart.test.tsx` | ❌ W0 | ⬜ |
 | UX-02-03 | TrendChart visually-hidden `<table>` (30 rows × 4 severities + totals) | accessibility | unit + axe | (same file, axe block) | ❌ W0 | ⬜ |
-| UX-02-03 | Recharts route-split — absent from `/dashboard` main chunk | performance | manual + script | `cd frontend && npm run build && node scripts/check-bundle.mjs --route /dashboard --max-kb 184` | ❌ W0 (script) | ⬜ |
+| UX-02-03 | Recharts route-split — absent from `/dashboard` main chunk | performance | manual + script | `cd frontend && npm run build && node scripts/check-bundle.mjs --route /dashboard --max-kb 180` | ❌ W0 (script) | ⬜ |
 | UX-02-03 | Range toggle URL-syncs (`?range=7d`) + clamps invalid input | behavioral, integration, security | unit | `vitest run frontend/src/hooks/use-url-state.test.ts` | ❌ W0 | ⬜ |
 | UX-02-03 | `/trends?days=30` returns `severity_trends: {date: {c,h,m,l}, …}` length 30 | behavioral, integration | pytest | `pytest backend/tests/test_severity_trends.py` | ❌ W0 | ⬜ |
 | UX-02-04 | Top5Card renders 5 rows: severity glyph + CVE mono + asset + score + SLA pill | behavioral, visual-fidelity | unit | `vitest run frontend/src/components/dashboard/top5-card.test.tsx` | ❌ W0 | ⬜ |
@@ -98,18 +98,26 @@ created: 2026-05-15
 
 Files Wave 0 of the plan MUST create before any feature task runs. Tests start red; feature tasks turn them green.
 
+**Sampling-rate concession for primitive tests (Warning 10 — option b):** Primitive test files (`card.test.tsx`, `stat.test.tsx`, `stat-strip.test.tsx`, `activity-feed.test.tsx`, `error-boundary.test.tsx`, `trend-chart.test.tsx`, `trend-chart.motion.test.tsx`) are created **tdd-within-task** by Wave 1 plans (10-03, 10-04). Tests + implementation land in the same commit. Sampling continuity is preserved because no 3 consecutive Wave 1 tasks are testless — every primitive task carries its own `.test.tsx` per `<task tdd="true">` contract. The Wave 0 list below reflects this: those primitive tests are no longer pre-created in a separate RED-only Wave 0 step.
+
 - [ ] `frontend/src/components/dashboard/hero.test.tsx` — UX-02-01 + UX-02-06 (quiet-win)
 - [ ] `frontend/src/components/dashboard/top5-card.test.tsx` — UX-02-04
 - [ ] `frontend/src/components/dashboard/onboarding-panel.test.tsx` — UX-02-06
-- [ ] `frontend/src/components/ui/card.test.tsx` · `stat.test.tsx` · `stat-strip.test.tsx` · `activity-feed.test.tsx` · `trend-chart.test.tsx` · `trend-chart.motion.test.tsx` · `error-boundary.test.tsx`
+- [ ] `frontend/src/components/ui/card.test.tsx` · `stat.test.tsx` · `stat-strip.test.tsx` · `activity-feed.test.tsx` · `trend-chart.test.tsx` · `trend-chart.motion.test.tsx` · `error-boundary.test.tsx`  *(created tdd-within-task by Plans 10-03/10-04, not pre-created here — Warning 10 concession)*
 - [ ] `frontend/src/lib/mutations/use-snooze.test.tsx`
 - [ ] `frontend/src/lib/queries/use-stats.test.tsx` · `use-trends.test.tsx` · `use-top-triage.test.tsx` · `use-recent-notifications.test.tsx`
 - [ ] `frontend/src/hooks/use-document-title.test.ts` · `use-url-state.test.ts` · `use-prefers-reduced-motion.test.ts`
 - [ ] `frontend/src/lib/api.test.ts` — extend if Phase 9 didn't cover 401 retry-after-refresh
+- [ ] `frontend/src/components/ui/toast.test.tsx` — asserts Toast `duration` + `action` slot + sunset CSS variables + reduce-motion (Plan 02 Task 0 — Blocker 1)
+- [ ] `frontend/src/lib/mutations/use-undo-snooze.test.tsx` — asserts unsnooze POST + 3-key invalidation (Plan 02 — Blocker 1 + D-H-08)
+- [ ] `frontend/src/components/dashboard/trend-section.test.tsx` — asserts severity_trends → TrendDatum[] reshape + h2 (Plan 05 Task 2 — Warning 7)
+- [ ] `frontend/src/components/dashboard/stat-strip-wired.test.tsx` — asserts 4-tile icon mapping + h2 (Plan 05 Task 2 — Warning 7)
+- [ ] `frontend/src/components/shell/sidebar-cache.test.tsx` — asserts single-fetch invariant (Plan 06 Task 3 — Warning 15)
+- [ ] `backend/tests/test_unsnooze.py` — asserts symmetric unsnooze endpoint (Plan 01 — Blocker 1 backend)
 - [ ] `frontend/src/lib/auth.logout.test.tsx` — asserts `queryClient.clear()` called
 - [ ] `frontend/src/app/(authed)/dashboard/dashboard.a11y.test.tsx` — full-page axe scan
 - [ ] `frontend/src/app/(authed)/dashboard/page.test.tsx` — page-level integration (loading + partial-failure)
-- [ ] `frontend/scripts/check-bundle.mjs` — parses `next build` output and asserts `/dashboard` First-Load JS ≤ 184320 bytes
+- [ ] `frontend/scripts/check-bundle.mjs` — parses `next build` output and asserts `/dashboard` First-Load JS ≤ 184320 bytes (= 180 kB exactly per D-Perf-01; "184" earlier referenced raw bytes-per-kB which conflated bytes with kB — the budget is 180 kB and `--max-kb 180`)
 - [ ] `backend/tests/test_dashboard_tiles.py` · `test_severity_trends.py` · `test_triage_sort.py` · `test_top_vuln.py` · `test_snooze.py` · `test_onboarding_state.py`
 - [ ] `frontend/src/components/dashboard/microcopy.ts` — extracted dashboard strings per `copy-voice.md`
 - [ ] `.planning/phases/10-dashboard/10-HUMAN-UAT.md` — manual checklist (sketch fidelity, forced-colors, keyboard nav)
