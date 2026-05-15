@@ -141,6 +141,8 @@ describe('<ActivityFeed>', () => {
   });
 
   it('has no axe violations with items + empty state (D-Test-01)', async () => {
+    // axe-core uses real timers internally; restore before calling.
+    vi.useRealTimers();
     const { container: c1 } = render(<ActivityFeed items={items} />);
     expect(await axe(c1)).toHaveNoViolations();
     const { container: c2 } = render(<ActivityFeed items={[]} />);
