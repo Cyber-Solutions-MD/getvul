@@ -108,4 +108,67 @@ describe('api() wrapper', () => {
 
     await expect(api('/x')).rejects.toThrow('boom');
   });
+
+  it('BL-06: POST + 401 does NOT transparently retry — surfaces the auth failure to caller', async () => {
+    memLocalStorage.setItem('getvul_refresh', 'refresh-token');
+
+    fetchMock
+      // initial POST returns 401
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: 'expired' }),
+      } as Response);
+
+    await expect(
+      api('/api/v1/vulnerabilities/abc/snooze', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+    ).rejects.toThrow(/Session expired during mutation/);
+
+    // Critically: only one fetch call. No refresh, no retry. If the snooze
+    // had already partially committed server-side, an automatic retry would
+    // re-apply the mutation under a potentially different user's session.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('BL-06: PUT + 401 also short-circuits without retry', async () => {
+    memLocalStorage.setItem('getvul_refresh', 'refresh-token');
+
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ detail: 'expired' }),
+    } as Response);
+
+    await expect(
+      api('/api/v1/vulnerabilities/abc', { method: 'PUT' }),
+    ).rejects.toThrow(/Session expired during mutation/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('BL-06: HEAD + 401 still triggers refresh + retry (safe method)', async () => {
+    memLocalStorage.setItem('getvul_refresh', 'refresh-token');
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: 'expired' }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: 'new-token' }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      } as Response);
+
+    await api('/x', { method: 'HEAD' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });
