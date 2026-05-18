@@ -92,6 +92,41 @@ describe('<ErrorBoundary>', () => {
     expect(screen.queryByTestId('reset')).not.toBeInTheDocument();
   });
 
+  it('WR-11: calls onError reporter with boundaryName + error info', () => {
+    const reporter = vi.fn();
+    render(
+      <ErrorBoundary
+        boundaryName="dashboard.hero"
+        onError={reporter}
+        fallback={() => <p>fallback-shown</p>}
+      >
+        <Bomb boom />
+      </ErrorBoundary>
+    );
+    expect(reporter).toHaveBeenCalledTimes(1);
+    const [err, ctx] = reporter.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe('boom-detonated');
+    expect(ctx.boundaryName).toBe('dashboard.hero');
+  });
+
+  it('WR-11: faulty reporter does not break the boundary fallback', () => {
+    const reporter = vi.fn(() => {
+      throw new Error('reporter-blew-up');
+    });
+    render(
+      <ErrorBoundary
+        onError={reporter}
+        fallback={() => <p>fallback-shown</p>}
+      >
+        <Bomb boom />
+      </ErrorBoundary>
+    );
+    // Even though the reporter threw, the boundary still rendered the fallback.
+    expect(screen.getByText('fallback-shown')).toBeInTheDocument();
+    expect(reporter).toHaveBeenCalledTimes(1);
+  });
+
   it('has no axe violations on fallback render', async () => {
     const { container } = render(
       <ErrorBoundary
