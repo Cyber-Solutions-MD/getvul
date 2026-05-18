@@ -86,8 +86,29 @@ function parseRouteLine(output, route) {
   const routeRegex = new RegExp(`(?:^|[\\s│├└─┌])${routeEscaped}(?=\\s|$)`);
   for (const line of lines) {
     if (routeRegex.test(line)) {
-      const tokens = [...line.matchAll(/(\d+(?:\.\d+)?)\s*(kB|MB|B)\b/gi)];
+      // WR-09: tighten the size-token regex. The old shape
+      //   /(\d+(?:\.\d+)?)\s*(kB|MB|B)\b/gi
+      // would match the 'B' inside 'kB' as a second token ('1.2 kB' produced
+      // matches for both '1.2 kB' AND '2 B'), so the LAST-token heuristic
+      // could read the wrong column. Use a negative-lookbehind that rejects
+      // a letter immediately before the digit so the unit boundaries are
+      // unambiguous.
+      const tokens = [...line.matchAll(/(?<![A-Za-z])(\d+(?:\.\d+)?)\s*(kB|MB|B)\b/g)];
       if (tokens.length >= 1) {
+        // WR-09: defensive sanity check — Next.js 15 route lines have
+        // exactly two size tokens (route Size + First Load JS). If a
+        // future Next version appends additional metadata (revalidation
+        // interval, prerender size, etc.) with a third size token, the
+        // LAST-token heuristic silently reads the wrong column. Warn so
+        // the build flips visible rather than passing a stale budget.
+        if (tokens.length > 2) {
+          // Print to stderr but don't fail — backward compatible with
+          // current Next.js output, alerts on schema drift.
+          process.stderr.write(
+            `[check-bundle] WARN: route line has ${tokens.length} size tokens (expected 2). ` +
+              `LAST-token heuristic may misread First Load JS. Line: ${line.trim()}\n`
+          );
+        }
         // Use the LAST token on the row — that's the First Load JS column.
         const last = tokens[tokens.length - 1];
         const num = Number(last[1]);
