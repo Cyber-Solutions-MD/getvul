@@ -66,8 +66,12 @@ const CATEGORY_META: Record<
  * Intl.RelativeTimeFormat. Per RESEARCH "Don't Hand-Roll" table — built-in
  * Intl avoids brittle date math.
  */
-function relativeTime(iso: string): string {
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
   const then = new Date(iso).getTime();
+  // Guard against invalid dates — Intl.RelativeTimeFormat throws on non-finite
+  // input, which would crash the whole rail. Bad data → em-dash fallback.
+  if (!Number.isFinite(then)) return '—';
   const now = Date.now();
   const diffSec = Math.round((then - now) / 1000);
   const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
