@@ -145,4 +145,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-13 — Phase 09 (`/login` + Foundation) complete: sunset token system, 6 primitives (Button/Input/SsoButton/GradientText/Form/DropdownMenu), persistent `(authed)` shell, `/login` rewrite with sanitized `?next=` redirect + three-mode state machine. Manual browser smoke checks pending.*
+*Last updated: 2026-05-18 — Phase 10 (`/dashboard`) complete: action-first hero (with quiet-win + onboarding swaps), 4-tile stat strip, route-split TrendChart, Top-5 triage card, sticky activity rail. 6 new presentation primitives (Card / Stat / StatStrip / ActivityFeed / ErrorBoundary / TrendChart) live in `frontend/src/components/ui/`. Backend extensions: severity_trends, dashboard_tiles, ?sort=triage, POST /snooze + /unsnooze. Frontend data layer: TanStack Query v5, 4 query hooks + 2 mutations + 3 utility hooks + microcopy module. Bundle: 134 kB First-Load JS (46 kB headroom). Tests: 176/176 green. HUMAN-UAT (12 items) still pending manual browser pass.*
