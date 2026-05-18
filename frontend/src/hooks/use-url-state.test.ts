@@ -61,4 +61,14 @@ describe('useUrlState (D-D-04 — URL source-of-truth + Pitfall 7 XSS clamp)', (
     expect(mockReplace).toHaveBeenCalledTimes(1);
     expect(mockReplace.mock.calls[0][0]).toBe('/dashboard');
   });
+
+  it('WR-04: null URL param does NOT cast to T even if allow-list contains empty string', () => {
+    // Generic API: nothing stops a caller passing '' as an allowed value.
+    // Previous shape cast `null` to T because `null ?? '' === ''` was in
+    // the allow-list. Fixed shape short-circuits on `raw !== null`.
+    const allowedWithEmpty = ['', 'on'] as const;
+    mockParams = new URLSearchParams(); // no `key` at all
+    const { result } = renderHook(() => useUrlState('flag', allowedWithEmpty, 'on'));
+    expect(result.current[0]).toBe('on'); // falls back to default, not null
+  });
 });

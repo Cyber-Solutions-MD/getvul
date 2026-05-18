@@ -18,9 +18,14 @@ export function useUrlState<T extends string>(
   const params = useSearchParams();
 
   const raw = params?.get(key) ?? null;
-  const value: T = (allowed as readonly string[]).includes(raw ?? '')
-    ? (raw as T)
-    : defaultValue;
+  // WR-04: previous shape was `allowed.includes(raw ?? '')` — if `allowed`
+  // ever contains '' (the generic API allows it), a missing URL param would
+  // produce `raw=null`, the includes check would pass on '', and `(raw as T)`
+  // would cast `null` to T. Tighten so null short-circuits the cast.
+  const value: T =
+    raw !== null && (allowed as readonly string[]).includes(raw)
+      ? (raw as T)
+      : defaultValue;
 
   const setValue = useCallback(
     (next: T) => {
