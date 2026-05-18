@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { axe } from 'vitest-axe';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { Sidebar } from './sidebar';
 
 // Mock next/navigation usePathname per D-35
@@ -10,6 +12,13 @@ vi.mock('next/navigation', () => ({
 
 import { usePathname } from 'next/navigation';
 
+// Plan 10-06 wired Sidebar to useStats() — every render needs a QueryClientProvider.
+// Fresh client per test so useStats returns isPending (em-dash placeholders).
+function withClient(ui: ReactNode) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
+}
+
 describe('<Sidebar>', () => {
   beforeEach(() => {
     vi.mocked(usePathname).mockReset();
@@ -17,7 +26,7 @@ describe('<Sidebar>', () => {
 
   it('renders the D-36 verbatim item list with real hrefs', () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard');
-    render(<Sidebar />);
+    render(withClient(<Sidebar />));
 
     expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute('href', '/dashboard');
     expect(screen.getByRole('link', { name: /Vulnerabilities/ })).toHaveAttribute('href', '/dashboard/vulnerabilities');
@@ -32,14 +41,14 @@ describe('<Sidebar>', () => {
 
   it('marks /dashboard active only on exact match (D-35)', () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard');
-    render(<Sidebar />);
+    render(withClient(<Sidebar />));
     const dashboard = screen.getByRole('link', { name: /Dashboard/ });
     expect(dashboard).toHaveAttribute('aria-current', 'page');
   });
 
   it('does NOT mark /dashboard active when on a nested route like /dashboard/vulnerabilities (D-35 exact-match)', () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard/vulnerabilities');
-    render(<Sidebar />);
+    render(withClient(<Sidebar />));
     const dashboard = screen.getByRole('link', { name: /Dashboard/ });
     expect(dashboard).not.toHaveAttribute('aria-current', 'page');
     const vulns = screen.getByRole('link', { name: /Vulnerabilities/ });
@@ -48,14 +57,14 @@ describe('<Sidebar>', () => {
 
   it('uses prefix matching for non-root items (e.g. /dashboard/vulnerabilities/CVE-123 lights up Vulnerabilities)', () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard/vulnerabilities/CVE-2024-3094');
-    render(<Sidebar />);
+    render(withClient(<Sidebar />));
     expect(screen.getByRole('link', { name: /Vulnerabilities/ })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: /Dashboard/ })).not.toHaveAttribute('aria-current', 'page');
   });
 
   it('renders count placeholders as em-dash (D-35)', () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard');
-    const { container } = render(<Sidebar />);
+    const { container } = render(withClient(<Sidebar />));
     const dashes = container.querySelectorAll('span.tabular-nums');
     expect(dashes.length).toBeGreaterThan(0);
     dashes.forEach((el) => expect(el.textContent).toBe('—'));
@@ -63,7 +72,7 @@ describe('<Sidebar>', () => {
 
   it('brand mark wraps Link to /dashboard (D-40)', () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard');
-    render(<Sidebar />);
+    render(withClient(<Sidebar />));
     // The brand is a link too — match by 'GetVul' label
     const brand = screen.getByText('GetVul').closest('a');
     expect(brand).toHaveAttribute('href', '/dashboard');
@@ -71,7 +80,7 @@ describe('<Sidebar>', () => {
 
   it('has no axe violations', async () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard');
-    const { container } = render(<Sidebar />);
+    const { container } = render(withClient(<Sidebar />));
     expect(await axe(container)).toHaveNoViolations();
   });
 });
