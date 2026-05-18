@@ -69,31 +69,39 @@ export function Top5Card() {
         <h2 id="top5-h" className="text-lg font-semibold text-text">{microcopy.top5.h2}</h2>
       </Card.Header>
       <ul aria-labelledby="top5-h" className="divide-y divide-border-subtle">
-        {items.map((row) => (
-          <li key={row.id}>
-            <Link
-              href={`/dashboard/vulnerabilities?cve=${encodeURIComponent(row.cve_id)}&open=drill`}
-              className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-1 py-3 hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
-            >
-              <span
-                className={cn('font-mono', GLYPH_COLOR[row.severity])}
-                aria-label={row.severity.toLowerCase()}
+        {items.map((row) => {
+          // BL-02: cve_id and host are nullable on the adapted TriageRow.
+          // Fall back to the row id for the deep-link query param (Phase 11
+          // drill route accepts either) and to '—' for the rendered label.
+          const cveLabel = row.cve_id ?? '—';
+          const cveParam = row.cve_id ?? row.id;
+          const hostLabel = row.host ?? '—';
+          return (
+            <li key={row.id}>
+              <Link
+                href={`/dashboard/vulnerabilities?cve=${encodeURIComponent(cveParam)}&open=drill`}
+                className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-1 py-3 hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
               >
-                {GLYPHS[row.severity]}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate font-mono text-sm text-text">{row.cve_id}</p>
-                <p className="truncate font-mono text-xs text-text-muted">{row.host}</p>
-              </div>
-              <span className="font-mono text-sm text-text">
-                {row.cvss_v3_score?.toFixed(1) ?? '—'}
-              </span>
-              <span className={cn('rounded-md px-2 py-0.5 font-mono text-xs', slaPillClass(row.sla_due_at))}>
-                {fmtSla(row.sla_due_at)}
-              </span>
-            </Link>
-          </li>
-        ))}
+                <span
+                  className={cn('font-mono', GLYPH_COLOR[row.severity])}
+                  aria-label={row.severity.toLowerCase()}
+                >
+                  {GLYPHS[row.severity]}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-sm text-text">{cveLabel}</p>
+                  <p className="truncate font-mono text-xs text-text-muted">{hostLabel}</p>
+                </div>
+                <span className="font-mono text-sm text-text">
+                  {row.cvss_v3_score?.toFixed(1) ?? '—'}
+                </span>
+                <span className={cn('rounded-md px-2 py-0.5 font-mono text-xs', slaPillClass(row.sla_due_at))}>
+                  {fmtSla(row.sla_due_at)}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );
