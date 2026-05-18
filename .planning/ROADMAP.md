@@ -214,7 +214,7 @@ Plans:
 - [x] 10-02-PLAN.md — Frontend data layer: install TanStack Query v5, QueryClientProvider wire-up, 4 query hooks + snooze mutation + 3 utility hooks + microcopy.ts + logout cache-clear
 - [x] 10-03-PLAN.md — Five presentation primitives: Card, Stat, StatStrip, ActivityFeed, ErrorBoundary + /dev/primitives state matrix
 - [x] 10-04-PLAN.md — TrendChart primitive (recharts stacked BarChart + sr-only table + range toggle) + reduce-motion test + check-bundle.mjs budget enforcer
-- [ ] 10-05-PLAN.md — Dashboard page composition: Hero / StatStripWired / TrendSection / Top5Card / ActivityRail / OnboardingPanel + per-section ErrorBoundary + tab title + page-level + a11y tests
+- [x] 10-05-PLAN.md — Dashboard page composition: Hero / StatStripWired / TrendSection / Top5Card / ActivityRail / OnboardingPanel + per-section ErrorBoundary + tab title + page-level + a11y tests
 - [x] 10-06-PLAN.md — Sidebar nav-chip wiring (Vulnerabilities/Assets/Tickets counts) + 10-HUMAN-UAT.md checklist
 
 **UI hint**: yes
@@ -307,7 +307,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 7. Health and Observability | v1.0 Production Readiness | 0/2 | Deferred | - |
 | 8. Test Coverage Floor | v1.0 Production Readiness | 0/3 | Deferred | - |
 | 9. `/login` + Foundation | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
-| 10. `/dashboard` | v2.0 UI/UX Redesign | 5/6 | In Progress|  |
+| 10. `/dashboard` | v2.0 UI/UX Redesign | 6/6 | Complete    | 2026-05-18 |
 | 11. `/vulnerabilities` + State Patterns | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 | 12. `/assets` List + Detail | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 | 13. `/tickets` List + Detail | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
