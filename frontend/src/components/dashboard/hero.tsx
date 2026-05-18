@@ -94,6 +94,12 @@ export function Hero() {
         },
       });
     } catch (e) {
+      // WR-06: when the user navigates away, TanStack Query aborts the
+      // in-flight POST and `mutateAsync` rejects with AbortError. Surfacing
+      // 'Couldn't snooze. HTTP unknown · Retry' for what is really a
+      // user-intent cancellation is confusing on the stale-page case and
+      // invisible on the navigation case. Drop AbortErrors silently.
+      if ((e as { name?: string } | null)?.name === 'AbortError') return;
       const status = (e as { status?: number } | null)?.status ?? 'unknown';
       toast({
         message: microcopy.snooze.toastError(status),
