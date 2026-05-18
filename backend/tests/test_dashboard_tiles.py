@@ -116,6 +116,38 @@ async def test_dashboard_tiles_delta_null_when_no_snapshot(client, db_session, t
 
 
 @pytest.mark.asyncio
+async def test_dashboard_tiles_delta_handles_jsonb_null_metric(client, db_session, tenant_a):
+    """BL-03 regression: a DailySnapshot at -7d may have a known metric key
+    whose value is explicitly None (e.g. a metric was added after older
+    snapshots were written, or a partial write left the key null). The tile
+    computation must treat that as 0, not call int(None) and crash /stats
+    with TypeError → 500.
+    """
+    db_session.add(_seed_vuln(tenant_a, severity="CRITICAL"))
+    seven_days_ago = (datetime.now(UTC) - timedelta(days=7)).date()
+    db_session.add(
+        DailySnapshot(
+            tenant_id=tenant_a,
+            snapshot_date=seven_days_ago,
+            # `kev_count` present-but-null exercises the
+            # `prior_metrics.get(key, 0) is None` path that BL-03 fixed.
+            metrics={"critical_open": 5, "sla_breached": None, "kev_count": None},
+            created_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/vulnerabilities/stats")
+    assert resp.status_code == 200, resp.text  # would be 500 before BL-03 fix
+    body = resp.json()
+    sla = body["dashboard_tiles"]["sla_at_risk"]
+    kev = body["dashboard_tiles"]["kev"]
+    # The None value should be treated as 0 prior, so delta = today_value - 0.
+    assert sla["delta"] is not None
+    assert kev["delta"] is not None
+
+
+@pytest.mark.asyncio
 async def test_nav_counts_present(client, db_session, tenant_a):
     """UX-02-02 / D-B-02: response carries vuln_open_count, asset_total_count,
     ticket_open_count at the top level (used by the persistent sidebar)."""

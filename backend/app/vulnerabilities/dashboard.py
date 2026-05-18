@@ -241,7 +241,14 @@ async def compute_dashboard_tiles_v10(db: AsyncSession, tenant_id: uuid.UUID) ->
             # Pitfall 8: when there is no snapshot at -7d, delta MUST be None
             # so the UI renders "Δ —" rather than misleading 0.
             return TileValue(value=today_value, delta=None, delta_direction=None)
-        prior = int(prior_metrics.get(snapshot_key, 0))
+        # BL-03: the JSONB column may legitimately contain `None` for a known
+        # metric key (e.g. older snapshots written before a metric was added,
+        # or a partial-write recovery). `prior_metrics.get(key, 0)` returns
+        # `None` (not the default 0) when the key is present with a null
+        # value, and `int(None)` raises TypeError → /stats 500. Fall back to
+        # 0 explicitly when the raw value is None.
+        prior_raw = prior_metrics.get(snapshot_key)
+        prior = int(prior_raw) if prior_raw is not None else 0
         d = today_value - prior
         direction: str = "up" if d > 0 else "down" if d < 0 else "flat"
         return TileValue(value=today_value, delta=d, delta_direction=direction)
