@@ -222,8 +222,11 @@ async def compute_dashboard_tiles_v10(db: AsyncSession, tenant_id: uuid.UUID) ->
             )
         )
     ).scalar_one()
+    # WR-03: a 0.0-day MTTR (detected and remediated same day) is a valid
+    # answer, but `if 0.0:` is falsy → renders "—" instead of "0.0d". Use
+    # explicit None-check so only "no data" maps to the em-dash sentinel.
     mttr_30d_value: int | str = (
-        f"{round(float(mttr_30d_raw), 1)}d" if mttr_30d_raw else "—"
+        f"{round(float(mttr_30d_raw), 1)}d" if mttr_30d_raw is not None else "—"
     )
 
     seven_days_ago = (datetime.now(UTC) - timedelta(days=7)).date()

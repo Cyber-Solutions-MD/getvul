@@ -312,7 +312,10 @@ async def get_dashboard_stats(
         exploitable_count=exploitable,
         cisa_kev_count=kev_count,
         correlated_cves=correlated,
-        mttr_days=round(float(mttr), 1) if mttr else None,
+        # WR-03: 0.0-day MTTR is a valid value (detected + remediated same day);
+        # `if mttr:` is falsy for 0.0 and would suppress legitimate data. Only
+        # None (no remediated-vuln rows) should map to None on the wire.
+        mttr_days=round(float(mttr), 1) if mttr is not None else None,
         dashboard_tiles=dashboard_tiles,
         top_vuln=top_vuln,
         vuln_open_count=nav_counts["vuln_open_count"],
