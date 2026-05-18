@@ -124,11 +124,11 @@ skipped: 0
   reason: "Fixed inline during UAT: useRecentNotifications now adapts backend payload (created_at→occurred_at, message→body, category enum normalized); relativeTime() guards Number.isFinite and returns em-dash on bad input. Dashboard test mocks remain ideal-shape — note for future: should also exercise the adapter."
   severity: blocker
   test: 5
-  resolved_in_commits: [pending]
+  resolved_in_commits: [b77f497]
 
 - truth: "Sidebar Connectors link routes to an existing page"
   status: resolved
   reason: "Phase 9's D-36 baked /dashboard/integrations into the sidebar Connectors href, but the v1 route directory is /dashboard/connectors — clicking the sidebar item produced a 404. Caught during Phase 10 UAT (user navigating to manage scanners for Test 8 onboarding setup). Plan 10-06 preserved the wrong href verbatim. Fixed inline: sidebar.tsx now points to /dashboard/connectors; sidebar.test.tsx assertion updated."
   severity: major
   test: 9
-  resolved_in_commits: [pending]
+  resolved_in_commits: [cb6441c]
