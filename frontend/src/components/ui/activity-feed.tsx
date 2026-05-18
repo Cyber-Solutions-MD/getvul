@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 // D-P-04 + D-A-01..05: Recent-activity feed primitive for the dashboard right rail.
@@ -61,6 +62,14 @@ const CATEGORY_META: Record<
   },
 };
 
+// WR-07: hoist Intl.RelativeTimeFormat to module scope. Constructing a fresh
+// formatter per row per render is pointless (cheap, but allocates per render
+// frame for every visible item). Hoisting matches the project pattern for
+// other Intl helpers.
+const RELATIVE_FORMATTER = new Intl.RelativeTimeFormat('en', {
+  numeric: 'auto',
+});
+
 /**
  * Format an ISO timestamp as "Xm ago" / "Xh ago" / "Xd ago" using
  * Intl.RelativeTimeFormat. Per RESEARCH "Don't Hand-Roll" table — built-in
@@ -74,12 +83,22 @@ function relativeTime(iso: string | null | undefined): string {
   if (!Number.isFinite(then)) return '—';
   const now = Date.now();
   const diffSec = Math.round((then - now) / 1000);
-  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
   const absSec = Math.abs(diffSec);
-  if (absSec < 60) return rtf.format(diffSec, 'second');
-  if (absSec < 3600) return rtf.format(Math.round(diffSec / 60), 'minute');
-  if (absSec < 86400) return rtf.format(Math.round(diffSec / 3600), 'hour');
-  return rtf.format(Math.round(diffSec / 86400), 'day');
+  if (absSec < 60) return RELATIVE_FORMATTER.format(diffSec, 'second');
+  if (absSec < 3600) return RELATIVE_FORMATTER.format(Math.round(diffSec / 60), 'minute');
+  if (absSec < 86400) return RELATIVE_FORMATTER.format(Math.round(diffSec / 3600), 'hour');
+  return RELATIVE_FORMATTER.format(Math.round(diffSec / 86400), 'day');
+}
+
+// WR-07: relative-time strings depend on Date.now(), which differs between
+// SSR (Node) and CSR (browser) wall-clocks. `suppressHydrationWarning` was
+// masking a real bug — render an em-dash placeholder until the client hooks
+// up, then compute the relative-time on mount. This is the canonical Next.js
+// pattern for client-only formatting.
+function RelativeTime({ iso }: { iso: string | null | undefined }) {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  return <>{hydrated ? relativeTime(iso) : '—'}</>;
 }
 
 export function ActivityFeed({
@@ -112,11 +131,8 @@ export function ActivityFeed({
               {item.body && (
                 <p className="truncate text-xs text-text-muted">{item.body}</p>
               )}
-              <p
-                className="font-mono text-xs text-text-faint"
-                suppressHydrationWarning
-              >
-                {relativeTime(item.occurred_at)}
+              <p className="font-mono text-xs text-text-faint">
+                <RelativeTime iso={item.occurred_at} />
               </p>
             </div>
           </div>
