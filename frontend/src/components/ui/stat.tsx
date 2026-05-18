@@ -84,13 +84,22 @@ export function Stat({
         {value}
       </div>
       {body !== null && <div className="mt-2">{body}</div>}
-      {hint && delta === undefined && (
-        <div className="mt-2 text-xs text-text-faint">{hint}</div>
-      )}
-      {/* When delta is provided (incl. null) and hint is also provided, surface hint below the delta row.
-          This supports tiles like "MTTR — 4.2d / Δ — / vs goal 7d". */}
-      {hint && delta !== undefined && (
-        <div className="mt-1 text-xs text-text-faint">{hint}</div>
+      {/* WR-08: previously two near-identical branches (mt-2 vs mt-1) each
+          rendered the same hint copy depending on whether `delta` was
+          undefined. Consolidated into a single render path — when delta is
+          provided (incl. null), the hint sits one less margin step below
+          the delta row (supports tiles like "MTTR — 4.2d / Δ — / vs goal
+          7d"); when delta is omitted, the hint takes the same margin as
+          the body slot. */}
+      {hint && (
+        <div
+          className={cn(
+            'text-xs text-text-faint',
+            delta === undefined ? 'mt-2' : 'mt-1'
+          )}
+        >
+          {hint}
+        </div>
       )}
     </div>
   );
