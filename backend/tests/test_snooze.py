@@ -162,3 +162,35 @@ async def test_snooze_emits_audit_event(client, db_session, analyst_user, tenant
     assert row is not None, "Expected a vuln.snooze AuditLog row"
     assert row.user_id == analyst_user.id
     assert row.resource_type == "vulnerability"
+
+
+@pytest.mark.asyncio
+async def test_snooze_fails_closed_when_audit_write_fails(
+    client, db_session, monkeypatch, tenant_a
+):
+    """BL-04 / AUDIT-01 fail-closed: if the audit row cannot be written, the
+    snooze MUST NOT commit. The previous behaviour was silent-success — the
+    snooze landed without an audit trail, which is a compliance hazard.
+
+    Patch the audit() helper to raise; the route's `await db.commit()` will
+    not be reached and SQLAlchemy will roll back the UPDATE on the next
+    transaction. The vuln status must remain OPEN.
+    """
+    from app import audit as audit_module
+
+    v = _seed_open_vuln(tenant_a)
+    db_session.add(v)
+    await db_session.commit()
+
+    async def _fail_audit(*args, **kwargs):
+        raise RuntimeError("simulated audit write failure")
+
+    monkeypatch.setattr(audit_module, "audit", _fail_audit)
+
+    resp = await client.post(f"/api/v1/vulnerabilities/{v.id}/snooze", json={})
+    # The mutation must not return success when its audit row can't land.
+    assert resp.status_code >= 400, resp.text
+
+    # Vuln status must remain OPEN — the snooze update was rolled back.
+    await db_session.refresh(v)
+    assert v.status == "OPEN", "Snooze must not commit when audit write fails"
