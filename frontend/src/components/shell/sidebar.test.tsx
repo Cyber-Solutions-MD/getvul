@@ -33,8 +33,9 @@ describe('<Sidebar>', () => {
     expect(screen.getByRole('link', { name: /Assets/ })).toHaveAttribute('href', '/dashboard/assets');
     expect(screen.getByRole('link', { name: /CSPM/ })).toHaveAttribute('href', '/dashboard/cspm');
     expect(screen.getByRole('link', { name: /Tickets/ })).toHaveAttribute('href', '/dashboard/tickets');
-    // D-36 quirk: Connectors label maps to /dashboard/integrations
-    expect(screen.getByRole('link', { name: /Connectors/ })).toHaveAttribute('href', '/dashboard/integrations');
+    // Connectors label maps to /dashboard/connectors (the actual v1 route directory).
+    // Phase 9 D-36 documented /dashboard/integrations in error; corrected during Phase 10 UAT.
+    expect(screen.getByRole('link', { name: /Connectors/ })).toHaveAttribute('href', '/dashboard/connectors');
     expect(screen.getByRole('link', { name: /^Users$/ })).toHaveAttribute('href', '/dashboard/users');
     expect(screen.getByRole('link', { name: /^Settings$/ })).toHaveAttribute('href', '/dashboard/settings');
   });

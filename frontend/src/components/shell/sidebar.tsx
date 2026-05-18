@@ -34,10 +34,11 @@ const TRIAGE_ITEMS: NavItem[] = [
 // D-36 grouping preserved. Phase 10 D-N-01 removes the chip from Connectors; only
 // Tickets keeps a chip in this group.
 const WORKFLOW_ITEMS: NavItem[] = [
-  // D-36: "Connectors (Plug, route /dashboard/integrations — keep that path; the v1 directory is
-  // named `integrations` even though the nav label is `Connectors`)"
-  { label: 'Tickets',    href: '/dashboard/tickets',      icon: Ticket, chip: 'ticket_open' },
-  { label: 'Connectors', href: '/dashboard/integrations', icon: Plug },
+  // Phase 9's D-36 spec had "/dashboard/integrations" but the v1 route directory
+  // is actually `connectors/` (verified during Phase 10 HUMAN-UAT). Correcting
+  // the href here; the label stays `Connectors` per D-36 wording.
+  { label: 'Tickets',    href: '/dashboard/tickets',    icon: Ticket, chip: 'ticket_open' },
+  { label: 'Connectors', href: '/dashboard/connectors', icon: Plug },
 ];
 
 const UNLABELED_ITEMS: NavItem[] = [
