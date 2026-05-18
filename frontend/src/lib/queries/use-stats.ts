@@ -14,10 +14,12 @@ export type TileValue = {
 
 export type TopVuln = {
   id: string; // vuln UUID — required for snooze + undo mutations (Blocker 2 fix)
-  cve_id: string;
-  host: string;
-  path: string;
-  cvss: number;
+  // BL-01: backend schema declares these as nullable — align frontend type
+  // so render-time fallbacks are forced rather than masked by Number(null)=0.
+  cve_id: string | null;
+  host: string | null;
+  path: string | null;
+  cvss: number | null;
   on_kev: boolean;
   exploited: boolean;
 };

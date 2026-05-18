@@ -97,6 +97,38 @@ describe('<Hero>', () => {
     ).toBeInTheDocument();
   });
 
+  it('BL-01: nullable cvss renders "CVSS —" rather than "CVSS 0.0"', () => {
+    (useStats as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      ...baseStats,
+      data: {
+        ...baseStats.data,
+        top_vuln: {
+          ...baseStats.data.top_vuln,
+          cvss: null,
+        },
+      },
+    });
+    render(<Hero />, { wrapper });
+    expect(
+      screen.getByText(/Top one is on prod-db-01 — Postgres path, CVSS —, exploited in the wild\./)
+    ).toBeInTheDocument();
+  });
+
+  it('BL-01: nullable host hides the sub-line entirely', () => {
+    (useStats as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      ...baseStats,
+      data: {
+        ...baseStats.data,
+        top_vuln: {
+          ...baseStats.data.top_vuln,
+          host: null,
+        },
+      },
+    });
+    render(<Hero />, { wrapper });
+    expect(screen.queryByText(/Top one is on/)).toBeNull();
+  });
+
   it('quiet-win renders "Nothing critical right now" without Snooze CTA (D-H-09)', () => {
     (useStats as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       ...baseStats,

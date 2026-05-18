@@ -66,9 +66,19 @@ export function Hero() {
   }
 
   const headline = n === 1 ? microcopy.hero.headlineSingular : microcopy.hero.headlinePlural(n);
-  const subLine = topVuln
-    ? microcopy.hero.subLineTemplate(topVuln.host, topVuln.path, Number(topVuln.cvss), topVuln.exploited)
-    : null;
+  // BL-01: backend declares host/path/cvss as nullable on TopVuln. Only render
+  // the sub-line when host AND path are present — without those the sentence
+  // doesn't make sense ("Top one is on null — null, CVSS 0.0"). cvss may still
+  // be null and is handled inside subLineTemplate (renders '—').
+  const subLine =
+    topVuln && topVuln.host && topVuln.path
+      ? microcopy.hero.subLineTemplate(
+          topVuln.host,
+          topVuln.path,
+          topVuln.cvss !== null ? Number(topVuln.cvss) : null,
+          topVuln.exploited
+        )
+      : null;
 
   const onSnooze = async () => {
     if (!topVuln) return;

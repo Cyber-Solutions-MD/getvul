@@ -12,13 +12,17 @@ export const microcopy = {
     headlineSingular: '1 critical CVE needs your eyes',
     headlinePlural: (n: number) => `${n} critical CVEs need your eyes`,
     // D-H-03 — sub-line interpolates real host/path/cvss; this is the shape.
+    // BL-01: cvss may be null (backend schema). Render '—' for null CVSS rather
+    // than 0.0 (which Number(null) produces) — same fallback the StatStrip uses
+    // for missing values. Hero gates the whole subLine on host && path so those
+    // params are non-null at call time, but cvss may still be null.
     subLineTemplate: (
       host: string,
       path: string,
-      cvss: number,
+      cvss: number | null,
       exploited: boolean
     ) =>
-      `Top one is on ${host} — ${path}, CVSS ${cvss.toFixed(1)}${
+      `Top one is on ${host} — ${path}, CVSS ${cvss !== null ? cvss.toFixed(1) : '—'}${
         exploited ? ', exploited in the wild' : ''
       }.`,
     quietWin: 'Nothing critical right now',
@@ -63,8 +67,10 @@ export const microcopy = {
     // D-H-08 — message + action are SEPARATE. The `· Undo` lives in the
     // Toast `action` slot, NOT inside the message string. 8s undo window
     // is the toast `duration`; consumer wires the onClick.
-    toastTitle: (cveId: string) => `Snoozed ${cveId} for 1h`,
-    toastMessage: (cveId: string) => `Snoozed ${cveId} for 1h`,
+    // BL-01: cve_id may be null on TopVuln — surface a generic fallback rather
+    // than printing literal "null" in the toast.
+    toastTitle: (cveId: string | null) => `Snoozed ${cveId ?? 'vulnerability'} for 1h`,
+    toastMessage: (cveId: string | null) => `Snoozed ${cveId ?? 'vulnerability'} for 1h`,
     toastActionLabel: 'Undo',
     toastError: (errCode: string | number) =>
       `Couldn't snooze. HTTP ${errCode} · Retry`,
