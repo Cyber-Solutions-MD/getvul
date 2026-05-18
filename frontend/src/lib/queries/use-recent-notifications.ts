@@ -69,11 +69,15 @@ function adapt(payload: BackendResponse): RecentNotificationsResponse {
   };
 }
 
-export function useRecentNotifications() {
+// WR-02: accept an optional `limit` (mirrors useTopTriage). Defaults to 5
+// because that's the current activity-rail UX. When the rail later supports
+// "Show more", callers pass `useRecentNotifications(20)` etc. without
+// reworking the hook signature.
+export function useRecentNotifications(limit = 5) {
   return useQuery({
-    queryKey: queryKeys.notifications.recent(5),
+    queryKey: queryKeys.notifications.recent(limit),
     queryFn: ({ signal }) =>
-      api<BackendResponse>('/api/v1/notifications?page=1&page_size=5', { signal }),
+      api<BackendResponse>(`/api/v1/notifications?page=1&page_size=${limit}`, { signal }),
     select: adapt,
     staleTime: 30_000, // D-D-06: 30s for notifications (more volatile than stats)
     retry: 0,

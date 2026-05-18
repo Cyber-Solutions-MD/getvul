@@ -51,4 +51,19 @@ describe('useRecentNotifications', () => {
     expect(opts.staleTime).toBe(30_000);
     expect(opts.retry).toBe(0);
   });
+
+  it('WR-02: optional limit arg is reflected in the URL and query key', async () => {
+    apiMock.mockResolvedValueOnce({ items: [], total: 0 });
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    const { result } = renderHook(() => useRecentNotifications(20), {
+      wrapper: wrap(qc),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiMock).toHaveBeenCalledWith(
+      '/api/v1/notifications?page=1&page_size=20',
+      expect.any(Object),
+    );
+  });
 });
