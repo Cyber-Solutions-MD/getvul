@@ -1,7 +1,27 @@
 'use client';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { microcopy } from './microcopy';
+
+// WR-14: `Date.toLocaleString()` is timezone-AND-locale dependent. The
+// SSR (Node) and CSR (browser) values diverge whenever Node and the
+// browser disagree on either, producing a hydration warning in
+// production logs plus a brief flicker for the user. Render '—' on the
+// server / first client render, then refresh to the formatted string
+// after mount. Same approach as ActivityFeed's <RelativeTime>.
+function LocalizedTimestamp({ iso }: { iso: string }) {
+  const [formatted, setFormatted] = useState<string>('—');
+  useEffect(() => {
+    try {
+      setFormatted(new Date(iso).toLocaleString());
+    } catch {
+      // Bad ISO — keep the em-dash placeholder rather than crashing
+      // the panel.
+    }
+  }, [iso]);
+  return <>{formatted}</>;
+}
 
 // D-O-01..04: Onboarding full-page panels for 'no_scanners' and 'no_data_yet'
 // states. Replaces the entire dashboard when stats.onboarding_state matches.
@@ -43,7 +63,7 @@ export function OnboardingPanel({ state, lastSyncAt, onRefresh }: OnboardingPane
       <p className="mt-3 text-text-muted">{microcopy.onboarding.noDataYetBody}</p>
       {lastSyncAt && (
         <p className="mt-1 font-mono text-xs text-text-muted">
-          Last sync attempted: {new Date(lastSyncAt).toLocaleString()}
+          Last sync attempted: <LocalizedTimestamp iso={lastSyncAt} />
         </p>
       )}
       <div className="mt-6 flex justify-center">
