@@ -76,11 +76,17 @@ class VulnerabilityFilter(BaseModel):
     severity: list[str] | None = None
     source: list[str] | None = None
     status: list[str] | None = None
-    cve_id: str | None = None
+    # WR-05: bound free-text search inputs. SQLAlchemy parameterises the
+    # ILIKE so injection is not the risk; the risk is unbounded payloads
+    # (e.g. a 10MB CVE search string) that the index can't help, pinning a
+    # Postgres worker until the LIKE scan returns.
+    cve_id: str | None = Field(None, max_length=200)
     exploit_available: bool | None = None
     cisa_kev: bool | None = None
     asset_id: uuid.UUID | None = None
-    search: str | None = Field(None, description="Search CVE ID or product name")
+    search: str | None = Field(
+        None, max_length=200, description="Search CVE ID or product name"
+    )
     age_days_min: int | None = Field(None, ge=0)
     age_days_max: int | None = Field(None, ge=0)
     # Phase 10 / D-T-01: 'triage' opts in to KEV → CVSS desc → SLA-due asc.
