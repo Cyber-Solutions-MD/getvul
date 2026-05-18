@@ -141,9 +141,26 @@ async def db_session(redis_test_url) -> AsyncIterator[Any]:
 
     Used by behavioural tests that need direct DB access (seeding, asserting
     audit rows, etc). Phase 10-01 tests reference this fixture by name.
+
+    WR-13: tests routinely call `db_session.commit()` to make seed rows
+    visible to the dependency-overridden FastAPI client (which opens its
+    own session via async_session_factory and is independent from this
+    one). Committed rows are NOT rolled back at fixture teardown — the
+    rollback path only discards uncommitted state. Run a TRUNCATE pass
+    over the test-mutated tables after each test to guarantee isolation
+    regardless of test ordering. Use RESTART IDENTITY + CASCADE so
+    sequences reset and FK chains are honoured.
+
+    Tables in deletion order (most dependent first → upstream parents):
+      audit_logs → vulnerabilities → assets → notifications → users →
+      tenants. The list is conservative — extra tables here cost a few
+      ms per test but eliminate order-dependent flakes that today only
+      hide because tests happen to run in a specific order.
     """
     if not await _db_reachable():
         pytest.skip("Postgres not reachable — set DATABASE_URL to a live instance")
+    from sqlalchemy import text
+
     from app.db.session import async_session_factory
 
     async with async_session_factory() as session:
@@ -151,6 +168,29 @@ async def db_session(redis_test_url) -> AsyncIterator[Any]:
             yield session
         finally:
             await session.rollback()
+
+    # Post-test cleanup runs in a fresh session so it can't see any
+    # uncommitted state from the test's session.
+    async with async_session_factory() as cleanup:
+        try:
+            # CASCADE handles any other tables that reference these via FK
+            # without us having to enumerate them here. RESTART IDENTITY
+            # avoids cross-test PK collisions on tables that use serial
+            # IDs (vulnerabilities + audit_logs are UUID-keyed so this is
+            # primarily a safety net for future tables).
+            await cleanup.execute(
+                text(
+                    "TRUNCATE TABLE audit_logs, vulnerabilities, assets, "
+                    "notifications, users, tenants, daily_snapshots "
+                    "RESTART IDENTITY CASCADE"
+                )
+            )
+            await cleanup.commit()
+        except Exception:
+            # Defensive: a TRUNCATE failure must not mask the test's own
+            # outcome. Roll back the cleanup session and move on — the
+            # next test will start with whatever state survived.
+            await cleanup.rollback()
 
 
 @pytest_asyncio.fixture(scope="function")
