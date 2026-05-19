@@ -30,9 +30,23 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as redis
 from asgi_lifespan import LifespanManager
+from fastapi import Request
 from httpx import ASGITransport, AsyncClient
 
 REDIS_TEST_URL = "redis://localhost:6379/1"
+
+# Import all SQLAlchemy models with cross-table relationships at conftest load
+# time so the Vulnerability ↔ Asset (and similar) string-resolved relationships
+# can be initialised regardless of which individual test file is collected.
+# Without this, running e.g. `pytest tests/test_snooze.py` in isolation fails
+# at mapper init with `InvalidRequestError: failed to locate a name ('Asset')`
+# because the snooze tests only import Vulnerability.
+from app.assets import models as _assets_models  # noqa: F401, E402
+from app.audit import AuditLog as _AuditLog  # noqa: F401, E402
+from app.notifications import models as _notifications_models  # noqa: F401, E402
+from app.tenants import models as _tenants_models  # noqa: F401, E402
+from app.vulnerabilities import models as _vulnerabilities_models  # noqa: F401, E402
+from app.vulnerabilities import trends as _vulnerabilities_trends  # noqa: F401, E402
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -275,22 +289,46 @@ async def analyst_user_b(db_session, tenant_b):
     return await _make_user(db_session, tenant_b, "ANALYST", "analyst-b")
 
 
-def _make_authed_client(app, user) -> AsyncClient:
+_TEST_USER_HEADER = "x-test-user-id"
+
+
+def _make_authed_client(app, user, registry: dict | None = None) -> AsyncClient:
     """Build an httpx client whose every request is authed as `user`.
 
-    Uses FastAPI's dependency_overrides to bypass JWT decoding entirely —
-    so tests do NOT have to mint real tokens or invoke OIDC. This is the
-    standard FastAPI test pattern.
+    Each client tags its requests with an `X-Test-User-Id` header and the
+    `get_current_user` override resolves that header against a shared
+    `registry`. Multiple clients on the same FastAPI app stay isolated —
+    previously the override was a closure over `user`, so calling
+    `_make_authed_client(app, viewer)` then `_make_authed_client(app, analyst)`
+    left both clients authed as analyst (last write wins), masking RBAC
+    failures like a viewer successfully snoozing a vulnerability.
+
+    Note: `Request` must be importable from this module's top-level
+    namespace (not inside this function) so FastAPI's `get_type_hints()`
+    can resolve the override's annotation under `from __future__ import
+    annotations`. Otherwise FastAPI parses `request` as a query param
+    and every request fails with a 422 "missing query.request".
     """
     from app.auth.dependencies import get_current_user
 
-    async def _override():
+    if registry is None:
+        registry = {}
+    registry[str(user.id)] = user
+
+    async def _override(request: Request):
+        uid = request.headers.get(_TEST_USER_HEADER)
+        if uid and uid in registry:
+            return registry[uid]
         return user
 
     app.dependency_overrides[get_current_user] = _override
 
     transport = ASGITransport(app=app)
-    return AsyncClient(transport=transport, base_url="http://testserver")
+    return AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers={_TEST_USER_HEADER: str(user.id)},
+    )
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -318,10 +356,11 @@ async def client_factory(redis_test_url, db_session) -> AsyncIterator:
 
     app = create_app()
     clients: list[AsyncClient] = []
+    registry: dict = {}
     async with LifespanManager(app):
 
         def _factory(user):
-            ac = _make_authed_client(app, user)
+            ac = _make_authed_client(app, user, registry)
             clients.append(ac)
             return ac
 
