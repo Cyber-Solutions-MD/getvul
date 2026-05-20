@@ -192,10 +192,23 @@ async def get_all_trends(db: AsyncSession, tenant_id: uuid.UUID, days: int = 30)
     mttr_trend = await get_mttr_trend(db, tenant_id, days=90)
     risk_trend = await get_risk_score_trend(db, tenant_id)
 
+    # D-B-01 / D-C-09: reshape the timeline into the {date: {c,h,m,l}} dict
+    # the Phase 10 TrendChart consumes. Length == days (one bucket per day).
+    severity_trends = {
+        d["date"]: {
+            "critical": d["by_severity"].get("CRITICAL", 0),
+            "high": d["by_severity"].get("HIGH", 0),
+            "medium": d["by_severity"].get("MEDIUM", 0),
+            "low": d["by_severity"].get("LOW", 0),
+        }
+        for d in vuln_trends["timeline"]
+    }
+
     return {
         "vuln_trends": vuln_trends,
         "mttr_trend": mttr_trend,
         "risk_trend": risk_trend,
+        "severity_trends": severity_trends,
     }
 
 
@@ -250,6 +263,18 @@ async def capture_daily_snapshot(db: AsyncSession, tenant_id: uuid.UUID) -> dict
         )
     ).scalar_one()
 
+    # Phase 10 / D-S-01: snapshot today's KEV count so the dashboard tile can
+    # compute a 7-day delta tomorrow. Old snapshots return 0 via .get default.
+    kev_count = (
+        await db.execute(
+            select(func.count(Vulnerability.id)).where(
+                base,
+                Vulnerability.cisa_kev.is_(True),
+                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            )
+        )
+    ).scalar_one()
+
     # Average risk score
     avg_risk = (
         await db.execute(
@@ -289,6 +314,7 @@ async def capture_daily_snapshot(db: AsyncSession, tenant_id: uuid.UUID) -> dict
         "total_assets": total_assets,
         "open_tickets": open_tickets,
         "compliance_pct": sla.get("compliance_pct", 100),
+        "kev_count": kev_count,  # D-S-01 — tile delta source
     }
 
     snapshot = DailySnapshot(

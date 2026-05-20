@@ -18,11 +18,19 @@ from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, select
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth.schemas import CurrentUser
 from app.db.base import Base
+
+# AUDIT-01: audit failures are observable. The router pattern is
+# `audit(...); db.commit()` so any exception raised here propagates and the
+# caller's commit short-circuits — the snooze/unsnooze fails closed when its
+# audit row cannot be written. Compliance-sensitive: "mutation succeeded
+# without audit row" is a regulatory hazard.
+_logger = logging.getLogger(__name__)
 
 
 class AuditLog(Base):
@@ -127,9 +135,24 @@ async def audit(
     details: dict | None = None,
     ip_address: str | None = None,
 ) -> None:
-    """Record an audit log entry. Non-blocking — swallows errors.
+    """Record an audit log entry.
 
-    Also forwards to syslog if configured.
+    BL-04 / WR-01 / WR-12: fail-closed. AUDIT-01 (the threat-model item for
+    audit-trail tampering / loss) requires that a mutation does not succeed
+    without its audit row landing in the database. Caller pattern is
+    `audit(...); await db.commit()`, so any exception raised here propagates
+    and the commit is skipped — SQLAlchemy will roll back the entire
+    transaction including the snooze/unsnooze UPDATE on the next
+    connection-level rollback.
+
+    Programmer bugs (e.g. malformed AuditLog kwargs, AttributeError on a
+    None user) now surface as 500s rather than being silently swallowed
+    (WR-12). DB-level errors (FK violation, JSONB serialisation failure)
+    are logged with structured context (WR-01) before being re-raised so
+    monitoring can alert.
+
+    Also forwards to syslog if configured (best-effort; syslog failure is
+    not allowed to block the DB audit row).
     """
     now = datetime.now(UTC)
     try:
@@ -145,10 +168,21 @@ async def audit(
             created_at=now,
         )
         db.add(log)
-    except Exception:
-        pass
+    except SQLAlchemyError:
+        _logger.warning(
+            "audit_add_failed",
+            extra={
+                "action": action,
+                "resource_type": resource_type,
+                "resource_id": str(resource_id) if resource_id else None,
+                "user_id": str(user.id) if user else None,
+            },
+            exc_info=True,
+        )
+        raise
 
-    # Forward to syslog/SIEM
+    # Forward to syslog/SIEM (best-effort — syslog outages must not block
+    # the DB audit row, which is the system-of-record).
     if _syslog_enabled:
         _send_to_syslog(
             {
