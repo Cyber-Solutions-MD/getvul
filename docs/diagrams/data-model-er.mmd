@@ -1,0 +1,133 @@
+%% docs/09-data-model.md — Entity-relationship overview
+erDiagram
+    tenants ||--o{ users                       : has
+    tenants ||--o{ assets                      : has
+    tenants ||--o{ vulnerabilities             : has
+    tenants ||--o{ vulnerability_correlations  : has
+    tenants ||--o{ misconfigurations           : has
+    tenants ||--o{ connector_configs           : has
+    tenants ||--o{ tickets                     : has
+    tenants ||--o{ ticket_rules                : has
+    tenants ||--o{ saved_filters               : has
+    tenants ||--o{ audit_logs                  : has
+    tenants ||--o{ scheduled_reports           : has
+    tenants ||--o{ daily_snapshots             : has
+    tenants ||--o{ notifications               : has
+
+    assets       ||--o{ vulnerabilities             : has
+    assets       ||--o{ vulnerability_correlations  : on
+    vulnerabilities ||--o{ tickets                  : creates
+    vulnerabilities }o..o{ vulnerability_correlations : "shares CVE via"
+    saved_filters    ||--o{ ticket_rules            : drives
+    connector_configs ||--o{ sync_logs              : produces
+    users        ||--o{ notifications               : "may target"
+    users        ||--o{ saved_filters               : created_by
+
+    tenants {
+        uuid id PK
+        string name
+        string slug UK
+        string idp_provider
+        bool sso_enforced
+        jsonb sla_policy
+        jsonb smtp_config
+        jsonb syslog_config
+        jsonb password_policy
+        jsonb branding
+    }
+    users {
+        uuid id PK
+        uuid tenant_id FK
+        string email
+        string role
+        bool allow_password_login
+        jsonb groups
+    }
+    assets {
+        uuid id PK
+        uuid tenant_id FK
+        string hostname
+        string device_category
+        int risk_score
+        bool ignored
+        string containment_status
+    }
+    vulnerabilities {
+        uuid id PK
+        uuid tenant_id FK
+        uuid asset_id FK
+        string cve_id
+        string severity
+        string source
+        string status
+        timestamp sla_deadline
+        bool sla_breached
+    }
+    vulnerability_correlations {
+        uuid id PK
+        uuid asset_id FK
+        string cve_id
+        int sources_count
+        string confidence
+    }
+    misconfigurations {
+        uuid id PK
+        uuid tenant_id FK
+        string rule_id
+        string severity
+        string category
+        string status
+    }
+    connector_configs {
+        uuid id PK
+        uuid tenant_id FK
+        string connector_type
+        bool is_enabled
+        timestamp last_sync_at
+    }
+    sync_logs {
+        uuid id PK
+        uuid connector_id FK
+        string status
+        timestamp started_at
+    }
+    tickets {
+        uuid id PK
+        uuid vulnerability_id FK
+        string provider
+        string external_ticket_id
+    }
+    ticket_rules {
+        uuid id PK
+        uuid saved_filter_id FK
+        string schedule
+    }
+    saved_filters {
+        uuid id PK
+        uuid tenant_id FK
+        jsonb conditions
+    }
+    audit_logs {
+        uuid id PK
+        uuid user_id
+        string action
+        string resource_type
+    }
+    scheduled_reports {
+        uuid id PK
+        uuid tenant_id FK
+        string schedule
+        string format
+    }
+    daily_snapshots {
+        uuid id PK
+        date snapshot_date
+        jsonb metrics
+    }
+    notifications {
+        uuid id PK
+        uuid user_id
+        string severity
+        string category
+        bool is_read
+    }

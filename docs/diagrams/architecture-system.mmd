@@ -1,0 +1,35 @@
+%% docs/02-architecture.md — High-level system
+flowchart TB
+    subgraph "External integrations"
+        SCN["6 scanners<br/>CrowdStrike · Nessus · Defender<br/>Wiz · Qualys · Rapid7"]
+        IDP["3 IdPs<br/>Google · Azure · Okta"]
+        MDM["3 MDM/HR<br/>Jamf · Intune · Humaans"]
+        TKT["Ticketing<br/>Jira · Asana"]
+        SMTP["SMTP server"]
+        SIEM["Syslog/SIEM (CEF)"]
+    end
+
+    subgraph "User"
+        BROW[Browser]
+    end
+
+    subgraph "Single VM (Docker Compose)"
+        NGX["nginx<br/>:80, :443<br/>TLS, security headers, rate limit"]
+        FE["frontend<br/>Next.js 15 / React 19<br/>:3000"]
+        BE["backend<br/>FastAPI + SQLAlchemy 2.0 async<br/>:8000<br/>+ in-process scheduler"]
+        PG[("postgres :5432<br/>JSONB, 24 migrations")]
+        RED[("redis :6379<br/>OIDC state · rate limiter")]
+    end
+
+    BROW -->|HTTPS| NGX
+    NGX -->|/| FE
+    NGX -->|/api/, /auth/| BE
+    FE -->|fetch /api/| BE
+    BE --> PG
+    BE --> RED
+    BE -->|pull| SCN
+    BE -->|pull| IDP
+    BE -->|pull| MDM
+    BE -->|push| TKT
+    BE -->|send| SMTP
+    BE -->|forward| SIEM

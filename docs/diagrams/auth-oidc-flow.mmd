@@ -1,0 +1,28 @@
+%% docs/02-architecture.md / docs/16-security.md — OIDC login post-Phase 1
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend (any replica)
+    participant R as Redis (db 0)
+    participant P as Provider (Google/Azure)
+
+    U->>F: Click "Sign in with Google"
+    F->>B: GET /auth/login/google?tenant_id=...
+    B->>B: generate state token (256-bit)
+    B->>R: SET oidc:state:{state} provider EX 600 NX
+    R-->>B: OK
+    B-->>F: { authorization_url }
+    F-->>U: redirect to provider
+    U->>P: authenticate
+    P-->>U: redirect to /auth/callback/google?code=...&state=...
+    U->>B: GET /auth/callback/google?code=...&state=...<br/>(may land on a DIFFERENT replica)
+    B->>R: GETDEL oidc:state:{state}
+    R-->>B: provider | nil
+    alt state missing or wrong provider
+        B-->>F: 400 invalid_state
+    else state valid
+        B->>P: exchange code for tokens
+        P-->>B: id_token, access_token
+        B->>B: upsert user, issue JWT access + refresh
+        B-->>F: { access_token, refresh_token }
+    end

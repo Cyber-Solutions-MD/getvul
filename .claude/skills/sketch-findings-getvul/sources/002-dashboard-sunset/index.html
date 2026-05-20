@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetVul /dashboard — Sunset palette sketch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="../themes/sunset.css" />
+  <style>
+    body { padding-top: 56px; }
+
+    /* ─── Variant nav ─── */
+    #variant-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: rgba(8, 6, 15, 0.85);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding: 10px 20px;
+      display: flex; gap: 6px; align-items: center;
+      font-family: var(--font-sans);
+    }
+    #variant-nav .label { color: var(--color-text-faint); font-size: var(--text-xs); margin-right: 12px; }
+    .variant-tab {
+      padding: 6px 14px; border-radius: var(--radius-md);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .variant-tab:hover { background: var(--color-surface); color: var(--color-text); }
+    .variant-tab.active { background: var(--color-surface-2); color: var(--color-text); box-shadow: 0 0 0 1px var(--color-border); }
+    .variant-tab .star { color: var(--color-amber); margin-left: 6px; }
+    .variant { display: none; }
+    .variant.active { display: block; }
+
+    /* ═══════════════ SHARED CHROME (top nav + sidebar) ═══════════════ */
+    .app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 56px); }
+    .sidebar {
+      background: var(--color-bg-darker);
+      border-right: 1px solid var(--color-border-subtle);
+      padding: 24px 16px;
+      display: flex; flex-direction: column; gap: 24px;
+    }
+    .sidebar .brand {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 4px 8px;
+      font-family: var(--font-display); font-weight: 800; letter-spacing: var(--tracking-tight);
+    }
+    .brand-mark {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--gradient-sunset);
+      display: grid; place-items: center;
+      box-shadow: var(--glow-pink);
+    }
+    .brand-mark svg { width: 16px; height: 16px; color: white; }
+    .brand-name { font-size: var(--text-base); color: var(--color-text); }
+
+    .sidebar-section { display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-section-title { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-faint); padding: 0 12px; margin-bottom: 4px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: var(--radius-md);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .nav-item:hover { background: var(--color-surface); color: var(--color-text); }
+    .nav-item.active {
+      background: var(--color-surface);
+      color: var(--color-text);
+      position: relative;
+    }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: -16px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0;
+      background: var(--gradient-sunset-vertical);
+      box-shadow: var(--glow-pink);
+    }
+    .nav-item svg { width: 16px; height: 16px; flex: none; }
+    .nav-item .count { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-faint); }
+    .nav-item.active .count { color: var(--color-pink); }
+
+    .main { padding: 28px 32px 64px; overflow: auto; }
+    .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+    .topbar .search {
+      flex: 1; max-width: 480px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 14px;
+      background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+      transition: border-color var(--motion-fast) var(--ease-standard);
+    }
+    .topbar .search:hover { border-color: var(--color-border); }
+    .topbar .search svg { width: 14px; height: 14px; opacity: 0.6; }
+    .topbar .search .kbd { margin-left: auto; font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); color: var(--color-text-faint); }
+    .topbar .actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .icon-btn {
+      width: 34px; height: 34px; border-radius: var(--radius-md);
+      background: var(--color-surface); border: 1px solid var(--color-border-subtle);
+      display: grid; place-items: center; color: var(--color-text-muted);
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .icon-btn:hover { color: var(--color-text); border-color: var(--color-border); }
+    .icon-btn svg { width: 16px; height: 16px; }
+    .user-chip {
+      display: flex; align-items: center; gap: 10px;
+      padding: 4px 10px 4px 4px; border-radius: var(--radius-full);
+      background: var(--color-surface); border: 1px solid var(--color-border-subtle);
+    }
+    .user-chip .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--gradient-sunset); color: white; display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; }
+    .user-chip .name { font-size: var(--text-sm); color: var(--color-text); }
+
+    /* ─── Shared atoms (cards, buttons, severity, etc.) ─── */
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+    }
+    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .card-head h3 { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .card-head .head-actions { display: flex; gap: 8px; }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: var(--text-xs); font-weight: 500;
+    }
+    .pill.critical { background: rgba(248, 113, 113, 0.12); color: var(--color-severity-critical); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .pill.high     { background: rgba(251, 146, 60, 0.12); color: var(--color-severity-high);     border: 1px solid rgba(251, 146, 60, 0.3); }
+    .pill.medium   { background: rgba(251, 191, 36, 0.10); color: var(--color-severity-medium);   border: 1px solid rgba(251, 191, 36, 0.3); }
+    .pill.low      { background: rgba(167, 139, 250, 0.12); color: var(--color-severity-low);      border: 1px solid rgba(167, 139, 250, 0.3); }
+    .pill.success  { background: var(--color-success-soft); color: var(--color-success); border: 1px solid rgba(74, 222, 128, 0.3); }
+
+    .sev-glyph { font-family: var(--font-mono); font-weight: 600; }
+    .sev-glyph.critical { color: var(--color-severity-critical); }
+    .sev-glyph.high     { color: var(--color-severity-high); }
+    .sev-glyph.medium   { color: var(--color-severity-medium); }
+    .sev-glyph.low      { color: var(--color-severity-low); }
+    .sev-glyph.info     { color: var(--color-severity-info); }
+
+    .btn-cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 16px; border-radius: var(--radius-md);
+      background: var(--gradient-sunset); color: white; font-size: var(--text-sm); font-weight: 600;
+      box-shadow: var(--glow-cta);
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .btn-cta:hover { transform: translateY(-1px); box-shadow: 0 12px 36px rgba(236, 72, 153, 0.5); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: var(--radius-md);
+      background: var(--color-surface-2); border: 1px solid var(--color-border);
+      color: var(--color-text); font-size: var(--text-sm); font-weight: 500;
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .btn-secondary:hover { background: var(--color-surface); border-color: var(--color-border-strong); }
+    .btn-ghost {
+      padding: 6px 10px; border-radius: var(--radius-sm);
+      color: var(--color-text-muted); font-size: var(--text-xs);
+      transition: color var(--motion-fast);
+    }
+    .btn-ghost:hover { color: var(--color-text); }
+    .btn-ghost.active { color: var(--color-text); background: var(--color-surface-2); }
+
+    .mono { font-family: var(--font-mono); }
+    .num  { font-family: var(--font-mono); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+    /* ─── Stat card ─── */
+    .stat {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      position: relative;
+    }
+    .stat .label { font-size: var(--text-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .stat .value { font-family: var(--font-display); font-weight: 700; font-size: var(--text-4xl); letter-spacing: var(--tracking-tighter); line-height: 1; }
+    .stat .delta { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; font-size: var(--text-xs); font-family: var(--font-mono); }
+    .stat .delta.up   { color: var(--color-danger); }
+    .stat .delta.down { color: var(--color-success); }
+    .stat .delta.flat { color: var(--color-text-faint); }
+    .stat .corner { position: absolute; top: 14px; right: 14px; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; }
+    .stat .corner svg { width: 14px; height: 14px; }
+
+    .stat.critical .value { background: linear-gradient(120deg, #F87171, #FB923C); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .stat.critical .corner { background: rgba(248, 113, 113, 0.12); color: var(--color-severity-critical); }
+    .stat.warn .corner { background: rgba(251, 146, 60, 0.12); color: var(--color-severity-high); }
+    .stat.accent .corner { background: var(--color-pink-soft); color: var(--color-pink); }
+    .stat.info .corner { background: var(--color-violet-soft); color: var(--color-violet); }
+
+    /* ─── Severity bar chart ─── */
+    .chart-area {
+      position: relative; height: 200px; margin-top: 12px;
+      display: flex; align-items: flex-end; gap: 6px;
+      padding: 0 4px;
+    }
+    .chart-bar {
+      flex: 1; display: flex; flex-direction: column-reverse; gap: 1px;
+      border-radius: 4px 4px 0 0; overflow: hidden;
+      transition: transform var(--motion-fast) var(--ease-standard);
+      cursor: pointer;
+    }
+    .chart-bar:hover { transform: scaleY(1.03); transform-origin: bottom; }
+    .chart-bar .seg-critical { background: var(--color-severity-critical); }
+    .chart-bar .seg-high     { background: var(--color-severity-high); }
+    .chart-bar .seg-medium   { background: var(--color-severity-medium); opacity: 0.9; }
+    .chart-bar .seg-low      { background: var(--color-severity-low); opacity: 0.7; }
+    .chart-axis { display: flex; justify-content: space-between; padding: 6px 4px 0; color: var(--color-text-faint); font-size: 10px; font-family: var(--font-mono); }
+    .chart-legend { display: flex; gap: 14px; }
+    .chart-legend .li { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--color-text-muted); }
+    .chart-legend .dot { width: 8px; height: 8px; border-radius: 2px; }
+
+    /* ─── Action / triage list ─── */
+    .triage-list { display: flex; flex-direction: column; gap: 1px; background: var(--color-border-subtle); border-radius: var(--radius-md); overflow: hidden; }
+    .triage-row {
+      display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 14px; align-items: center;
+      padding: 12px 14px; background: var(--color-surface);
+      transition: background var(--motion-fast);
+      cursor: pointer;
+    }
+    .triage-row:hover { background: var(--color-surface-2); }
+    .triage-row .cve { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 500; color: var(--color-text); }
+    .triage-row .desc { font-size: var(--text-sm); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .triage-row .asset { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-faint); }
+    .triage-row .score { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 600; min-width: 36px; text-align: right; }
+    .triage-row .due { font-family: var(--font-mono); font-size: var(--text-xs); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+    .triage-row .due.overdue { background: rgba(248, 113, 113, 0.15); color: var(--color-severity-critical); }
+    .triage-row .due.soon    { background: rgba(251, 146, 60, 0.15); color: var(--color-severity-high); }
+    .triage-row .due.ok      { background: rgba(74, 222, 128, 0.12); color: var(--color-success); }
+
+    /* ─── Activity feed ─── */
+    .feed { display: flex; flex-direction: column; gap: 0; }
+    .feed-item {
+      position: relative;
+      display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: start;
+      padding: 12px 0;
+    }
+    .feed-item + .feed-item { border-top: 1px solid var(--color-border-subtle); }
+    .feed-icon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--color-surface-2); color: var(--color-text-muted); }
+    .feed-icon svg { width: 14px; height: 14px; }
+    .feed-icon.pink   { background: var(--color-pink-soft);   color: var(--color-pink); }
+    .feed-icon.amber  { background: var(--color-amber-soft);  color: var(--color-amber); }
+    .feed-icon.violet { background: var(--color-violet-soft); color: var(--color-violet); }
+    .feed-icon.success { background: var(--color-success-soft); color: var(--color-success); }
+    .feed-body { font-size: var(--text-sm); color: var(--color-text); line-height: 1.5; }
+    .feed-body .who { font-weight: 500; }
+    .feed-body .what { color: var(--color-text-muted); }
+    .feed-body .ref { font-family: var(--font-mono); color: var(--color-text); }
+    .feed-time { font-size: var(--text-xs); font-family: var(--font-mono); color: var(--color-text-faint); white-space: nowrap; }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT A — Stat-grid hero                            */
+    /*   Traditional SaaS dashboard. Big number grid up top, */
+    /*   trend chart full-width, triage list, feed.          */
+    /* ═══════════════════════════════════════════════════ */
+    .var-a .hero-row { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; gap: 16px; flex-wrap: wrap; }
+    .var-a .hero-row h1 { margin: 0; font-size: var(--text-4xl); font-weight: 700; letter-spacing: var(--tracking-tighter); }
+    .var-a .hero-row .greeting { color: var(--color-text-muted); font-size: var(--text-base); margin-top: 6px; }
+    .var-a .hero-row .greeting .accent { background: var(--gradient-sunset); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 600; }
+    .var-a .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+    .var-a .row-2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-bottom: 24px; }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT B — "What to do now" hero                     */
+    /*   Action card is the hero. Stats are smaller below.   */
+    /*   Feed is in a right sidebar.                         */
+    /* ═══════════════════════════════════════════════════ */
+    .var-b .hero-card {
+      position: relative; overflow: hidden;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center;
+    }
+    .var-b .hero-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 0% 100%, var(--color-pink-soft) 0%, transparent 50%),
+                  radial-gradient(circle at 100% 0%, var(--color-amber-soft) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .var-b .hero-card > * { position: relative; }
+    .var-b .hero-card .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-pink); font-weight: 600; margin-bottom: 8px; }
+    .var-b .hero-card .eyebrow .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--color-pink); box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.6); animation: pulse 2s infinite; }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.6); }
+      50% { box-shadow: 0 0 0 8px rgba(236, 72, 153, 0); }
+    }
+    .var-b .hero-card h1 { margin: 0 0 6px; font-size: var(--text-3xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
+    .var-b .hero-card h1 .num { color: var(--color-pink); }
+    .var-b .hero-card .sub { color: var(--color-text-muted); font-size: var(--text-base); margin: 0; }
+    .var-b .hero-card .hero-actions { display: flex; gap: 10px; align-items: center; }
+
+    .var-b .body-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
+    .var-b .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .var-b .stat-strip .stat { padding: 14px 16px; }
+    .var-b .stat-strip .stat .value { font-size: var(--text-3xl); }
+    .var-b .stat-strip .stat .corner { display: none; }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT C — Asymmetric two-column workspace           */
+    /*   Left: action list + feed (workflow side).           */
+    /*   Right: stats + chart (metrics side).                */
+    /* ═══════════════════════════════════════════════════ */
+    .var-c .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 14px; }
+    .var-c .header-row h1 { margin: 0; font-size: var(--text-3xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
+    .var-c .header-row .subtitle { font-size: var(--text-sm); color: var(--color-text-muted); margin-top: 4px; }
+    .var-c .work-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; }
+    .var-c .left-col, .var-c .right-col { display: flex; flex-direction: column; gap: 20px; }
+    .var-c .stat-mini-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .var-c .stat-mini-grid .stat { padding: 14px 16px; }
+    .var-c .stat-mini-grid .stat .value { font-size: var(--text-2xl); }
+    .var-c .stat-mini-grid .stat .corner { width: 22px; height: 22px; }
+
+    /* ─── Sketch toolbar ─── */
+    #sketch-tools {
+      position: fixed; bottom: 16px; right: 16px; z-index: 9999;
+      font-family: system-ui; font-size: 12px;
+      background: rgba(0, 0, 0, 0.78); color: white;
+      padding: 8px 12px; border-radius: 10px;
+      opacity: 0.4; transition: opacity 0.2s;
+      display: flex; gap: 10px; align-items: center;
+    }
+    #sketch-tools:hover { opacity: 1; }
+    #sketch-tools select, #sketch-tools button {
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+      color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px;
+    }
+    #sketch-tools button:hover { background: rgba(255,255,255,0.2); }
+    #sketch-tools .sep { color: rgba(255,255,255,0.3); }
+
+    /* Responsive: collapse sidebar below 900px */
+    @media (max-width: 1000px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .var-a .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .var-a .row-2 { grid-template-columns: 1fr; }
+      .var-b .body-grid { grid-template-columns: 1fr; }
+      .var-b .stat-strip { grid-template-columns: repeat(2, 1fr); }
+      .var-c .work-grid { grid-template-columns: 1fr; }
+      .var-b .hero-card { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Variant Nav -->
+<div id="variant-nav">
+  <span class="label">002 · /dashboard · sunset</span>
+  <button class="variant-tab active" onclick="showVariant(event, 'a')">A · Stat-grid hero</button>
+  <button class="variant-tab" onclick="showVariant(event, 'b')">B · Action-first hero <span class="star">★ selected</span></button>
+  <button class="variant-tab" onclick="showVariant(event, 'c')">C · Workspace 2-col</button>
+</div>
+
+<!-- Shared SVG defs -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+  </symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4H10v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h2M3 13h2M19 19l-3-2M5 19l3-2M12 2v4"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="5" x2="13" y2="19"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5M9 8V2M15 8V2M5 11h14l-1 6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+  <symbol id="i-shield-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+</svg>
+
+<!-- Reusable shell helper -->
+<template id="shell-template">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg><use href="#i-shield"/></svg></div>
+      <span class="brand-name">GetVul</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-section-title">Triage</div>
+      <a class="nav-item active" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+      <a class="nav-item" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+      <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+      <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+    </nav>
+    <nav class="sidebar-section">
+      <div class="sidebar-section-title">Workflow</div>
+      <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+      <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+    </nav>
+    <nav class="sidebar-section" style="margin-top: auto;">
+      <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+      <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+    </nav>
+  </aside>
+</template>
+
+<!-- ═════════════════ VARIANT A — Stat-grid hero ═════════════════ -->
+<div id="variant-a" class="variant active">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><svg><use href="#i-shield"/></svg></div>
+        <span class="brand-name">GetVul</span>
+      </div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item active" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-a">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn" title="Notifications"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn" title="Help"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="hero-row">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="greeting">3 critical CVEs need triage today. <span class="accent">2 more breached SLA overnight.</span></p>
+        </div>
+        <button class="btn-cta"><svg><use href="#i-zap"/></svg>Open today's queue</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat critical">
+          <div class="label">Critical · open</div>
+          <div class="value num">14</div>
+          <div class="delta up"><svg><use href="#i-arrow-up"/></svg>+3 from yesterday</div>
+          <div class="corner"><svg><use href="#i-flame"/></svg></div>
+        </div>
+        <div class="stat warn">
+          <div class="label">SLA · at risk</div>
+          <div class="value num">28</div>
+          <div class="delta up"><svg><use href="#i-arrow-up"/></svg>+5 in 24h</div>
+          <div class="corner"><svg><use href="#i-clock"/></svg></div>
+        </div>
+        <div class="stat accent">
+          <div class="label">CISA KEV</div>
+          <div class="value num">9</div>
+          <div class="delta flat">No change</div>
+          <div class="corner"><svg><use href="#i-shield-alert"/></svg></div>
+        </div>
+        <div class="stat info">
+          <div class="label">MTTR · 30d avg</div>
+          <div class="value num">4.2<span style="font-size: var(--text-xl); color: var(--color-text-muted);">d</span></div>
+          <div class="delta down"><svg><use href="#i-arrow-down"/></svg>−0.8d vs prev</div>
+          <div class="corner"><svg><use href="#i-trend"/></svg></div>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="card">
+          <div class="card-head">
+            <h3>Vulnerability trend · last 30 days</h3>
+            <div class="head-actions">
+              <button class="btn-ghost">7d</button>
+              <button class="btn-ghost active">30d</button>
+              <button class="btn-ghost">90d</button>
+            </div>
+          </div>
+          <div class="chart-area" id="chart-a"></div>
+          <div class="chart-axis"><span>Apr 12</span><span>Apr 19</span><span>Apr 26</span><span>May 3</span><span>May 10</span></div>
+          <div class="chart-legend" style="margin-top: 14px;">
+            <div class="li"><div class="dot" style="background: var(--color-severity-critical);"></div>Critical</div>
+            <div class="li"><div class="dot" style="background: var(--color-severity-high);"></div>High</div>
+            <div class="li"><div class="dot" style="background: var(--color-severity-medium);"></div>Medium</div>
+            <div class="li"><div class="dot" style="background: var(--color-severity-low);"></div>Low</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Top 5 to triage</h3><button class="btn-ghost">See all →</button></div>
+          <div class="triage-list" id="triage-list-a"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Recent activity</h3><button class="btn-ghost">View all →</button></div>
+        <div class="feed" id="feed-a"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT B — Action-first hero ═════════════════ -->
+<div id="variant-b" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><svg><use href="#i-shield"/></svg></div>
+        <span class="brand-name">GetVul</span>
+      </div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item active" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-b">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div>
+          <div class="eyebrow"><span class="pulse"></span>Today's priority</div>
+          <h1><span class="num">3 critical</span> CVEs need your eyes</h1>
+          <p class="sub">Top one is on <span class="mono" style="color: var(--color-text);">prod-db-01</span> — Postgres path, CVSS 9.8, exploited in the wild. Triage them in &lt; 15 min.</p>
+        </div>
+        <div class="hero-actions">
+          <button class="btn-secondary">Snooze 1h</button>
+          <button class="btn-cta"><svg><use href="#i-zap"/></svg>Start triage</button>
+        </div>
+      </div>
+
+      <div class="body-grid">
+        <div>
+          <div class="stat-strip">
+            <div class="stat critical"><div class="label">Critical · open</div><div class="value num">14</div></div>
+            <div class="stat warn"><div class="label">SLA · at risk</div><div class="value num">28</div></div>
+            <div class="stat accent"><div class="label">CISA KEV</div><div class="value num">9</div></div>
+            <div class="stat info"><div class="label">MTTR · 30d</div><div class="value num">4.2<span style="font-size: var(--text-lg); color: var(--color-text-muted);">d</span></div></div>
+          </div>
+
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-head">
+              <h3>Vulnerability trend</h3>
+              <div class="head-actions">
+                <button class="btn-ghost">7d</button>
+                <button class="btn-ghost active">30d</button>
+                <button class="btn-ghost">90d</button>
+              </div>
+            </div>
+            <div class="chart-area" id="chart-b"></div>
+            <div class="chart-axis"><span>Apr 12</span><span>Apr 19</span><span>Apr 26</span><span>May 3</span><span>May 10</span></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Top 5 to triage</h3><button class="btn-ghost">See all →</button></div>
+            <div class="triage-list" id="triage-list-b"></div>
+          </div>
+        </div>
+
+        <aside class="card" style="align-self: start;">
+          <div class="card-head"><h3>Activity</h3></div>
+          <div class="feed" id="feed-b"></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT C — Workspace 2-col ═════════════════ -->
+<div id="variant-c" class="variant">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><svg><use href="#i-shield"/></svg></div>
+        <span class="brand-name">GetVul</span>
+      </div>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Triage</div>
+        <a class="nav-item active" href="#"><svg><use href="#i-home"/></svg>Dashboard</a>
+        <a class="nav-item" href="#"><svg><use href="#i-bug"/></svg>Vulnerabilities<span class="count">1,247</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-server"/></svg>Assets<span class="count">312</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-cloud"/></svg>CSPM</a>
+      </nav>
+      <nav class="sidebar-section">
+        <div class="sidebar-section-title">Workflow</div>
+        <a class="nav-item" href="#"><svg><use href="#i-ticket"/></svg>Tickets<span class="count">23</span></a>
+        <a class="nav-item" href="#"><svg><use href="#i-plug"/></svg>Connectors</a>
+      </nav>
+      <nav class="sidebar-section" style="margin-top: auto;">
+        <a class="nav-item" href="#"><svg><use href="#i-users"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg><use href="#i-cog"/></svg>Settings</a>
+      </nav>
+    </aside>
+    <main class="main var-c">
+      <div class="topbar">
+        <div class="search"><svg><use href="#i-search"/></svg><span>Search CVEs, assets, tickets…</span><span class="kbd">⌘K</span></div>
+        <div class="actions">
+          <button class="icon-btn"><svg><use href="#i-bell"/></svg></button>
+          <button class="icon-btn"><svg><use href="#i-help"/></svg></button>
+          <div class="user-chip"><div class="avatar">AS</div><span class="name">Ana</span></div>
+        </div>
+      </div>
+
+      <div class="header-row">
+        <div>
+          <h1>Good morning, Ana</h1>
+          <p class="subtitle">3 critical CVEs need triage · 28 items approaching SLA · 9 CISA KEV exposures.</p>
+        </div>
+        <button class="btn-cta"><svg><use href="#i-zap"/></svg>Open today's queue</button>
+      </div>
+
+      <div class="work-grid">
+        <div class="left-col">
+          <div class="card">
+            <div class="card-head"><h3>Top 5 to triage</h3><button class="btn-ghost">See all →</button></div>
+            <div class="triage-list" id="triage-list-c"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Activity</h3><button class="btn-ghost">View all →</button></div>
+            <div class="feed" id="feed-c"></div>
+          </div>
+        </div>
+        <div class="right-col">
+          <div class="stat-mini-grid">
+            <div class="stat critical"><div class="label">Critical</div><div class="value num">14</div><div class="corner"><svg><use href="#i-flame"/></svg></div></div>
+            <div class="stat warn"><div class="label">SLA risk</div><div class="value num">28</div><div class="corner"><svg><use href="#i-clock"/></svg></div></div>
+            <div class="stat accent"><div class="label">CISA KEV</div><div class="value num">9</div><div class="corner"><svg><use href="#i-shield-alert"/></svg></div></div>
+            <div class="stat info"><div class="label">MTTR</div><div class="value num">4.2d</div><div class="corner"><svg><use href="#i-trend"/></svg></div></div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Trend · 30d</h3>
+              <div class="head-actions">
+                <button class="btn-ghost">7d</button>
+                <button class="btn-ghost active">30d</button>
+                <button class="btn-ghost">90d</button>
+              </div>
+            </div>
+            <div class="chart-area" id="chart-c"></div>
+            <div class="chart-axis"><span>Apr 12</span><span>Apr 26</span><span>May 10</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Sketch toolbar -->
+<div id="sketch-tools">
+  <span>theme</span>
+  <select id="theme-switcher" onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'">
+    <option value="sunset">sunset</option>
+  </select>
+  <span class="sep">·</span>
+  <span>viewport</span>
+  <button onclick="setViewport('mobile')">375</button>
+  <button onclick="setViewport('tablet')">768</button>
+  <button onclick="setViewport('desktop')">full</button>
+</div>
+
+<script>
+  // ─── Variant switching ───
+  function showVariant(e, id) {
+    document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).classList.add('active');
+    e.currentTarget.classList.add('active');
+  }
+
+  // ─── Viewport simulation ───
+  function setViewport(size) {
+    const widths = { mobile: '375px', tablet: '768px', desktop: '100%' };
+    document.body.style.maxWidth = widths[size];
+    document.body.style.margin = size === 'desktop' ? '0' : '0 auto';
+    document.body.style.boxShadow = size === 'desktop' ? 'none' : '0 0 0 1px rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.5)';
+  }
+
+  // ─── Build trend chart bars ───
+  const CHART_DATA = [
+    {c:1,h:3,m:8,l:11},{c:2,h:4,m:7,l:13},{c:1,h:5,m:9,l:10},{c:3,h:4,m:10,l:9},
+    {c:2,h:6,m:8,l:11},{c:4,h:5,m:9,l:8},{c:5,h:7,m:11,l:12},{c:3,h:8,m:10,l:14},
+    {c:4,h:6,m:12,l:11},{c:5,h:9,m:11,l:13},{c:6,h:8,m:13,l:10},{c:5,h:10,m:14,l:12},
+    {c:7,h:11,m:13,l:15},{c:8,h:9,m:15,l:13},{c:6,h:12,m:14,l:14},{c:9,h:10,m:16,l:15},
+    {c:11,h:13,m:15,l:14},{c:10,h:14,m:17,l:16},{c:12,h:12,m:18,l:15},{c:13,h:15,m:17,l:17},
+    {c:11,h:16,m:19,l:16},{c:14,h:14,m:18,l:18},{c:13,h:17,m:20,l:17},{c:15,h:16,m:19,l:19},
+    {c:14,h:18,m:21,l:18},{c:16,h:17,m:20,l:20},{c:14,h:19,m:22,l:19},{c:13,h:18,m:21,l:20},
+    {c:15,h:20,m:23,l:21},{c:14,h:19,m:22,l:22},
+  ];
+  function renderChart(elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const max = Math.max(...CHART_DATA.map(d => d.c + d.h + d.m + d.l));
+    el.innerHTML = CHART_DATA.map(d => {
+      const tot = d.c + d.h + d.m + d.l;
+      const total_h = (tot / max) * 100;
+      return `
+        <div class="chart-bar" title="C:${d.c} H:${d.h} M:${d.m} L:${d.l}" style="height:${total_h}%;">
+          <div class="seg-low" style="height:${(d.l/tot)*100}%;"></div>
+          <div class="seg-medium" style="height:${(d.m/tot)*100}%;"></div>
+          <div class="seg-high" style="height:${(d.h/tot)*100}%;"></div>
+          <div class="seg-critical" style="height:${(d.c/tot)*100}%;"></div>
+        </div>`;
+    }).join('');
+  }
+  ['chart-a','chart-b','chart-c'].forEach(renderChart);
+
+  // ─── Build triage list ───
+  const TRIAGE = [
+    { sev: 'critical', glyph: '■', cve: 'CVE-2024-3094', desc: 'xz-utils backdoor — RCE via ssh', asset: 'prod-db-01', score: '9.8', due: 'overdue', dueLabel: '−2h SLA' },
+    { sev: 'critical', glyph: '■', cve: 'CVE-2024-21626', desc: 'runc — host filesystem escape', asset: 'runner-04', score: '8.6', due: 'soon', dueLabel: '4h left' },
+    { sev: 'high',     glyph: '▲', cve: 'CVE-2023-44487', desc: 'HTTP/2 rapid reset DoS', asset: 'api-gw-02', score: '7.5', due: 'soon', dueLabel: '18h left' },
+    { sev: 'high',     glyph: '▲', cve: 'CVE-2024-27316', desc: 'Apache httpd memory exhaustion', asset: 'web-01', score: '7.5', due: 'ok', dueLabel: '3d left' },
+    { sev: 'medium',   glyph: '◆', cve: 'CVE-2024-2511',  desc: 'OpenSSL session-cache memory leak', asset: 'lb-staging-01', score: '5.9', due: 'ok', dueLabel: '5d left' },
+  ];
+  function renderTriage(elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = TRIAGE.map(r => `
+      <div class="triage-row">
+        <span class="sev-glyph ${r.sev}" aria-label="${r.sev}">${r.glyph}</span>
+        <div style="overflow: hidden;">
+          <div class="cve">${r.cve}</div>
+          <div class="desc">${r.desc}</div>
+        </div>
+        <div class="asset">${r.asset}</div>
+        <div class="score" style="color: ${r.score >= 9 ? 'var(--color-severity-critical)' : r.score >= 7 ? 'var(--color-severity-high)' : 'var(--color-severity-medium)'};">${r.score}</div>
+        <div class="due ${r.due}">${r.dueLabel}</div>
+      </div>
+    `).join('');
+  }
+  ['triage-list-a','triage-list-b','triage-list-c'].forEach(renderTriage);
+
+  // ─── Build activity feed ───
+  const FEED = [
+    { icon: 'pink',    glyph: '<svg><use href="#i-flame"/></svg>',   who: 'Tenable connector', what: 'detected 14 new vulnerabilities — 2 critical, 5 high.', ref: '', time: '7m' },
+    { icon: 'success', glyph: '<svg><use href="#i-check"/></svg>',  who: 'Ana',                what: 'closed ticket', ref: 'JIRA-2841', time: '24m' },
+    { icon: 'amber',   glyph: '<svg><use href="#i-shield-alert"/></svg>', who: 'CISA KEV',     what: 'added', ref: 'CVE-2024-3094 to known-exploited.', time: '1h' },
+    { icon: 'violet',  glyph: '<svg><use href="#i-server"/></svg>', who: 'AWS Inspector',     what: 'finished scan of', ref: '32 EC2 instances.', time: '2h' },
+    { icon: 'pink',    glyph: '<svg><use href="#i-zap"/></svg>',    who: 'SLA engine',         what: 'marked 2 vulns as breached and 5 as at-risk.', ref: '', time: '3h' },
+  ];
+  function renderFeed(elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = FEED.map(f => `
+      <div class="feed-item">
+        <div class="feed-icon ${f.icon}">${f.glyph}</div>
+        <div class="feed-body"><span class="who">${f.who}</span> <span class="what">${f.what}</span> ${f.ref ? `<span class="ref">${f.ref}</span>` : ''}</div>
+        <div class="feed-time">${f.time}</div>
+      </div>
+    `).join('');
+  }
+  ['feed-a','feed-b','feed-c'].forEach(renderFeed);
+</script>
+
+</body>
+</html>

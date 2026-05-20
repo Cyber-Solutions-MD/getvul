@@ -5,6 +5,12 @@ import { useRouter, usePathname } from "next/navigation";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 
+// D-50: every protected route lives under /dashboard. Keep the predicate
+// hoisted so the route-guard useEffect's dep array stays stable across renders.
+function isProtectedPath(p: string): boolean {
+  return p.startsWith('/dashboard');
+}
+
 interface User {
   id: string;
   email: string;
@@ -15,19 +21,34 @@ interface User {
   tenant_name: string;
 }
 
+// D-49 / D-51 surfaceable login error: `.status` carries the HTTP code so /login
+// can decide whether to swap in the generic 401 copy or pass-through `.message`.
+export class AuthError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'AuthError';
+    this.status = status;
+  }
+}
+
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<string | null>;
+  // D-49: throws AuthError with `.status` on credential failure (no router-side
+  // navigation here — /login owns the post-success router.replace so it can
+  // honor `?next=`).
+  login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<string | null>;
-  loginSSO: (provider: string) => Promise<void>;
+  // D-51: throws Error with the user-facing copy when SSO is unreachable.
+  loginSSO: (provider: 'google' | 'azure') => Promise<void>;
   logout: () => void;
   token: string | null;
 }
 
 const AuthContext = createContext<AuthState>({
   user: null, loading: true,
-  login: async () => null,
+  login: async () => {},
   register: async () => null,
   loginSSO: async () => {},
   logout: () => {},
@@ -68,10 +89,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated. D-50: preserve where the user
+  // tried to go via `?next=<encoded pathname+search>`. /login validates the
+  // target via sanitizeNext() before honoring it (Pitfall 10 — open-redirect).
   useEffect(() => {
-    if (!loading && !user && pathname?.startsWith("/dashboard")) {
-      router.replace("/login");
+    if (!loading && !user && pathname && isProtectedPath(pathname)) {
+      const search =
+        typeof window !== 'undefined' ? window.location.search : '';
+      const next = encodeURIComponent(pathname + search);
+      router.replace(`/login?next=${next}`);
     }
   }, [loading, user, pathname, router]);
 
@@ -118,22 +144,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  const login = useCallback(async (email: string, password: string): Promise<string | null> => {
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
+    // D-49: throw AuthError with `.status` so /login can map 401 → generic copy
+    // and pass through other 4xx detail. The caller (LoginForm) owns the post-success
+    // navigation so it can sanitize and honor `?next=` per D-50 + Pitfall 10.
+    let resp: Response;
     try {
-      const resp = await fetch(`${API}/auth/login`, {
+      resp = await fetch(`${API}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await resp.json();
-      if (!resp.ok) return data.detail || "Login failed";
-      storeTokens(data);
-      router.replace("/dashboard");
-      return null;
-    } catch (e: any) {
-      return e.message || "Connection error";
+    } catch (e: unknown) {
+      // Network failure — surface as generic so error UI doesn't leak details.
+      throw new AuthError('Sign-in failed. Try again in a moment.');
     }
-  }, [router]);
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new AuthError(data?.detail || 'Sign-in failed.', resp.status);
+    }
+    const data = await resp.json();
+    storeTokens(data);
+  }, []);
 
   const register = useCallback(async (email: string, password: string, name: string): Promise<string | null> => {
     try {
@@ -152,16 +184,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [router]);
 
-  const loginSSO = useCallback(async (provider: string) => {
+  // D-51: surface SSO failure via a thrown Error so /login can render the
+  // D-51 verbatim copy in <ErrorAlert>. The backend's OIDC start endpoint is
+  // a JSON GET that returns `{authorization_url, state}` — fetching it acts
+  // as the "pre-flight" the plan describes; if it returns non-2xx (5xx, 503,
+  // 404), or `authorization_url` is missing, we throw BEFORE navigating away.
+  // Caller (SsoRow.handleSso) catches and pipes the message into setAuthError.
+  const loginSSO = useCallback(async (provider: 'google' | 'azure') => {
+    const provName = provider === 'google' ? 'Google' : 'Microsoft';
+    const unavailable = `Sign-in with ${provName} is temporarily unavailable. Try email instead.`;
+    let resp: Response;
     try {
-      const resp = await fetch(`${API}/auth/login/${provider}`);
-      const data = await resp.json();
-      if (data.authorization_url) {
-        // Store state for callback
-        localStorage.setItem("getvul_sso_state", data.state);
-        window.location.href = data.authorization_url;
-      }
-    } catch {}
+      resp = await fetch(`${API}/auth/login/${provider}`);
+    } catch {
+      throw new Error(unavailable);
+    }
+    if (!resp.ok) {
+      throw new Error(unavailable);
+    }
+    let data: { authorization_url?: string; state?: string };
+    try {
+      data = await resp.json();
+    } catch {
+      throw new Error(unavailable);
+    }
+    if (!data?.authorization_url) {
+      throw new Error(unavailable);
+    }
+    if (data.state) {
+      // Store state for callback (existing pattern preserved).
+      localStorage.setItem("getvul_sso_state", data.state);
+    }
+    window.location.href = data.authorization_url;
   }, []);
 
   const logout = useCallback(() => {

@@ -1,40 +1,52 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useState } from 'react';
 
-type Theme = "dark" | "light";
+type Theme = 'dark' | 'light';
 
-const ThemeContext = createContext<{
+interface ThemeContextValue {
   theme: Theme;
+  setTheme: (t: Theme) => void;
   toggle: () => void;
-}>({ theme: "dark", toggle: () => {} });
+}
+
+const ThemeContext = createContext<ThemeContextValue>({
+  theme: 'dark',
+  setTheme: () => {},
+  toggle: () => {},
+});
+
+// Read the data-theme attribute the layout bootstrap script set pre-hydration.
+// SSR has no document, so default to "dark" (matches layout.tsx's default attr).
+function readInitialTheme(): Theme {
+  if (typeof document === 'undefined') return 'dark';
+  const attr = document.documentElement.getAttribute('data-theme');
+  return attr === 'light' ? 'light' : 'dark';
+}
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
+  // No mounted gate — D-02 + Pitfall 4. The bootstrap script in <head> has
+  // already set data-theme synchronously before this provider hydrates, so
+  // there is no theme flash to hide. Children render unconditionally.
+  const [theme, setThemeState] = useState<Theme>(readInitialTheme);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("getvul_theme") as Theme | null;
-    const initial = stored || "dark";
-    setTheme(initial);
-    document.documentElement.classList.toggle("light", initial === "light");
-    document.documentElement.classList.toggle("dark", initial === "dark");
-    setMounted(true);
+  const setTheme = useCallback((next: Theme) => {
+    document.documentElement.setAttribute('data-theme', next);
+    try {
+      localStorage.setItem('getvul_theme', next);
+    } catch {
+      // Storage unavailable (private-mode Safari, disabled storage). State
+      // still flips for this session — preference just won't persist.
+    }
+    setThemeState(next);
   }, []);
 
-  const toggle = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem("getvul_theme", next);
-    document.documentElement.classList.toggle("light", next === "light");
-    document.documentElement.classList.toggle("dark", next === "dark");
-  };
-
-  // Prevent flash of wrong theme
-  if (!mounted) return null;
+  const toggle = useCallback(() => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  }, [theme, setTheme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggle }}>
       {children}
     </ThemeContext.Provider>
   );

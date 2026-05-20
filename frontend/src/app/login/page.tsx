@@ -1,227 +1,557 @@
-"use client";
+'use client';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from '@/lib/auth';
+import { loginSchema, forgotSchema, resetSchema } from '@/lib/validation/auth';
+import { sanitizeNext } from './sanitize-next';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from '@/components/ui/form';
+import { SsoButton } from '@/components/ui/sso-button';
+import { GradientText } from '@/components/ui/gradient-text';
+import { ErrorAlert } from '@/components/auth/error-alert';
+
+type Mode = 'login' | 'forgot' | 'reset';
+
+// Hard-coded sample CVE rows for the left-panel product peek (D-44).
+// Real public KEV references; mono lowercase fake hostnames.
+const SAMPLE_VULNS = [
+  { cve: 'CVE-2024-3094',  title: 'xz-utils backdoor',     host: 'prod-db-01',   cvss: 10.0, severity: 'critical' as const },
+  { cve: 'CVE-2021-44228', title: 'Log4Shell RCE',         host: 'auth-api-02',  cvss: 10.0, severity: 'critical' as const },
+  { cve: 'CVE-2022-22965', title: 'Spring4Shell',          host: 'web-edge-04',  cvss:  9.8, severity: 'critical' as const },
+  { cve: 'CVE-2023-23397', title: 'Outlook NTLM leak',     host: 'mail-relay-1', cvss:  9.8, severity: 'high'     as const },
+];
 
 export default function LoginPage() {
-  const { user, loading, login, register, loginSSO } = useAuth();
+  // Pitfall 8: useSearchParams() requires a Suspense boundary to stream-render
+  // safely under Next 15 + React 19. Without it the build emits a warning and
+  // the route falls back to fully client-rendered.
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginPanels />
+    </Suspense>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <main className="min-h-screen bg-bg grid place-items-center text-text-faint text-sm">
+      Loading…
+    </main>
+  );
+}
+
+function LoginPanels() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register" | "forgot" | "reset">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [resetToken, setResetToken] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const searchParams = useSearchParams();
+  const { user, login, loginSSO } = useAuth();
 
-  // Redirect if already logged in
+  // Mode state machine per D-43. Enter 'reset' if URL has ?reset=TOKEN.
+  const resetToken = searchParams.get('reset');
+  const [mode, setMode] = useState<Mode>(resetToken ? 'reset' : 'login');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [forgotSent, setForgotSent] = useState(false);
+
+  // Bounce already-authed users to ?next= (validated), otherwise /dashboard.
+  // D-50 + Pitfall 10 — open-redirect mitigation via sanitizeNext.
   useEffect(() => {
-    if (!loading && user) router.replace("/dashboard");
-  }, [loading, user, router]);
+    if (user) {
+      router.replace(sanitizeNext(searchParams.get('next')));
+    }
+  }, [user, router, searchParams]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
+  return (
+    <main className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-bg text-text">
+      <LeftPanel />
+      <RightPanel
+        mode={mode}
+        setMode={(m) => {
+          setMode(m);
+          setAuthError(null);
+          setForgotSent(false);
+        }}
+        authError={authError}
+        setAuthError={setAuthError}
+        forgotSent={forgotSent}
+        setForgotSent={setForgotSent}
+        login={login}
+        loginSSO={loginSSO}
+        router={router}
+        searchParams={searchParams}
+        resetToken={resetToken}
+      />
+    </main>
+  );
+}
+
+function LeftPanel() {
+  // Left panel — bg-gradient-mesh drifting (Wave 0 keyframes) + D-45 verbatim
+  // marketing + D-44 hard-coded vuln-peek rows. The <section> itself is NOT
+  // aria-hidden — that would swallow the H1 tagline (the product's elevator
+  // pitch) from assistive tech and violate WCAG 2 SC 1.3.1. Only the truly
+  // decorative children (gradient mesh, severity color glyphs, peek rows) are
+  // aria-hidden.
+  return (
+    <section className="hidden lg:flex relative overflow-hidden bg-bg-darker">
+      {/* Drifting mesh — decorative; aria-hidden so SR doesn't announce it */}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-mesh opacity-80 animate-gradient-drift"
+      />
+      <div className="relative z-10 flex flex-col justify-between px-12 py-16 w-full">
+        <div>
+          {/* D-45 verbatim — tagline with GradientText accent on the second clause.
+              Reachable by SR via H1 landmark. */}
+          <h1 className="text-5xl font-extrabold leading-tight tracking-tighter text-text">
+            See your security posture{' '}
+            <GradientText>without opening another tool.</GradientText>
+          </h1>
+          <p className="mt-4 max-w-md text-base text-text-muted">
+            One dashboard. Every scanner. Real ownership. Tickets out, fewer meetings.
+          </p>
+        </div>
+
+        {/* Decorative product peek — vuln-peek rows are illustrative content,
+            not part of the page's primary information. Hide from assistive tech
+            so the form is the focus and the H1 is the landmark. */}
+        <div aria-hidden className="mt-12 space-y-2 max-w-md">
+          {SAMPLE_VULNS.map((v) => (
+            <div
+              key={v.cve}
+              className="flex items-center gap-3 rounded-lg border border-border-subtle bg-surface-glass backdrop-blur-sm px-3 py-2.5 text-sm"
+            >
+              <span
+                aria-hidden
+                className={
+                  v.severity === 'critical'
+                    ? 'inline-block h-2.5 w-2.5 rounded-sm bg-severity-critical'
+                    : 'inline-block h-2.5 w-2.5 rounded-sm bg-severity-high'
+                }
+              />
+              <span className="font-mono text-text">{v.cve}</span>
+              <span className="flex-1 truncate text-text-muted">{v.title}</span>
+              <span className="font-mono text-text-faint text-xs">{v.host}</span>
+              <span className="font-mono tabular-nums text-text text-xs">
+                {v.cvss.toFixed(1)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface RightPanelProps {
+  mode: Mode;
+  setMode: (m: Mode) => void;
+  authError: string | null;
+  setAuthError: (e: string | null) => void;
+  forgotSent: boolean;
+  setForgotSent: (v: boolean) => void;
+  login: ReturnType<typeof useAuth>['login'];
+  loginSSO: ReturnType<typeof useAuth>['loginSSO'];
+  router: ReturnType<typeof useRouter>;
+  searchParams: ReturnType<typeof useSearchParams>;
+  resetToken: string | null;
+}
+
+function RightPanel(props: RightPanelProps) {
+  const { mode } = props;
+
+  return (
+    <section className="flex items-center justify-center px-6 py-12 lg:px-12">
+      <div className="w-full max-w-sm space-y-6">
+        {/* Per-mode heading per D-43 */}
+        <div>
+          <h2 className="text-2xl font-bold text-text">
+            {mode === 'login' && 'Sign in'}
+            {mode === 'forgot' && 'Reset your password'}
+            {mode === 'reset' && 'Set a new password'}
+          </h2>
+          {mode === 'login' && (
+            <p className="mt-1 text-sm text-text-muted">
+              Welcome back. Use your work account.
+            </p>
+          )}
+          {mode === 'forgot' && (
+            <p className="mt-1 text-sm text-text-muted">
+              Enter the email tied to your account.
+            </p>
+          )}
+          {mode === 'reset' && (
+            <p className="mt-1 text-sm text-text-muted">
+              Pick a strong one. Min 8 characters.
+            </p>
+          )}
+        </div>
+
+        {/* Form-level error per D-28, UX-01-05 */}
+        {props.authError && <ErrorAlert>{props.authError}</ErrorAlert>}
+
+        {/* SSO row — login mode only per D-43, UX-01-04 */}
+        {mode === 'login' && <SsoRow {...props} />}
+
+        {/* Mode-specific form */}
+        {mode === 'login' && <LoginForm {...props} />}
+        {mode === 'forgot' && <ForgotForm {...props} />}
+        {mode === 'reset' && <ResetForm {...props} />}
+
+        {/* Mode-switch links per D-47 — forgot has an explicit "back" link;
+            reset is token-gated so has no in-app entry path. */}
+        {mode === 'forgot' && (
+          <button
+            type="button"
+            className="block text-sm text-text-muted hover:text-text underline-offset-4 hover:underline"
+            onClick={() => props.setMode('login')}
+          >
+            Back to sign in
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// D-46 UI label "Microsoft" maps to backend OIDC route name 'azure' — backend
+// route is /auth/login/azure (existing v1 contract). Promoted to a helper so
+// reviewers have one obvious place to look for the indirection.
+const toBackendProvider = (
+  uiProvider: 'google' | 'microsoft',
+): 'google' | 'azure' => (uiProvider === 'microsoft' ? 'azure' : 'google');
+
+function SsoRow({ loginSSO, setAuthError }: RightPanelProps) {
+  async function handleSso(uiProvider: 'google' | 'microsoft') {
+    setAuthError(null);
+    // D-46 UI label "Microsoft" maps to backend OIDC route name 'azure' — never
+    // pass 'microsoft' to loginSSO().
+    const backendProvider = toBackendProvider(uiProvider);
     try {
-      let err: string | null;
-      if (mode === "register") {
-        err = await register(email, password, name);
-      } else {
-        err = await login(email, password);
-      }
-      if (err) setError(err);
-    } finally {
-      setSubmitting(false);
+      await loginSSO(backendProvider);
+    } catch (e: unknown) {
+      // D-51: loginSSO now throws with the verbatim user-facing message
+      const msg =
+        e instanceof Error
+          ? e.message
+          : `Sign-in with ${uiProvider === 'google' ? 'Google' : 'Microsoft'} is temporarily unavailable. Try email instead.`;
+      setAuthError(msg);
     }
   }
 
-  if (loading) {
+  return (
+    <>
+      <div className="space-y-2.5">
+        <SsoButton provider="google" onClick={() => handleSso('google')} />
+        <SsoButton provider="microsoft" onClick={() => handleSso('microsoft')} />
+      </div>
+      {/* `or with email` divider per D-32, UX-01-02. One-off, not a primitive. */}
+      <div className="flex items-center gap-3 text-xs uppercase tracking-wider text-text-faint">
+        <span className="h-px flex-1 bg-border-subtle" />
+        <span>or with email</span>
+        <span className="h-px flex-1 bg-border-subtle" />
+      </div>
+    </>
+  );
+}
+
+function LoginForm({
+  login,
+  setAuthError,
+  router,
+  searchParams,
+  setMode,
+}: RightPanelProps) {
+  const form = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    mode: 'onSubmit', // D-53
+    defaultValues: { email: '', password: '' },
+  });
+
+  async function onSubmit(values: z.infer<typeof loginSchema>) {
+    setAuthError(null);
+    try {
+      await login(values.email, values.password);
+      // Honor ?next= with open-redirect mitigation per D-50 + Pitfall 10.
+      const dest = sanitizeNext(searchParams.get('next'));
+      router.replace(dest);
+    } catch (e: unknown) {
+      // D-49: 401 → generic; other 4xx → pass-through backend message.
+      const err = e as { status?: number; message?: string } | undefined;
+      const status = err?.status;
+      if (status === 401) {
+        setAuthError('Email or password is incorrect.');
+      } else {
+        setAuthError(err?.message ?? 'Sign-in failed. Try again in a moment.');
+      }
+    }
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder="you@company.com"
+                  autoFocus
+                  autoComplete="email"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Password</FormLabel>
+              <FormControl>
+                <Input
+                  type="password"
+                  autoComplete="current-password"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* D-47: right-aligned "Forgot password?" link below password */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="text-sm text-text-muted hover:text-text underline-offset-4 hover:underline"
+            onClick={() => setMode('forgot')}
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        {/* D-52: per-mode CTA copy */}
+        <Button
+          type="submit"
+          variant="cta"
+          size="lg"
+          className="w-full"
+          loading={form.formState.isSubmitting}
+          loadingText="Signing in…"
+        >
+          Sign in
+        </Button>
+      </form>
+    </Form>
+  );
+}
+
+function ForgotForm({
+  setAuthError,
+  forgotSent,
+  setForgotSent,
+}: RightPanelProps) {
+  const form = useForm<z.infer<typeof forgotSchema>>({
+    resolver: zodResolver(forgotSchema),
+    mode: 'onSubmit',
+    defaultValues: { email: '' },
+  });
+
+  async function onSubmit(values: z.infer<typeof forgotSchema>) {
+    setAuthError(null);
+    try {
+      // Direct backend call — forgot-password does not go through useAuth().
+      // Pitfall 9: regardless of backend response shape (including network
+      // failure), we show the same generic copy to defeat user enumeration.
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+      await fetch(`${apiUrl}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: values.email }),
+      });
+    } catch {
+      // Swallow — still show generic confirmation below.
+    } finally {
+      setForgotSent(true);
+    }
+  }
+
+  if (forgotSent) {
+    // Pitfall 9: anti-enumeration — generic confirmation regardless of outcome.
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+      <div className="rounded-md border border-border bg-surface p-4 text-sm text-text-muted">
+        If that email is registered, a reset token is on its way.
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-950 px-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center gap-2">
-            <svg className="h-8 w-8 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-            </svg>
-            <span className="text-2xl font-bold text-white">GetVul</span>
-          </div>
-          <p className="mt-2 text-sm text-gray-400">Unified Vulnerability Management</p>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder="you@company.com"
+                  autoFocus
+                  autoComplete="email"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <Button
+          type="submit"
+          variant="cta"
+          size="lg"
+          className="w-full"
+          loading={form.formState.isSubmitting}
+          loadingText="Sending…"
+        >
+          Send reset link
+        </Button>
+      </form>
+    </Form>
+  );
+}
+
+function ResetForm({
+  resetToken,
+  setAuthError,
+  setMode,
+}: RightPanelProps) {
+  const form = useForm<z.infer<typeof resetSchema>>({
+    resolver: zodResolver(resetSchema),
+    mode: 'onSubmit',
+    defaultValues: { token: resetToken ?? '', newPassword: '' },
+  });
+
+  const [done, setDone] = useState(false);
+
+  async function onSubmit(values: z.infer<typeof resetSchema>) {
+    setAuthError(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const res = await fetch(`${apiUrl}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: values.token,
+          new_password: values.newPassword,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setAuthError(body?.detail ?? 'Reset failed. Request a new link.');
+        return;
+      }
+      setDone(true);
+    } catch {
+      setAuthError('Network error. Try again in a moment.');
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-md border border-success bg-success-soft p-4 text-sm text-success">
+          Password updated. Sign in to continue.
         </div>
-
-        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-8">
-          <h2 className="mb-6 text-xl font-bold text-white">
-            {mode === "login" ? "Sign in" : mode === "register" ? "Create account" : mode === "forgot" ? "Reset password" : "Set new password"}
-          </h2>
-
-          {/* SSO buttons — only on login/register */}
-          {(mode === "login" || mode === "register") && (
-            <>
-              <div className="space-y-3 mb-6">
-                <button onClick={() => loginSSO("google")}
-                  className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition">
-                  <svg className="h-5 w-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                  Continue with Google
-                </button>
-                <button onClick={() => loginSSO("azure")}
-                  className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition">
-                  <svg className="h-5 w-5" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg>
-                  Continue with Microsoft
-                </button>
-              </div>
-              <div className="relative mb-6">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-700" /></div>
-                <div className="relative flex justify-center text-xs"><span className="bg-gray-900/50 px-3 text-gray-500">or</span></div>
-              </div>
-            </>
-          )}
-
-          {/* Forgot password — request form */}
-          {mode === "forgot" && (
-            <form onSubmit={async (e) => {
-              e.preventDefault(); setError(""); setSuccess(""); setSubmitting(true);
-              try {
-                const API = process.env.NEXT_PUBLIC_API_URL || "";
-                const resp = await fetch(`${API}/auth/forgot-password`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email }),
-                });
-                const data = await resp.json();
-                if (resp.ok) {
-                  setSuccess(data.message || "Check your email for a reset token.");
-                  setMode("reset");
-                } else {
-                  setError(data.detail || "Failed to send reset email");
-                }
-              } catch { setError("Network error"); } finally { setSubmitting(false); }
-            }} className="space-y-4">
-              <p className="text-sm text-gray-400 mb-4">Enter your email address and we&apos;ll send you a password reset token.</p>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-300">Email</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                  placeholder="you@company.com" autoFocus
-                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-              </div>
-              {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>}
-              {success && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">{success}</div>}
-              <button type="submit" disabled={submitting}
-                className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition">
-                {submitting ? "Sending..." : "Send Reset Token"}
-              </button>
-            </form>
-          )}
-
-          {/* Reset password — enter token + new password */}
-          {mode === "reset" && (
-            <form onSubmit={async (e) => {
-              e.preventDefault(); setError(""); setSuccess(""); setSubmitting(true);
-              try {
-                const API = process.env.NEXT_PUBLIC_API_URL || "";
-                const resp = await fetch(`${API}/auth/reset-password`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ token: resetToken, new_password: newPassword }),
-                });
-                const data = await resp.json();
-                if (resp.ok) {
-                  setSuccess(data.message || "Password reset! You can now sign in.");
-                  setTimeout(() => { setMode("login"); setSuccess(""); }, 2000);
-                } else {
-                  setError(data.detail || "Reset failed");
-                }
-              } catch { setError("Network error"); } finally { setSubmitting(false); }
-            }} className="space-y-4">
-              <p className="text-sm text-gray-400 mb-4">Enter the reset token from your email and choose a new password.</p>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-300">Reset Token</label>
-                <input type="text" value={resetToken} onChange={e => setResetToken(e.target.value)} required
-                  placeholder="Paste token from email" autoFocus
-                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none font-mono" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-300">New Password</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required
-                  placeholder="Min 8 characters"
-                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-              </div>
-              {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>}
-              {success && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">{success}</div>}
-              <button type="submit" disabled={submitting || !resetToken || newPassword.length < 8}
-                className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition">
-                {submitting ? "Resetting..." : "Reset Password"}
-              </button>
-            </form>
-          )}
-
-          {/* Login / Register form */}
-          {(mode === "login" || mode === "register") && (
-            <>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {mode === "register" && (
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-300">Full Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} required
-                      placeholder="John Doe"
-                      className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-                  </div>
-                )}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-300">Email</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                    placeholder="you@company.com"
-                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-sm font-medium text-gray-300">Password</label>
-                    {mode === "login" && (
-                      <button type="button" onClick={() => { setMode("forgot"); setError(""); setSuccess(""); }}
-                        className="text-xs text-indigo-400 hover:text-indigo-300">Forgot password?</button>
-                    )}
-                  </div>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-                    placeholder="Min 8 characters"
-                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-                </div>
-
-                {error && (
-                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>
-                )}
-
-                <button type="submit" disabled={submitting}
-                  className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition">
-                  {submitting ? "..." : mode === "login" ? "Sign in" : "Create account"}
-                </button>
-              </form>
-            </>
-          )}
-
-          <p className="mt-4 text-center text-sm text-gray-500">
-            {mode === "login" ? (
-              <>Don&apos;t have an account?{" "}
-                <button onClick={() => { setMode("register"); setError(""); setSuccess(""); }} className="text-indigo-400 hover:text-indigo-300">Create one</button>
-              </>
-            ) : mode === "register" ? (
-              <>Already have an account?{" "}
-                <button onClick={() => { setMode("login"); setError(""); setSuccess(""); }} className="text-indigo-400 hover:text-indigo-300">Sign in</button>
-              </>
-            ) : (
-              <button onClick={() => { setMode("login"); setError(""); setSuccess(""); }} className="text-indigo-400 hover:text-indigo-300">Back to sign in</button>
-            )}
-          </p>
-        </div>
+        <Button
+          variant="secondary"
+          size="lg"
+          className="w-full"
+          onClick={() => setMode('login')}
+        >
+          Back to sign in
+        </Button>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="token"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Reset token</FormLabel>
+              <FormControl>
+                <Input
+                  type="text"
+                  // D-48: token paste field uses autoComplete='off'
+                  autoComplete="off"
+                  spellCheck={false}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="newPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>New password</FormLabel>
+              <FormControl>
+                <Input
+                  type="password"
+                  // D-48 spec says 'first field' — for reset mode the first
+                  // fillable field is newPassword (token is pre-filled from
+                  // the ?reset= deep link, so autoFocus belongs here).
+                  autoFocus
+                  autoComplete="new-password"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <Button
+          type="submit"
+          variant="cta"
+          size="lg"
+          className="w-full"
+          loading={form.formState.isSubmitting}
+          loadingText="Updating…"
+        >
+          Set new password
+        </Button>
+      </form>
+    </Form>
   );
 }

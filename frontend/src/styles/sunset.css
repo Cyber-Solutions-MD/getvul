@@ -1,0 +1,130 @@
+/* VENDORED from .claude/skills/sketch-findings-getvul/sources/themes/sunset.css — do not edit; re-vendor when skill updates. */
+/* Sunset / Dusk theme — Wiz-inspired, warm-gradient on cool dark base.
+   Origin: .planning/notes/redesign-direction-v2.md (D-03..D-04). */
+
+:root {
+  /* ─── Surfaces ─── */
+  --color-bg:           #0E0B1A;  /* deep plum — page base */
+  --color-bg-darker:    #08060F;  /* near-black — true dark for orb variant */
+  --color-surface:      #1A1430;  /* raised card */
+  --color-surface-2:    #241B40;  /* elevated above card (popovers, inputs) */
+  --color-surface-glass: rgba(36, 27, 64, 0.45);  /* glass card */
+
+  /* ─── Borders ─── */
+  --color-border:           #2A2150;
+  --color-border-subtle:    #1F1840;
+  --color-border-strong:    #3A2D70;
+
+  /* ─── Text ─── */
+  --color-text:         #F0E8FF;  /* warm white */
+  --color-text-muted:   #B8AECE;
+  --color-text-faint:   #6B6488;
+  --color-text-inverse: #0E0B1A;
+
+  /* ─── Sunset accents ─── */
+  --color-pink:         #EC4899;  /* hot pink */
+  --color-pink-soft:    rgba(236, 72, 153, 0.18);
+  --color-violet:       #A78BFA;  /* lavender */
+  --color-violet-soft:  rgba(167, 139, 250, 0.18);
+  --color-amber:        #F59E0B;  /* amber */
+  --color-amber-soft:   rgba(245, 158, 11, 0.18);
+
+  /* ─── The sunset gradient ─── */
+  --gradient-sunset:    linear-gradient(135deg, #EC4899 0%, #A78BFA 50%, #F59E0B 100%);
+  --gradient-sunset-vertical: linear-gradient(180deg, #EC4899 0%, #A78BFA 50%, #F59E0B 100%);
+  --gradient-orb:       radial-gradient(circle at 30% 30%, #EC4899 0%, #A78BFA 40%, transparent 70%),
+                        radial-gradient(circle at 70% 70%, #F59E0B 0%, #EC4899 40%, transparent 70%);
+  --gradient-mesh:      radial-gradient(at 20% 20%, rgba(236, 72, 153, 0.4) 0%, transparent 50%),
+                        radial-gradient(at 80% 30%, rgba(167, 139, 250, 0.35) 0%, transparent 55%),
+                        radial-gradient(at 50% 80%, rgba(245, 158, 11, 0.3) 0%, transparent 55%);
+
+  /* ─── Semantic state ─── */
+  --color-danger:       #F87171;
+  --color-danger-soft:  rgba(248, 113, 113, 0.15);
+  --color-success:      #4ADE80;
+  --color-success-soft: rgba(74, 222, 128, 0.15);
+  --color-warning:      #FBBF24;
+  --color-info:         #60A5FA;
+
+  /* ─── Severity (used elsewhere; pinned here for consistency) ─── */
+  --color-severity-critical: #F87171;
+  --color-severity-high:     #FB923C;
+  --color-severity-medium:   #FBBF24;
+  --color-severity-low:      #A78BFA;
+  --color-severity-info:     #60A5FA;
+
+  /* ─── Typography ─── */
+  --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, monospace;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --text-xs:    0.75rem;
+  --text-sm:    0.875rem;
+  --text-base:  1rem;
+  --text-lg:    1.125rem;
+  --text-xl:    1.25rem;
+  --text-2xl:   1.5rem;
+  --text-3xl:   2rem;
+  --text-4xl:   2.5rem;
+  --text-5xl:   3.5rem;
+
+  --tracking-tight: -0.02em;
+  --tracking-tighter: -0.04em;
+  --leading-tight: 1.1;
+  --leading-snug:  1.3;
+  --leading-base:  1.5;
+
+  /* ─── Spacing ─── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ─── Shapes ─── */
+  --radius-sm:    6px;
+  --radius-md:    10px;
+  --radius-lg:    14px;
+  --radius-xl:    20px;
+  --radius-2xl:   28px;
+  --radius-full:  9999px;
+
+  /* ─── Shadows / glow ─── */
+  --shadow-card:        0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-elevated:    0 20px 60px rgba(0, 0, 0, 0.5);
+  --glow-pink:          0 0 32px rgba(236, 72, 153, 0.45);
+  --glow-violet:        0 0 32px rgba(167, 139, 250, 0.45);
+  --glow-amber:         0 0 32px rgba(245, 158, 11, 0.4);
+  --glow-cta:           0 8px 32px rgba(236, 72, 153, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  --glow-card-inner:    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+
+  /* ─── Motion ─── */
+  --ease-standard:   cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --motion-fast:     120ms;
+  --motion-base:     220ms;
+  --motion-slow:     320ms;
+}
+
+/* Reset base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input { font: inherit; }
+a { color: inherit; text-decoration: none; }

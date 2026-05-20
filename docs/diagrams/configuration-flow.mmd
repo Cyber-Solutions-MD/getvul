@@ -1,0 +1,34 @@
+%% docs/05-configuration.md — How config reaches each component
+flowchart LR
+    subgraph "Sources"
+        ENV[".env on the host"]
+        COMPOSE["compose environment:"]
+        OS[OS environment]
+    end
+
+    subgraph "Backend"
+        SETTINGS["pydantic_settings.BaseSettings<br/>backend/app/config.py"]
+        AUTH["auth/jwt.py<br/>JWT_SECRET_KEY, JWT_ALGORITHM, JWT_*_EXPIRE_*"]
+        ENC["encryption.py<br/>ENCRYPTION_KEY"]
+        OIDC["auth/providers.py<br/>GOOGLE_*, AZURE_*"]
+        DB["db/session.py<br/>DATABASE_URL"]
+        LIFE["main.py lifespan<br/>REDIS_URL, ENVIRONMENT"]
+    end
+
+    subgraph "Frontend"
+        BUILD["next build<br/>(reads NEXT_PUBLIC_API_URL)"]
+        APIJS["lib/api.ts<br/>fetch(NEXT_PUBLIC_API_URL + path)"]
+    end
+
+    ENV --> SETTINGS
+    OS --> SETTINGS
+    COMPOSE --> SETTINGS
+    SETTINGS --> AUTH
+    SETTINGS --> ENC
+    SETTINGS --> OIDC
+    SETTINGS --> DB
+    SETTINGS --> LIFE
+
+    COMPOSE --> BUILD
+    OS --> BUILD
+    BUILD --> APIJS

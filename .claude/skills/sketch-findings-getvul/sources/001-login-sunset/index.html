@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetVul /login — Sunset palette sketch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="../themes/sunset.css" />
+  <style>
+    /* ───────── Shared variant scaffold ───────── */
+    body { padding-top: 56px; }  /* room for variant tab bar */
+
+    #variant-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: rgba(8, 6, 15, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding: 10px 20px;
+      display: flex; gap: 6px; align-items: center;
+      font-family: var(--font-sans);
+    }
+    #variant-nav .label { color: var(--color-text-faint); font-size: var(--text-xs); margin-right: 12px; }
+    .variant-tab {
+      padding: 6px 14px; border-radius: var(--radius-md);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .variant-tab:hover { background: var(--color-surface); color: var(--color-text); }
+    .variant-tab.active {
+      background: var(--color-surface-2); color: var(--color-text);
+      box-shadow: 0 0 0 1px var(--color-border);
+    }
+    .variant-tab .star { color: var(--color-amber); margin-left: 6px; }
+
+    .variant { display: none; min-height: calc(100vh - 56px); }
+    .variant.active { display: block; }
+
+    /* ───────── Shared form atoms ───────── */
+    .field-label {
+      display: block; margin-bottom: 8px;
+      font-size: var(--text-sm); font-weight: 500; color: var(--color-text-muted);
+    }
+    .field-input {
+      width: 100%; padding: 12px 14px;
+      background: var(--color-surface-2); color: var(--color-text);
+      border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      transition: border-color var(--motion-fast) var(--ease-standard),
+                  box-shadow var(--motion-fast) var(--ease-standard);
+    }
+    .field-input::placeholder { color: var(--color-text-faint); }
+    .field-input:focus { outline: none; border-color: var(--color-violet); box-shadow: 0 0 0 3px var(--color-violet-soft); }
+    .field-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .field-link { font-size: var(--text-xs); color: var(--color-violet); }
+    .field-link:hover { color: var(--color-pink); }
+    .error-bar {
+      padding: 10px 14px; border: 1px solid rgba(248, 113, 113, 0.4);
+      background: var(--color-danger-soft); color: var(--color-danger);
+      border-radius: var(--radius-md); font-size: var(--text-sm);
+    }
+
+    /* SSO buttons baseline */
+    .sso-btn {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 11px 16px; border-radius: var(--radius-md);
+      background: var(--color-surface-2); border: 1px solid var(--color-border);
+      color: var(--color-text); font-size: var(--text-sm); font-weight: 500;
+      transition: all var(--motion-fast) var(--ease-standard);
+    }
+    .sso-btn:hover { border-color: var(--color-border-strong); background: var(--color-surface); transform: translateY(-1px); }
+    .sso-btn svg { width: 18px; height: 18px; }
+
+    /* The CTA — uses the sunset gradient */
+    .cta-primary {
+      width: 100%; padding: 13px 16px; border-radius: var(--radius-md);
+      background: var(--gradient-sunset); color: white; font-weight: 600; font-size: var(--text-sm);
+      box-shadow: var(--glow-cta);
+      transition: all var(--motion-fast) var(--ease-standard);
+      position: relative; overflow: hidden;
+    }
+    .cta-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 36px rgba(236, 72, 153, 0.5); }
+    .cta-primary:active { transform: translateY(0); }
+
+    /* Divider with "or" */
+    .or-divider { position: relative; text-align: center; margin: 20px 0; color: var(--color-text-faint); font-size: var(--text-xs); }
+    .or-divider::before, .or-divider::after {
+      content: ''; position: absolute; top: 50%; width: calc(50% - 24px); height: 1px;
+      background: var(--color-border-subtle);
+    }
+    .or-divider::before { left: 0; }
+    .or-divider::after { right: 0; }
+
+    /* GetVul logo wordmark */
+    .brand {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: var(--font-display); font-weight: 800; letter-spacing: var(--tracking-tight);
+    }
+    .brand-mark {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--gradient-sunset);
+      display: grid; place-items: center;
+      box-shadow: var(--glow-pink);
+    }
+    .brand-mark svg { width: 18px; height: 18px; color: white; }
+    .brand-name { font-size: var(--text-xl); color: var(--color-text); }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT A — Split-screen (tame & clean)               */
+    /* ═══════════════════════════════════════════════════ */
+    .var-a { display: grid; grid-template-columns: 1.05fr 1fr; min-height: calc(100vh - 56px); }
+
+    .var-a__visual {
+      position: relative; overflow: hidden;
+      background: var(--color-bg-darker);
+      padding: 64px 56px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .var-a__visual::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--gradient-mesh);
+      opacity: 0.55;
+      animation: drift 24s ease-in-out infinite;
+    }
+    .var-a__visual::after {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at top left, transparent 0%, var(--color-bg-darker) 80%);
+      opacity: 0.6;
+    }
+    .var-a__visual > * { position: relative; z-index: 1; }
+
+    .var-a__copy h1 {
+      font-size: var(--text-5xl); font-weight: 800; letter-spacing: var(--tracking-tighter);
+      line-height: var(--leading-tight); margin: 56px 0 24px;
+    }
+    .var-a__copy h1 .accent {
+      background: var(--gradient-sunset); -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .var-a__copy p { color: var(--color-text-muted); font-size: var(--text-lg); line-height: var(--leading-snug); max-width: 28em; margin: 0; }
+
+    .var-a__preview {
+      margin-top: 40px;
+      border-radius: var(--radius-xl);
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 16px;
+      max-width: 420px;
+    }
+    .var-a__preview-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-md); }
+    .var-a__preview-row + .var-a__preview-row { margin-top: 4px; }
+    .var-a__preview-row .sev { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+    .var-a__preview-row .cve { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text); }
+    .var-a__preview-row .meta { font-size: var(--text-xs); color: var(--color-text-faint); flex: 1; }
+    .var-a__preview-row .score {
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      padding: 2px 8px; border-radius: 999px; background: var(--color-surface-2); color: var(--color-text-muted);
+    }
+
+    .var-a__footer-row { display: flex; align-items: center; gap: 12px; color: var(--color-text-faint); font-size: var(--text-xs); }
+
+    .var-a__form-side {
+      background: var(--color-bg);
+      padding: 64px 56px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .var-a__form { width: 100%; max-width: 380px; }
+    .var-a__form h2 {
+      font-size: var(--text-3xl); font-weight: 700; letter-spacing: var(--tracking-tight);
+      margin: 0 0 8px;
+    }
+    .var-a__form .subtitle { color: var(--color-text-muted); font-size: var(--text-sm); margin: 0 0 28px; }
+    .var-a__form .field { margin-bottom: 16px; }
+    .var-a__form .footer { margin-top: 20px; text-align: center; font-size: var(--text-sm); color: var(--color-text-muted); }
+    .var-a__form .footer a { color: var(--color-pink); font-weight: 500; }
+    .var-a__form .footer a:hover { color: var(--color-amber); }
+
+    @keyframes drift {
+      0%, 100% { transform: scale(1) translate(0, 0); }
+      50% { transform: scale(1.1) translate(-2%, 1%); }
+    }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT B — Centered glass card                       */
+    /* ═══════════════════════════════════════════════════ */
+    .var-b {
+      position: relative; overflow: hidden;
+      min-height: calc(100vh - 56px);
+      display: grid; place-items: center; padding: 40px 20px;
+    }
+    .var-b::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--gradient-mesh);
+      animation: drift 20s ease-in-out infinite;
+      opacity: 0.9;
+    }
+    .var-b::after {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 50%, transparent 0%, rgba(8, 6, 15, 0.4) 100%);
+      pointer-events: none;
+    }
+
+    .var-b__card {
+      position: relative; z-index: 2;
+      width: 100%; max-width: 440px;
+      background: var(--color-surface-glass);
+      backdrop-filter: blur(40px) saturate(180%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      border-radius: var(--radius-2xl);
+      padding: 40px;
+      box-shadow: var(--shadow-elevated), var(--glow-card-inner);
+    }
+    /* iridescent gradient stroke via mask trick */
+    .var-b__card::before {
+      content: ''; position: absolute; inset: 0; padding: 1px; border-radius: var(--radius-2xl);
+      background: var(--gradient-sunset);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      pointer-events: none; opacity: 0.5;
+    }
+    .var-b__card > * { position: relative; }
+
+    .var-b__header { text-align: center; margin-bottom: 32px; }
+    .var-b__header .brand { margin-bottom: 24px; }
+    .var-b__header h2 {
+      font-size: var(--text-2xl); font-weight: 700; letter-spacing: var(--tracking-tight);
+      margin: 0 0 6px;
+    }
+    .var-b__header .subtitle { color: var(--color-text-muted); font-size: var(--text-sm); margin: 0; }
+
+    .var-b__sso { display: flex; flex-direction: column; gap: 10px; }
+    .var-b__form { display: flex; flex-direction: column; gap: 16px; }
+    .var-b__footer { margin-top: 24px; text-align: center; font-size: var(--text-sm); color: var(--color-text-muted); }
+    .var-b__footer a { color: var(--color-pink); font-weight: 500; }
+    .var-b__footer a:hover { color: var(--color-amber); }
+
+    /* Glass card SSO buttons have lighter chrome */
+    .var-b .sso-btn { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); }
+    .var-b .sso-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); }
+    .var-b .field-input { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.08); }
+    .var-b .field-input:focus { background: rgba(255, 255, 255, 0.06); }
+
+    /* ═══════════════════════════════════════════════════ */
+    /* VARIANT C — Floating orb (most fancy)                 */
+    /* ═══════════════════════════════════════════════════ */
+    .var-c {
+      position: relative; overflow: hidden;
+      min-height: calc(100vh - 56px);
+      background: var(--color-bg-darker);
+      display: grid; place-items: center; padding: 40px 20px;
+    }
+    .var-c__orb {
+      position: absolute; width: 720px; height: 720px; border-radius: 50%;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: var(--gradient-orb);
+      filter: blur(80px); opacity: 0.65;
+      animation: orb-spin 28s linear infinite;
+      pointer-events: none;
+    }
+    .var-c__grain {
+      position: absolute; inset: 0;
+      background-image:
+        repeating-linear-gradient(0deg,  rgba(255,255,255,0.012) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
+      pointer-events: none; opacity: 0.7;
+    }
+
+    .var-c__card {
+      position: relative; z-index: 2;
+      width: 100%; max-width: 420px;
+      background: rgba(14, 11, 26, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: var(--radius-xl);
+      padding: 36px;
+      box-shadow: var(--shadow-elevated);
+    }
+    /* iridescent stroke */
+    .var-c__card::before {
+      content: ''; position: absolute; inset: -1px; border-radius: calc(var(--radius-xl) + 1px);
+      background: conic-gradient(from 180deg at 50% 50%, #EC4899 0%, #A78BFA 33%, #F59E0B 66%, #EC4899 100%);
+      z-index: -1; opacity: 0.7;
+      animation: stroke-rotate 10s linear infinite;
+    }
+    .var-c__card::after {
+      content: ''; position: absolute; inset: 0; border-radius: var(--radius-xl);
+      background: rgba(14, 11, 26, 0.85);
+      z-index: -1;
+    }
+
+    .var-c__header { text-align: center; margin-bottom: 28px; }
+    .var-c__header h2 {
+      font-size: var(--text-2xl); font-weight: 700; letter-spacing: var(--tracking-tight);
+      margin: 16px 0 4px;
+      background: var(--gradient-sunset); -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .var-c__header .subtitle { color: var(--color-text-muted); font-size: var(--text-sm); margin: 0; }
+
+    .var-c__sso { display: flex; flex-direction: column; gap: 10px; }
+    .var-c__form { display: flex; flex-direction: column; gap: 14px; }
+    .var-c__footer { margin-top: 22px; text-align: center; font-size: var(--text-sm); color: var(--color-text-muted); }
+    .var-c__footer a { color: var(--color-pink); font-weight: 500; }
+    .var-c__footer a:hover { color: var(--color-amber); }
+
+    /* CTA in variant C has an extra glow ring */
+    .var-c .cta-primary {
+      box-shadow: var(--glow-cta), 0 0 0 1px rgba(236, 72, 153, 0.4);
+    }
+    .var-c .cta-primary::after {
+      content: ''; position: absolute; inset: 0; border-radius: var(--radius-md);
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
+      transform: translateX(-100%);
+      transition: transform var(--motion-slow) var(--ease-standard);
+    }
+    .var-c .cta-primary:hover::after { transform: translateX(100%); }
+
+    @keyframes orb-spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    @keyframes stroke-rotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ───────── Sketch toolbar (floating) ───────── */
+    #sketch-tools {
+      position: fixed; bottom: 16px; right: 16px; z-index: 9999;
+      font-family: system-ui; font-size: 12px;
+      background: rgba(0, 0, 0, 0.78); color: white;
+      padding: 8px 12px; border-radius: 10px;
+      opacity: 0.4; transition: opacity 0.2s;
+      display: flex; gap: 10px; align-items: center;
+    }
+    #sketch-tools:hover { opacity: 1; }
+    #sketch-tools select, #sketch-tools button {
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+      color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px;
+    }
+    #sketch-tools button:hover { background: rgba(255,255,255,0.2); }
+    #sketch-tools .sep { color: rgba(255,255,255,0.3); }
+
+    /* Responsive: collapse split screen below 900px */
+    @media (max-width: 900px) {
+      .var-a { grid-template-columns: 1fr; }
+      .var-a__visual { padding: 32px; min-height: 220px; }
+      .var-a__visual .var-a__preview { display: none; }
+      .var-a__form-side { padding: 32px 20px; }
+      .var-a__copy h1 { font-size: var(--text-3xl); margin-top: 0; }
+      .var-a__copy p { font-size: var(--text-base); }
+    }
+
+    /* Demo state cycler (shows error/register modes) */
+    .state-toggle-row { display: flex; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px dashed var(--color-border-subtle); justify-content: center; }
+    .state-toggle-row button { font-size: var(--text-xs); color: var(--color-text-faint); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--color-border-subtle); background: transparent; }
+    .state-toggle-row button:hover { color: var(--color-text); border-color: var(--color-border); }
+    .state-toggle-row button.on { color: var(--color-amber); border-color: var(--color-amber); }
+  </style>
+</head>
+<body>
+
+<!-- ═════════════════ Variant Nav ═════════════════ -->
+<div id="variant-nav">
+  <span class="label">001 · /login · sunset</span>
+  <button class="variant-tab active" onclick="showVariant(event, 'a')">A · Split-screen <span class="star">★ selected</span></button>
+  <button class="variant-tab" onclick="showVariant(event, 'b')">B · Glass card</button>
+  <button class="variant-tab" onclick="showVariant(event, 'c')">C · Floating orb</button>
+</div>
+
+<!-- Shared SVG defs for SSO icons -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+  </symbol>
+  <symbol id="i-google" viewBox="0 0 24 24">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+  </symbol>
+  <symbol id="i-microsoft" viewBox="0 0 21 21">
+    <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+    <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+    <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+    <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+  </symbol>
+</svg>
+
+<!-- ═════════════════ VARIANT A — Split-screen ═════════════════ -->
+<div id="variant-a" class="variant active">
+  <div class="var-a">
+    <!-- Left: visual + tagline -->
+    <div class="var-a__visual">
+      <div>
+        <div class="brand">
+          <div class="brand-mark"><svg><use href="#i-shield"/></svg></div>
+          <span class="brand-name">GetVul</span>
+        </div>
+      </div>
+      <div class="var-a__copy">
+        <h1>See your security posture <span class="accent">without opening another tool.</span></h1>
+        <p>One dashboard. Every scanner. Real ownership. Tickets out, fewer meetings.</p>
+        <div class="var-a__preview" aria-hidden="true">
+          <div class="var-a__preview-row" style="background: rgba(248, 113, 113, 0.05);">
+            <div class="sev" style="background: var(--color-severity-critical);"></div>
+            <div class="cve">CVE-2024-3094</div>
+            <div class="meta">prod-db-01 · openssh</div>
+            <div class="score">9.8</div>
+          </div>
+          <div class="var-a__preview-row" style="background: rgba(251, 146, 60, 0.05);">
+            <div class="sev" style="background: var(--color-severity-high);"></div>
+            <div class="cve">CVE-2023-44487</div>
+            <div class="meta">api-gw-02 · nginx</div>
+            <div class="score">7.5</div>
+          </div>
+          <div class="var-a__preview-row">
+            <div class="sev" style="background: var(--color-severity-medium);"></div>
+            <div class="cve">CVE-2024-21626</div>
+            <div class="meta">runner-04 · runc</div>
+            <div class="score">5.4</div>
+          </div>
+        </div>
+      </div>
+      <div class="var-a__footer-row">
+        <span>SOC 2 Type II</span>
+        <span style="opacity: 0.3;">·</span>
+        <span>Self-hosted or SaaS</span>
+        <span style="opacity: 0.3;">·</span>
+        <span>v0.1</span>
+      </div>
+    </div>
+
+    <!-- Right: form -->
+    <div class="var-a__form-side">
+      <div class="var-a__form">
+        <h2>Sign in</h2>
+        <p class="subtitle">Welcome back. Use your work account.</p>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button class="sso-btn"><svg><use href="#i-google"/></svg>Continue with Google</button>
+          <button class="sso-btn"><svg><use href="#i-microsoft"/></svg>Continue with Microsoft</button>
+        </div>
+
+        <div class="or-divider">or with email</div>
+
+        <form onsubmit="event.preventDefault(); fakeSubmit(this);">
+          <div class="field" id="a-name-field" style="display:none;">
+            <label class="field-label">Full Name</label>
+            <input class="field-input" placeholder="Ana Sokolova" />
+          </div>
+          <div class="field">
+            <label class="field-label">Email</label>
+            <input class="field-input" type="email" placeholder="you@company.com" autocomplete="email" />
+          </div>
+          <div class="field">
+            <div class="field-row">
+              <label class="field-label" style="margin-bottom: 0;">Password</label>
+              <a href="#" class="field-link" onclick="event.preventDefault();">Forgot password?</a>
+            </div>
+            <input class="field-input" type="password" placeholder="Min 8 characters" autocomplete="current-password" />
+          </div>
+          <div class="field" id="a-error" style="display:none;">
+            <div class="error-bar">Incorrect email or password. Try again or use SSO.</div>
+          </div>
+          <button class="cta-primary" id="a-cta">Sign in</button>
+        </form>
+
+        <div class="footer">Don't have an account? <a href="#" onclick="event.preventDefault();toggleMode('a');">Create one</a></div>
+
+        <div class="state-toggle-row" aria-label="Demo state toggles">
+          <button onclick="toggleError('a-error', this)">Toggle error</button>
+          <button onclick="toggleMode('a')" id="a-mode-btn">Show register</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT B — Glass card ═════════════════ -->
+<div id="variant-b" class="variant">
+  <div class="var-b">
+    <div class="var-b__card">
+      <div class="var-b__header">
+        <div class="brand">
+          <div class="brand-mark"><svg><use href="#i-shield"/></svg></div>
+          <span class="brand-name">GetVul</span>
+        </div>
+        <h2>Welcome back</h2>
+        <p class="subtitle">Sign in to your security console.</p>
+      </div>
+
+      <div class="var-b__sso">
+        <button class="sso-btn"><svg><use href="#i-google"/></svg>Continue with Google</button>
+        <button class="sso-btn"><svg><use href="#i-microsoft"/></svg>Continue with Microsoft</button>
+      </div>
+
+      <div class="or-divider">or</div>
+
+      <form class="var-b__form" onsubmit="event.preventDefault(); fakeSubmit(this);">
+        <div class="field" id="b-name-field" style="display:none;">
+          <label class="field-label">Full Name</label>
+          <input class="field-input" placeholder="Ana Sokolova" />
+        </div>
+        <div class="field">
+          <label class="field-label">Email</label>
+          <input class="field-input" type="email" placeholder="you@company.com" autocomplete="email" />
+        </div>
+        <div class="field">
+          <div class="field-row">
+            <label class="field-label" style="margin-bottom: 0;">Password</label>
+            <a href="#" class="field-link" onclick="event.preventDefault();">Forgot password?</a>
+          </div>
+          <input class="field-input" type="password" placeholder="Min 8 characters" autocomplete="current-password" />
+        </div>
+        <div class="field" id="b-error" style="display:none;">
+          <div class="error-bar">Incorrect email or password. Try again or use SSO.</div>
+        </div>
+        <button class="cta-primary" id="b-cta">Sign in</button>
+      </form>
+
+      <div class="var-b__footer">Don't have an account? <a href="#" onclick="event.preventDefault();toggleMode('b');">Create one</a></div>
+
+      <div class="state-toggle-row">
+        <button onclick="toggleError('b-error', this)">Toggle error</button>
+        <button onclick="toggleMode('b')" id="b-mode-btn">Show register</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════ VARIANT C — Floating orb ═════════════════ -->
+<div id="variant-c" class="variant">
+  <div class="var-c">
+    <div class="var-c__orb"></div>
+    <div class="var-c__grain"></div>
+    <div class="var-c__card">
+      <div class="var-c__header">
+        <div class="brand">
+          <div class="brand-mark"><svg><use href="#i-shield"/></svg></div>
+          <span class="brand-name">GetVul</span>
+        </div>
+        <h2>Welcome back</h2>
+        <p class="subtitle">Your security console awaits.</p>
+      </div>
+
+      <div class="var-c__sso">
+        <button class="sso-btn"><svg><use href="#i-google"/></svg>Continue with Google</button>
+        <button class="sso-btn"><svg><use href="#i-microsoft"/></svg>Continue with Microsoft</button>
+      </div>
+
+      <div class="or-divider">or</div>
+
+      <form class="var-c__form" onsubmit="event.preventDefault(); fakeSubmit(this);">
+        <div class="field" id="c-name-field" style="display:none;">
+          <label class="field-label">Full Name</label>
+          <input class="field-input" placeholder="Ana Sokolova" />
+        </div>
+        <div class="field">
+          <label class="field-label">Email</label>
+          <input class="field-input" type="email" placeholder="you@company.com" autocomplete="email" />
+        </div>
+        <div class="field">
+          <div class="field-row">
+            <label class="field-label" style="margin-bottom: 0;">Password</label>
+            <a href="#" class="field-link" onclick="event.preventDefault();">Forgot password?</a>
+          </div>
+          <input class="field-input" type="password" placeholder="Min 8 characters" autocomplete="current-password" />
+        </div>
+        <div class="field" id="c-error" style="display:none;">
+          <div class="error-bar">Incorrect email or password. Try again or use SSO.</div>
+        </div>
+        <button class="cta-primary" id="c-cta">Sign in</button>
+      </form>
+
+      <div class="var-c__footer">Don't have an account? <a href="#" onclick="event.preventDefault();toggleMode('c');">Create one</a></div>
+
+      <div class="state-toggle-row">
+        <button onclick="toggleError('c-error', this)">Toggle error</button>
+        <button onclick="toggleMode('c')" id="c-mode-btn">Show register</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════ Floating Sketch Toolbar ═════════════════ -->
+<div id="sketch-tools">
+  <span>theme</span>
+  <select id="theme-switcher" onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'">
+    <option value="sunset">sunset</option>
+  </select>
+  <span class="sep">·</span>
+  <span>viewport</span>
+  <button onclick="setViewport('mobile')">375</button>
+  <button onclick="setViewport('tablet')">768</button>
+  <button onclick="setViewport('desktop')">full</button>
+</div>
+
+<script>
+  // Variant switching
+  function showVariant(e, id) {
+    document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).classList.add('active');
+    e.currentTarget.classList.add('active');
+  }
+
+  // Error bar toggle for demo
+  function toggleError(id, btn) {
+    const el = document.getElementById(id);
+    const show = el.style.display === 'none';
+    el.style.display = show ? 'block' : 'none';
+    if (btn) btn.classList.toggle('on', show);
+  }
+
+  // Toggle register vs login mode (just shows Full Name field + flips CTA copy)
+  function toggleMode(prefix) {
+    const nameField = document.getElementById(prefix + '-name-field');
+    const cta = document.getElementById(prefix + '-cta');
+    const btn = document.getElementById(prefix + '-mode-btn');
+    const isRegister = nameField.style.display !== 'none';
+    nameField.style.display = isRegister ? 'none' : 'block';
+    cta.textContent = isRegister ? 'Sign in' : 'Create account';
+    btn.textContent = isRegister ? 'Show register' : 'Show sign in';
+    btn.classList.toggle('on', !isRegister);
+  }
+
+  // Viewport simulation
+  function setViewport(size) {
+    const widths = { mobile: '375px', tablet: '768px', desktop: '100%' };
+    document.body.style.maxWidth = widths[size];
+    document.body.style.margin = size === 'desktop' ? '0' : '0 auto';
+    document.body.style.boxShadow = size === 'desktop' ? 'none' : '0 0 0 1px rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.5)';
+  }
+
+  // Fake submit: brief loading then success-ish
+  function fakeSubmit(form) {
+    const btn = form.querySelector('.cta-primary');
+    const original = btn.textContent;
+    btn.textContent = 'Signing in…';
+    btn.style.opacity = '0.7';
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = '✓ Signed in';
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.style.opacity = '1';
+        btn.disabled = false;
+      }, 1400);
+    }, 900);
+  }
+</script>
+
+</body>
+</html>
