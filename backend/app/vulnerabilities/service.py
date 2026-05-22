@@ -379,21 +379,26 @@ async def list_vulnerabilities_by_host(
     outer ``GROUP BY Asset.hostname, Asset.id`` only sees rows from this
     tenant. Hosts in other tenants are invisible.
     """
-    # Build the filtered, tenant-scoped row source.
+    # Build the filtered, tenant-scoped row source. We label the Asset
+    # columns with names that do NOT collide with Vulnerability columns
+    # (`asset_id` is already a Vulnerability column; we rename Asset.id to
+    # `host_asset_id` and Asset.hostname to `host_hostname` to keep the
+    # subquery's column names unambiguous — SQLAlchemy refuses to auto-
+    # disambiguate labels in subqueries used by GROUP BY downstream).
     filtered = (
         _apply_filters(select(Vulnerability), tenant_id, filters)
         .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
         .add_columns(
-            Asset.id.label("asset_id"),
-            Asset.hostname.label("hostname"),
+            Asset.id.label("host_asset_id"),
+            Asset.hostname.label("host_hostname"),
         )
         .subquery()
     )
 
     grouped_q = (
         select(
-            filtered.c.asset_id.label("asset_id"),
-            filtered.c.hostname.label("host"),
+            filtered.c.host_asset_id.label("asset_id"),
+            filtered.c.host_hostname.label("host"),
             func.count(filtered.c.id).label("vuln_count"),
             func.count(case((filtered.c.severity == "CRITICAL", 1))).label("critical_count"),
             func.count(case((filtered.c.severity == "HIGH", 1))).label("high_count"),
@@ -401,7 +406,7 @@ async def list_vulnerabilities_by_host(
             func.count(case((filtered.c.severity == "LOW", 1))).label("low_count"),
             func.max(filtered.c.cvss_v3_score).label("top_cvss"),
         )
-        .group_by(filtered.c.asset_id, filtered.c.hostname)
+        .group_by(filtered.c.host_asset_id, filtered.c.host_hostname)
         # Ordering: CRITICAL count desc so the most-at-risk hosts surface
         # first; ties broken by total vuln_count desc.
         .order_by(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -19,7 +19,9 @@ from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
     DashboardStats,
+    FacetsResponse,
     VulnerabilityFilter,
+    VulnerabilityListResponse,
     VulnerabilityResponse,
     VulnerabilityStatusUpdate,
     VulnerabilitySummary,
@@ -27,15 +29,17 @@ from app.vulnerabilities.schemas import (
 from app.vulnerabilities.service import (
     bulk_update_status,
     get_dashboard_stats,
+    get_facets,
     get_vulnerability,
     list_vulnerabilities,
+    list_vulnerabilities_by_host,
     update_vulnerability_status,
 )
 
 router = APIRouter()
 
 
-@router.get("", response_model=PaginatedResponse[VulnerabilitySummary])
+@router.get("", response_model=VulnerabilityListResponse)
 async def list_vulns(
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_viewer)],
@@ -57,12 +61,52 @@ async def list_vulns(
     search: str | None = Query(None),
     age_days_min: int | None = Query(None, ge=0),
     age_days_max: int | None = Query(None, ge=0),
-    # D-T-01: ?sort=triage opts in to KEV → CVSS desc → SLA-due asc ordering.
-    sort: str | None = Query(None, description="Optional sort mode: 'triage' or 'severity'"),
+    # T-11-01: pydantic-validated Literal. Unknown sort fields surface as
+    # 422 (not 500) before the handler runs.
+    sort: Literal[
+        "triage",
+        "severity",
+        "cve_id",
+        "cvss_v3_score",
+        "sla_due_at",
+    ] | None = Query(
+        None,
+        description="Sort field: triage | severity | cve_id | cvss_v3_score | sla_due_at",
+    ),
+    # T-11-01: explicit direction. Default 'desc' preserves existing severity
+    # / triage ordering for callers that pass neither sort= nor order=.
+    order: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
+    # T-11-02 / D-V-01: grouping mode. Unknown values 422 via Literal.
+    group: Literal["cve", "host"] = Query(
+        "cve",
+        description="Group rows by CVE (default) or by host",
+    ),
+    # T-11-03 / D-F-02: comma-separated facet groups. CSV parsed below;
+    # unknown entries surface as HTTP 400 with the bad name in `detail`.
+    facets: str | None = Query(
+        None,
+        description="Comma-separated facet groups: severity,source,status",
+        max_length=50,
+    ),
 ):
-    """List vulnerabilities with filtering and pagination."""
-    # Pydantic-validated sort: route into VulnerabilityFilter, which uses
-    # Literal['triage','severity'] so unknown values surface as 422.
+    """List vulnerabilities with filtering, sorting, grouping, and optional facets.
+
+    Phase 11 / D-F-02 / D-V-01 / D-T-01: a single round-trip returns paged
+    rows + optional contextual facet counts + optional by-host grouping. The
+    frontend Wave 1+ list page consumes this contract directly (no client-
+    side faceting).
+    """
+    # Parse + validate ?facets= CSV. Unknown entries surface as HTTP 400
+    # with the bad name in `detail` — caught here so the frontend chip-bar
+    # can show a structured error rather than a generic 500.
+    requested_facets: list[str] = []
+    if facets:
+        requested_facets = [f.strip() for f in facets.split(",") if f.strip()]
+        _ALLOWED = {"severity", "source", "status"}
+        bad = [f for f in requested_facets if f not in _ALLOWED]
+        if bad:
+            raise HTTPException(400, f"Unknown facet group(s): {','.join(bad)}")
+
     filters = VulnerabilityFilter(
         severity=severity,
         source=source,
@@ -75,11 +119,34 @@ async def list_vulns(
         age_days_min=age_days_min,
         age_days_max=age_days_max,
         sort=sort,
+        order=order,
+        group=group,
     )
+
     # `limit` is the Phase-10-friendly alias; page_size remains the canonical name.
     effective_page_size = limit if limit is not None else page_size
     pagination = PaginationParams(page=page, page_size=effective_page_size)
-    return await list_vulnerabilities(db, user.tenant_id, filters, pagination)
+
+    # D-V-01: ?group=host returns one row per asset with denormalized
+    # severity counts. The page payload type changes — the response_model
+    # union accepts either shape.
+    if group == "host":
+        page_payload = await list_vulnerabilities_by_host(db, user.tenant_id, filters, pagination)
+    else:
+        page_payload = await list_vulnerabilities(db, user.tenant_id, filters, pagination)
+
+    facet_payload: FacetsResponse | None = None
+    if requested_facets:
+        facet_payload = await get_facets(db, user.tenant_id, filters, requested_facets)
+
+    return VulnerabilityListResponse(
+        items=page_payload.items,
+        total=page_payload.total,
+        page=page_payload.page,
+        page_size=page_payload.page_size,
+        total_pages=page_payload.total_pages,
+        facets=facet_payload,
+    )
 
 
 @router.get("/stats", response_model=DashboardStats)

@@ -123,11 +123,13 @@ async def test_group_host_pagination_on_host_rows_not_vuln_rows(client, db_sessi
         hosts.append(a)
     await db_session.flush()
 
-    for host in hosts:
+    # Vulnerability.cve_id is `String(20)` so keep IDs short — must fit
+    # `CVE-<2-digit-host>-<single-digit-vuln>` = max 11 chars.
+    for h_idx, host in enumerate(hosts):
         for v in range(5):
             db_session.add(
                 _seed_vuln_on_asset(
-                    tenant_a, host.id, cve_id=f"CVE-PAG-{host.hostname}-{v}"
+                    tenant_a, host.id, cve_id=f"CVE-PG{h_idx:02d}{v}"
                 )
             )
     await db_session.commit()
