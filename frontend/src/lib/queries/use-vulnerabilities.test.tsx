@@ -111,7 +111,7 @@ describe('useVulnerabilities + buildSearchParams (query-key shape + filter compo
   });
 
   it('Test 5: 401 on the underlying api() call rejects the query (api.ts BL-06 safe-method path is silent; this only verifies error propagation)', async () => {
-    apiMock.mockRejectedValueOnce(new Error('Session expired. Please login again.'));
+    apiMock.mockRejectedValue(new Error('Session expired. Please login again.'));
     const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
 
     const { result } = renderHook(
@@ -126,7 +126,9 @@ describe('useVulnerabilities + buildSearchParams (query-key shape + filter compo
       { wrapper: wrap(qc) }
     );
 
-    await waitFor(() => expect(result.current.isError).toBe(true));
+    // retry: 1 with TanStack's default exponential backoff (~1000ms) means
+    // the error settles after the second attempt; allow up to 5s.
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 5000 });
     expect((result.current.error as Error).message).toContain('Session expired');
   });
 });
