@@ -90,6 +90,7 @@ const config: Config = {
         'pulse-urgency':    'pulse-urgency 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'gradient-drift':   'gradient-drift 24s ease-in-out infinite',
         'skeleton-shimmer': 'skeleton-shimmer 2s linear infinite',
+        'shimmer':          'skeleton-shimmer 1.6s linear infinite',   // Phase 11 alias for SkeletonTable (RESEARCH §Code Examples)
         'cta-shine-sweep':  'cta-shine-sweep 3s ease-in-out infinite',
       },
     },
