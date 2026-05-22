@@ -231,7 +231,18 @@ Plans:
   5. At <900px viewport, the table collapses to card view (3-row card per row) and the drill panel becomes a full-screen overlay
   6. Loading state shows skeleton chip-bar + skeleton rows + per-source progress strip ("3 of 4 sources · 312 found so far"); empty state shows explained-why card + 3-tier CTAs + violet lightbulb suggestion; partial-failure error state shows amber inline banner with HTTP code + request ID + per-source status cards + stale-row tinting; toast notifications fire on saved-filter/snooze/ticket-created events (UX-S-01..S-05 satisfied)
   7. State patterns ship as reusable components (SkeletonTable, EmptyState, PartialFailureBanner, PerSourceStatusStrip, Toast) consumed by Phase 12+ verbatim
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — Backend extensions: ?facets= / ?group=host / expanded ?sort= + ?order= + verify POST /tickets (4 pytest files)
+- [ ] 11-02-PLAN.md — Wave 0 scaffold: vaul@1.1.2 exact pin + Tailwind shimmer alias + 14 RED frontend test files matching the VALIDATION inventory
+- [ ] 11-03-PLAN.md — Data layer: useUrlStateList + useQueryErrors + useVulnerabilities/Detail + useConnectors + useSavedFilters + useCreateTicketMutation (401 surface)
+- [ ] 11-04-PLAN.md — 4 state primitives: SkeletonTable / EmptyState compound / PartialFailureBanner hybrid / PerSourceStatusStrip + barrel — all axe-clean
+- [ ] 11-05-PLAN.md — Vuln-page components: ChipBar (250ms debounce) + ViewToggle + VulnTable (keyboard nav + stale-row) + DrillPanel desktop + DrillPanelMobile (vaul)
+- [ ] 11-06-PLAN.md — Page rewrite: /dashboard/vulnerabilities page composition (~658→~150 lines) + delete v1 surface + restyle Pagination to sunset tokens
+- [ ] 11-07-PLAN.md — Phase 10 retrofit: 5 dashboard sites swap inline-minimal UI for canonical primitives (D-S-06; atomic commits per site)
+- [ ] 11-08-PLAN.md — Dev primitives showcase extension + 11-HUMAN-UAT.md manual verification checklist (8 manual-only items)
+
 **UI hint**: yes
 
 ### Phase 12: `/assets` List + Detail

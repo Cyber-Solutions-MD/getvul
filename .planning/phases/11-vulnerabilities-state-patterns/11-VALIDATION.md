@@ -118,7 +118,7 @@ Infrastructure:
 
 - [ ] All tasks have `<automated>` verify or Wave 0 dependencies
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING test references (17 frontend + 3 backend = 20 new test files)
+- [ ] Wave 0 covers all MISSING test references (14 frontend + 3 backend = 17 new test files + 1 backend verify-exists)
 - [ ] No watch-mode flags (CI uses `vitest run`, not `vitest`)
 - [ ] Feedback latency < 60s per task
 - [ ] axe-core assertions present on all 4 state primitives + EmptyState compound + page integration
