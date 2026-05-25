@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils';
 // animation but the gradient remains. Forced-colors mode: the bordered
 // placeholder shape survives because the pill kind carries an explicit
 // border; mono/text/badge fall back to the row border-b.
+//
+// Test contract (11-02): rows carry `data-skeleton-row`; cells carry
+// `data-skeleton-cell` so test assertions can target the shimmer placeholders
+// directly (the <td> wrappers are layout chrome only — the cell with chrome,
+// width, and shimmer is what tests measure).
 
 export type SkeletonColumnKind = 'pill' | 'mono' | 'text' | 'badge';
 export type SkeletonColumn = { kind: SkeletonColumnKind; width: number };
@@ -33,10 +38,15 @@ export function SkeletonTable({ rows = 8, columns, className }: Props) {
     >
       <tbody>
         {Array.from({ length: rows }).map((_, r) => (
-          <tr key={r} className="border-b border-border-subtle">
+          <tr
+            key={r}
+            data-skeleton-row=""
+            className="border-b border-border-subtle"
+          >
             {columns.map((col, c) => (
               <td key={c} className="px-3 py-3">
                 <span
+                  data-skeleton-cell=""
                   className={cn(
                     'inline-block h-4 bg-[length:200%_100%] motion-safe:animate-shimmer',
                     KIND_BG[col.kind]
