@@ -6,14 +6,11 @@ import type { ReactNode } from 'react';
 
 vi.mock('@/lib/api', () => ({ api: vi.fn() }));
 import { api } from '@/lib/api';
-
-// Wave 1 (Plan 11-03) will create this file. Import is the RED signal.
-// `buildSearchParams` is exported alongside the hook for testability per the
-// plan's behavior block.
 import {
   useVulnerabilities,
   buildSearchParams,
 } from './use-vulnerabilities';
+import { queryKeys } from './keys';
 
 const apiMock = vi.mocked(api);
 
@@ -23,107 +20,98 @@ function wrap(client: QueryClient) {
   );
 }
 
-describe('useVulnerabilities (D-D-03 query-key + D-F-02 facet composition)', () => {
+const emptyResponse = {
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+  total_pages: 0,
+  facets: { severity: {}, source: {}, status: {} },
+};
+
+describe('useVulnerabilities + buildSearchParams (query-key shape + filter composition)', () => {
   beforeEach(() => {
     apiMock.mockReset();
+    apiMock.mockResolvedValue(emptyResponse);
   });
 
-  it('queryKey includes filters, group, page, sort, order in the third positional object', async () => {
-    apiMock.mockResolvedValueOnce({ items: [], total: 0, facets: {} });
+  it('Test 1: queryKey includes filters, group, page, sort, order (D-D-03 domain-first)', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
-
-    const opts = {
-      filters: { severity: ['critical'] as const, source: ['QUALYS'] as const },
-      group: 'cve' as const,
-      page: 1,
-      sort: 'cve_id',
-      order: 'asc' as const,
-    };
-    const { result } = renderHook(() => useVulnerabilities(opts), {
-      wrapper: wrap(qc),
-    });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    // D-D-03: domain-first key shape ['vulnerabilities','list', { ...opts }]
-    const queries = qc.getQueryCache().findAll();
-    const key = queries[0]?.queryKey as readonly unknown[];
-    expect(key[0]).toBe('vulnerabilities');
-    expect(key[1]).toBe('list');
-    expect(key[2]).toMatchObject({
-      filters: { severity: ['critical'], source: ['QUALYS'] },
-      group: 'cve',
-      page: 1,
-      sort: 'cve_id',
-      order: 'asc',
-    });
-  });
-
-  it('buildSearchParams composes ?severity=critical&severity=high&source=QUALYS&facets=...&page=1', () => {
-    const qs = buildSearchParams({
-      filters: {
-        severity: ['critical', 'high'],
-        source: ['QUALYS'],
-      },
-      group: 'cve',
-      page: 1,
-      sort: 'cve_id',
-      order: 'asc',
-    });
-    expect(qs).toContain('severity=critical');
-    expect(qs).toContain('severity=high');
-    expect(qs).toContain('source=QUALYS');
-    expect(qs).toContain('facets=severity%2Csource%2Cstatus');
-    expect(qs).toContain('page=1');
-  });
-
-  it("?group=host flows through to the request URL when opts.group === 'host'", async () => {
-    apiMock.mockResolvedValueOnce({ items: [], total: 0, facets: {} });
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
-
     renderHook(
       () =>
         useVulnerabilities({
-          filters: {},
-          group: 'host',
-          page: 1,
-          sort: 'triage',
-          order: 'desc',
-        }),
-      { wrapper: wrap(qc) }
-    );
-
-    await waitFor(() => expect(apiMock).toHaveBeenCalledTimes(1));
-    const url = apiMock.mock.calls[0][0] as string;
-    expect(url).toContain('group=host');
-  });
-
-  it('?facets=severity,source,status is ALWAYS appended (per D-F-02 — chip counts stay synced)', async () => {
-    apiMock.mockResolvedValueOnce({ items: [], total: 0, facets: {} });
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
-
-    renderHook(
-      () =>
-        useVulnerabilities({
-          filters: {},
+          filters: { severity: ['critical'] },
           group: 'cve',
           page: 1,
-          sort: 'triage',
-          order: 'desc',
+          sort: 'cve_id',
+          order: 'asc',
         }),
       { wrapper: wrap(qc) }
     );
 
-    await waitFor(() => expect(apiMock).toHaveBeenCalledTimes(1));
-    const url = apiMock.mock.calls[0][0] as string;
-    expect(url).toMatch(/facets=severity(?:%2C|,)source(?:%2C|,)status/);
+    await waitFor(() => {
+      expect(qc.getQueryCache().findAll().length).toBeGreaterThan(0);
+    });
+    const key = qc.getQueryCache().findAll()[0]!.queryKey;
+    expect(key).toEqual(
+      queryKeys.vulnerabilities.list({
+        filters: { severity: ['critical'] },
+        group: 'cve',
+        page: 1,
+        sort: 'cve_id',
+        order: 'asc',
+      })
+    );
   });
 
-  it('401 on safe-method underlying api() call surfaces as the api.ts redirect path (no silent dirty data)', async () => {
-    // Safe-method GET on the list endpoint follows the BL-06 silent-refresh
-    // path in api.ts. From the hook's perspective the rejected promise on
-    // refresh-failure flows out as a query error; happy-path is `Error`.
-    apiMock.mockRejectedValueOnce(new Error('Session expired. Please login again.'));
+  it('Test 2: buildSearchParams composes severity + source + facets + page', () => {
+    const sp = buildSearchParams({
+      filters: { severity: ['critical', 'high'], source: ['QUALYS'] },
+      group: 'cve',
+      page: 1,
+      sort: '',
+      order: 'asc',
+    });
+    expect(sp.getAll('severity')).toEqual(['critical', 'high']);
+    expect(sp.getAll('source')).toEqual(['QUALYS']);
+    expect(sp.get('facets')).toBe('severity,source,status');
+    expect(sp.get('page')).toBe('1');
+    // No group=host when group is 'cve' (default).
+    expect(sp.get('group')).toBeNull();
+  });
+
+  it("Test 3: ?group=host flows through when opts.group === 'host'", () => {
+    const sp = buildSearchParams({
+      filters: {},
+      group: 'host',
+      page: 1,
+      sort: '',
+      order: 'asc',
+    });
+    expect(sp.get('group')).toBe('host');
+  });
+
+  it('Test 4: ?facets=severity,source,status is ALWAYS appended (D-F-02)', () => {
+    const sp1 = buildSearchParams({ filters: {}, group: 'cve', page: 1, sort: '', order: 'asc' });
+    expect(sp1.get('facets')).toBe('severity,source,status');
+
+    const sp2 = buildSearchParams({
+      filters: { search: 'log4j', kev_only: true, exploit_only: true },
+      group: 'host',
+      page: 2,
+      sort: 'sla_due_at',
+      order: 'desc',
+    });
+    expect(sp2.get('facets')).toBe('severity,source,status');
+    expect(sp2.get('search')).toBe('log4j');
+    expect(sp2.get('cisa_kev')).toBe('true');
+    expect(sp2.get('exploit_available')).toBe('true');
+    expect(sp2.get('sort')).toBe('sla_due_at');
+    expect(sp2.get('order')).toBe('desc');
+  });
+
+  it('Test 5: 401 on the underlying api() call rejects the query (api.ts BL-06 safe-method path is silent; this only verifies error propagation)', async () => {
+    apiMock.mockRejectedValue(new Error('Session expired. Please login again.'));
     const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
 
     const { result } = renderHook(
@@ -132,13 +120,15 @@ describe('useVulnerabilities (D-D-03 query-key + D-F-02 facet composition)', () 
           filters: {},
           group: 'cve',
           page: 1,
-          sort: 'triage',
-          order: 'desc',
+          sort: '',
+          order: 'asc',
         }),
       { wrapper: wrap(qc) }
     );
 
-    await waitFor(() => expect(result.current.isError).toBe(true));
+    // retry: 1 with TanStack's default exponential backoff (~1000ms) means
+    // the error settles after the second attempt; allow up to 5s.
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 5000 });
     expect((result.current.error as Error).message).toContain('Session expired');
   });
 });

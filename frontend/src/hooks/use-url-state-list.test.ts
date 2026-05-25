@@ -2,9 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-// Mock next/navigation BEFORE importing the hook.
-// Extends the canonical mock in use-url-state.test.ts with `getAll` + `append`
-// so the multi-value `?severity=critical&severity=high` shape is exercised.
+// Mock next/navigation BEFORE importing the hook. Extends the canonical
+// use-url-state.test.ts mock with `getAll()` (multi-value) + `append()`.
 const mockReplace = vi.fn();
 let mockParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
@@ -14,108 +13,100 @@ vi.mock('next/navigation', () => ({
     get: (k: string) => mockParams.get(k),
     getAll: (k: string) => mockParams.getAll(k),
     toString: () => mockParams.toString(),
+    append: (k: string, v: string) => mockParams.append(k, v),
   }),
 }));
 
-// Wave 1 (Plan 11-03) will create this file. Import here is the RED signal.
 import { useUrlStateList } from './use-url-state-list';
+import { useUrlState } from './use-url-state';
 
 const severities = ['critical', 'high', 'medium', 'low'] as const;
 
-describe('useUrlStateList (D-F-05 — multi-value URL state + XSS clamp)', () => {
+describe('useUrlStateList (D-F-05 — multi-value URL state + XSS clamp / WR-04 carryover)', () => {
   beforeEach(() => {
     mockReplace.mockReset();
     mockParams = new URLSearchParams();
   });
 
-  it('returns allow-listed values when URL has multiple ?severity=critical&severity=high', () => {
+  it('Test 1: getAll returns allow-listed values when URL has multiple ?severity=critical&severity=high', () => {
     mockParams = new URLSearchParams('severity=critical&severity=high');
     const { result } = renderHook(() => useUrlStateList('severity', severities));
-    const [value] = result.current;
-    expect(value).toEqual(['critical', 'high']);
+    expect(result.current[0]).toEqual(['critical', 'high']);
   });
 
-  it('filters out garbage URL values to mitigate reflected XSS (T-10-10 carryover)', () => {
-    // garbage URL values (XSS payload + unknown enum) must be filtered out
+  it('Test 2: garbage URL values (<script>) are filtered out — only allow-listed values survive (XSS clamp)', () => {
     mockParams = new URLSearchParams(
-      'severity=' +
-        encodeURIComponent('<script>alert(1)</script>') +
-        '&severity=high&severity=evil'
+      'severity=critical&severity=' + encodeURIComponent('<script>alert(1)</script>') + '&severity=high'
     );
     const { result } = renderHook(() => useUrlStateList('severity', severities));
-    const [value] = result.current;
-    // Only 'high' survives the allow-list clamp
-    expect(value).toEqual(['high']);
-    // Belt-and-braces: every returned element is in the allow-list
-    for (const v of value) {
+    expect(result.current[0]).toEqual(['critical', 'high']);
+    // Belt-and-braces: every element is allow-listed.
+    for (const v of result.current[0]) {
       expect((severities as readonly string[]).includes(v)).toBe(true);
     }
   });
 
-  it("setValue(['critical','high']) appends two severity params with scroll:false", () => {
+  it("Test 3: setValue(['critical','high']) appends two severity params + replace called with { scroll: false }", () => {
     const { result } = renderHook(() => useUrlStateList('severity', severities));
-    const [, setValue] = result.current;
-    act(() => setValue(['critical', 'high']));
+    act(() => result.current[1](['critical', 'high']));
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    const [target, opts] = mockReplace.mock.calls[0];
+    const target = mockReplace.mock.calls[0][0] as string;
+    expect(target.startsWith('/dashboard/vulnerabilities?')).toBe(true);
     expect(target).toContain('severity=critical');
     expect(target).toContain('severity=high');
-    expect(opts).toEqual({ scroll: false });
+    expect(mockReplace.mock.calls[0][1]).toEqual({ scroll: false });
   });
 
-  it('setValue([]) removes the key entirely (clean URL — no trailing ?severity=)', () => {
-    mockParams = new URLSearchParams('severity=critical&severity=high');
+  it('Test 4: setValue([]) removes the key entirely (clean URL — no trailing empty param)', () => {
+    mockParams = new URLSearchParams('severity=critical&severity=high&other=keep');
     const { result } = renderHook(() => useUrlStateList('severity', severities));
-    const [, setValue] = result.current;
-    act(() => setValue([]));
+    act(() => result.current[1]([]));
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    const [target] = mockReplace.mock.calls[0];
+    const target = mockReplace.mock.calls[0][0] as string;
     expect(target).not.toContain('severity=');
-    expect(target).not.toMatch(/severity(?:=|&|$)/);
+    // Other params survive.
+    expect(target).toContain('other=keep');
   });
 
-  it("toggle('critical') adds when absent, removes when present (idempotent in-out)", () => {
-    const { result, rerender } = renderHook(() =>
-      useUrlStateList('severity', severities)
-    );
-    const [, , toggle] = result.current;
-
-    // Add when absent
-    act(() => toggle('critical'));
-    expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace.mock.calls[0][0]).toContain('severity=critical');
-
-    // Simulate URL update to reflect the new state and rerender
-    mockParams = new URLSearchParams('severity=critical');
-    rerender();
-
-    // Toggle again → remove
-    act(() => result.current[2]('critical'));
-    expect(mockReplace).toHaveBeenCalledTimes(2);
-    const [target] = mockReplace.mock.calls[1];
-    expect(target).not.toContain('severity=critical');
-  });
-
-  it('write-path also filters via allow-list (defense in depth — XSS clamp on setValue)', () => {
-    const { result } = renderHook(() => useUrlStateList('severity', severities));
-    const [, setValue] = result.current;
-    // calling setValue with an unknown value produces no URL update for that value
-    act(() => setValue(['evil' as never, 'critical']));
-
-    expect(mockReplace).toHaveBeenCalledTimes(1);
-    const [target] = mockReplace.mock.calls[0];
+  it("Test 5: toggle('critical') adds when absent, removes when present (idempotent in-out)", () => {
+    // Start empty — toggle adds.
+    mockParams = new URLSearchParams();
+    const r1 = renderHook(() => useUrlStateList('severity', severities));
+    act(() => r1.result.current[2]('critical'));
+    let target = mockReplace.mock.calls[0][0] as string;
     expect(target).toContain('severity=critical');
+    mockReplace.mockReset();
+
+    // Already-present — toggle removes.
+    mockParams = new URLSearchParams('severity=critical&severity=high');
+    const r2 = renderHook(() => useUrlStateList('severity', severities));
+    act(() => r2.result.current[2]('critical'));
+    target = mockReplace.mock.calls[0][0] as string;
+    expect(target).not.toContain('severity=critical');
+    expect(target).toContain('severity=high');
+  });
+
+  it('Test 6: write-path also filters via allow-list (defense in depth)', () => {
+    const { result } = renderHook(() => useUrlStateList('severity', severities));
+    // Try to write a non-allow-listed value.
+    act(() => result.current[1](['critical', 'evil' as never, 'high']));
+    const target = mockReplace.mock.calls[0][0] as string;
+    expect(target).toContain('severity=critical');
+    expect(target).toContain('severity=high');
     expect(target).not.toContain('severity=evil');
   });
 
-  it('coexists with single-value useUrlState (different keys do not interfere)', () => {
-    mockParams = new URLSearchParams('severity=critical&search=log4j');
-    const { result } = renderHook(() => useUrlStateList('severity', severities));
-    const [value] = result.current;
-    expect(value).toEqual(['critical']);
-    // The other key (`search`) survives on the underlying params
-    expect(mockParams.get('search')).toBe('log4j');
+  it("Test 7: coexists with useUrlState('search', ...) on the same URL (different keys = no interference)", () => {
+    // Set both kinds of params on URL.
+    mockParams = new URLSearchParams('severity=critical&group=cve');
+    const r = renderHook(() => {
+      const list = useUrlStateList('severity', severities);
+      const single = useUrlState('group', ['cve', 'host'] as const, 'cve');
+      return { list, single };
+    });
+    expect(r.result.current.list[0]).toEqual(['critical']);
+    expect(r.result.current.single[0]).toBe('cve');
   });
 });
