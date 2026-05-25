@@ -73,9 +73,13 @@ class VulnerabilitySummary(BaseModel):
 class VulnerabilityFilter(BaseModel):
     """Filter parameters for vulnerability queries."""
 
-    severity: list[str] | None = None
-    source: list[str] | None = None
-    status: list[str] | None = None
+    # T-11-05: cap list inputs at 10 entries each — enum cardinality for
+    # severity/source/status is ≤ 5 today, so 10 is generous headroom while
+    # bounding DoS surface where a malicious analyst sends
+    # `?severity=X&severity=X&...` 50,000 times.
+    severity: list[str] | None = Field(None, max_length=10)
+    source: list[str] | None = Field(None, max_length=10)
+    status: list[str] | None = Field(None, max_length=10)
     # WR-05: bound free-text search inputs. SQLAlchemy parameterises the
     # ILIKE so injection is not the risk; the risk is unbounded payloads
     # (e.g. a 10MB CVE search string) that the index can't help, pinning a
@@ -90,8 +94,24 @@ class VulnerabilityFilter(BaseModel):
     age_days_min: int | None = Field(None, ge=0)
     age_days_max: int | None = Field(None, ge=0)
     # Phase 10 / D-T-01: 'triage' opts in to KEV → CVSS desc → SLA-due asc.
-    # Default (None) preserves existing severity-case-then-last_seen ordering.
-    sort: Literal["triage", "severity"] | None = None
+    # Phase 11 expands the axes — cve_id (lex), cvss_v3_score (numeric,
+    # nulls last), sla_due_at (datetime, nulls last). Default (None)
+    # preserves existing severity-case-then-last_seen ordering.
+    sort: Literal[
+        "triage",
+        "severity",
+        "cve_id",
+        "cvss_v3_score",
+        "sla_due_at",
+    ] | None = None
+    # Phase 11 / T-11-01: sort direction. Defaults to "desc" so the existing
+    # severity / triage sorts (which today are inherently desc) keep the same
+    # shape when callers don't pass `order=`.
+    order: Literal["asc", "desc"] = "desc"
+    # Phase 11 / D-V-01 / T-11-02: grouping mode. "cve" preserves the legacy
+    # one-row-per-vulnerability shape; "host" returns one row per asset with
+    # denormalized severity counts.
+    group: Literal["cve", "host"] = "cve"
 
 
 # ── Requests ──
@@ -174,3 +194,61 @@ class DashboardStats(BaseModel):
     asset_total_count: int = 0
     ticket_open_count: int = 0
     onboarding_state: Literal["no_scanners", "no_data_yet", "ready"] = "no_scanners"
+
+
+# ── Phase 11 / D-F-02 + D-V-01 list-endpoint extensions ──
+
+
+class FacetsResponse(BaseModel):
+    """Per-group counts contextual to all OTHER applied filters (D-F-02).
+
+    Each subkey is a `{value: count}` map. Empty when the corresponding facet
+    group was not requested via `?facets=`. Pitfall 1: severity counts are
+    computed under all filters EXCEPT severity so the chip-bar can still show
+    alternative severities the user could switch to.
+    """
+
+    severity: dict[str, int] = Field(default_factory=dict)
+    source: dict[str, int] = Field(default_factory=dict)
+    status: dict[str, int] = Field(default_factory=dict)
+
+
+class VulnerabilityByHost(BaseModel):
+    """One row per asset for the by-host grouping view (D-V-01).
+
+    Severity counts are denormalized so the table can render the severity
+    breakdown chips inline without a follow-up query per row. `top_cvss`
+    feeds the "highest-CVSS on this host" hint shown in the row's hover
+    state.
+    """
+
+    asset_id: uuid.UUID | None = None
+    host: str | None = None
+    vuln_count: int
+    critical_count: int
+    high_count: int
+    medium_count: int
+    low_count: int
+    top_cvss: Decimal | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class VulnerabilityListResponse(BaseModel):
+    """Wraps PaginatedResponse with an optional facets payload (D-F-02).
+
+    The frontend Wave 1+ list page expects facets in the same round-trip as
+    the page data to avoid a flash-of-empty-facets when chips and rows load
+    out of order. `items` is a union of the by-CVE summary and the by-host
+    aggregate; the wire shape is decided by the `?group=` request param.
+
+    `facets` is `None` when the request did not pass `?facets=` so clients
+    can branch on its presence without ambiguity.
+    """
+
+    items: list[VulnerabilitySummary] | list[VulnerabilityByHost]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    facets: FacetsResponse | None = None

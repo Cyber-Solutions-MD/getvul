@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from fastapi import HTTPException
 from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,12 +15,19 @@ from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
     DashboardStats,
+    FacetsResponse,
     SeverityCount,
     SourceCount,
+    VulnerabilityByHost,
     VulnerabilityFilter,
     VulnerabilityResponse,
     VulnerabilitySummary,
 )
+
+# Phase 11 / T-11-03: only these facet groups are allowed via ?facets=
+# CSV. Anything outside this set surfaces as HTTP 400 (not 500) so the
+# frontend can show a structured error and not leak an internal stack.
+_ALLOWED_FACET_GROUPS: frozenset[str] = frozenset({"severity", "source", "status"})
 
 
 def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: VulnerabilityFilter) -> Select:
@@ -89,8 +97,48 @@ async def list_vulnerabilities(
             nulls_last(desc(Vulnerability.cvss_v3_score)),
             nulls_last(asc(Vulnerability.sla_due_at)),
         )
+    elif filters.sort == "cve_id":
+        # Phase 11 / D-T-01: lexicographic. cve_id is `String(20) NOT NULL`
+        # in practice (NULL only on legacy rows that never had a CVE
+        # assigned); nulls_last keeps those off the top regardless of order.
+        col = Vulnerability.cve_id
+        data_q = data_q.order_by(
+            nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col))
+        )
+    elif filters.sort == "cvss_v3_score":
+        # Phase 11 / D-T-01: numeric. NULL scores must sort last in both
+        # directions — a null score is "unknown", not "lowest".
+        col = Vulnerability.cvss_v3_score
+        data_q = data_q.order_by(
+            nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col))
+        )
+    elif filters.sort == "sla_due_at":
+        # Phase 11 / D-T-01: datetime. NULL means "no SLA tracked" — same
+        # nulls-last rule as CVSS.
+        col = Vulnerability.sla_due_at
+        data_q = data_q.order_by(
+            nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col))
+        )
+    elif filters.sort == "severity":
+        # Phase 11 / D-T-01: explicit severity-rank branch lets ?order= flip
+        # the direction. Rank ascends with severity (CRITICAL=4 → LOW=1) so
+        # ?order=desc puts CRITICAL first — matches the user's mental model
+        # of "descending severity = worst first" (T-D-01 sketch language).
+        # Rows with an unknown severity get rank 0 so they always trail
+        # known severities under desc and lead under asc.
+        sev_rank = case(
+            (Vulnerability.severity == "CRITICAL", 4),
+            (Vulnerability.severity == "HIGH", 3),
+            (Vulnerability.severity == "MEDIUM", 2),
+            (Vulnerability.severity == "LOW", 1),
+            else_=0,
+        )
+        data_q = data_q.order_by(
+            asc(sev_rank) if filters.order == "asc" else desc(sev_rank)
+        )
     else:
-        # Existing severity-case ordering — unchanged.
+        # Existing severity-case ordering — unchanged. Reached when
+        # filters.sort is None (default path for legacy callers).
         data_q = data_q.order_by(
             case(
                 (Vulnerability.severity == "CRITICAL", 1),
@@ -226,6 +274,168 @@ async def bulk_update_status(
         .values(**values)
     )
     return result.rowcount
+
+
+# ── Phase 11 / D-F-02: contextual facet counts ──
+
+
+async def get_facets(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    filters: VulnerabilityFilter,
+    groups: list[str],
+) -> FacetsResponse:
+    """Per-group facets contextual to all OTHER applied filters (Pitfall 1).
+
+    For each group in ``groups``: run a query that re-applies every filter
+    EXCEPT that group's filter (so the chip-bar can show alternative values
+    a user could switch to), then ``GROUP BY`` that column. One query per
+    group → at most 3 round trips. Each query is a single ``count(*) GROUP
+    BY <indexed column>`` so the planner picks an index scan and the latency
+    floor is <50ms / facet on typical tenants.
+
+    Args:
+        db: open async session — caller's tenant_id is enforced via the
+            ``_apply_filters`` ``tenant_id == :t`` clause; this function
+            does NOT re-derive it and trusts the parameter.
+        tenant_id: the row's owning tenant (T-11-04 IDOR boundary).
+        filters: every filter applied to the list query, including any
+            group-specific filters that will be temporarily masked.
+        groups: subset of ``{"severity", "source", "status"}``. Anything
+            outside this set surfaces as HTTP 400 — the router validates
+            again, but we double-check here so callers that bypass the
+            router (e.g. internal jobs) also get a clean error.
+    """
+    bad = [g for g in groups if g not in _ALLOWED_FACET_GROUPS]
+    if bad:
+        # T-11-03: 400, not 500. Detail names the bad facet so the
+        # frontend can surface a useful error.
+        raise HTTPException(400, f"Unknown facet group(s): {','.join(bad)}")
+
+    out = FacetsResponse()
+
+    if "severity" in groups:
+        # Pitfall 1: drop the severity filter when computing severity facets
+        # so the chip-bar can show "CRITICAL (5) HIGH (12)" even when the
+        # user has CRITICAL selected.
+        f_no_sev = filters.model_copy(update={"severity": None})
+        sev_q = (
+            _apply_filters(
+                select(Vulnerability.severity, func.count(Vulnerability.id)),
+                tenant_id,
+                f_no_sev,
+            ).group_by(Vulnerability.severity)
+        )
+        sev_rows = (await db.execute(sev_q)).all()
+        out.severity = {s: c for s, c in sev_rows}
+
+    if "source" in groups:
+        f_no_src = filters.model_copy(update={"source": None})
+        src_q = (
+            _apply_filters(
+                select(Vulnerability.source, func.count(Vulnerability.id)),
+                tenant_id,
+                f_no_src,
+            ).group_by(Vulnerability.source)
+        )
+        src_rows = (await db.execute(src_q)).all()
+        out.source = {s: c for s, c in src_rows}
+
+    if "status" in groups:
+        f_no_status = filters.model_copy(update={"status": None})
+        status_q = (
+            _apply_filters(
+                select(Vulnerability.status, func.count(Vulnerability.id)),
+                tenant_id,
+                f_no_status,
+            ).group_by(Vulnerability.status)
+        )
+        status_rows = (await db.execute(status_q)).all()
+        out.status = {s: c for s, c in status_rows}
+
+    return out
+
+
+# ── Phase 11 / D-V-01: by-host grouped list view ──
+
+
+async def list_vulnerabilities_by_host(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    filters: VulnerabilityFilter,
+    pagination: PaginationParams,
+) -> PaginatedResponse[VulnerabilityByHost]:
+    """Group vulns by host with denormalized severity counts (D-V-01).
+
+    The list page's "by-host" toggle shows one row per asset, with the
+    severity-breakdown chips inline. Pagination is on HOST rows, not vuln
+    rows, so a tenant with 10k vulns on 500 hosts paginates 500 rows (not
+    10k). Critical for the page's responsiveness — a chip-filter that
+    narrows from 10k → 8k vulns must NOT change the host-row count in a
+    way that doesn't reflect actual host coverage.
+
+    Tenant scope (T-11-04 / IDOR): ``_apply_filters`` adds the
+    ``Vulnerability.tenant_id == :t`` predicate to the subquery, so the
+    outer ``GROUP BY Asset.hostname, Asset.id`` only sees rows from this
+    tenant. Hosts in other tenants are invisible.
+    """
+    # Build the filtered, tenant-scoped row source. We label the Asset
+    # columns with names that do NOT collide with Vulnerability columns
+    # (`asset_id` is already a Vulnerability column; we rename Asset.id to
+    # `host_asset_id` and Asset.hostname to `host_hostname` to keep the
+    # subquery's column names unambiguous — SQLAlchemy refuses to auto-
+    # disambiguate labels in subqueries used by GROUP BY downstream).
+    filtered = (
+        _apply_filters(select(Vulnerability), tenant_id, filters)
+        .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
+        .add_columns(
+            Asset.id.label("host_asset_id"),
+            Asset.hostname.label("host_hostname"),
+        )
+        .subquery()
+    )
+
+    grouped_q = (
+        select(
+            filtered.c.host_asset_id.label("asset_id"),
+            filtered.c.host_hostname.label("host"),
+            func.count(filtered.c.id).label("vuln_count"),
+            func.count(case((filtered.c.severity == "CRITICAL", 1))).label("critical_count"),
+            func.count(case((filtered.c.severity == "HIGH", 1))).label("high_count"),
+            func.count(case((filtered.c.severity == "MEDIUM", 1))).label("medium_count"),
+            func.count(case((filtered.c.severity == "LOW", 1))).label("low_count"),
+            func.max(filtered.c.cvss_v3_score).label("top_cvss"),
+        )
+        .group_by(filtered.c.host_asset_id, filtered.c.host_hostname)
+        # Ordering: CRITICAL count desc so the most-at-risk hosts surface
+        # first; ties broken by total vuln_count desc.
+        .order_by(
+            func.count(case((filtered.c.severity == "CRITICAL", 1))).desc(),
+            func.count(filtered.c.id).desc(),
+        )
+    )
+
+    # Count distinct hosts for pagination total (NOT vuln rows).
+    count_q = select(func.count()).select_from(grouped_q.subquery())
+    total = (await db.execute(count_q)).scalar_one()
+
+    paged_q = grouped_q.offset(pagination.offset).limit(pagination.page_size)
+    rows = (await db.execute(paged_q)).all()
+
+    items = [
+        VulnerabilityByHost(
+            asset_id=row.asset_id,
+            host=row.host,
+            vuln_count=row.vuln_count,
+            critical_count=row.critical_count,
+            high_count=row.high_count,
+            medium_count=row.medium_count,
+            low_count=row.low_count,
+            top_cvss=row.top_cvss,
+        )
+        for row in rows
+    ]
+    return PaginatedResponse.create(items=items, total=total, params=pagination)
 
 
 async def get_dashboard_stats(
