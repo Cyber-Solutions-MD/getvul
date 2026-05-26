@@ -2,6 +2,7 @@
 import { ShieldAlert, Clock, Flame, TrendingDown } from 'lucide-react';
 import { Stat } from '@/components/ui/stat';
 import { StatStrip } from '@/components/ui/stat-strip';
+import { PartialFailureBanner } from '@/components/states';
 import { useStats } from '@/lib/queries/use-stats';
 import { microcopy } from './microcopy';
 
@@ -35,12 +36,11 @@ export function StatStripWired() {
     return (
       <section aria-labelledby="stats-h">
         <h2 id="stats-h" className="sr-only">{microcopy.stats.h2}</h2>
-        <p
-          role="alert"
-          className="rounded-lg border border-danger bg-danger-soft p-3 text-sm"
-        >
-          {microcopy.error.inline('Stats', code, reqId)}
-        </p>
+        <PartialFailureBanner
+          errors={[{ code, requestId: reqId, message: undefined }]}
+          onRetry={() => q.refetch()}
+          source="Stats"
+        />
       </section>
     );
   }
