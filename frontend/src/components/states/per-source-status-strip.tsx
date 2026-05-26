@@ -1,4 +1,5 @@
 'use client';
+import type { JSX } from 'react';
 import { useConnectors, type ConnectorRow } from '@/lib/queries/use-connectors';
 import { cn } from '@/lib/utils';
 

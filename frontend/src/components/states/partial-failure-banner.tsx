@@ -2,6 +2,7 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useQueryErrors } from '@/lib/queries/use-query-errors';
 import { cn } from '@/lib/utils';
+import type { JSX } from 'react';
 import type { QueryKey } from '@tanstack/react-query';
 
 // D-S-03: hybrid mode. Default — pass watchKeys; banner subscribes via

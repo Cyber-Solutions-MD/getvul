@@ -1,12 +1,8 @@
 'use client';
-
 // Phase 11-06 — composes Wave 1 hooks + Wave 2 components into the redesigned
 // /dashboard/vulnerabilities surface (UX-03-01..06 + UX-S-01..05). Glue + state
-// branching only; visuals live in the leaf components. Phase 10 deep-link
-// contract honored: ?cve=…&open=drill pre-opens drill on first paint, and row
-// clicks round-trip the same shape.
-
-import { useCallback, useMemo, type ReactNode } from 'react';
+// branching only. Phase 10 deep-link contract honored: ?cve=…&open=drill.
+import { Suspense, useCallback, useMemo, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Lightbulb } from 'lucide-react';
 import { ChipBar } from '@/components/vulnerabilities/chip-bar';
@@ -40,8 +36,7 @@ type SortField = (typeof SORT_FIELDS)[number];
 type Order = (typeof ORDERS)[number];
 type Group = (typeof GROUPS)[number];
 
-// 7-column skeleton shape matches VulnTable (Severity / CVE / Title / Asset /
-// CVSS / Status / SLA). Module-scope = stable reference across renders.
+// 7-column skeleton shape mirrors VulnTable. Module-scope = stable reference.
 const SKELETON_COLUMNS: SkeletonColumn[] = [
   { kind: 'pill', width: 90 }, { kind: 'mono', width: 130 }, { kind: 'text', width: 220 },
   { kind: 'mono', width: 120 }, { kind: 'mono', width: 40 }, { kind: 'badge', width: 80 },
@@ -235,10 +230,21 @@ function VulnerabilitiesPageInner() {
   );
 }
 
+// Suspense bailout for useSearchParams during prerender (Next 15) — fallback
+// renders the same SkeletonTable shape the loading branch uses post-hydration.
+const PAGE_FALLBACK = (
+  <div className="space-y-4">
+    <h1 className="sr-only">{microcopy.page.h1}</h1>
+    <SkeletonTable rows={8} columns={SKELETON_COLUMNS} />
+  </div>
+);
+
 export default function VulnerabilitiesPage() {
   return (
     <ErrorBoundary fallback={pageErrorFallback} boundaryName="VulnerabilitiesPage">
-      <VulnerabilitiesPageInner />
+      <Suspense fallback={PAGE_FALLBACK}>
+        <VulnerabilitiesPageInner />
+      </Suspense>
     </ErrorBoundary>
   );
 }
