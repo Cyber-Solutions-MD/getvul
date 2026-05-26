@@ -1,7 +1,6 @@
 'use client';
-import { useMemo } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { useQueryErrors, type QueryError } from '@/lib/queries/use-query-errors';
+import { useQueryErrors } from '@/lib/queries/use-query-errors';
 import { cn } from '@/lib/utils';
 import type { QueryKey } from '@tanstack/react-query';
 
@@ -13,6 +12,13 @@ import type { QueryKey } from '@tanstack/react-query';
 // T-11-15 (Information Disclosure): banner renders ONLY error.code (HTTP) +
 // error.requestId + the optional `source` label + the optional sanitized
 // `message`. No raw stack. Mirrors Phase 10 D-E-02.
+//
+// Architecture note: props-mode renders WITHOUT a QueryClient in scope (test
+// contract from 11-02 — the prop API is a drop-in surface for sites that
+// don't have TanStack on the page). To avoid `useQueryClient()` throwing when
+// no provider is mounted, we split the two modes into separate components:
+// the parent <PartialFailureBanner> picks the branch, and only the
+// <PartialFailureBannerFromCache> child calls the hook.
 
 type ErrorRow = {
   code: number | string;
@@ -29,24 +35,19 @@ export type PartialFailureBannerProps = {
   className?: string;
 };
 
-export function PartialFailureBanner({
-  watchKeys,
-  errors,
+type ViewProps = {
+  rows: ReadonlyArray<ErrorRow>;
+  onRetry?: () => void;
+  source?: string;
+  className?: string;
+};
+
+function PartialFailureBannerView({
+  rows,
   onRetry,
   source,
   className,
-}: PartialFailureBannerProps): JSX.Element | null {
-  // Default mode: subscribe to QueryCache.
-  const cacheErrors: QueryError[] = useQueryErrors(watchKeys ?? []);
-  const rows: ReadonlyArray<ErrorRow> = useMemo(() => {
-    if (errors && errors.length > 0) return errors;
-    return cacheErrors.map((e) => ({
-      code: e.code,
-      requestId: e.requestId,
-      message: e.error.message,
-    }));
-  }, [errors, cacheErrors]);
-
+}: ViewProps): JSX.Element | null {
   if (rows.length === 0) return null;
 
   // Surface the first error as the headline; pull from `source` prop for the title.
@@ -64,6 +65,7 @@ export function PartialFailureBanner({
         className
       )}
       data-failed-keys={rows.length}
+      data-failed-sources={source ?? ''}
     >
       <span className="mt-0.5 text-amber" aria-hidden="true">
         <AlertTriangle size={18} />
@@ -90,5 +92,62 @@ export function PartialFailureBanner({
         </button>
       )}
     </div>
+  );
+}
+
+// Hook-mode child: only mounts in default mode, so useQueryClient() is safe.
+function PartialFailureBannerFromCache({
+  watchKeys,
+  onRetry,
+  source,
+  className,
+}: {
+  watchKeys: readonly QueryKey[];
+  onRetry?: () => void;
+  source?: string;
+  className?: string;
+}): JSX.Element | null {
+  const cacheErrors = useQueryErrors(watchKeys);
+  const rows: ReadonlyArray<ErrorRow> = cacheErrors.map((e) => ({
+    code: e.code,
+    requestId: e.requestId,
+    message: e.error.message,
+  }));
+  return (
+    <PartialFailureBannerView
+      rows={rows}
+      onRetry={onRetry}
+      source={source}
+      className={className}
+    />
+  );
+}
+
+export function PartialFailureBanner({
+  watchKeys,
+  errors,
+  onRetry,
+  source,
+  className,
+}: PartialFailureBannerProps): JSX.Element | null {
+  // Props mode wins when an `errors` prop is supplied — no QueryClient needed.
+  if (errors !== undefined) {
+    return (
+      <PartialFailureBannerView
+        rows={errors}
+        onRetry={onRetry}
+        source={source}
+        className={className}
+      />
+    );
+  }
+  // Default mode: subscribe to QueryCache via the hook (requires QueryClient).
+  return (
+    <PartialFailureBannerFromCache
+      watchKeys={watchKeys ?? []}
+      onRetry={onRetry}
+      source={source}
+      className={className}
+    />
   );
 }
