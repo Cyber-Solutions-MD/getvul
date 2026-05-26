@@ -1,8 +1,12 @@
 'use client';
 import { ActivityFeed } from '@/components/ui/activity-feed';
+import { PartialFailureBanner } from '@/components/states';
 import { useRecentNotifications } from '@/lib/queries/use-recent-notifications';
 import { microcopy } from './microcopy';
 
+// Phase 11 D-S-06 retrofit: error → <PartialFailureBanner>.
+// Loading state stays inline because the shape isn't table-shaped — see
+// 11-RESEARCH.md §Phase 10 Retrofit Audit (planner discretion preserved).
 // D-A-06..07 + D-M-01: right-rail behavior — sticky at ≥1280px, collapses to
 // a full-width section with a visible h2 below the main column at <1280px.
 // At ≥1280px the <aside aria-label> is the accessible name and the h2 is
@@ -29,13 +33,17 @@ export function ActivityRail() {
       )}
 
       {q.error && (
-        <p role="alert" className="text-sm">
-          {microcopy.error.inline(
-            'Activity',
-            (q.error as { code?: number | string } | null)?.code ?? 'unknown',
-            (q.error as { requestId?: string } | null)?.requestId ?? 'unknown'
-          )}
-        </p>
+        <PartialFailureBanner
+          errors={[
+            {
+              code: (q.error as { code?: number | string } | null)?.code ?? 'unknown',
+              requestId: (q.error as { requestId?: string } | null)?.requestId ?? 'unknown',
+              message: undefined,
+            },
+          ]}
+          onRetry={() => q.refetch()}
+          source="Activity"
+        />
       )}
 
       {q.data && (
