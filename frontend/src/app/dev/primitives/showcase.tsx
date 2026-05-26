@@ -8,6 +8,7 @@ import {
   Clock,
   Flame,
   TrendingDown,
+  Lightbulb,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,12 @@ import { Stat } from '@/components/ui/stat';
 import { StatStrip } from '@/components/ui/stat-strip';
 import { ActivityFeed, type ActivityItem } from '@/components/ui/activity-feed';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
+import {
+  SkeletonTable,
+  EmptyState,
+  PartialFailureBanner,
+  PerSourceStatusStrip,
+} from '@/components/states';
 
 // BL-05: this client showcase is loaded dynamically from `page.tsx` ONLY in
 // dev builds. In production builds the parent server component short-circuits
@@ -343,6 +350,152 @@ export default function PrimitivesShowcase() {
           </div>
         </ErrorBoundary>
       </Section>
+
+      {/* ── Phase 11 — State patterns (D-S-01..07 + D-V-02) ───────────────── */}
+      <section aria-labelledby="states-h" className="mb-10 space-y-8">
+        <div>
+          <h2
+            id="states-h"
+            className="mb-1 text-sm font-medium uppercase tracking-wide text-text-faint"
+          >
+            State patterns (Phase 11)
+          </h2>
+          <p className="text-xs text-text-muted">
+            Cross-phase primitives consumed by /dashboard/vulnerabilities (Phase
+            11), /dashboard/assets (Phase 12), /dashboard/tickets (Phase 13).
+            Sourced from <code className="font-mono">@/components/states</code>.
+          </p>
+        </div>
+
+        {/* SkeletonTable — D-S-01 */}
+        <div className="rounded-lg border border-border bg-surface p-6">
+          <h3 className="text-base font-medium text-text">SkeletonTable</h3>
+          <p className="mt-1 text-xs text-text-muted">
+            Column-aware shimmer mirroring the eventual table shape (D-S-01).
+            <code className="ml-2 font-mono">aria-busy=&quot;true&quot;</code>;
+            <code className="ml-1 font-mono">motion-safe:animate-shimmer</code>{' '}
+            gates the keyframe.
+          </p>
+          <div className="mt-4 rounded-md border border-border-subtle bg-bg p-4">
+            <SkeletonTable
+              rows={5}
+              columns={[
+                { kind: 'pill', width: 90 },
+                { kind: 'mono', width: 130 },
+                { kind: 'text', width: 200 },
+                { kind: 'mono', width: 120 },
+                { kind: 'mono', width: 40 },
+                { kind: 'badge', width: 80 },
+                { kind: 'mono', width: 60 },
+              ]}
+            />
+          </div>
+        </div>
+
+        {/* EmptyState — D-S-02 compound */}
+        <div className="rounded-lg border border-border bg-surface p-6">
+          <h3 className="text-base font-medium text-text">EmptyState — compound</h3>
+          <p className="mt-1 text-xs text-text-muted">
+            Title + Body + Actions + Suggestion slots (D-S-02).{' '}
+            <code className="font-mono">role=&quot;status&quot;</code>,{' '}
+            <code className="font-mono">aria-live=&quot;polite&quot;</code>.
+          </p>
+          <div className="mt-4">
+            <EmptyState>
+              <EmptyState.Title>Nothing matches all 5 filters</EmptyState.Title>
+              <EmptyState.Body>
+                That&apos;s a tight net — relax one or two and try again.
+              </EmptyState.Body>
+              <EmptyState.Actions>
+                <button
+                  type="button"
+                  className="rounded-md bg-gradient-sunset px-4 py-2 text-sm font-medium text-text-inverse"
+                >
+                  Clear all filters
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-border bg-surface-2 px-4 py-2 text-sm text-text"
+                >
+                  Include Medium severity
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-border bg-surface-2 px-4 py-2 text-sm text-text"
+                >
+                  Search all sources
+                </button>
+              </EmptyState.Actions>
+              <EmptyState.Suggestion>
+                <Lightbulb size={16} aria-hidden="true" />
+                <span>Try broadening severity or removing the date range.</span>
+              </EmptyState.Suggestion>
+            </EmptyState>
+          </div>
+        </div>
+
+        {/* PartialFailureBanner — D-S-03 props mode */}
+        <div className="rounded-lg border border-border bg-surface p-6">
+          <h3 className="text-base font-medium text-text">
+            PartialFailureBanner — props mode
+          </h3>
+          <p className="mt-1 text-xs text-text-muted">
+            Amber-not-red banner with HTTP code + request ID + Retry. Hybrid
+            hook+props API (D-S-03).{' '}
+            <code className="font-mono">role=&quot;alert&quot;</code>; sanitized
+            message only — no raw stack (T-11-15).
+          </p>
+          <div className="mt-4">
+            <PartialFailureBanner
+              errors={[
+                {
+                  code: 503,
+                  requestId: 'req_8f2a91c',
+                  message: 'Tenable connector is unreachable',
+                },
+              ]}
+              onRetry={() => {
+                // Showcase-only: real consumers wire to the query refetch.
+                if (typeof window !== 'undefined') {
+                  // eslint-disable-next-line no-alert
+                  window.alert('Retry fired');
+                }
+              }}
+              source="Tenable"
+            />
+          </div>
+        </div>
+
+        {/* PerSourceStatusStrip — D-V-02 */}
+        <div className="rounded-lg border border-border bg-surface p-6">
+          <h3 className="text-base font-medium text-text">PerSourceStatusStrip</h3>
+          <p className="mt-1 text-xs text-text-muted">
+            Per-connector status pills with{' '}
+            <code className="font-mono">aria-live=&quot;polite&quot;</code>{' '}
+            (D-V-02 + D-S-07). Composes <code className="font-mono">useConnectors()</code>{' '}
+            + a <code className="font-mono">facets</code> prop. In this dev
+            showcase the hook resolves with no data (no live backend), so the
+            strip correctly returns null.
+          </p>
+          <div className="mt-4">
+            <PerSourceStatusStrip
+              facets={{ Tenable: 12, Qualys: 8, 'AWS Inspector': 3 }}
+            />
+            <p className="mt-2 text-xs italic text-text-faint">
+              Strip returns null while <code className="font-mono">useConnectors</code>{' '}
+              query is pending / errored (ChipBar + PartialFailureBanner cover
+              those states). Visit{' '}
+              <Link
+                href="/dashboard/vulnerabilities"
+                className="text-violet underline"
+              >
+                /dashboard/vulnerabilities
+              </Link>{' '}
+              against a seeded backend for the full demo.
+            </p>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
