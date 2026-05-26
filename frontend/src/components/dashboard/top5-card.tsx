@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
+import { SkeletonTable, PartialFailureBanner } from '@/components/states';
 import { useTopTriage } from '@/lib/queries/use-top-triage';
 import { microcopy } from './microcopy';
 import { cn } from '@/lib/utils';
@@ -42,7 +43,15 @@ export function Top5Card() {
         <Card.Header>
           <h2 id="top5-h" className="text-lg font-semibold text-text">{microcopy.top5.h2}</h2>
         </Card.Header>
-        <div aria-busy="true" className="h-64 animate-pulse rounded-md bg-surface-2" />
+        <SkeletonTable
+          rows={5}
+          columns={[
+            { kind: 'mono', width: 40 },   // severity glyph
+            { kind: 'mono', width: 130 },  // CVE / host stack (compresses into one mono-width cell)
+            { kind: 'mono', width: 40 },   // cvss
+            { kind: 'pill', width: 60 },   // SLA pill
+          ]}
+        />
       </Card>
     );
   }
@@ -55,9 +64,11 @@ export function Top5Card() {
         <Card.Header>
           <h2 id="top5-h" className="text-lg font-semibold text-text">{microcopy.top5.h2}</h2>
         </Card.Header>
-        <p role="alert" className="text-sm">
-          {microcopy.error.inline('Top 5', code, reqId)}
-        </p>
+        <PartialFailureBanner
+          errors={[{ code, requestId: reqId, message: undefined }]}
+          onRetry={() => q.refetch()}
+          source="Top 5"
+        />
       </Card>
     );
   }
