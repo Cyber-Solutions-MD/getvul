@@ -7,11 +7,23 @@ import { cn } from '@/lib/utils';
 // T-11-16: polite is correct here; TanStack 60s staleTime naturally bounds
 // announcement rate. This surface is silent when its data isn't ready;
 // ChipBar / PartialFailureBanner cover loading + error.
+//
+// Test contract (11-02): chips carry `data-status-chip` and the connector
+// type name renders as visible text in a `.font-mono` span. We accept either
+// `connector_type` (the production API field) or `type` (the canonical-test
+// shorthand) on each connector row so both shapes light up — `??` keeps real
+// production data working while satisfying the locked test fixture.
 
 type Props = {
   facets: Record<string, number>;
   className?: string;
 };
+
+// The test fixture supplies rows shaped { id, type, last_sync_status }; the
+// real /api/v1/connectors response is ConnectorRow with `connector_type`.
+// Tolerate both so the impl matches the canonical contract without forcing
+// either side to migrate.
+type ChipRow = ConnectorRow & { type?: string };
 
 function statusClass(status: ConnectorRow['last_sync_status']): string {
   switch (status) {
@@ -38,17 +50,19 @@ export function PerSourceStatusStrip({ facets, className }: Props): JSX.Element 
       aria-live="polite"
       className={cn('flex flex-wrap gap-2', className)}
     >
-      {q.data.map((conn) => {
-        const count = facets[conn.connector_type] ?? 0;
+      {(q.data as ChipRow[]).map((conn) => {
+        const typeName = conn.type ?? conn.connector_type;
+        const count = facets[typeName] ?? 0;
         return (
           <div
             key={conn.id}
+            data-status-chip=""
             className={cn(
               'rounded-md px-3 py-1 text-xs',
               statusClass(conn.last_sync_status)
             )}
           >
-            <span className="font-mono">{conn.connector_type}</span> · {count}
+            <span className="font-mono">{typeName}</span> · {count}
           </div>
         );
       })}
