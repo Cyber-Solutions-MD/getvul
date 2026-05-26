@@ -2,10 +2,14 @@
 import dynamic from 'next/dynamic';
 import type { TrendChartProps, Range } from '@/components/ui/trend-chart';
 import { TrendChartSkeleton } from '@/components/ui/trend-chart-skeleton';
+import { PartialFailureBanner } from '@/components/states';
 import { useUrlState } from '@/hooks/use-url-state';
 import { useTrends } from '@/lib/queries/use-trends';
 import { microcopy } from './microcopy';
 
+// Phase 11 D-S-06 retrofit: error → <PartialFailureBanner>.
+// Loading state stays inline because the shape isn't table-shaped — see
+// 11-RESEARCH.md §Phase 10 Retrofit Audit (planner discretion preserved).
 // Pattern 9 + D-C-03 + D-D-04: dynamic-import wrapper around TrendChart so
 // recharts only loads when /dashboard mounts this section. Plan 04's
 // TrendChart primitive intentionally does NOT self-wrap with next/dynamic
@@ -32,16 +36,16 @@ export function TrendSection() {
   }
 
   if (q.error) {
-    const code = (q.error as { code?: number | string } | null)?.code ?? 'unknown';
+    const code  = (q.error as { code?: number | string } | null)?.code ?? 'unknown';
     const reqId = (q.error as { requestId?: string } | null)?.requestId ?? 'unknown';
     return (
-      <section
-        role="alert"
-        aria-labelledby="trend-h"
-        className="rounded-lg border border-danger bg-danger-soft p-5"
-      >
+      <section aria-labelledby="trend-h">
         <h2 id="trend-h" className="sr-only">{microcopy.trend.h2}</h2>
-        {microcopy.error.inline('Trend', code, reqId)}
+        <PartialFailureBanner
+          errors={[{ code, requestId: reqId, message: undefined }]}
+          onRetry={() => q.refetch()}
+          source="Trend"
+        />
       </section>
     );
   }
