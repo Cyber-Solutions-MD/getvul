@@ -238,8 +238,8 @@ Plans:
 - [x] 11-02-PLAN.md — Wave 0 scaffold: vaul@1.1.2 exact pin + Tailwind shimmer alias + 14 RED frontend test files matching the VALIDATION inventory
 - [x] 11-03-PLAN.md — Data layer: useUrlStateList + useQueryErrors + useVulnerabilities/Detail + useConnectors + useSavedFilters + useCreateTicketMutation (401 surface)
 - [x] 11-04-PLAN.md — 4 state primitives: SkeletonTable / EmptyState compound / PartialFailureBanner hybrid / PerSourceStatusStrip + barrel — all axe-clean
-- [ ] 11-05-PLAN.md — Vuln-page components: ChipBar (250ms debounce) + ViewToggle + VulnTable (keyboard nav + stale-row) + DrillPanel desktop + DrillPanelMobile (vaul)
-- [ ] 11-06-PLAN.md — Page rewrite: /dashboard/vulnerabilities page composition (~658→~150 lines) + delete v1 surface + restyle Pagination to sunset tokens
+- [x] 11-05-PLAN.md — Vuln-page components: ChipBar (250ms debounce) + ViewToggle + VulnTable (keyboard nav + stale-row) + DrillPanel desktop + DrillPanelMobile (vaul)
+- [x] 11-06-PLAN.md — Page rewrite: /dashboard/vulnerabilities page composition (~658→~150 lines) + delete v1 surface + restyle Pagination to sunset tokens
 - [ ] 11-07-PLAN.md — Phase 10 retrofit: 5 dashboard sites swap inline-minimal UI for canonical primitives (D-S-06; atomic commits per site)
 - [ ] 11-08-PLAN.md — Dev primitives showcase extension + 11-HUMAN-UAT.md manual verification checklist (8 manual-only items)
 
@@ -319,7 +319,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 8. Test Coverage Floor | v1.0 Production Readiness | 0/3 | Deferred | - |
 | 9. `/login` + Foundation | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 | 10. `/dashboard` | v2.0 UI/UX Redesign | 6/6 | Complete    | 2026-05-18 |
-| 11. `/vulnerabilities` + State Patterns | v2.0 UI/UX Redesign | 4/8 | In Progress|  |
+| 11. `/vulnerabilities` + State Patterns | v2.0 UI/UX Redesign | 6/8 | In Progress|  |
 | 12. `/assets` List + Detail | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 | 13. `/tickets` List + Detail | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 | 14. Remaining Screens | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
