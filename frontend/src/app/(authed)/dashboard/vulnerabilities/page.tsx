@@ -1,658 +1,244 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Bug, RefreshCw, Loader2, Pill, Monitor } from "lucide-react";
-import ExportButton from "@/components/ui/ExportButton";
-import { api } from "@/lib/api";
-import VulnFilters, { type VulnFilterState } from "@/components/vulnerabilities/VulnFilters";
-import VulnTable from "@/components/vulnerabilities/VulnTable";
-import BulkActions from "@/components/vulnerabilities/BulkActions";
-import Pagination from "@/components/ui/Pagination";
-import { SeverityBadge } from "@/components/ui/Badge";
-import ConfirmModal from "@/components/ui/ConfirmModal";
-import { useToast } from "@/components/ui/ToastProvider";
-import { cn } from "@/lib/utils";
-import type { VulnerabilitySummary } from "@/types/vulnerability";
+// Phase 11-06 — composes Wave 1 hooks + Wave 2 components into the redesigned
+// /dashboard/vulnerabilities surface (UX-03-01..06 + UX-S-01..05). Glue + state
+// branching only; visuals live in the leaf components. Phase 10 deep-link
+// contract honored: ?cve=…&open=drill pre-opens drill on first paint, and row
+// clicks round-trip the same shape.
 
-interface PaginatedVulns {
-  items: VulnerabilitySummary[];
-  total: number; page: number; page_size: number; total_pages: number;
-}
+import { useCallback, useMemo, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Lightbulb } from 'lucide-react';
+import { ChipBar } from '@/components/vulnerabilities/chip-bar';
+import { ViewToggle } from '@/components/vulnerabilities/view-toggle';
+import { VulnTable, type VulnTableRow, type VulnTableSortField } from '@/components/vulnerabilities/vuln-table';
+import { DrillPanel } from '@/components/vulnerabilities/drill-panel';
+import { DrillPanelMobile } from '@/components/vulnerabilities/drill-panel-mobile';
+import { microcopy } from '@/components/vulnerabilities/microcopy';
+import { SkeletonTable, EmptyState, PartialFailureBanner, PerSourceStatusStrip, type SkeletonColumn } from '@/components/states';
+import Pagination from '@/components/ui/Pagination';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
+import { useUrlState } from '@/hooks/use-url-state';
+import { useUrlStateList } from '@/hooks/use-url-state-list';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useVulnerabilities, type VulnerabilitiesFilters } from '@/lib/queries/use-vulnerabilities';
+import { useConnectors } from '@/lib/queries/use-connectors';
+import { queryKeys } from '@/lib/queries/keys';
 
-interface RemediationGrouped {
-  remediation_id: string; remediation_action: string | null;
-  affected_product: string | null; affected_hosts: number;
-  vuln_count: number; max_severity: string;
-  is_suppressed?: boolean; suppressed_count?: number;
-}
+// XSS allow-lists mirror chip-bar.tsx (T-11-17 / WR-04). Reflected URL values
+// outside the allow-list are silently dropped by useUrlStateList on read+write.
+const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
+const SOURCES = ['QUALYS', 'TENABLE', 'RAPID7', 'CROWDSTRIKE', 'AWS_INSPECTOR', 'WIZ', 'MOCK'] as const;
+const STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'SUPPRESSED'] as const;
+const SORT_FIELDS = ['severity', 'cve_id', 'cvss_v3_score', 'sla_due_at', ''] as const;
+const ORDERS = ['asc', 'desc'] as const;
+const GROUPS = ['cve', 'host'] as const;
+type Severity = (typeof SEVERITIES)[number];
+type Source = (typeof SOURCES)[number];
+type Status = (typeof STATUSES)[number];
+type SortField = (typeof SORT_FIELDS)[number];
+type Order = (typeof ORDERS)[number];
+type Group = (typeof GROUPS)[number];
 
-interface PaginatedRemediations {
-  items: RemediationGrouped[];
-  total: number; page: number; page_size: number; total_pages: number;
-}
+// 7-column skeleton shape matches VulnTable (Severity / CVE / Title / Asset /
+// CVSS / Status / SLA). Module-scope = stable reference across renders.
+const SKELETON_COLUMNS: SkeletonColumn[] = [
+  { kind: 'pill', width: 90 }, { kind: 'mono', width: 130 }, { kind: 'text', width: 220 },
+  { kind: 'mono', width: 120 }, { kind: 'mono', width: 40 }, { kind: 'badge', width: 80 },
+  { kind: 'mono', width: 60 },
+];
 
-interface HostForRemediation {
-  asset_id: string; hostname: string; os_name: string | null;
-  os_version: string | null; cve_id: string | null; severity: string;
-  exploit_available: boolean; cisa_kev: boolean; exploit_status: string | null;
-}
+// Banner subscribes to both list + connectors — either can degrade independently.
+const WATCH_KEYS = [queryKeys.vulnerabilities.all, queryKeys.connectors.all] as const;
 
-interface RemediationForHost {
-  remediation_id: string; remediation_action: string | null;
-  cve_id: string | null; severity: string; affected_product: string | null;
-  exploit_available: boolean; cisa_kev: boolean;
-  exploit_status: string | null; exploit_status_id: number | null;
-}
+const CTA_PRIMARY = 'rounded-md bg-gradient-sunset px-4 py-2 text-sm font-medium text-text-inverse shadow-glow-cta focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet';
+const CTA_SECONDARY = 'rounded-md border border-border-subtle bg-surface-2 px-4 py-2 text-sm text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet';
 
-const DEFAULT_FILTERS: VulnFilterState = {
-  search: "", severity: [], source: [], status: [],
-  device_type: null, exploit_available: null, cisa_kev: null,
-};
-
-type Tab = "vulnerabilities" | "remediations";
-
-function buildFilterParams(filters: VulnFilterState): URLSearchParams {
-  const p = new URLSearchParams();
-  filters.severity.forEach((s) => p.append("severity", s));
-  filters.source.forEach((s) => p.append("source", s));
-  filters.status.forEach((s) => p.append("status", s));
-  if (filters.search) p.set("search", filters.search);
-  if (filters.device_type) p.set("device_type", filters.device_type);
-  if (filters.exploit_available === true) p.set("exploit_only", "true");
-  if (filters.cisa_kev === true) p.set("kev_only", "true");
-  return p;
-}
-
-export default function VulnerabilitiesPage() {
-  const { toast } = useToast();
-  const [tab, setTab] = useState<Tab>("vulnerabilities");
-  const [vulnData, setVulnData] = useState<PaginatedVulns | null>(null);
-  const [remData, setRemData] = useState<PaginatedRemediations | null>(null);
-  const [filters, setFilters] = useState<VulnFilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showSuppressed, setShowSuppressed] = useState<"active" | "ignored" | "all">("active");
-  const [showIgnoredVulns, setShowIgnoredVulns] = useState<"active" | "ignored" | "all">("active");
-  const [savedFilters, setSavedFilters] = useState<any[]>([]);
-  const [showSaveFilter, setShowSaveFilter] = useState(false);
-  const [saveFilterName, setSaveFilterName] = useState("");
-  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; variant?: "danger" | "warning" | "info"; onConfirm: () => void } | null>(null);
-
-  // Drill-down states
-  const [selectedRemediation, setSelectedRemediation] = useState<RemediationGrouped | null>(null);
-  const [remHosts, setRemHosts] = useState<HostForRemediation[] | null>(null);
-  const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
-  const [selectedHostName, setSelectedHostName] = useState<string>("");
-  const [hostRemediations, setHostRemediations] = useState<RemediationForHost[] | null>(null);
-
-  // ── Data fetching ──
-
-  const fetchVulns = useCallback(async () => {
-    setLoading(true);
-    try {
-      const p = buildFilterParams(filters);
-      p.set("page", String(page));
-      p.set("page_size", "25");
-      // Vulns endpoint uses different param names
-      p.delete("exploit_only");
-      p.delete("kev_only");
-      if (filters.exploit_available !== null) p.set("exploit_available", String(filters.exploit_available));
-      if (filters.cisa_kev !== null) p.set("cisa_kev", String(filters.cisa_kev));
-      // Apply ignored filter via status
-      if (showIgnoredVulns === "ignored") {
-        p.delete("status");
-        p.append("status", "SUPPRESSED");
-      } else if (showIgnoredVulns === "active") {
-        if (!filters.status.length) {
-          p.append("status", "OPEN");
-          p.append("status", "IN_PROGRESS");
-        }
-      }
-      // "all" leaves status as-is from filters
-      setVulnData(await api<PaginatedVulns>(`/api/v1/vulnerabilities?${p}`));
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [page, filters, showIgnoredVulns]);
-
-  const fetchRemediations = useCallback(async () => {
-    setLoading(true);
-    setRemData(null);  // Clear stale data immediately
-    try {
-      const p = buildFilterParams(filters);
-      p.set("page", String(page));
-      p.set("page_size", "25");
-      p.set("show_suppressed", showSuppressed);
-      setRemData(await api<PaginatedRemediations>(`/api/v1/vulnerabilities/remediations/grouped?${p}`));
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [page, filters, showSuppressed]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (tab === "vulnerabilities") fetchVulns();
-      else if (!selectedRemediation && !selectedHostId) fetchRemediations();
-    }, 300);
-    return () => clearTimeout(t);
-  }, [tab, fetchVulns, fetchRemediations, selectedRemediation, selectedHostId]);
-
-  // Reset on filter/tab/suppressed change
-  useEffect(() => {
-    setPage(1);
-    setSelectedIds(new Set());
-    setSelectedRemediation(null);
-    setRemHosts(null);
-    setSelectedHostId(null);
-    setHostRemediations(null);
-  }, [filters, tab, showSuppressed, showIgnoredVulns]);
-
-  // ── Drill-downs (always pass current filters) ──
-
-  async function drillRemediation(rem: RemediationGrouped) {
-    setSelectedRemediation(rem);
-    setSelectedHostId(null);
-    setHostRemediations(null);
-    try {
-      const p = buildFilterParams(filters);
-      const url = `/api/v1/vulnerabilities/remediations/${encodeURIComponent(rem.remediation_id)}/hosts?${p}`;
-      const hosts = await api<HostForRemediation[]>(url);
-      setRemHosts(hosts);
-    } catch (e) {
-      console.error("Failed to fetch hosts for remediation:", e);
-      setRemHosts([]);
-    }
-  }
-
-  async function drillHost(assetId: string, hostname: string) {
-    setSelectedHostId(assetId);
-    setSelectedHostName(hostname);
-    try {
-      const p = buildFilterParams(filters);
-      const url = `/api/v1/vulnerabilities/hosts/${assetId}/remediations?${p}`;
-      const rems = await api<RemediationForHost[]>(url);
-      setHostRemediations(rems);
-    } catch (e) {
-      console.error("Failed to fetch remediations for host:", e);
-      setHostRemediations([]);
-    }
-  }
-
-  // ── Saved filters ──
-  const loadSavedFilters = useCallback(async () => {
-    try {
-      const data = await api<any[]>(`/api/v1/vulnerabilities/saved-filters?filter_type=${tab === "vulnerabilities" ? "vulnerability" : "remediation"}`);
-      setSavedFilters(data);
-    } catch {}
-  }, [tab]);
-
-  useEffect(() => { loadSavedFilters(); }, [loadSavedFilters]);
-
-  async function handleSaveFilter() {
-    if (!saveFilterName.trim()) return;
-    const filterData: any = { ...filters };
-    if (tab === "remediations") filterData.show_suppressed = showSuppressed;
-    await api("/api/v1/vulnerabilities/saved-filters", {
-      method: "POST",
-      body: JSON.stringify({ name: saveFilterName, filter_type: tab === "vulnerabilities" ? "vulnerability" : "remediation", filters: filterData }),
-    });
-    setSaveFilterName("");
-    setShowSaveFilter(false);
-    loadSavedFilters();
-  }
-
-  function applySavedFilter(sf: any) {
-    const f = sf.filters;
-    setFilters({
-      search: f.search || "",
-      severity: f.severity || [],
-      source: f.source || [],
-      status: f.status || [],
-      device_type: f.device_type ?? null,
-      exploit_available: f.exploit_available ?? null,
-      cisa_kev: f.cisa_kev ?? null,
-    });
-    if (f.show_suppressed) setShowSuppressed(f.show_suppressed);
-    setPage(1);
-  }
-
-  async function updateSavedFilter(sf: any) {
-    setConfirmModal({
-      title: "Update Saved Filter",
-      message: `Update "${sf.name}" with the current filter settings? This will also update any linked automation rules.`,
-      variant: "warning",
-      onConfirm: async () => {
-        setConfirmModal(null);
-        const filterData: any = { ...filters };
-        if (tab === "remediations") filterData.show_suppressed = showSuppressed;
-        try {
-          const result = await api<any>(`/api/v1/vulnerabilities/saved-filters/${sf.id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ filters: filterData }),
-          });
-          loadSavedFilters();
-          const rulesUpdated = result.rules_updated || 0;
-          if (rulesUpdated > 0) toast({ title: "Filter Updated", message: `${rulesUpdated} linked automation rule(s) also updated.`, variant: "success" });
-        } catch (e: any) { toast({ title: "Error", message: e.message, variant: "error" }); }
-      },
-    });
-  }
-
-  async function deleteSavedFilter(id: string) {
-    await api(`/api/v1/vulnerabilities/saved-filters/${id}`, { method: "DELETE" });
-    loadSavedFilters();
-  }
-
-  async function createRuleFromFilter(sf: any) {
-    const ruleName = prompt("Rule name:", `Rule: ${sf.name}`);
-    if (!ruleName) return;
-    try {
-      const result = await api<any>(`/api/v1/vulnerabilities/saved-filters/${sf.id}/create-rule`, {
-        method: "POST",
-        body: JSON.stringify({ name: ruleName }),
-      });
-      toast({ title: "Rule Created", message: `Automation rule "${result.rule_name}" created! Go to Tickets → Automation Rules to configure it.`, variant: "success" });
-    } catch (e: any) {
-      toast({ title: "Error", message: e.message, variant: "error" });
-    }
-  }
-
-  async function handleBulkIgnoreCve(action: "ignore" | "unignore") {
-    if (selectedIds.size === 0) return;
-    const cveIds = [...new Set((vulnData?.items || []).filter(v => selectedIds.has(v.id) && v.cve_id).map(v => v.cve_id!))];
-    if (!cveIds.length) return;
-    const msg = action === "ignore"
-      ? `Ignore ${cveIds.length} CVE(s)? All instances across all hosts will be suppressed.`
-      : `Restore ${cveIds.length} CVE(s)? All suppressed instances will be reopened.`;
-    setConfirmModal({
-      title: action === "ignore" ? "Ignore CVEs" : "Restore CVEs",
-      message: msg,
-      variant: action === "ignore" ? "warning" : "info",
-      onConfirm: async () => {
-        setConfirmModal(null);
-        try {
-          await api("/api/v1/vulnerabilities/bulk-ignore-cve", {
-            method: "POST",
-            body: JSON.stringify({ cve_ids: cveIds, action }),
-          });
-          setSelectedIds(new Set());
-          fetchVulns();
-        } catch (e: any) { toast({ title: "Error", message: e.message, variant: "error" }); }
-      },
-    });
-  }
-
-  function goBackToRemediations() {
-    setSelectedRemediation(null);
-    setRemHosts(null);
-    setSelectedHostId(null);
-    setHostRemediations(null);
-  }
-
-  function goBackFromHost() {
-    setSelectedHostId(null);
-    setHostRemediations(null);
-  }
-
-  // ── Render ──
-
-  const data = tab === "vulnerabilities" ? vulnData : remData;
-
+// ErrorBoundary fallback for the whole page. Synthesizes a `crash` code so the
+// banner's HTTP-code shape (Phase 10 D-E-02) renders without raw stack leakage.
+function pageErrorFallback(err: Error, reset: () => void): ReactNode {
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Bug className="h-6 w-6 text-indigo-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Vulnerabilities</h1>
-            {data && <p className="text-sm text-gray-400">
-              {data.total.toLocaleString()} {tab === "vulnerabilities" ? "vulnerabilities" : "remediations"}
-            </p>}
-          </div>
-        </div>
-        <button onClick={() => tab === "vulnerabilities" ? fetchVulns() : fetchRemediations()} disabled={loading}
-          className="flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800">
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh
-        </button>
-        <ExportButton resource={tab === "vulnerabilities" ? "vulnerabilities" : "remediations"} />
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-lg bg-gray-900 p-1 w-fit">
-        <button onClick={() => setTab("vulnerabilities")}
-          className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all",
-            tab === "vulnerabilities" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white")}>
-          <Bug className="h-4 w-4" />Vulnerabilities
-        </button>
-        <button onClick={() => setTab("remediations")}
-          className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all",
-            tab === "remediations" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white")}>
-          <Pill className="h-4 w-4" />Remediations
-        </button>
-      </div>
-
-      {/* Filters */}
-      <VulnFilters filters={filters} onChange={setFilters} />
-
-      {/* Saved filters bar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {savedFilters.map(sf => (
-          <div key={sf.id} className="flex items-center gap-1 rounded-lg border border-gray-700 bg-gray-900 pl-3 pr-1 py-1">
-            <button onClick={() => applySavedFilter(sf)} className="text-xs text-indigo-400 hover:text-indigo-300 font-medium">{sf.name}</button>
-            <button onClick={() => updateSavedFilter(sf)} title="Update filter with current settings"
-              className="rounded p-1 text-gray-500 hover:text-emerald-400 text-xs">↑</button>
-            <button onClick={() => createRuleFromFilter(sf)} title="Create automation rule"
-              className="rounded p-1 text-gray-500 hover:text-orange-400 text-xs">→R</button>
-            <button onClick={() => deleteSavedFilter(sf.id)} className="rounded p-1 text-gray-600 hover:text-red-400 text-xs">×</button>
-          </div>
-        ))}
-        {showSaveFilter ? (
-          <div className="flex items-center gap-2">
-            <input value={saveFilterName} onChange={e => setSaveFilterName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSaveFilter()}
-              placeholder="Filter name..." autoFocus
-              className="w-40 rounded-lg border border-indigo-500 bg-gray-900 px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none" />
-            <button onClick={handleSaveFilter} disabled={!saveFilterName.trim()}
-              className="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">Save</button>
-            <button onClick={() => { setShowSaveFilter(false); setSaveFilterName(""); }}
-              className="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
-          </div>
-        ) : (
-          <button onClick={() => setShowSaveFilter(true)}
-            className="rounded-lg border border-dashed border-gray-700 px-3 py-1 text-xs text-gray-500 hover:text-gray-300 hover:border-gray-500">
-            + Save current filter
-          </button>
-        )}
-      </div>
-
-      {/* Bulk actions */}
-      {selectedIds.size > 0 && tab === "vulnerabilities" && (
-        <div className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2">
-          <span className="text-sm text-gray-400">{selectedIds.size} selected</span>
-          {showIgnoredVulns === "ignored" ? (
-            <button onClick={() => handleBulkIgnoreCve("unignore")}
-              className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20">
-              Restore Selected CVEs
-            </button>
-          ) : (
-            <button onClick={() => handleBulkIgnoreCve("ignore")}
-              className="rounded-lg border border-orange-500/50 bg-orange-500/10 px-3 py-1.5 text-xs text-orange-400 hover:bg-orange-500/20">
-              Ignore Selected CVEs
-            </button>
-          )}
-          <BulkActions selectedCount={selectedIds.size} selectedIds={Array.from(selectedIds)}
-            onComplete={() => { setSelectedIds(new Set()); fetchVulns(); }} />
-        </div>
-      )}
-      {selectedIds.size > 0 && tab === "remediations" && (
-        <BulkActions selectedCount={selectedIds.size} selectedIds={Array.from(selectedIds)}
-          onComplete={() => { setSelectedIds(new Set()); fetchVulns(); }} />
-      )}
-
-      {/* Content */}
-      {loading && !data ? (
-        <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
-      ) : tab === "vulnerabilities" ? (
-        /* ── Vulnerabilities tab ── */
-        <>
-          <div className="flex items-center gap-2 mb-3">
-            {(["active", "ignored", "all"] as const).map(mode => (
-              <button key={mode} onClick={() => { setShowIgnoredVulns(mode); setPage(1); setSelectedIds(new Set()); }}
-                className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
-                  showIgnoredVulns === mode
-                    ? "border-indigo-500 bg-indigo-500/15 text-indigo-400"
-                    : "border-gray-700 bg-gray-900 text-gray-500 hover:text-gray-300"
-                )}>
-                {mode === "active" ? "Active" : mode === "ignored" ? "Ignored" : "All"}
-              </button>
-            ))}
-          </div>
-          <VulnTable
-            vulnerabilities={vulnData?.items || []}
-            selectedIds={selectedIds}
-            onSelectToggle={(id) => setSelectedIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; })}
-            onSelectAll={(ids) => setSelectedIds(ids.length ? new Set(ids) : new Set())}
-            onHostClick={(assetId, hostname) => { setTab("remediations"); drillHost(assetId, hostname); }}
-            onRefresh={fetchVulns}
-            showIgnored={showIgnoredVulns}
-          />
-          {vulnData && vulnData.total_pages > 1 && (
-            <Pagination page={vulnData.page} totalPages={vulnData.total_pages}
-              total={vulnData.total} pageSize={vulnData.page_size} onPageChange={setPage} />
-          )}
-        </>
-      ) : selectedHostId && hostRemediations ? (
-        /* ── Drill-down: remediations for a host ── */
-        <div className="space-y-4">
-          <div>
-            <button onClick={goBackFromHost} className="text-xs text-indigo-400 hover:text-indigo-300">
-              ← {selectedRemediation ? "Back to affected hosts" : "Back to remediations"}
-            </button>
-            <h2 className="mt-1 text-lg font-medium text-white flex items-center gap-2">
-              <Monitor className="h-5 w-5 text-gray-400" />{selectedHostName}
-            </h2>
-            <p className="text-sm text-gray-400">{hostRemediations.length} remediations needed</p>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-gray-800">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
-                <th className="px-3 py-3 text-left font-medium text-gray-400">CVE</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Severity</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Product</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Remediation</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Exploit</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">KEV</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {hostRemediations.map((r, i) => (
-                  <tr key={i} className="hover:bg-gray-800/30">
-                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{r.cve_id}</td>
-                    <td className="px-3 py-2.5"><SeverityBadge severity={r.severity} /></td>
-                    <td className="px-3 py-2.5 text-xs text-gray-400 max-w-[150px] truncate">{r.affected_product}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-300 max-w-[300px] truncate">{r.remediation_action || "—"}</td>
-                    <td className="px-3 py-2.5"><ExploitBadge status={r.exploit_status} available={r.exploit_available} /></td>
-                    <td className="px-3 py-2.5">{r.cisa_kev ? <span className="text-red-400 text-xs font-medium">🛡️ KEV</span> : <span className="text-gray-600">—</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {hostRemediations.length === 0 && <div className="py-12 text-center text-gray-500">No remediations match your filters for this host</div>}
-          </div>
-        </div>
-      ) : selectedRemediation && remHosts ? (
-        /* ── Drill-down: hosts affected by a remediation ── */
-        <div className="space-y-4">
-          <div>
-            <button onClick={goBackToRemediations} className="text-xs text-indigo-400 hover:text-indigo-300">← Back to remediations</button>
-            <h2 className="mt-1 text-lg font-medium text-white">{selectedRemediation.remediation_action || "Unknown remediation"}</h2>
-            <p className="text-sm text-gray-400">{selectedRemediation.affected_product} · {remHosts.length} matching entries</p>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-gray-800">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Hostname</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">CVE</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Severity</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Exploit Status</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">CISA KEV</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">OS</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {remHosts.map((h, i) => (
-                  <tr key={i} className="hover:bg-gray-800/30 cursor-pointer" onClick={() => drillHost(h.asset_id, h.hostname)}>
-                    <td className="px-3 py-2.5 text-indigo-400 hover:text-indigo-300">{h.hostname}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{h.cve_id}</td>
-                    <td className="px-3 py-2.5"><SeverityBadge severity={h.severity} /></td>
-                    <td className="px-3 py-2.5"><ExploitBadge status={h.exploit_status} available={h.exploit_available} /></td>
-                    <td className="px-3 py-2.5">{h.cisa_kev ? <span className="text-red-400 text-xs font-medium">🛡️ KEV</span> : <span className="text-gray-600">—</span>}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-400">{h.os_name} {h.os_version}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {remHosts.length === 0 && <div className="py-12 text-center text-gray-500">No hosts match your filters for this remediation</div>}
-          </div>
-        </div>
-      ) : (
-        /* ── Remediations grouped table ── */
-        <>
-          <div className="flex items-center gap-2 mb-3">
-            {(["active", "ignored", "all"] as const).map(mode => (
-              <button key={mode} onClick={() => { setShowSuppressed(mode); setPage(1); }}
-                className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
-                  showSuppressed === mode
-                    ? "border-indigo-500 bg-indigo-500/15 text-indigo-400"
-                    : "border-gray-700 bg-gray-900 text-gray-500 hover:text-gray-300"
-                )}>
-                {mode === "active" ? "Active" : mode === "ignored" ? "Ignored" : "All"}
-              </button>
-            ))}
-          </div>
-          <div className="overflow-hidden rounded-xl border border-gray-800">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-gray-800 bg-gray-900/70">
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Remediation</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Product</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Max Severity</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Affected Hosts</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-400">Vuln Count</th>
-                <th className="px-3 py-3 text-right font-medium text-gray-400">Actions</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {(remData?.items || []).map((rem, idx) => (
-                  <tr key={`${rem.remediation_id}-${rem.affected_product}-${idx}`} className={cn(
-                    "hover:bg-gray-800/30 cursor-pointer group",
-                    rem.is_suppressed && "opacity-50"
-                  )}>
-                    <td className="px-3 py-2.5 max-w-[400px] truncate" onClick={() => drillRemediation(rem)}>
-                      <span className={rem.is_suppressed ? "text-gray-500 line-through" : "text-white"}>
-                        {rem.remediation_action || rem.remediation_id}
-                      </span>
-                      {rem.is_suppressed && <span className="ml-2 rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-400">ignored</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-gray-400 max-w-[200px] truncate" onClick={() => drillRemediation(rem)}>{rem.affected_product}</td>
-                    <td className="px-3 py-2.5" onClick={() => drillRemediation(rem)}><SeverityBadge severity={rem.max_severity} /></td>
-                    <td className="px-3 py-2.5 text-white font-medium" onClick={() => drillRemediation(rem)}>{rem.affected_hosts}</td>
-                    <td className="px-3 py-2.5 text-gray-400" onClick={() => drillRemediation(rem)}>{rem.vuln_count}</td>
-                    <td className="px-3 py-2.5 text-right">
-                      {rem.is_suppressed ? (
-                        <UnsuppressButton remediationId={rem.remediation_id} vulnCount={rem.vuln_count} onDone={fetchRemediations} />
-                      ) : (
-                        <SuppressButton remediationId={rem.remediation_id} vulnCount={rem.vuln_count} onDone={fetchRemediations} />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {remData?.items.length === 0 && <div className="py-12 text-center text-gray-500">No remediations match your filters</div>}
-          </div>
-          {remData && remData.total_pages > 1 && (
-            <Pagination page={remData.page} totalPages={remData.total_pages}
-              total={remData.total} pageSize={remData.page_size} onPageChange={setPage} />
-          )}
-        </>
-      )}
-
-      <ConfirmModal
-        open={!!confirmModal}
-        title={confirmModal?.title || ""}
-        message={confirmModal?.message || ""}
-        variant={confirmModal?.variant}
-        confirmLabel="Confirm"
-        onConfirm={() => confirmModal?.onConfirm()}
-        onCancel={() => setConfirmModal(null)}
+      <h1 className="sr-only">{microcopy.page.h1}</h1>
+      <PartialFailureBanner
+        errors={[{ code: 'crash', requestId: err.message.slice(0, 40) || 'unknown' }]}
+        onRetry={reset}
       />
     </div>
   );
 }
 
-function ExploitBadge({ status, available }: { status: string | null; available: boolean }) {
-  if (!available && !status) return <span className="text-gray-600 text-xs">—</span>;
-  const color = (status === "Used in the Wild" || status === "Used in Malware") ? "text-red-400" :
-                status === "Functional" ? "text-orange-400" :
-                status === "Proof of Concept" ? "text-yellow-400" : "text-gray-400";
-  return <span className={cn("text-xs font-medium", color)}>🔥 {status || (available ? "Yes" : "No")}</span>;
-}
+function VulnerabilitiesPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
 
-function UnsuppressButton({ remediationId, vulnCount, onDone }: { remediationId: string; vulnCount: number; onDone: () => void }) {
-  const [loading, setLoading] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  // Multi-value filters. Setters surfaced so EmptyState 3-tier CTAs can call them.
+  const [severity, setSeverity, toggleSeverity] = useUrlStateList<Severity>('severity', SEVERITIES, []);
+  const [source, setSource] = useUrlStateList<Source>('source', SOURCES, []);
+  const [status] = useUrlStateList<Status>('status', STATUSES, []);
+  const [group] = useUrlState<Group>('group', GROUPS, 'cve');
+  const [sort, setSort] = useUrlState<SortField>('sort', SORT_FIELDS, '');
+  const [order, setOrder] = useUrlState<Order>('order', ORDERS, 'desc');
 
-  function handleClick(e: React.MouseEvent) {
-    e.stopPropagation();
-    setShowConfirm(true);
-  }
+  // Search is free-text — chip-bar owns the debounce. Page reads the flushed value.
+  const search = params?.get('search') ?? '';
+  const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
+  // Phase 10 deep-link contract (top5-card.tsx:82): `?cve=<id>&open=drill`.
+  const cveDeepLink = params?.get('cve') ?? null;
+  const drillOpen = params?.get('open') === 'drill';
 
-  async function doUnsuppress() {
-    setShowConfirm(false);
-    setLoading(true);
-    try {
-      await api<any>(`/api/v1/vulnerabilities/remediations/${encodeURIComponent(remediationId)}/unsuppress`, { method: "POST" });
-      onDone();
-    } catch {} finally { setLoading(false); }
-  }
+  // Empty arrays → undefined so backend QS stays clean (Wave 1 contract).
+  const filters: VulnerabilitiesFilters = useMemo(() => ({
+    severity: severity.length > 0 ? severity : undefined,
+    source: source.length > 0 ? source : undefined,
+    status: status.length > 0 ? status : undefined,
+    search: search || undefined,
+  }), [severity, source, status, search]);
+
+  const q = useVulnerabilities({ filters, group, page: pageNum, sort, order });
+  const connectorsQ = useConnectors();
+
+  // D-V-04 — failed connectors drive both stale-row tinting AND strip visibility.
+  const failedSources = useMemo<string[]>(
+    () => (connectorsQ.data ?? []).filter((c) => c.last_sync_status === 'failed').map((c) => c.connector_type),
+    [connectorsQ.data],
+  );
+
+  // D-Tab-01 — tab title reflects filtered count.
+  useDocumentTitle(q.data?.total ? microcopy.tabTitle.withCount(q.data.total) : microcopy.tabTitle.base);
+
+  const handleSortChange = useCallback(
+    (field: VulnTableSortField, nextOrder: 'asc' | 'desc' | null) => {
+      setSort((field ?? '') as SortField);
+      setOrder((nextOrder ?? 'desc') as Order);
+    },
+    [setSort, setOrder],
+  );
+
+  // Row open writes ?cve= + ?open=drill atomically — deep-link round-trips.
+  // router.replace (not push) so back-button escapes panel cleanly.
+  const handleRowOpen = useCallback((idOrCve: string) => {
+    const sp = new URLSearchParams(params?.toString() ?? '');
+    sp.set('cve', idOrCve);
+    sp.set('open', 'drill');
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : (pathname ?? '/'), { scroll: false });
+  }, [router, pathname, params]);
+
+  const handlePageChange = useCallback((next: number) => {
+    const sp = new URLSearchParams(params?.toString() ?? '');
+    if (next <= 1) sp.delete('page'); else sp.set('page', String(next));
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : (pathname ?? '/'), { scroll: false });
+  }, [router, pathname, params]);
+
+  const hasActiveFilters = severity.length > 0 || source.length > 0 || status.length > 0 || search.length > 0;
+
+  // Normalize facets per-key (Rule 1 defensive) — backend may return `{}` in
+  // the empty-filtered branch; ChipBar's index access (facets.severity[…]) NPEs without this.
+  const rawFacets = q.data?.facets;
+  const facets = useMemo(() => ({
+    severity: rawFacets?.severity ?? {},
+    source: rawFacets?.source ?? {},
+    status: rawFacets?.status ?? {},
+  }), [rawFacets]);
+
+  const isEmptyFiltered = !!q.data && q.data.items.length === 0 && hasActiveFilters;
 
   return (
     <>
-      <button onClick={handleClick} disabled={loading}
-        className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50">
-        {loading ? "..." : "Restore"}
-      </button>
-      <ConfirmModal
-        open={showConfirm}
-        title="Restore Remediation"
-        message={`Restore this remediation? ${vulnCount} vulnerabilities will be reopened and risk scores recalculated.`}
-        confirmLabel="Restore"
-        variant="info"
-        onConfirm={doUnsuppress}
-        onCancel={() => setShowConfirm(false)}
-      />
+      <h1 className="sr-only">{microcopy.page.h1}</h1>
+      <div className="space-y-4">
+        {/* UX-S-03 — partial-failure banner; renders null when no errors. */}
+        <PartialFailureBanner watchKeys={WATCH_KEYS} onRetry={() => q.refetch()} />
+
+        {/* UX-S-03 — per-source health row when ANY connector is failed. */}
+        {failedSources.length > 0 && q.data?.facets && (
+          <PerSourceStatusStrip facets={facets.source} />
+        )}
+
+        {/* ChipBar hidden in empty-filtered branch — the EmptyState's 3 CTAs are
+            the unambiguous chrome there, and this avoids a "Clear all" button
+            name collision with EmptyState's "Clear all filters" CTA. */}
+        {!isEmptyFiltered && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <ChipBar facets={facets} />
+            <ViewToggle />
+          </div>
+        )}
+
+        {q.isPending ? (
+          <SkeletonTable rows={8} columns={SKELETON_COLUMNS} />
+        ) : q.error ? (
+          /* UX-S-04 — total failure: EmptyState shell + retry CTA. */
+          <EmptyState>
+            <EmptyState.Title>{microcopy.totalFailure.title}</EmptyState.Title>
+            <EmptyState.Body>{microcopy.totalFailure.body}</EmptyState.Body>
+            <EmptyState.Actions>
+              <button type="button" onClick={() => q.refetch()} className={CTA_PRIMARY}>
+                {microcopy.totalFailure.retry}
+              </button>
+            </EmptyState.Actions>
+          </EmptyState>
+        ) : isEmptyFiltered ? (
+          /* UX-S-02 — empty-filtered: 3-tier CTAs + violet lightbulb suggestion. */
+          <EmptyState>
+            <EmptyState.Title>{microcopy.empty.title}</EmptyState.Title>
+            <EmptyState.Body>{microcopy.empty.body}</EmptyState.Body>
+            <EmptyState.Actions>
+              <button type="button" onClick={() => { setSeverity([]); setSource([]); }} className={CTA_PRIMARY}>
+                {microcopy.empty.clearAll}
+              </button>
+              <button type="button" onClick={() => toggleSeverity('medium')} className={CTA_SECONDARY}>
+                {microcopy.empty.broadenSeverity}
+              </button>
+              <button type="button" onClick={() => setSource([])} className={CTA_SECONDARY}>
+                {microcopy.empty.searchAll}
+              </button>
+            </EmptyState.Actions>
+            <EmptyState.Suggestion>
+              <Lightbulb size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+              <span>{microcopy.empty.suggestion}</span>
+            </EmptyState.Suggestion>
+          </EmptyState>
+        ) : q.data && q.data.items.length > 0 ? (
+          <>
+            <VulnTable
+              rows={q.data.items as VulnTableRow[]}
+              sort={(sort || null) as VulnTableSortField}
+              order={(order || null) as 'asc' | 'desc' | null}
+              onSort={handleSortChange}
+              onRowOpen={handleRowOpen}
+              failedSources={failedSources}
+            />
+            {q.data.total_pages > 1 && (
+              <Pagination
+                page={q.data.page}
+                totalPages={q.data.total_pages}
+                total={q.data.total}
+                pageSize={q.data.page_size}
+                onPageChange={handlePageChange}
+              />
+            )}
+          </>
+        ) : null}
+      </div>
+
+      {/* Drill panels share the URL contract (?cve=…&open=drill). Only one
+          mounts at a time: desktop covers ≥900px, mobile gates on <900px via
+          useMediaQuery internally. cveDeepLink + drillOpen passed inline so the
+          deep-link wiring stays greppable in this file. */}
+      <DrillPanel cveId={drillOpen ? cveDeepLink : null} />
+      <DrillPanelMobile cveId={drillOpen ? cveDeepLink : null} />
     </>
   );
 }
 
-function SuppressButton({ remediationId, vulnCount, onDone }: { remediationId: string; vulnCount: number; onDone: () => void }) {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  function handleClick(e: React.MouseEvent) {
-    e.stopPropagation();
-    setShowConfirm(true);
-  }
-
-  async function doSuppress() {
-    setShowConfirm(false);
-    setLoading(true);
-    try {
-      const resp = await api<any>(`/api/v1/vulnerabilities/remediations/${encodeURIComponent(remediationId)}/suppress`, { method: "POST" });
-      setResult(`${resp.suppressed} suppressed`);
-      setTimeout(() => { setResult(null); onDone(); }, 1500);
-    } catch (e: any) {
-      setResult(`Error: ${e.message}`);
-      setTimeout(() => setResult(null), 3000);
-    } finally { setLoading(false); }
-  }
-
-  if (result) return <span className="text-xs text-emerald-400">{result}</span>;
-
+export default function VulnerabilitiesPage() {
   return (
-    <>
-      <button onClick={handleClick} disabled={loading}
-        className="opacity-0 group-hover:opacity-100 transition-opacity rounded border border-gray-700 px-2 py-1 text-xs text-gray-500 hover:text-orange-400 hover:border-orange-500/30 disabled:opacity-50"
-      >
-        {loading ? "..." : "Ignore"}
-      </button>
-      <ConfirmModal
-        open={showConfirm}
-        title="Ignore Remediation"
-        message={`Ignore this remediation? This will suppress ${vulnCount} vulnerabilities and recalculate risk scores.`}
-        confirmLabel="Ignore"
-        variant="warning"
-        onConfirm={doSuppress}
-        onCancel={() => setShowConfirm(false)}
-      />
-    </>
+    <ErrorBoundary fallback={pageErrorFallback} boundaryName="VulnerabilitiesPage">
+      <VulnerabilitiesPageInner />
+    </ErrorBoundary>
   );
 }
