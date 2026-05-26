@@ -58,6 +58,7 @@ const EmptyStateSuggestion = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEl
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
+      data-empty-suggestion=""
       className={cn(
         'mt-6 inline-flex items-start gap-2 rounded-md bg-violet-soft p-3 text-left text-sm text-violet',
         className
