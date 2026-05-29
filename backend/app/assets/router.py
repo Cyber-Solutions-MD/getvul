@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset
@@ -72,6 +72,7 @@ async def list_assets(
     sort_by: str = Query("risk_score", description="risk_score,hostname,os_name,device_category"),
     sort_dir: str = Query("desc", description="asc or desc"),
     show_ignored: str = Query("active", description="active, ignored, or all"),
+    os_family: str = Query("", description="comma-separated subset of {linux, windows, macos, other}"),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -100,6 +101,32 @@ async def list_assets(
     if min_risk > 0:
         query = query.where(Asset.risk_score >= min_risk)
 
+    # T-12-01 mitigation: hardcoded ILIKE prefix patterns per family — values are baked
+    # into source, never composed from user input. The `os_family` query param is parsed
+    # comma-separated (W4: multi-select chip UI in 12-06) and clamped against an allow-list;
+    # anything outside {linux, windows, macos, other} is silently dropped.
+    OS_FAMILY_PATTERNS = {
+        "linux": ["%linux%", "%ubuntu%", "%debian%", "%centos%", "%rhel%", "%fedora%"],
+        "windows": ["%windows%"],
+        "macos": ["%macos%", "%mac os%"],
+    }
+    if os_family:
+        from sqlalchemy import and_, not_, or_
+
+        requested = {f.strip().lower() for f in os_family.split(",") if f.strip()}
+        # XSS / allow-list clamp — silently drop unknown values.
+        valid = requested & ({"other"} | OS_FAMILY_PATTERNS.keys())
+        ors = []
+        known = valid & OS_FAMILY_PATTERNS.keys()
+        if known:
+            patterns = [p for fam in known for p in OS_FAMILY_PATTERNS[fam]]
+            ors.append(or_(*[Asset.os_name.ilike(p) for p in patterns]))
+        if "other" in valid:
+            all_pat = [p for plist in OS_FAMILY_PATTERNS.values() for p in plist]
+            ors.append(and_(Asset.os_name.isnot(None), not_(or_(*[Asset.os_name.ilike(p) for p in all_pat]))))
+        if ors:
+            query = query.where(or_(*ors))
+
     # Count
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar() or 0
@@ -126,6 +153,12 @@ async def list_assets(
             func.count().filter(Vulnerability.severity == "HIGH").label("high"),
             func.count().filter(Vulnerability.exploit_available).label("exploitable"),
             func.count().filter(Vulnerability.cisa_kev).label("kev"),
+            func.count()
+            .filter(
+                Vulnerability.sla_due_at.isnot(None),
+                Vulnerability.sla_due_at < func.now(),
+            )
+            .label("sla_breach"),
         ).where(Vulnerability.asset_id == a.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
         vcounts = (await db.execute(vuln_q)).one()
 
@@ -152,6 +185,10 @@ async def list_assets(
                 "is_ignored": a.is_ignored,
                 "ignored_at": a.ignored_at.isoformat() if a.ignored_at else None,
                 "ignored_reason": a.ignored_reason,
+                # Phase 12 — UX-04-02 (tags) + UX-04-03 row 2 (sla breach aggregate)
+                "tags": a.tags or [],
+                "sla_breach": vcounts.sla_breach,
+                "sla_breach_count": vcounts.sla_breach,
             }
         )
 
@@ -233,29 +270,21 @@ async def get_asset(
         func.count().filter(Vulnerability.severity == "LOW").label("low"),
         func.count().filter(Vulnerability.exploit_available).label("exploitable"),
         func.count().filter(Vulnerability.cisa_kev).label("kev"),
+        func.count()
+        .filter(
+            Vulnerability.sla_due_at.isnot(None),
+            Vulnerability.sla_due_at < func.now(),
+        )
+        .label("sla_breach"),
     ).where(Vulnerability.asset_id == asset.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
     vc = (await db.execute(vuln_q)).one()
 
-    # Vulns list
-    vulns = (
-        (
-            await db.execute(
-                select(Vulnerability)
-                .where(Vulnerability.asset_id == asset.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
-                .order_by(
-                    case(
-                        (Vulnerability.severity == "CRITICAL", 0),
-                        (Vulnerability.severity == "HIGH", 1),
-                        (Vulnerability.severity == "MEDIUM", 2),
-                        else_=3,
-                    )
-                )
-                .limit(100)
-            )
-        )
-        .scalars()
-        .all()
-    )
+    # NOTE (Phase 12 — fold-in #3): the inline `vulnerabilities[]` array previously
+    # returned here was dropped. The v2.0 detail page uses `useAssetVulnerabilities`
+    # (plan 12-05) to fetch the same data via `/api/v1/vulnerabilities?asset_id=<id>`,
+    # so keeping the inline list created a double-fetch on every detail load. v1's
+    # `/dashboard/assets/[id]/page.tsx` is being rewritten in plan 12-08; no external
+    # consumers documented.
 
     return {
         "id": str(asset.id),
@@ -301,6 +330,12 @@ async def get_asset(
         "is_ignored": asset.is_ignored,
         "ignored_at": asset.ignored_at.isoformat() if asset.ignored_at else None,
         "ignored_reason": asset.ignored_reason,
+        # Phase 12 — UX-04-02 tag chips inline with hostname.
+        "tags": asset.tags or [],
+        # Phase 12 — UX-04-03 RiskCard row 2 ("SLA breaches"). Surfaced both
+        # at the top level and inside `vuln_counts` so the rail card can read
+        # either shape without a follow-up wiring change.
+        "sla_breach": vc.sla_breach,
         "vuln_counts": {
             "total": vc.total,
             "critical": vc.critical,
@@ -309,22 +344,8 @@ async def get_asset(
             "low": vc.low,
             "exploitable": vc.exploitable,
             "kev": vc.kev,
+            "sla_breach": vc.sla_breach,
         },
-        "vulnerabilities": [
-            {
-                "id": str(v.id),
-                "cve_id": v.cve_id,
-                "severity": v.severity,
-                "status": v.status,
-                "product": v.affected_product,
-                "remediation": v.remediation_action,
-                "exploit_status": v.exploit_status_name,
-                "is_exploitable": bool(v.exploit_status_id) if hasattr(v, "exploit_status") else False,
-                "is_cisa_kev": v.cisa_kev or False,
-                "source": v.source,
-            }
-            for v in vulns
-        ],
     }
 
 
