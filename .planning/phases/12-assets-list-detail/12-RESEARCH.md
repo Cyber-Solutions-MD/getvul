@@ -302,6 +302,38 @@ The following items in CONTEXT.md require explicit resolution before plans are f
 
 ---
 
+## STRIDE Threat Register (canonical)
+
+This register is the single source of truth for T-12-NN IDs referenced across all Phase 12 plans. IDs MUST be unique; each plan's `<threat_model>` block references these by ID without redefining them.
+
+| ID | STRIDE | Surface | Plan | Disposition |
+|----|--------|---------|------|-------------|
+| T-12-01 | Tampering | list_assets `os_family` query param | 12-01 | mitigate (hardcoded ILIKE allow-list) |
+| T-12-02 | Information Disclosure | tags ARRAY contents | 12-01 | accept (tenant-scoped, operational labels) |
+| T-12-03 | Denial of Service | os_family wildcard ILIKE table scan | 12-01 | accept (bounded table, indexable later) |
+| T-12-04 | Tampering / XSS | Avatar `name` prop renders to DOM | 12-03, 12-07 | mitigate (text-node only, no innerHTML) |
+| T-12-05 | Tampering / XSS | ChipBar axis URL state | 12-04, 12-06 | mitigate (hardcoded `allowList` clamp) |
+| T-12-06 | Information Disclosure | useAsset(id) cross-tenant probe | 12-05 | mitigate (backend tenant filter) |
+| T-12-07 | Tampering / XSS | AssetsTable cell rendering | 12-06 | mitigate (React text auto-escape) |
+| T-12-08 | Elevation of Privilege | mass assignment via reassign body | 12-02, 12-07 | mitigate (Pydantic `_AssetOwnerUpdate` single explicit field) |
+| T-12-09 | Repudiation | missing audit row on owner change | 12-02, 12-07 | mitigate (audit() call in same transaction) |
+| T-12-10 | Tampering / XSS | DrillPanel URL `?cve=` / `?open=` injection | 12-08 | mitigate (Phase 11 D-P-02 allow-list carries forward) |
+| T-12-11 | Tampering | empty / whitespace-only email on reassign | 12-02 | mitigate (`.strip().lower()` + 422 if empty) |
+| T-12-12 | Tampering | Breadcrumb `href` prop | 12-03 | accept (Next router serialization) |
+| T-12-13 | Tampering | savedFilter.query untrusted | 12-04 | mitigate (useUrlStateList read-side clamp) |
+| T-12-14 | Information Disclosure | useAssignableUsers leak | 12-05 | accept (backend already tenant-scoped) |
+| T-12-15 | Denial of Service | useAssignableUsers per-keystroke spam | 12-05 | mitigate downstream (combobox debounces in 12-07) |
+| T-12-16 | Information Disclosure | URL `?asset_id=` cross-tenant probes | 12-06 | accept (backend-owned) |
+| T-12-17 | Denial of Service | combobox per-keystroke spam | 12-07 | mitigate (250ms input debounce) |
+| T-12-18 | Tampering / XSS | RemediationTimeline external_ticket_url | 12-08 | mitigate (`rel="noreferrer"`, React attr escape) |
+| T-12-19 | Tampering / XSS | asset.tags + asset.hostname rendering | 12-08 | mitigate (React text auto-escape) |
+| T-12-20 | Information Disclosure | `update_asset_owner` cross-tenant probe | 12-02 | mitigate (`Asset.tenant_id` filter; 404 not 403) |
+| T-12-21 | Information Disclosure | `GET /tickets?asset_id=` cross-tenant leak | 12-02 | mitigate (existing `Ticket.tenant_id` filter unchanged) |
+
+**Block-on threshold:** HIGH severity. No T-12-NN entries are currently rated HIGH-unmitigated. T-12-02 and T-12-03 are accepted-low (operational-label exposure / bounded table scan).
+
+---
+
 ## RESEARCH COMPLETE
 
 Ready for planning. The planner should:
@@ -309,3 +341,4 @@ Ready for planning. The planner should:
 2. Produce 8 PLANs (12-01 through 12-08) across 4 waves
 3. Address all 5 requirement IDs (UX-04-01..05) explicitly in plan `requirements:` frontmatter
 4. Honor the schema-push gate by including the Alembic migration step in 12-01 with a [BLOCKING] task that runs `alembic upgrade head` before tests
+5. Reference threats from the canonical STRIDE Threat Register above by ID — do NOT re-invent IDs in plan-local tables
