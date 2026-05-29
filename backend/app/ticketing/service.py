@@ -602,8 +602,14 @@ async def list_tickets(
     status: str | None = None,
     page: int = 1,
     page_size: int = 25,
+    asset_id: str | None = None,
 ) -> dict:
-    """List tickets grouped by Asana task (one row per task, not per CVE)."""
+    """List tickets grouped by Asana task (one row per task, not per CVE).
+
+    Phase 12 / UX-04-02: when ``asset_id`` is provided, restrict the result
+    set to tickets whose vulnerability sits on that asset. Implemented as a
+    subquery so the existing grouped_q and detail_q stay untouched.
+    """
     # Build base filter
     base_filter = [Ticket.tenant_id == tenant_id]
     if provider:
@@ -612,6 +618,16 @@ async def list_tickets(
         base_filter.append(Ticket.resolved_at.is_(None))
     elif status == "resolved":
         base_filter.append(Ticket.resolved_at.isnot(None))
+    if asset_id:
+        # T-12-21 mitigation — the Vulnerability subquery is unscoped, but
+        # the outer `Ticket.tenant_id == tenant_id` constraint still applies,
+        # so a cross-tenant probe can at most filter the caller's own tickets
+        # by another tenant's vuln id. Since vulnerability_id is a 1:1 FK,
+        # the intersection is empty by construction.
+        ticket_ids_for_asset = (
+            select(Vulnerability.id).where(Vulnerability.asset_id == asset_id).scalar_subquery()
+        )
+        base_filter.append(Ticket.vulnerability_id.in_(ticket_ids_for_asset))
 
     # Group by task URL (unique per Asana task) to get aggregated info
     grouped_q = (

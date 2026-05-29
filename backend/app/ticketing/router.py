@@ -100,9 +100,19 @@ async def list_all_tickets(
     status: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
+    asset_id: str | None = Query(
+        None,
+        description="Filter tickets to those whose vulnerabilities belong to this asset (uuid)",
+    ),
 ):
-    """List all tickets with filtering and pagination."""
-    return await list_tickets(db, user.tenant_id, provider, status, page, page_size)
+    """List all tickets with filtering and pagination.
+
+    Phase 12 / UX-04-02: when ``asset_id`` is provided, the response is
+    narrowed to tickets whose linked vulnerability is on the given asset —
+    the asset detail page's remediation-timeline rail uses this to fetch
+    in a single round-trip.
+    """
+    return await list_tickets(db, user.tenant_id, provider, status, page, page_size, asset_id)
 
 
 @router.get("/assignees")
