@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +16,13 @@ from app.db.session import get_db
 from app.vulnerabilities.models import Vulnerability
 
 router = APIRouter(prefix="", tags=["Assets"])
+
+
+class _AssetOwnerUpdate(BaseModel):
+    # Phase 12 / locked_decisions item 1 — body field is `assigned_user_email`
+    # (string, not FK). Pydantic drops unknown extra keys silently, killing
+    # T-12-08 (mass assignment via the reassign body).
+    assigned_user_email: str
 
 
 async def _get_directory_user(db: AsyncSession, tenant_id, asset) -> dict | None:
@@ -404,6 +412,66 @@ async def unignore_asset(
     await audit(db, user, "asset.unignore", "asset", str(asset.id), {"hostname": asset.hostname})
     await db.commit()
     return {"message": f"Asset '{asset.hostname}' restored", "is_ignored": False}
+
+
+@router.post("/{asset_id}/owner")
+async def update_asset_owner(
+    asset_id: str,
+    body: _AssetOwnerUpdate,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reassign an asset's owner (Phase 12 UX-04-04).
+
+    Body: ``{assigned_user_email: str}``. Updates ``Asset.assigned_user`` —
+    a string field, NOT an FK — per locked_decisions item 1 (no
+    owner_user_id migration). Writes an ``asset.owner_changed`` audit row
+    in the same transaction as the mutation (T-12-09 mitigation: audit
+    failure short-circuits the commit, so the owner change cannot land
+    without its audit row).
+
+    Directory user is re-resolved at response time via ``_get_directory_user``
+    so the response mirrors GET /assets/{id}.
+    """
+    from fastapi import HTTPException
+
+    from app.audit import audit
+
+    asset = (
+        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
+    if not asset:
+        # T-12-20 mitigation — 404 (not 403) keeps cross-tenant existence private.
+        raise HTTPException(404, "Asset not found")
+
+    old_email = asset.assigned_user
+    # T-12-11 mitigation — strip + lowercase before the empty-check so a
+    # whitespace-only payload is rejected at the same gate as the missing
+    # field (Pydantic raises 422 if `assigned_user_email` is absent entirely).
+    new_email = body.assigned_user_email.strip().lower()
+    if not new_email:
+        raise HTTPException(422, "assigned_user_email is required")
+
+    asset.assigned_user = new_email
+
+    await audit(
+        db,
+        user,
+        "asset.owner_changed",
+        "asset",
+        str(asset.id),
+        {"from": old_email, "to": new_email, "hostname": asset.hostname},
+    )
+    await db.commit()
+    await db.refresh(asset)
+
+    directory_user = await _get_directory_user(db, user.tenant_id, asset)
+    return {
+        "id": str(asset.id),
+        "hostname": asset.hostname,
+        "assigned_user": asset.assigned_user,
+        "directory_user": directory_user,
+    }
 
 
 @router.post("/bulk-ignore")
