@@ -4,7 +4,7 @@ import enum
 import uuid
 
 from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -65,6 +65,10 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     managed_by: Mapped[str | None] = mapped_column(String(30))
     last_checkin_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
     mdm_details: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+
+    # Operational labels (e.g. "pci", "dmz", "tier-1") rendered as chips next to hostname.
+    # Phase 12 / UX-04-02. Empty list by default. GIN-indexed (alembic 025_add_asset_tags).
+    tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
 
     vulnerabilities: Mapped[list["Vulnerability"]] = relationship("Vulnerability", back_populates="asset")
     correlations: Mapped[list["VulnerabilityCorrelation"]] = relationship(

@@ -30,8 +30,12 @@ class AssetResponse(BaseModel):
     managed_by: str | None
     last_checkin_at: datetime | None
     mdm_details: dict | None
+    tags: list[str] | None = None
     created_at: datetime
     updated_at: datetime
+    # NOTE (Phase 12): the `vuln_counts` dict shape MUST include an `sla_breach: int` key
+    # populated by the list / detail handlers — frontend RiskCard (UX-04-03 row 2) depends on it.
+    # Type stays `dict | None` to avoid Pydantic churn at the response edge.
     vuln_counts: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -55,6 +59,8 @@ class AssetSummary(BaseModel):
     high_count: int = 0
     exploitable_count: int = 0
     kev_count: int = 0
+    tags: list[str] | None = None
+    sla_breach_count: int = 0
 
     model_config = {"from_attributes": True}
 
