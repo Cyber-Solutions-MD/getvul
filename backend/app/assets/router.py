@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC
-
 import re
+import uuid
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, field_validator
@@ -277,7 +277,7 @@ async def asset_stats(
 
 @router.get("/{asset_id}")
 async def get_asset(
-    asset_id: str,
+    asset_id: uuid.UUID,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -380,7 +380,7 @@ async def get_asset(
 
 @router.post("/{asset_id}/ignore")
 async def ignore_asset(
-    asset_id: str,
+    asset_id: uuid.UUID,
     body: dict = None,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -412,7 +412,7 @@ async def ignore_asset(
 
 @router.post("/{asset_id}/unignore")
 async def unignore_asset(
-    asset_id: str,
+    asset_id: uuid.UUID,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -437,7 +437,7 @@ async def unignore_asset(
 
 @router.post("/{asset_id}/owner")
 async def update_asset_owner(
-    asset_id: str,
+    asset_id: uuid.UUID,
     body: _AssetOwnerUpdate,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
