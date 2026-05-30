@@ -70,8 +70,19 @@ export function useReassignAsset(assetId: string) {
     },
     onSuccess: (data) => {
       // Reconcile against server truth + emit confirmation toast (SC-6).
+      // TanStack prefix-matches `queryKeys.assets.all` (= ['assets']) so this
+      // invalidates list/detail/vulnerabilities/remediations keyed under that
+      // prefix. The per-asset vuln list, however, is keyed under the
+      // vulnerabilities prefix via useVulnerabilities(filters={asset_id}), so
+      // it needs an explicit predicate-based invalidation (WR-01).
       qc.invalidateQueries({ queryKey: queryKeys.assets.byId(assetId) });
       qc.invalidateQueries({ queryKey: queryKeys.assets.all });
+      qc.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          q.queryKey[0] === 'vulnerabilities' &&
+          JSON.stringify(q.queryKey).includes(`"asset_id":"${assetId}"`),
+      });
       const newOwner = data.assigned_user ?? 'new owner';
       toast({ variant: 'success', message: `Owner reassigned to ${newOwner}` });
     },
