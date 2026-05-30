@@ -75,7 +75,7 @@ describe('/assets page', () => {
     expect(
       screen.getByRole('heading', { name: 'Assets' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Inventory · 1 assets/)).toBeInTheDocument();
+    expect(screen.getByText(/Inventory · 1 asset(?!s)/)).toBeInTheDocument();
   });
 
   it('renders the AssetsChipBar with static axes', () => {

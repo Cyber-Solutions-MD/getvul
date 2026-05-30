@@ -128,7 +128,7 @@ function AssetsPageInner() {
     <div className="space-y-4 p-6">
       <header className="space-y-1">
         <div className="text-xs uppercase tracking-wide text-text-muted">
-          {microcopy.page.eyebrow} · {total} assets
+          {microcopy.page.eyebrow} · {total} {total === 1 ? 'asset' : 'assets'}
         </div>
         <h1 className="text-2xl font-semibold text-text">{microcopy.page.h1}</h1>
       </header>
