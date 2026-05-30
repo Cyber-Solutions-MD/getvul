@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC
 
+import re
+
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,11 +20,30 @@ from app.vulnerabilities.models import Vulnerability
 router = APIRouter(prefix="", tags=["Assets"])
 
 
+# RFC 5321 email length cap. Regex is intentionally permissive (no full RFC
+# 5322); the goal is to block XSS/oversize payloads (BL-01), not to be the
+# authoritative email parser. Real email correctness is enforced when the
+# directory lookup at _get_directory_user runs.
+_EMAIL_RE = re.compile(r"^[^@\s<>'\"]+@[^@\s<>'\"]+\.[^@\s<>'\"]+$")
+
+
 class _AssetOwnerUpdate(BaseModel):
-    # Phase 12 / locked_decisions item 1 — body field is `assigned_user_email`
-    # (string, not FK). Pydantic drops unknown extra keys silently, killing
-    # T-12-08 (mass assignment via the reassign body).
-    assigned_user_email: str
+    # T-12-08 (mass assignment via reassign body) is mitigated by the handler
+    # explicitly copying body.assigned_user_email → asset.assigned_user only;
+    # extras can't reach the ORM regardless. `extra="forbid"` is defensive so a
+    # future maintainer can't accidentally introduce setattr-loop bulk assign.
+    # field_validator blocks BL-01 (HTML/script payloads, oversize, non-email
+    # strings propagating into Asana task descriptions and /tickets/assignees).
+    model_config = {"extra": "forbid"}
+    assigned_user_email: str = Field(..., min_length=3, max_length=320)
+
+    @field_validator("assigned_user_email")
+    @classmethod
+    def _must_be_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _EMAIL_RE.match(v):
+            raise ValueError("must be a valid email address")
+        return v
 
 
 async def _get_directory_user(db: AsyncSession, tenant_id, asset) -> dict | None:
