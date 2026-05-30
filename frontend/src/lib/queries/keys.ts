@@ -33,4 +33,22 @@ export const queryKeys = {
     all: ['saved-filters'] as const,
     list: () => ['saved-filters', 'list'] as const,
   },
+  // Phase 12 — /assets surface.
+  assets: {
+    all: ['assets'] as const,
+    list: (opts: {
+      filters: object;
+      page: number;
+      sort: string;
+      order: string;
+    }) => ['assets', 'list', opts] as const,
+    byId: (id: string) => ['assets', 'detail', id] as const,
+    vulnerabilities: (id: string) => ['assets', id, 'vulnerabilities'] as const,
+    remediations: (id: string) => ['assets', id, 'remediations'] as const,
+    savedFilters: () => ['assets', 'saved-filters'] as const,
+  },
+  assignableUsers: {
+    all: ['assignable-users'] as const,
+    search: (q: string) => ['assignable-users', 'search', q] as const,
+  },
 } as const;

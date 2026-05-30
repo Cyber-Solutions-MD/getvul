@@ -11,6 +11,9 @@ export type VulnerabilitiesFilters = {
   search?: string;
   kev_only?: boolean;
   exploit_only?: boolean;
+  // Phase 12 (D-D-01) — pre-set by useAssetVulnerabilities to scope the list to one host.
+  // Backend `/api/v1/vulnerabilities` already accepts `asset_id` (verified RESEARCH §5).
+  asset_id?: string;
 };
 
 export type FacetsResponse = {
@@ -73,6 +76,7 @@ export function buildSearchParams(opts: {
   if (opts.filters.search) sp.set('search', opts.filters.search);
   if (opts.filters.kev_only) sp.set('cisa_kev', 'true');
   if (opts.filters.exploit_only) sp.set('exploit_available', 'true');
+  if (opts.filters.asset_id) sp.set('asset_id', opts.filters.asset_id);
   // D-F-02: always request facets so chip counts stay synced with the list.
   sp.set('facets', 'severity,source,status');
   if (opts.group === 'host') sp.set('group', 'host');
