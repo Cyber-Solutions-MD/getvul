@@ -342,7 +342,7 @@ async def get_asset(
         "department": asset.department,
         "building": asset.building,
         "managed_by": asset.managed_by,
-        "last_checkin_at": str(asset.last_checkin_at) if asset.last_checkin_at else None,
+        "last_checkin_at": asset.last_checkin_at.isoformat() if asset.last_checkin_at else None,
         "mdm_details": asset.mdm_details,
         # Humaans-specific (extracted from mdm_details for convenience)
         "humaans_email": (asset.mdm_details or {}).get("humaans_email"),
