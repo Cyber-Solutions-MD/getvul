@@ -180,4 +180,24 @@ describe('ReassignCombobox', () => {
       { timeout: 1000 },
     );
   });
+
+  it('Enter with no directory match is a no-op (WR-02 — no free-text commit)', () => {
+    // Initial state: items haven't loaded yet, so there is no highlighted
+    // option. Pressing Enter must NOT commit the raw input string — that's
+    // the front-line defense against BL-01 / non-email Asset.assigned_user.
+    const onDone = vi.fn();
+    renderCombobox({ onDone });
+    const combobox = screen.getByTestId('reassign-combobox');
+    fireEvent.keyDown(combobox, { key: 'Enter' });
+    expect(mutateFn).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it('ARIA wiring lives on the input per WAI-ARIA combobox pattern (WR-03)', () => {
+    renderCombobox();
+    const input = screen.getByLabelText('Search assignable users');
+    expect(input).toHaveAttribute('role', 'combobox');
+    expect(input).toHaveAttribute('aria-controls', 'reassign-listbox');
+    expect(input).toHaveAttribute('aria-autocomplete', 'list');
+  });
 });

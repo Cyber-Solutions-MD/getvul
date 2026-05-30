@@ -85,8 +85,13 @@ export function ReassignCombobox({ assetId, initialEmail, onDone }: ReassignComb
       onDone();
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      // WR-02: require an actual selection from the directory list. Without
+      // this guard, pressing Enter with no matches (or before debounce
+      // resolves) committed the raw input string — combined with BL-01 that
+      // let analysts poison Asset.assigned_user with non-email content.
       const target = items[highlightIdx];
-      commit(target?.email ?? input);
+      if (!target) return;
+      commit(target.email);
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setHighlightIdx((i) => Math.min(i + 1, Math.max(items.length - 1, 0)));
@@ -100,14 +105,18 @@ export function ReassignCombobox({ assetId, initialEmail, onDone }: ReassignComb
   // (gate lives in useAssignableUsers).
   const showHint = debounced.trim().length < 2;
 
+  // WR-03: per WAI-ARIA Authoring Practices combobox pattern, the combobox
+  // role lives on the <input>, not the wrapper. The input also carries
+  // aria-controls (listbox id), aria-expanded, aria-autocomplete, and
+  // aria-activedescendant (pointing at the highlighted option's id).
+  const listboxId = 'reassign-listbox';
+  const activeOptId = items[highlightIdx] ? `reassign-opt-${highlightIdx}` : undefined;
+
   return (
     <div
       ref={containerRef}
       onKeyDown={onKeyDown}
       className="space-y-2"
-      role="combobox"
-      aria-expanded="true"
-      aria-haspopup="listbox"
       data-testid="reassign-combobox"
     >
       <input
@@ -121,6 +130,11 @@ export function ReassignCombobox({ assetId, initialEmail, onDone }: ReassignComb
         disabled={mutation.isPending}
         placeholder="Search by name or email..."
         className="w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet disabled:opacity-50"
+        role="combobox"
+        aria-controls={listboxId}
+        aria-expanded={items.length > 0}
+        aria-autocomplete="list"
+        aria-activedescendant={activeOptId}
         aria-label="Search assignable users"
       />
 
@@ -133,7 +147,7 @@ export function ReassignCombobox({ assetId, initialEmail, onDone }: ReassignComb
         </div>
       )}
 
-      <ul role="listbox" className="max-h-48 overflow-y-auto" data-testid="reassign-list">
+      <ul id={listboxId} role="listbox" className="max-h-48 overflow-y-auto" data-testid="reassign-list">
         {showHint && (
           <li className="px-3 py-2 text-xs text-text-muted">
             Start typing a name or email to search...
@@ -150,6 +164,7 @@ export function ReassignCombobox({ assetId, initialEmail, onDone }: ReassignComb
         {items.map((u, idx) => (
           <li
             key={u.email}
+            id={`reassign-opt-${idx}`}
             role="option"
             aria-selected={idx === highlightIdx}
             onMouseEnter={() => setHighlightIdx(idx)}
