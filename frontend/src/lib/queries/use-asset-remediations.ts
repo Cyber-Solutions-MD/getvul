@@ -33,11 +33,19 @@ export type RemediationsResponse = {
 export function useAssetRemediations(assetId: string | null | undefined) {
   return useQuery({
     queryKey: queryKeys.assets.remediations(assetId ?? ''),
-    queryFn: ({ signal }) =>
-      api<RemediationsResponse>(
-        `/api/v1/tickets?asset_id=${assetId}&page=1`,
-        { signal }
-      ),
+    queryFn: ({ signal }) => {
+      // WR-05: build the URL via URLSearchParams so any future caller passing
+      // a non-UUID assetId can't silently corrupt the URL with reserved
+      // characters (&, #, ?, whitespace). UUIDs are safe today; this is
+      // hygiene consistency with buildSearchParams in use-assets / use-vulns.
+      const sp = new URLSearchParams();
+      sp.set('asset_id', assetId!);
+      sp.set('page', '1');
+      return api<RemediationsResponse>(
+        `/api/v1/tickets?${sp.toString()}`,
+        { signal },
+      );
+    },
     enabled: !!assetId,
     staleTime: 30_000,
     retry: 1,
