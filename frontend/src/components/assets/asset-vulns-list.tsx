@@ -33,12 +33,21 @@ export function AssetVulnsList({ rows, onRowOpen }: AssetVulnsListProps) {
         '[role="row"][tabindex="0"]',
       );
       if (!list) return;
+      // WR-08: mirror AssetsTable keyboard contract — ArrowDown/Up + Home/End
+      // + Enter/Space. Without Home/End the two tables on the detail page
+      // expose inconsistent contracts to keyboard users.
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         list[Math.min(idx + 1, list.length - 1)]?.focus();
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         list[Math.max(idx - 1, 0)]?.focus();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        list[0]?.focus();
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        list[list.length - 1]?.focus();
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         onRowOpen(id);
@@ -55,6 +64,10 @@ export function AssetVulnsList({ rows, onRowOpen }: AssetVulnsListProps) {
 
   return (
     <div role="table" aria-label="Vulnerabilities on this host" ref={tbodyRef}>
+      {/* WR-07: WAI-ARIA requires role="rowgroup" between role="table" and
+          role="row" (mirroring <tbody>). axe-core flags the missing
+          rowgroup as aria-required-children. */}
+      <div role="rowgroup">
       {rows.map((r, idx) => {
         const sev =
           SEV_GLYPH[String(r.severity).toUpperCase()] ?? {
@@ -90,6 +103,7 @@ export function AssetVulnsList({ rows, onRowOpen }: AssetVulnsListProps) {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
