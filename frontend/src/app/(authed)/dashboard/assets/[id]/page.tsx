@@ -115,8 +115,10 @@ function AssetDetailInner() {
           to the mobile sheet — using a min-[900px] arbitrary class keeps
           both surfaces consistent. */}
       <div className="grid grid-cols-1 gap-6 p-6 min-[900px]:grid-cols-[1fr_340px]">
-        {/* Main column */}
-        <main className="space-y-6">
+        {/* Main column — semantically a section, not a <main>. The app-shell
+            already provides the outer <main>; nesting another duplicates the
+            landmark (axe rule landmark-no-duplicate-main, BL-03). */}
+        <section className="space-y-6" aria-label="Asset details">
           <header className="space-y-2">
             <Breadcrumb>
               <Crumb href="/assets">Assets</Crumb>
@@ -197,7 +199,7 @@ function AssetDetailInner() {
               <RemediationTimeline tickets={remediations.data!.items} />
             )}
           </section>
-        </main>
+        </section>
 
         {/* Right rail — sticky at >=900px (W7 gate matches Phase 11 D-P-03). */}
         <aside
