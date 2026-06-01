@@ -15,28 +15,13 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-import pytest_asyncio
 
 from app.assets.models import Asset
-from app.db.session import engine
 from app.vulnerabilities.models import Vulnerability
 
-
-# WORKAROUND for a pre-existing test-infra issue: pytest-asyncio uses a
-# function-scoped event loop, but `app.db.session.engine` is a module-level
-# async engine whose asyncpg connection pool is bound to whichever loop
-# happened to make the first connection. After test #1's loop closes,
-# subsequent tests find the cached pool full of "Event loop is closed"
-# connections and `_db_reachable()` returns False (→ pytest.skip), or the
-# next session.flush() trips a RuntimeError before any user code runs.
-#
-# Disposing the engine before each test gives this file a fresh pool bound
-# to the current loop, which is enough for the suite to run end-to-end.
-# Scoped to this test file so we don't churn the global conftest fixture.
-@pytest_asyncio.fixture(autouse=True)
-async def _reset_engine_pool():
-    await engine.dispose()
-    yield
+# `_reset_engine_pool` (autouse) is provided by conftest.py — WR-14 lifted the
+# fixture out of this file (and two sibling Phase 12 tests) so the workaround
+# applies once instead of being copy-pasted per test author.
 
 
 def _seed_asset(tenant_id, hostname: str, *, tags=None, os_name="Ubuntu 22.04 LTS") -> Asset:

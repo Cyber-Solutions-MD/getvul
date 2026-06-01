@@ -22,22 +22,12 @@ from __future__ import annotations
 import uuid
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import select
 
 from app.assets.models import Asset
 from app.audit import AuditLog
-from app.db.session import engine
 
-
-# Same workaround as test_assets_tags_and_os_family.py (12-01) — the module-
-# level async engine's connection pool binds to whichever event loop made the
-# first connection, but pytest-asyncio creates a fresh loop per function. Dispose
-# the pool before each test so the next session.flush() runs against a live loop.
-@pytest_asyncio.fixture(autouse=True)
-async def _reset_engine_pool():
-    await engine.dispose()
-    yield
+# `_reset_engine_pool` (autouse) lives in conftest.py — WR-14 centralised it.
 
 
 def _seed_asset(

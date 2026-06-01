@@ -367,3 +367,25 @@ async def client_factory(redis_test_url, db_session) -> AsyncIterator:
         yield _factory
         for ac in clients:
             await ac.aclose()
+
+
+# WR-14 (Phase 12 code review): pre-existing test-infra issue —
+# pytest-asyncio uses a function-scoped event loop, but
+# `app.db.session.engine` is a module-level async engine whose asyncpg
+# connection pool is bound to whichever loop made the first connection.
+# After test #1's loop closes, subsequent tests find the cached pool full of
+# "Event loop is closed" connections and `_db_reachable()` returns False
+# (→ pytest.skip), or the next `session.flush()` trips a RuntimeError before
+# any user code runs.
+#
+# Disposing the engine before each test gives every test a fresh pool bound
+# to the current loop. Previously copied into three Phase 12 test files;
+# centralised here so the next test author doesn't copy it a fourth time.
+# Follow-up: migrate to a function-scoped engine (or session-scoped event
+# loop) so this workaround can be removed entirely.
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_engine_pool():
+    from app.db.session import engine
+
+    await engine.dispose()
+    yield

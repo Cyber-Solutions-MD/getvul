@@ -17,19 +17,12 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-import pytest_asyncio
 
 from app.assets.models import Asset
-from app.db.session import engine
 from app.ticketing.models import Ticket
 from app.vulnerabilities.models import Vulnerability
 
-
-@pytest_asyncio.fixture(autouse=True)
-async def _reset_engine_pool():
-    # See test_assets_tags_and_os_family.py for the rationale.
-    await engine.dispose()
-    yield
+# `_reset_engine_pool` (autouse) lives in conftest.py — WR-14 centralised it.
 
 
 def _seed_asset(tenant_id, hostname: str) -> Asset:
