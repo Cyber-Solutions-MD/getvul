@@ -89,9 +89,11 @@ function AssetDetailInner() {
         errors={[
           {
             code: 'http_error',
+            // WR-15: full err.message — banner ellipsis-truncates visually.
+            // (WR-10 fixed two sibling sites; this one was missed.)
             requestId: String(
               (asset.error as Error)?.message || 'unknown',
-            ).slice(0, 40),
+            ),
           },
         ]}
         onRetry={() => asset.refetch()}
