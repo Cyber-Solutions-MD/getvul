@@ -101,4 +101,27 @@ describe('RemediationTimeline', () => {
     render(<RemediationTimeline tickets={[unknown]} />);
     expect(screen.getByTestId('provider-mark-gitlab')).toBeInTheDocument();
   });
+
+  it('uses resolved tone for lowercase "completed" status (WR-12 — Asana lowercase)', () => {
+    // Backend emits `Ticket.external_status = "completed"` (lowercase) for
+    // Asana's terminal state. The component upper-cases on read, so the
+    // STATUS_TONE map must have a COMPLETED entry — without it the pill fell
+    // through to the muted fallback tone (text-text-faint).
+    const completed: RemediationTicket = {
+      ...TICKETS[0],
+      id: 't-completed',
+      external_status: 'completed',
+    };
+    const { container } = render(<RemediationTimeline tickets={[completed]} />);
+    const row = container.querySelector(`[data-testid="timeline-row-t-completed"]`);
+    // The status pill renders the raw external_status text. Find it by
+    // matching the lowercase 'completed' span and verify its tone class.
+    const pill = Array.from(row?.querySelectorAll('span') ?? []).find(
+      (s) => s.textContent === 'completed',
+    );
+    expect(pill).toBeDefined();
+    // Resolved tone uses text-severity-low; fallback would carry text-text-faint.
+    expect(pill!.className).toMatch(/text-severity-low/);
+    expect(pill!.className).not.toMatch(/text-text-faint/);
+  });
 });

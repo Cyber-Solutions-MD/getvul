@@ -23,11 +23,17 @@ const PROVIDER_GRADIENT: Record<string, string> = {
   GITHUB: 'linear-gradient(135deg, #A78BFA, #C4B5FD)',
 };
 
+// WR-12: backend ticketing/service.py emits Ticket.external_status as
+// lowercase 'open' and 'completed'. The component upper-cases on read,
+// so the map keys must include COMPLETED (the Asana terminal state). Without
+// this row, completed tickets fell through to the muted fallback tone instead
+// of the resolved green.
 const STATUS_TONE: Record<string, string> = {
   OPEN: 'border-violet/40 bg-violet-soft text-violet',
   IN_PROGRESS: 'border-severity-high/40 bg-severity-high/10 text-severity-high',
   RESOLVED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',
   CLOSED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',
+  COMPLETED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',
 };
 
 // W8: guard against future timestamps (clock skew / bad data); Math.max
