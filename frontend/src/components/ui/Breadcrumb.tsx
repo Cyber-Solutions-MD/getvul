@@ -14,7 +14,7 @@
  * expected to be application-relative.
  */
 import Link from 'next/link';
-import { Children, isValidElement, type ReactNode } from 'react';
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 
 export type CrumbProps = {
   href?: string;
@@ -49,23 +49,26 @@ export type BreadcrumbProps = {
 };
 
 export function Breadcrumb({ children }: BreadcrumbProps) {
-  const items = Children.toArray(children).filter(isValidElement);
+  const items = Children.toArray(children).filter(isValidElement) as ReactElement<CrumbProps>[];
   return (
     <nav aria-label="Breadcrumb">
       <ol className="flex items-center gap-2">
-        {items.map((item, idx) => (
-          <span key={idx} className="inline-flex items-center gap-2">
-            {item}
-            {idx < items.length - 1 && (
-              <span
-                className="text-text-faint/60"
-                aria-hidden="true"
-              >
-                ›
-              </span>
-            )}
-          </span>
-        ))}
+        {items.map((item, idx) => {
+          // WR-11: stable key prefers the crumb's href, else the text label.
+          // Array-index keys cause React to reconcile the wrong nodes if a
+          // parent ever conditionally inserts a crumb mid-trail.
+          const key = item.props.href ?? String(item.props.children) ?? `crumb-${idx}`;
+          return (
+            <span key={key} className="inline-flex items-center gap-2">
+              {item}
+              {idx < items.length - 1 && (
+                <span className="text-text-faint/60" aria-hidden="true">
+                  ›
+                </span>
+              )}
+            </span>
+          );
+        })}
       </ol>
     </nav>
   );
