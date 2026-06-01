@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ── Ticket responses ──
 
@@ -149,3 +149,43 @@ class TicketStats(BaseModel):
     resolved: int
     by_provider: dict[str, int]
     by_severity: dict[str, int]
+
+
+# ── Phase 13 request schemas ──
+
+
+class CommentCreate(BaseModel):
+    """Local audit note request body (D-C-03).
+
+    body is stripped of leading/trailing whitespace; whitespace-only bodies
+    are rejected (Phase 12 BL-01 validator pattern).
+    """
+
+    body: str = Field(..., min_length=1, max_length=10000)
+
+    @field_validator("body")
+    @classmethod
+    def _strip(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("Comment body cannot be blank")
+        return s
+
+
+class BlockedUpdate(BaseModel):
+    """Blocked-state toggle request body (D-P-02).
+
+    blocked_reason is stripped; whitespace-only reasons are coerced to None.
+    max_length=500 enforced server-side (T-13-01).
+    """
+
+    blocked: bool
+    blocked_reason: str | None = Field(None, max_length=500)
+
+    @field_validator("blocked_reason")
+    @classmethod
+    def _no_ws_only(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None

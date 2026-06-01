@@ -4,9 +4,10 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, PrimaryKeyConstraint, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import text
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -90,6 +91,10 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ticket_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 13 additions (D-P-02 blocked, D-SLA-01 sla_due_at)
+    blocked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TicketRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -107,3 +112,42 @@ class TicketRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_run_status: Mapped[str | None] = mapped_column(String(20))
     last_run_tickets_created: Mapped[int | None] = mapped_column(Integer)
+
+
+class TicketComment(Base, UUIDPrimaryKeyMixin):
+    """Local audit note on a ticket (D-C-02). Never writes back to Jira/Asana/GitHub."""
+
+    __tablename__ = "ticket_comments"
+
+    ticket_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TicketWatcher(Base):
+    """Local GetVul subscription watcher for a ticket (D-W-02).
+
+    Composite PK (ticket_id, user_id) enforces idempotency at the DB layer (T-13-03).
+    Both FKs CASCADE so rows are cleaned up when the ticket or user is deleted.
+    """
+
+    __tablename__ = "ticket_watchers"
+    __table_args__ = (PrimaryKeyConstraint("ticket_id", "user_id"),)
+
+    ticket_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
