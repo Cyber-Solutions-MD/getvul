@@ -138,7 +138,11 @@ function AssetsPageInner() {
 
       <AssetsChipBar facets={facets} />
 
-      {q.error && (
+      {/* WR-13: state branches are mutually exclusive. Without this guard,
+          q.error AND items.length === 0 both rendered (because items defaults
+          to [] on error) → analyst saw "Something failed, retry" plus
+          "No assets match these filters" stacked, which is contradictory. */}
+      {q.error ? (
         <PartialFailureBanner
           errors={[
             {
@@ -149,9 +153,7 @@ function AssetsPageInner() {
           ]}
           onRetry={() => q.refetch()}
         />
-      )}
-
-      {isLoading ? (
+      ) : isLoading ? (
         <SkeletonTable columns={SKELETON_COLUMNS} rows={10} />
       ) : items.length === 0 ? (
         <EmptyState>
