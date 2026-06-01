@@ -53,6 +53,14 @@ html { scrollbar-color: var(--color-border-strong) var(--color-bg); }
   }
 }
 
+/* Phase 13 — Provider gradient tokens (D-PROV-03, A4 resolution).
+   Hex lives ONCE here; <ProviderMark> consumes via var(--gradient-provider-*). */
+:root {
+  --gradient-provider-jira:   linear-gradient(135deg, #5C9CFF, #2684FF);
+  --gradient-provider-asana:  linear-gradient(135deg, #FF8AA0, #F1506E);
+  --gradient-provider-github: linear-gradient(135deg, #C7BAFF, #A78BFA);
+}
+
 /* Animation keyframes — D-15. Phase 9 only consumes gradient-drift; others
    are pre-declared so phases 10+ don't need to touch globals.css again. */
 @keyframes pulse-urgency {

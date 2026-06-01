@@ -51,4 +51,14 @@ export const queryKeys = {
     all: ['assignable-users'] as const,
     search: (q: string) => ['assignable-users', 'search', q] as const,
   },
+  // Phase 13 — /tickets surface. Single source; Plans 07/08/09 import these read-only.
+  tickets: {
+    all: ['tickets'] as const,
+    list: (opts: { filters: object; page: number; view: string }) =>
+      ['tickets', 'list', opts] as const,
+    byId: (id: string) => ['tickets', 'detail', id] as const,
+    comments: (id: string) => ['tickets', id, 'comments'] as const,
+    watchers: (id: string) => ['tickets', id, 'watchers'] as const,
+    rules: () => ['tickets', 'rules'] as const,
+  },
 } as const;
