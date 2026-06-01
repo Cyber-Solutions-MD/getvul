@@ -12,10 +12,27 @@
 import { cn } from '@/lib/utils';
 
 function initialsFor(name?: string, email?: string): string {
+  // WR-09: 2-char initials per sketch-findings-getvul/references/visual-language.md
+  // ("Initials inside (2 chars)" — examples 'AS', 'JK'). Multi-word names use
+  // first letter of first + last word; single-word names fall back to the
+  // first letter only so the chip doesn't show a partial second char.
   const trimmedName = (name ?? '').trim();
-  if (trimmedName) return trimmedName.charAt(0).toUpperCase();
+  if (trimmedName) {
+    const parts = trimmedName.split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
   const local = (email ?? '').split('@')[0]?.trim();
-  if (local) return local.charAt(0).toUpperCase();
+  if (local) {
+    // Email local parts are commonly first.last → take both halves.
+    const segs = local.split(/[._-]/);
+    if (segs.length >= 2 && segs[0] && segs[1]) {
+      return (segs[0][0] + segs[1][0]).toUpperCase();
+    }
+    return local[0].toUpperCase();
+  }
   return '?';
 }
 

@@ -6,12 +6,22 @@ import { describe, it, expect } from 'vitest';
 import { Avatar } from './Avatar';
 
 describe('<Avatar> (owner card / topbar / directory)', () => {
-  it('renders first letter of name uppercased', () => {
+  it('renders first+last initials uppercased per sketch (visual-language.md "2 chars")', () => {
     render(<Avatar name="alice carter" />);
+    expect(screen.getByText('AC')).toBeInTheDocument();
+  });
+
+  it('single-word name falls back to one initial (avoids "AL" from "Alice")', () => {
+    render(<Avatar name="Alice" />);
     expect(screen.getByText('A')).toBeInTheDocument();
   });
 
-  it('falls back to first letter of email local-part when name is empty', () => {
+  it('email with first.last local part produces two initials', () => {
+    render(<Avatar email="bob.smith@example.com" />);
+    expect(screen.getByText('BS')).toBeInTheDocument();
+  });
+
+  it('falls back to first letter of email local-part when there is no separator', () => {
     render(<Avatar email="bob@example.com" />);
     expect(screen.getByText('B')).toBeInTheDocument();
   });
@@ -36,8 +46,13 @@ describe('<Avatar> (owner card / topbar / directory)', () => {
 
   it('does not render HTML from name prop (T-12-04 XSS guard)', () => {
     const { container } = render(<Avatar name="<img onerror=alert(1)>" />);
+    // Core invariant: zero HTML elements escape from the name prop.
     expect(container.querySelector('img')).toBeNull();
-    // First char of the string is '<' — uppercased '<' === '<'. Text, not HTML.
-    expect(container.querySelector('span')!.textContent).toBe('<');
+    // The chip renders text only — initialsFor strips to leading characters
+    // of the (whitespace-split) tokens. Exact char count depends on tokens
+    // but it MUST be a plain text node, never markup.
+    const span = container.querySelector('span')!;
+    expect(span.children.length).toBe(0); // no element children → text only
+    expect(span.textContent).toMatch(/^[^<>]*<[^<>]*$|^[^<>]+$/); // text node may include "<" char but no tag
   });
 });
