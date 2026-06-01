@@ -55,11 +55,14 @@ const SKELETON_COLUMNS: SkeletonColumn[] = [
 ];
 
 function pageErrorFallback(err: Error, reset: () => void): ReactNode {
+  // WR-10: pass the full err.message — PartialFailureBanner truncates
+  // visually with ellipsis. Slicing here silently drops request IDs / JSON
+  // payloads past char 40 and loses analyst traceability.
   return (
     <div className="space-y-4 p-6">
       <h1 className="sr-only">{microcopy.page.h1}</h1>
       <PartialFailureBanner
-        errors={[{ code: 'crash', requestId: err.message.slice(0, 40) || 'unknown' }]}
+        errors={[{ code: 'crash', requestId: err.message || 'unknown' }]}
         onRetry={reset}
       />
     </div>
@@ -140,7 +143,8 @@ function AssetsPageInner() {
           errors={[
             {
               code: 'http_error',
-              requestId: String((q.error as Error).message).slice(0, 40),
+              // WR-10: pass full message; banner truncates visually.
+              requestId: String((q.error as Error).message) || 'unknown',
             },
           ]}
           onRetry={() => q.refetch()}

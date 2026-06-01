@@ -225,7 +225,9 @@ export default function AssetDetailPage() {
     <ErrorBoundary
       fallback={(err, reset) => (
         <PartialFailureBanner
-          errors={[{ code: 'crash', requestId: err.message.slice(0, 40) }]}
+          // WR-10: full err.message; banner ellipsis-truncates visually so
+          // analysts can copy the complete payload for traceability.
+          errors={[{ code: 'crash', requestId: err.message || 'unknown' }]}
           onRetry={reset}
         />
       )}
