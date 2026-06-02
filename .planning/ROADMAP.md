@@ -284,7 +284,15 @@ Plans:
   4. `/dashboard/settings` renders the sidebar-of-categories pattern (Profile / Workspace / SAML-OIDC / Notifications / API tokens / Audit log); the previous v1 tabbed-mess layout is fully replaced
   5. `grep -r "tab" frontend/src/app/dashboard/settings/` returns no horizontal-tab pattern usages; sidebar category is the only navigation
   6. Every screen in this phase passes the state-pattern audit (loading / empty / partial-failure / toast all present)
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 14-00-PLAN.md — Wave 0 foundation: 11 provider gradient tokens + 14-provider ConnectorMark + 4-state SyncStatusPill + ConfirmModal/ExportButton sunset restyle + queryKeys cspm/settings/directoryUsers namespaces
+- [ ] 14-01-PLAN.md — Wave 0 foundation: SettingsSidebarShell (RBAC-gated, tab-free) + per-category SaveBar + useDirtyState hook
+- [ ] 14-02-PLAN.md — /dashboard/connectors rewrite: category-sectioned cards + sentinel-passthrough add/edit/test/sync/delete form + ?provider= deep-link
+- [ ] 14-03-PLAN.md — /dashboard/cspm rewrite: chip-bar + cloud control + compliance frameworks rail + DrillPanel finding slot + bulk Resolve/Ignore/Reopen
+- [ ] 14-04-PLAN.md — /dashboard/users rewrite: directory with enrichment-source pills + Directory/Groups segmented toggle + export-only bulk bar
+- [ ] 14-05-PLAN.md — /dashboard/settings rewrite: sidebar-of-categories (6 panes) + per-category save bar + tab-removal grep gate
 **UI hint**: yes
 
 ### Phase 15: Mobile + a11y + Perf Quality Gate
@@ -322,7 +330,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 11. `/vulnerabilities` + State Patterns | v2.0 UI/UX Redesign | 8/8 | Complete    | 2026-05-27 |
 | 12. `/assets` List + Detail | v2.0 UI/UX Redesign | 8/8 | Complete    | 2026-06-01 |
 | 13. `/tickets` List + Detail | v2.0 UI/UX Redesign | 9/9 | Complete    | 2026-06-02 |
-| 14. Remaining Screens | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
+| 14. Remaining Screens | v2.0 UI/UX Redesign | 0/6 | Planned | - |
 | 15. Mobile + a11y + Perf Quality Gate | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 
 ---
