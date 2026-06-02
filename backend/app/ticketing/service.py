@@ -804,11 +804,17 @@ async def list_tickets(
     grouped_q = grouped_q.offset((page - 1) * page_size).limit(page_size)
     grouped_rows = (await db.execute(grouped_q)).all()
 
-    items = []
-    for row in grouped_rows:
-        # Get details for this task
-        detail_q = (
+    # WR-05: batch ALL per-URL detail aggregates into ONE query keyed by
+    # external_ticket_url (previously this ran one detail_q per grouped row — up
+    # to page_size=100 extra round-trips per list call). Scoping the IN-list to
+    # exactly the page's URLs also keeps the detail aggregate consistent with the
+    # filtered/paginated group set (the old per-row query ignored that scope).
+    page_urls = [row.external_ticket_url for row in grouped_rows]
+    details_by_url: dict = {}
+    if page_urls:
+        details_q = (
             select(
+                Ticket.external_ticket_url.label("url"),
                 func.min(Asset.hostname).label("hostname"),
                 func.count(func.distinct(Asset.id)).label("host_count"),
                 func.max(
@@ -835,11 +841,20 @@ async def list_tickets(
             .select_from(Ticket)
             .join(Vulnerability, Ticket.vulnerability_id == Vulnerability.id)
             .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
-            .where(Ticket.external_ticket_url == row.external_ticket_url, Ticket.tenant_id == tenant_id)
+            .where(
+                Ticket.external_ticket_url.in_(page_urls),
+                Ticket.tenant_id == tenant_id,
+            )
+            .group_by(Ticket.external_ticket_url)
         )
-        detail = (await db.execute(detail_q)).first()
+        details_by_url = {d.url: d for d in (await db.execute(details_q)).all()}
 
-        sev_map = {4: "CRITICAL", 3: "HIGH", 2: "MEDIUM", 1: "LOW", 0: "INFO"}
+    sev_map = {4: "CRITICAL", 3: "HIGH", 2: "MEDIUM", 1: "LOW", 0: "INFO"}
+
+    items = []
+    for row in grouped_rows:
+        detail = details_by_url.get(row.external_ticket_url)
+
         max_severity = sev_map.get(detail.max_sev_rank, "UNKNOWN") if detail else None
         critical = detail.critical_count if detail else 0
         high = detail.high_count if detail else 0
