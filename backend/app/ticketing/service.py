@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import String, case, func, select
+from sqlalchemy import String, case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
@@ -16,6 +16,52 @@ from app.ticketing.schemas import HostTicketCreateRequest, TicketCreateRequest, 
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
+
+
+async def recompute_ticket_sla(
+    db: AsyncSession,
+    external_ticket_url: str,
+    tenant_id: uuid.UUID,
+) -> None:
+    """Set sla_due_at on every ticket row in the group to MIN(linked vuln.sla_due_at).
+
+    Canonical-group identity rule (O1): a logical ticket is the group of tickets
+    rows sharing one external_ticket_url. This function applies the group MIN of
+    linked vulnerability.sla_due_at to ALL rows in the group. NULL when no linked
+    vulnerability in the group has a non-null sla_due_at.
+
+    Caller pattern: call AFTER db.flush() so new rows are visible, BEFORE
+    db.commit() so the caller can commit the whole unit of work atomically.
+    This function does NOT commit.
+
+    Future hook: the admin sla_recalculate endpoint (app/vulnerabilities/router.py)
+    changes vulnerability.sla_due_at for many vulns at once. Callers of that path
+    should call recompute_ticket_sla for each affected external_ticket_url to keep
+    ticket SLA in sync.
+    """
+    # SELECT MIN(v.sla_due_at) over all rows in this group
+    min_q = (
+        select(func.min(Vulnerability.sla_due_at).label("min_sla"))
+        .select_from(Ticket)
+        .join(Vulnerability, Ticket.vulnerability_id == Vulnerability.id)
+        .where(
+            Ticket.external_ticket_url == external_ticket_url,
+            Ticket.tenant_id == tenant_id,
+        )
+    )
+    result = await db.execute(min_q)
+    min_sla = result.scalar_one_or_none()
+
+    # UPDATE all rows in the group to the computed MIN (may be NULL)
+    await db.execute(
+        update(Ticket)
+        .where(
+            Ticket.external_ticket_url == external_ticket_url,
+            Ticket.tenant_id == tenant_id,
+        )
+        .values(sla_due_at=min_sla)
+    )
+
 
 # Severity → SLA days mapping for default due dates
 SEVERITY_SLA_DAYS = {
@@ -155,6 +201,9 @@ async def create_tickets(
         )
         db.add(ticket)
         await db.flush()
+
+        # Recompute group SLA so the new row gets the group MIN(linked vuln.sla_due_at)
+        await recompute_ticket_sla(db, task.url, tenant_id)
 
         # Update vulnerability status to IN_PROGRESS
         vuln.status = "IN_PROGRESS"
@@ -411,6 +460,10 @@ async def create_host_ticket(
 
     await db.flush()
 
+    # Recompute group SLA so all rows get MIN(linked vuln.sla_due_at) for this task URL
+    if ticket_ids:
+        await recompute_ticket_sla(db, task.url, tenant_id)
+
     logger.info(
         "host_ticket_created",
         hostname=hostname,
@@ -584,6 +637,10 @@ async def create_remediation_ticket(
 
     await db.flush()
 
+    # Recompute group SLA for all rows under this task URL
+    if linked > 0:
+        await recompute_ticket_sla(db, task.url, tenant_id)
+
     return {
         "task_gid": task.gid,
         "task_url": task.url,
@@ -641,6 +698,10 @@ async def list_tickets(
             func.min(Ticket.ticket_created_at).label("ticket_created_at"),
             func.max(Ticket.resolved_at).label("resolved_at"),
             func.count(Ticket.id).label("vuln_count"),
+            # Phase 13 / UX-05-01: blocked/sla aggregates per logical-ticket group (O1)
+            func.bool_or(Ticket.blocked).label("blocked"),
+            func.min(Ticket.blocked_reason).label("blocked_reason"),
+            func.min(Ticket.sla_due_at).label("sla_due_at"),
         )
         .where(*base_filter)
         .group_by(Ticket.external_ticket_url)
@@ -717,6 +778,10 @@ async def list_tickets(
                 "high_count": high,
                 "ticket_created_at": row.ticket_created_at.isoformat() if row.ticket_created_at else None,
                 "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None,
+                # Phase 13 / O1: blocked/sla aggregates for the logical-ticket group
+                "blocked": bool(row.blocked),
+                "blocked_reason": row.blocked_reason,
+                "sla_due_at": row.sla_due_at.isoformat() if row.sla_due_at else None,
             }
         )
 
