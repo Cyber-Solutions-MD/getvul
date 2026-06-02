@@ -321,7 +321,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 10. `/dashboard` | v2.0 UI/UX Redesign | 6/6 | Complete    | 2026-05-18 |
 | 11. `/vulnerabilities` + State Patterns | v2.0 UI/UX Redesign | 8/8 | Complete    | 2026-05-27 |
 | 12. `/assets` List + Detail | v2.0 UI/UX Redesign | 8/8 | Complete    | 2026-06-01 |
-| 13. `/tickets` List + Detail | v2.0 UI/UX Redesign | 8/9 | In Progress|  |
+| 13. `/tickets` List + Detail | v2.0 UI/UX Redesign | 9/9 | Complete   | 2026-06-02 |
 | 14. Remaining Screens | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 | 15. Mobile + a11y + Perf Quality Gate | v2.0 UI/UX Redesign | 0/TBD | Not started | - |
 
