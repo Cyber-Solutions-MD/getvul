@@ -200,11 +200,11 @@ describe('CSPM page - state patterns', () => {
 
     const CSPMPage = (await import('./page')).default;
     render(<CSPMPage />);
-    // EmptyState should render
+    // EmptyState renders (with role="status") and contains the no-data message
     expect(
-      document.querySelector('[data-empty-state]') ||
-      screen.getByText(/nothing matches/i) ||
-      screen.getByText(/no findings/i),
+      screen.getByRole('status') ||
+      screen.getByText(/no cspm findings/i) ||
+      screen.getByText(/nothing matches/i),
     ).toBeTruthy();
   });
 
