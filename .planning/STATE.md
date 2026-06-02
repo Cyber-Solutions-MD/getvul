@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
 status: Ready to execute
-last_updated: "2026-06-02T06:08:00Z"
+last_updated: "2026-06-02T09:35:00Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 37
-  completed_plans: 33
-  percent: 89
+  completed_plans: 34
+  percent: 92
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -25,13 +25,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 ## Current Position
 
 Phase: 13 (tickets-list-detail) — EXECUTING
-Plan: 6 of 9 (completed)
+Plan: 7 of 9 (completed)
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
 | Active phase | 13 — `/tickets` List + Detail |
-| Last action | 2026-06-02 — Plan 06 complete: WatcherStack + ActivityTimeline + CommentInput + BlockedToggle + TicketAssetCard + microcopy.ts; 15 tests green |
-| Next action | Execute Plan 13-07 (tickets list page + backend reshape) |
+| Last action | 2026-06-02 — Plan 07 complete: useTickets + useMarkBlocked + TicketsChipBar + TicketsTable + TicketBulkBar + /tickets page rewrite; 15 tests green |
+| Next action | Execute Plan 13-08 (/tickets/[id] detail page) |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -76,6 +76,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - BlockedToggle whitespace-only reason coerces to null per D-P-02; backend validator mirrors this
 - CommentInput Ctrl/Cmd+Enter shortcut; char-count warning at 9500 chars before 10000 hard limit
 - TicketAssetCard null assetId renders "Multiple hosts" with no link (multi-host ticket safety)
+- asana_not_configured error renders connector deep-link EmptyState (D-S-02), not PartialFailureBanner — expected "unconfigured" signal vs transient failure
+- useMarkBlocked patches both byId cache AND list cache in onMutate for immediate table row update
+- Predicate-based invalidation targets ['assets', *, 'remediations'] on blocked toggle success (RESEARCH Pattern 4)
+- Board placeholder copy verbatim: "Board view coming in a future update — for now, use the List view with the Status chip filter to organize work by status."
 
 ---
-*Last updated: 2026-06-02 — Plan 13-06 complete: WatcherStack + ActivityTimeline + CommentInput + BlockedToggle + TicketAssetCard + microcopy.ts; 15 tests green*
+*Last updated: 2026-06-02 — Plan 13-07 complete: useTickets + useMarkBlocked + TicketsChipBar + TicketsTable + TicketBulkBar + /tickets page rewrite (v1 sunset); 15 tests green*
