@@ -25,13 +25,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 ## Current Position
 
 Phase: 13 (tickets-list-detail) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9 (completed)
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
-| Active phase | 9 — `/login` + Foundation (context captured 2026-05-12) |
-| Last action | 2026-05-12 — Phase 9 context captured in [.planning/phases/09-login-foundation/09-CONTEXT.md](phases/09-login-foundation/09-CONTEXT.md); 53 implementation decisions across 4 areas (token + theme plumbing, primitive build strategy, shell scaffold scope, login content + modes) |
-| Next action | `/clear` then `/gsd-plan-phase 9` to produce PLAN.md for the first vertical slice |
+| Active phase | 13 — `/tickets` List + Detail |
+| Last action | 2026-06-02 — Plan 05 complete: DrillPanel/DrillPanelMobile generalized (D-D-02 additive) + TicketDrillContent (D-D-01) with 15 tests green |
+| Next action | Execute Plan 13-06 (BlockedToggle + useMarkBlocked mutation) |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -65,5 +65,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - v0.1 features in [PROJECT.md](PROJECT.md) "Validated Requirements" remain intact; v2.0 rebuilds the UI surface, not the backend.
 - **Anti-pattern guarded:** No foundation-only phase. UX-F-01..F-04 (token system, theme architecture, persistent shell, first primitive set) ride inside Phase 9. The rolled-back v2-01 attempt failed because it shipped foundation without a visible screen ("looks worse than before"). v2.0 ships visible screens from day one.
 
+## Decisions
+
+- DrillPanel chrome generalized additively (D-D-02): idKey/id/renderContent/ariaLabel props with vuln-preserving defaults; cveId kept as back-compat alias
+- close() deletes 'open' + active idKey; ticket callers pass idKey='ticket'; vuln callers get default idKey='cve'
+- TicketDrillData type exported from ticket-drill-content.tsx for Plan 07 contract
+- renderBlockedToggle slot renders disabled placeholder when absent (Plan 06/08 wires real BlockedToggle)
+
 ---
-*Last updated: 2026-05-12 — Phase 9 context captured (53 decisions)*
+*Last updated: 2026-06-02 — Plan 13-05 complete: DrillPanel generalization (D-D-02) + TicketDrillContent (D-D-01)*
