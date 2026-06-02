@@ -153,11 +153,12 @@ describe('ConnectorsPage', () => {
     mockUseConnectorsList.mockReturnValue(successState);
     render(<ConnectorsPage />, { wrapper: makeWrapper() });
 
-    // The 4 categories should render
-    expect(screen.getByText(/vulnerability scanners/i)).toBeTruthy();
-    expect(screen.getByText(/ticketing/i)).toBeTruthy();
-    expect(screen.getByText(/identity/i)).toBeTruthy();
-    expect(screen.getByText(/mdm.*enrichment/i)).toBeTruthy();
+    // The 4 category section headings (h2) should render.
+    // Use getAllByText because some labels may also appear in body copy.
+    expect(screen.getAllByText(/vulnerability scanners/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/ticketing/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/identity/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/mdm.*enrichment/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('Test 2: while loading, SkeletonTable renders', () => {
