@@ -194,6 +194,24 @@ async def test_post_comment_too_long_422(db_session, tenant_a, analyst_user, cli
     assert response.status_code == 422, f"Expected 422 for too-long body, got {response.status_code}"
 
 
+# ── Test: extra field → 422 (T-13-09 mass-assignment guard) ──────────────────
+
+
+@pytest.mark.asyncio
+async def test_post_comment_extra_field_422(db_session, tenant_a, analyst_user, client):
+    """POST with an undeclared field → 422 (CommentCreate extra='forbid', T-13-09)."""
+    ticket, url = await _seed_group(db_session, tenant_a)
+    await db_session.commit()
+
+    response = await client.post(
+        f"/api/v1/tickets/{ticket.id}/comments",
+        json={"body": "legit note", "is_admin": True},
+    )
+    assert response.status_code == 422, (
+        f"Expected 422 rejecting extra field, got {response.status_code}"
+    )
+
+
 # ── Test: cross-tenant {id} → 404 ─────────────────────────────────────────────
 
 

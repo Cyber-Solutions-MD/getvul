@@ -161,6 +161,10 @@ class CommentCreate(BaseModel):
     are rejected (Phase 12 BL-01 validator pattern).
     """
 
+    # T-13-09: reject extra fields (422) rather than silently ignore them —
+    # aligns the implementation with the declared mass-assignment mitigation.
+    model_config = {"extra": "forbid"}
+
     body: str = Field(..., min_length=1, max_length=10000)
 
     @field_validator("body")
@@ -178,6 +182,10 @@ class BlockedUpdate(BaseModel):
     blocked_reason is stripped; whitespace-only reasons are coerced to None.
     max_length=500 enforced server-side (T-13-01).
     """
+
+    # T-13-09: reject extra fields (422) rather than silently ignore them —
+    # aligns the implementation with the declared mass-assignment mitigation.
+    model_config = {"extra": "forbid"}
 
     blocked: bool
     blocked_reason: str | None = Field(None, max_length=500)
