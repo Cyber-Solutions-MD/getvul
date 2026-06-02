@@ -7,28 +7,47 @@ import { DrillContent } from './drill-content';
 // Open/close state lives in the URL (`?cve=<id>&open=drill`); the page
 // passes the `cveId` through but the panel reads the open key itself so
 // Esc / clickaway / × can flip it without coupling to the parent.
+//
+// D-D-02 (additive refactor): generalized with a content slot + parameterized
+// URL key. Existing vuln callers pass only `cveId` → identical behavior
+// (idKey defaults to 'cve', content defaults to <DrillContent>).
 
 type Props = {
-  cveId: string | null;
+  // Back-compat alias: vuln callers keep using cveId unchanged.
+  cveId?: string | null;
+  // Generic entity id — takes precedence over cveId when both provided.
+  id?: string | null;
+  // URL param key that holds the entity id. Defaults to 'cve' so existing
+  // `?cve=...&open=drill` contracts are preserved.
+  idKey?: string;
+  // Content slot — when provided, replaces the default <DrillContent>.
+  // Receives the resolved id and the close handler.
+  renderContent?: (args: { id: string; onClose: () => void }) => React.ReactNode;
+  // Aria label for the aside. Defaults to 'Vulnerability detail'.
+  ariaLabel?: string;
   // Optional origin row ref — when supplied, focus returns there on close.
   originRowRef?: React.RefObject<HTMLElement | null> | null;
 };
 
-export function DrillPanel({ cveId, originRowRef }: Props) {
+export function DrillPanel({ cveId, id, idKey, renderContent, ariaLabel, originRowRef }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const panelRef = useRef<HTMLElement>(null);
 
+  // Resolve effective entity id and URL key with vuln-preserving defaults.
+  const effectiveId = id ?? cveId ?? null;
+  const key = idKey ?? 'cve';
+
   // Open is URL-driven (D-P-02). When `?open=drill` is present AND we have
-  // a cveId to render against, the panel mounts. Removing `?open=drill`
+  // an id to render against, the panel mounts. Removing `?open=drill`
   // (via × / Esc / clickaway) closes it.
-  const isOpen = params?.get('open') === 'drill' && cveId !== null;
+  const isOpen = params?.get('open') === 'drill' && effectiveId !== null;
 
   const close = () => {
     const sp = new URLSearchParams(params?.toString() ?? '');
     sp.delete('open');
-    sp.delete('cve');
+    sp.delete(key);
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : (pathname ?? '/'), {
       scroll: false,
@@ -68,18 +87,20 @@ export function DrillPanel({ cveId, originRowRef }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  if (!isOpen || !cveId) return null;
+  if (!isOpen || !effectiveId) return null;
 
   return (
     <aside
       ref={panelRef}
       role="dialog"
       aria-modal="false"
-      aria-label="Vulnerability detail"
+      aria-label={ariaLabel ?? 'Vulnerability detail'}
       data-drill-panel=""
       className="fixed right-0 top-0 z-30 h-full w-[420px] border-l border-border bg-surface shadow-elevated"
     >
-      <DrillContent idOrCve={cveId} onClose={close} />
+      {renderContent
+        ? renderContent({ id: effectiveId, onClose: close })
+        : <DrillContent idOrCve={effectiveId} onClose={close} />}
     </aside>
   );
 }
