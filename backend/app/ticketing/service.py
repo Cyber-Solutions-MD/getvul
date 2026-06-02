@@ -34,10 +34,11 @@ async def recompute_ticket_sla(
     db.commit() so the caller can commit the whole unit of work atomically.
     This function does NOT commit.
 
-    Future hook: the admin sla_recalculate endpoint (app/vulnerabilities/router.py)
-    changes vulnerability.sla_due_at for many vulns at once. Callers of that path
-    should call recompute_ticket_sla for each affected external_ticket_url to keep
-    ticket SLA in sync.
+    Admin hook (WR-02, WIRED): the admin sla_recalculate endpoint
+    (app/vulnerabilities/router.py) changes vulnerability.sla_due_at for many
+    vulns at once, then calls recompute_ticket_sla for every affected
+    external_ticket_url so the materialized ticket SLA stays in sync (no longer
+    stale until the next ticket create/sync).
     """
     # SELECT MIN(v.sla_due_at) over all rows in this group
     min_q = (
@@ -822,6 +823,12 @@ async def list_tickets(
                 func.count().filter(Vulnerability.severity == "CRITICAL").label("critical_count"),
                 func.count().filter(Vulnerability.severity == "HIGH").label("high_count"),
                 func.min(Ticket.created_by_rule).label("created_by_rule"),
+                # WR-04: ticket "mode" is a group-level invariant. Derive it from
+                # bool_and(created_by_rule IS NOT NULL) so a group counts as
+                # per-remediation only when EVERY row carries the rule id — a
+                # mixed group (some rows null) no longer silently flips type via
+                # MIN returning the lone non-null value.
+                func.bool_and(Ticket.created_by_rule.isnot(None)).label("all_by_rule"),
                 func.min(Vulnerability.remediation_action).label("remediation_action"),
                 func.min(Vulnerability.affected_product).label("affected_product"),
             )
@@ -838,8 +845,8 @@ async def list_tickets(
         high = detail.high_count if detail else 0
         host_count = detail.host_count if detail else 0
 
-        # Detect ticket type: per-remediation has created_by_rule set
-        is_per_remediation = bool(detail.created_by_rule) if detail else False
+        # WR-04: per-remediation iff ALL rows in the group carry created_by_rule.
+        is_per_remediation = bool(detail.all_by_rule) if detail else False
         if is_per_remediation:
             title = f"{detail.affected_product or 'Unknown'}: {(detail.remediation_action or '')[:80]}"
             subtitle = f"{host_count} host{'s' if host_count != 1 else ''}"

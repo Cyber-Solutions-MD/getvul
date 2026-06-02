@@ -794,6 +794,9 @@ async def get_ticket_detail(
             func.count().filter(Vuln.severity == "CRITICAL").label("critical_count"),
             func.count().filter(Vuln.severity == "HIGH").label("high_count"),
             func.min(Ticket.created_by_rule).label("created_by_rule"),
+            # WR-04: group-level invariant — per-remediation iff every row carries
+            # created_by_rule (not just the MIN being non-null).
+            func.bool_and(Ticket.created_by_rule.isnot(None)).label("all_by_rule"),
             func.min(Vuln.remediation_action).label("remediation_action"),
             func.min(Vuln.affected_product).label("affected_product"),
         )
@@ -807,7 +810,7 @@ async def get_ticket_detail(
     )
     detail = (await db.execute(detail_q)).first()
 
-    is_per_remediation = bool(detail.created_by_rule) if detail else False
+    is_per_remediation = bool(detail.all_by_rule) if detail else False
     if is_per_remediation:
         title = f"{detail.affected_product or 'Unknown'}: {(detail.remediation_action or '')[:80]}"
         # CR-03: per-remediation description seam — the remediation action text.

@@ -222,6 +222,30 @@ async def sla_recalculate(
 
     result = await recalculate_sla_due_dates(db, user.tenant_id)
     breaches = await check_sla_breaches(db, user.tenant_id)
+
+    # WR-02: ticket SLA is materialized on the ticket rows (group MIN of the
+    # linked vuln sla_due_at), so changing vulnerability.sla_due_at leaves the
+    # ticket SLA stale until the next ticket create/sync. Recompute every
+    # affected ticket group now so the SLA pill reflects the new due dates
+    # immediately. recompute_ticket_sla does NOT commit — we commit below.
+    from sqlalchemy import distinct, select as _select
+
+    from app.ticketing.models import Ticket
+    from app.ticketing.service import recompute_ticket_sla
+
+    # Flush so the recomputed vuln sla_due_at values are visible to the
+    # MIN aggregate inside recompute_ticket_sla.
+    await db.flush()
+    ticket_urls = (
+        await db.execute(
+            _select(distinct(Ticket.external_ticket_url)).where(
+                Ticket.tenant_id == user.tenant_id
+            )
+        )
+    ).scalars().all()
+    for ticket_url in ticket_urls:
+        await recompute_ticket_sla(db, ticket_url, user.tenant_id)
+
     from app.audit import audit
 
     await audit(db, user, "sla.recalculate", "vulnerability", None, {**result, **breaches})
