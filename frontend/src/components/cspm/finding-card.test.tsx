@@ -2,7 +2,7 @@
  * TDD RED — finding-card.tsx, cspm-status-pill.tsx
  * Plan 14-03, Task 1.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 
