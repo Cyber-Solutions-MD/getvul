@@ -17,12 +17,12 @@ describe('StatusPill', () => {
     expect(dot?.className).toContain('bg-current');
   });
 
-  it('completed (lowercase from backend) maps to severity-low classes', () => {
+  it('completed (lowercase from backend) maps to success (green) classes', () => {
     const { container } = render(<StatusPill externalStatus="completed" />);
     const pill = container.querySelector('[data-status]') as HTMLElement;
-    expect(pill.className).toContain('border-severity-low/40');
-    expect(pill.className).toContain('bg-severity-low/10');
-    expect(pill.className).toContain('text-severity-low');
+    expect(pill.className).toContain('border-success/40');
+    expect(pill.className).toContain('bg-success/10');
+    expect(pill.className).toContain('text-success');
   });
 
   it('in_progress maps to amber classes', () => {
@@ -36,7 +36,7 @@ describe('StatusPill', () => {
   it('case-insensitive mapping: COMPLETED resolves to completed pill', () => {
     const { container } = render(<StatusPill externalStatus="COMPLETED" />);
     const pill = container.querySelector('[data-status]') as HTMLElement;
-    expect(pill.className).toContain('text-severity-low');
+    expect(pill.className).toContain('text-success');
   });
 
   it('blocked=true renders BOTH a provider-status pill AND a Blocked pill', () => {

@@ -2,7 +2,7 @@
  * StatusPill — 4-state ticket status pill with leading dot.
  *
  * UX-05-03 / D-P-04: Status uses a separate color family from severity
- * (Open=violet, In progress=amber, Completed=severity-low, Blocked=severity-critical).
+ * (Open=violet, In progress=amber, Completed=success green, Blocked=severity-critical).
  * When blocked=true, renders BOTH the provider-status pill AND a Blocked pill
  * side-by-side ("Open · Blocked") — not a replacement.
  *
@@ -38,7 +38,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
     label: 'In progress',
   },
   completed: {
-    classes: 'border-severity-low/40 bg-severity-low/10 text-severity-low',
+    classes: 'border-success/40 bg-success/10 text-success',
     label: 'Completed',
   },
 };
