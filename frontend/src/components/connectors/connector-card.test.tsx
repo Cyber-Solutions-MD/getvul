@@ -63,7 +63,9 @@ describe('ConnectorCard', () => {
         onToggleEnabled={vi.fn()}
       />,
     );
-    expect(screen.getByText(/never synced/i)).toBeTruthy();
+    // Both the metadata text and the SyncStatusPill may render "Never synced" —
+    // assert at least one exists (the behavior is: null sync shows "Never synced" in UI).
+    expect(screen.getAllByText(/never synced/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('Test 3c: renders record count when last_sync_record_count is set', () => {
