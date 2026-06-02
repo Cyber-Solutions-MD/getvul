@@ -30,42 +30,53 @@ export type TimelineEntry =
       createdAt: string;
     };
 
-// Day header label: "Today", "Yesterday", or "MMM D" (e.g. "Jan 15")
-function dayLabel(isoDate: string): string {
-  const entryDate = new Date(isoDate);
+// WR-08: derive BOTH the day key and the label from the same normalized local
+// Date so neighbouring entries near midnight never disagree. Grouping is by
+// LOCAL calendar day (matching the comment — the previous "UTC" comment was wrong).
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Day header label: "Today", "Yesterday", or "MMM D" (e.g. "Jan 15").
+// WR-08: keyed off the same local-day key as groupByDay (no per-entry recompute).
+function dayLabel(date: Date): string {
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
 
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-
-  if (sameDay(entryDate, today)) return 'Today';
-  if (sameDay(entryDate, yesterday)) return 'Yesterday';
+  const key = localDayKey(date);
+  if (key === localDayKey(today)) return 'Today';
+  if (key === localDayKey(yesterday)) return 'Yesterday';
 
   // "Jan 15" style — locale-aware short format
-  return entryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// Group entries by calendar day key (YYYY-MM-DD in UTC)
+// Group entries by LOCAL calendar day key (YYYY-MM-DD). WR-08: invalid
+// timestamps bucket under an "—" key with an "Unknown date" label rather
+// than producing a NaN-keyed group.
 function groupByDay(entries: TimelineEntry[]): Array<{ dayKey: string; label: string; entries: TimelineEntry[] }> {
   const groups: Map<string, { label: string; entries: TimelineEntry[] }> = new Map();
   for (const entry of entries) {
     const date = new Date(entry.createdAt);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const valid = Number.isFinite(date.getTime());
+    const key = valid ? localDayKey(date) : '—';
     if (!groups.has(key)) {
-      groups.set(key, { label: dayLabel(entry.createdAt), entries: [] });
+      groups.set(key, { label: valid ? dayLabel(date) : 'Unknown date', entries: [] });
     }
     groups.get(key)!.entries.push(entry);
   }
   return Array.from(groups.entries()).map(([dayKey, v]) => ({ dayKey, ...v }));
 }
 
-// Relative timestamp display (e.g., "12m ago", "2h ago")
+// Relative timestamp display (e.g., "12m ago", "2h ago").
+// WR-09: guard non-finite input (undefined/Invalid Date → NaN) and clamp
+// negative deltas (clock-skewed future timestamps) to "just now".
 function relativeTime(isoDate: string): string {
-  const ms = Date.now() - new Date(isoDate).getTime();
+  const t = new Date(isoDate).getTime();
+  if (!Number.isFinite(t)) return '—';
+  const ms = Date.now() - t;
+  if (ms < 0) return 'just now';
   const minutes = Math.floor(ms / 60_000);
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
