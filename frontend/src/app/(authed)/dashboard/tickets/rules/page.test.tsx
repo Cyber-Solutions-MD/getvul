@@ -111,8 +111,8 @@ describe('/tickets/rules page', () => {
     } as unknown as ReturnType<typeof useTicketRules>);
 
     const { container } = renderWithClient(<RulesPage />);
-    // SkeletonTable renders data-skeleton-table attribute
-    expect(container.querySelector('[data-skeleton-table]')).toBeTruthy();
+    // SkeletonTable renders data-skeleton-row on each row
+    expect(container.querySelector('[data-skeleton-row]')).toBeTruthy();
     // No EmptyState or PartialFailureBanner
     expect(container.querySelector('[role="status"]')).toBeNull();
     expect(container.querySelector('[role="alert"]')).toBeNull();
@@ -133,7 +133,7 @@ describe('/tickets/rules page', () => {
     // Peer voice copy
     expect(screen.getByText(/No automation rules yet/)).toBeInTheDocument();
     // No SkeletonTable or PartialFailureBanner
-    expect(container.querySelector('[data-skeleton-table]')).toBeNull();
+    expect(container.querySelector('[data-skeleton-row]')).toBeNull();
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -152,7 +152,7 @@ describe('/tickets/rules page', () => {
     // Full err.message present (not sliced)
     expect(screen.getByText(/rules load failed — request ID: abc-123/)).toBeInTheDocument();
     // No SkeletonTable or EmptyState
-    expect(container.querySelector('[data-skeleton-table]')).toBeNull();
+    expect(container.querySelector('[data-skeleton-row]')).toBeNull();
     expect(container.querySelector('[role="status"]')).toBeNull();
   });
 
