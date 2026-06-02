@@ -48,13 +48,14 @@ describe('TicketsTable', () => {
     const statusPill = container.querySelector('[data-status]');
     expect(statusPill).toBeInTheDocument();
 
-    // SlaPill — has font-mono class (D-SLA-04 spec) + shows Unknown for null dueAt
-    const slaPill = screen.getByText('Unknown');
-    expect(slaPill).toBeInTheDocument();
+    // SlaPill — has font-mono class (D-SLA-04 spec) + shows Unknown for null dueAt.
+    // Both desktop table and mobile card render an SlaPill, so we use getAllByText.
+    const slaPills = screen.getAllByText('Unknown');
+    expect(slaPills.length).toBeGreaterThan(0);
 
     // VulnCount — renders total·critical·high
-    // total=5, shows '5' text node
-    const vulnTotal = screen.getByText('5');
-    expect(vulnTotal).toBeInTheDocument();
+    // Both desktop table and mobile card render VulnCount; use getAllByText.
+    const vulnTotals = screen.getAllByText('5');
+    expect(vulnTotals.length).toBeGreaterThan(0);
   });
 });
