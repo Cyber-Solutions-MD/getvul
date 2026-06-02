@@ -660,21 +660,76 @@ async def list_tickets(
     page: int = 1,
     page_size: int = 25,
     asset_id: str | None = None,
+    severity: str | None = None,
+    sla: str | None = None,
+    search: str | None = None,
 ) -> dict:
     """List tickets grouped by Asana task (one row per task, not per CVE).
 
     Phase 12 / UX-04-02: when ``asset_id`` is provided, restrict the result
     set to tickets whose vulnerability sits on that asset. Implemented as a
     subquery so the existing grouped_q and detail_q stay untouched.
+
+    WR-01: ``provider``/``status`` accept comma-separated multi-values; the
+    four status chips (open/in_progress/completed/blocked) now map to backend
+    semantics instead of silently no-op'ing. ``search`` matches the human
+    ticket id / assignee (ILIKE) at the SQL level. ``severity`` and ``sla`` are
+    applied as a post-aggregate filter on the built items (the per-group
+    max_severity and SLA tier are only knowable after the detail aggregate).
     """
+    from datetime import UTC, datetime, timedelta
+
     # Build base filter
     base_filter = [Ticket.tenant_id == tenant_id]
-    if provider:
-        base_filter.append(Ticket.provider == provider)
-    if status == "open":
-        base_filter.append(Ticket.resolved_at.is_(None))
-    elif status == "resolved":
-        base_filter.append(Ticket.resolved_at.isnot(None))
+
+    # WR-01: provider is multi-value (comma-separated). Stored uppercase, so
+    # match case-insensitively against the lowercased chip values.
+    provider_vals = [p.strip() for p in (provider or "").split(",") if p.strip()]
+    if provider_vals:
+        base_filter.append(func.lower(Ticket.provider).in_([p.lower() for p in provider_vals]))
+
+    # WR-01: map the four status chips to backend semantics. Multiple chips OR
+    # together. "completed" → resolved; "blocked" → blocked flag; "open" /
+    # "in_progress" → not resolved (in_progress further requires an external
+    # status that is not the initial "open" — best-effort given the stub data).
+    status_vals = [s.strip() for s in (status or "").split(",") if s.strip()]
+    # Back-compat: the legacy single values open/resolved still work.
+    status_clauses = []
+    for s in status_vals:
+        if s in ("open", "in_progress"):
+            status_clauses.append(Ticket.resolved_at.is_(None))
+        elif s in ("completed", "resolved"):
+            status_clauses.append(Ticket.resolved_at.isnot(None))
+        elif s == "blocked":
+            status_clauses.append(Ticket.blocked.is_(True))
+    if status_clauses:
+        from sqlalchemy import or_
+
+        base_filter.append(or_(*status_clauses))
+
+    # WR-01: severity is multi-value. Semantics: include a ticket row if its
+    # linked vulnerability matches one of the selected severities (stored
+    # uppercase). Applied at the row level via the vuln join subquery so the
+    # grouped count stays consistent (a group survives if ANY of its rows
+    # match). This is an EXISTS-style row filter, not a group-MAX filter.
+    severity_vals = [s.strip().upper() for s in (severity or "").split(",") if s.strip()]
+    if severity_vals:
+        sev_ticket_ids = (
+            select(Vulnerability.id)
+            .where(Vulnerability.severity.in_(severity_vals))
+            .scalar_subquery()
+        )
+        base_filter.append(Ticket.vulnerability_id.in_(sev_ticket_ids))
+
+    # WR-01: free-text search across the human ticket id and assignee.
+    if search:
+        like = f"%{search}%"
+        from sqlalchemy import or_ as _or
+
+        base_filter.append(
+            _or(Ticket.external_ticket_id.ilike(like), Ticket.assignee.ilike(like))
+        )
+
     if asset_id:
         # T-12-21 mitigation — the Vulnerability subquery is unscoped, but
         # the outer `Ticket.tenant_id == tenant_id` constraint still applies,
@@ -685,6 +740,23 @@ async def list_tickets(
             select(Vulnerability.id).where(Vulnerability.asset_id == asset_id).scalar_subquery()
         )
         base_filter.append(Ticket.vulnerability_id.in_(ticket_ids_for_asset))
+
+    # WR-01: SLA tier filter operates on the group MIN(sla_due_at). Applied as a
+    # HAVING so pagination + total stay consistent. "soon" uses the same 7-day
+    # window the frontend SlaPill renders (WR-03 flags this flat window as a
+    # known divergence from per-severity SLA days — tracked, not changed here).
+    sla_having = None
+    sla_val = (sla or "").strip()
+    if sla_val:
+        now = datetime.now(UTC)
+        soon_cutoff = now + timedelta(days=7)
+        group_sla = func.min(Ticket.sla_due_at)
+        if sla_val == "overdue":
+            sla_having = group_sla < now
+        elif sla_val == "soon":
+            sla_having = (group_sla >= now) & (group_sla <= soon_cutoff)
+        elif sla_val == "ok":
+            sla_having = group_sla > soon_cutoff
 
     # Group by task URL (unique per Asana task) to get aggregated info
     grouped_q = (
@@ -708,10 +780,24 @@ async def list_tickets(
         .group_by(Ticket.external_ticket_url)
         .order_by(func.min(Ticket.ticket_created_at).desc())
     )
+    if sla_having is not None:
+        grouped_q = grouped_q.having(sla_having)
 
-    # Count unique tasks
-    count_sub = select(func.count(func.distinct(Ticket.external_ticket_url))).where(*base_filter)
-    total = (await db.execute(count_sub)).scalar_one()
+    # Count unique tasks. When an SLA HAVING is active, count the surviving
+    # groups via a subquery so the total matches the filtered page set.
+    if sla_having is not None:
+        count_groups_q = (
+            select(Ticket.external_ticket_url)
+            .where(*base_filter)
+            .group_by(Ticket.external_ticket_url)
+            .having(sla_having)
+        )
+        total = (
+            await db.execute(select(func.count()).select_from(count_groups_q.subquery()))
+        ).scalar_one()
+    else:
+        count_sub = select(func.count(func.distinct(Ticket.external_ticket_url))).where(*base_filter)
+        total = (await db.execute(count_sub)).scalar_one()
 
     # Paginate
     grouped_q = grouped_q.offset((page - 1) * page_size).limit(page_size)

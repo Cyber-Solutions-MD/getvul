@@ -233,7 +233,8 @@ async def test_get_ticket_detail_returns_required_fields(
         assert key in data, f"Detail response missing key: {key!r}"
 
     assert data["external_ticket_url"] == url
-    assert data["provider"] == "ASANA"
+    # CR-06: provider emitted lowercased at the API boundary (stored uppercase).
+    assert data["provider"] == "asana"
     assert data["blocked"] is False
     assert isinstance(data["linked_vulns"], list), "linked_vulns must be a list"
     assert isinstance(data["watchers"], list), "watchers must be a list"

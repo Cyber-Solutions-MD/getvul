@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, func, select, update
+from sqlalchemy import String, case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
@@ -109,6 +109,11 @@ async def list_all_tickets(
         None,
         description="Filter tickets to those whose vulnerabilities belong to this asset (uuid)",
     ),
+    # WR-01: these chip axes were previously accepted by the frontend and
+    # silently ignored. They now reach list_tickets and are applied.
+    severity: str | None = Query(None, description="Comma-separated severities (critical,high,...)"),
+    sla: str | None = Query(None, description="SLA tier: overdue | soon | ok"),
+    search: str | None = Query(None, description="Free-text match on ticket id / assignee"),
 ):
     """List all tickets with filtering and pagination.
 
@@ -119,7 +124,18 @@ async def list_all_tickets(
     on malformed input instead of letting it surface as a 500 from the DB
     layer (BL-02).
     """
-    return await list_tickets(db, user.tenant_id, provider, status, page, page_size, asset_id)
+    return await list_tickets(
+        db,
+        user.tenant_id,
+        provider,
+        status,
+        page,
+        page_size,
+        asset_id,
+        severity=severity,
+        sla=sla,
+        search=search,
+    )
 
 
 @router.get("/assignees")
@@ -759,7 +775,9 @@ async def get_ticket_detail(
     # ── Determine title ───────────────────────────────────────────────────────
     detail_q = (
         select(
-            func.min(Asset.id).label("asset_id"),
+            # Postgres has no min(uuid); cast to text. Only consumed when the
+            # group is single-host (host_count == 1), so the MIN is unambiguous.
+            func.min(func.cast(Asset.id, String)).label("asset_id"),
             func.min(Asset.hostname).label("hostname"),
             func.min(Asset.os_name).label("os_name"),
             func.max(Asset.risk_score).label("risk_score"),
