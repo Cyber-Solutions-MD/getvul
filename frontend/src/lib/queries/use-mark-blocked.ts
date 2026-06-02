@@ -80,7 +80,10 @@ export function useMarkBlocked() {
             if (!item || typeof item !== 'object') return item;
             const ticket = item as Record<string, unknown>;
             if (ticket.id !== id) return item;
-            return { ...ticket, blocked, blockedReason: blocked_reason };
+            // WR-07: snake_case to match TicketSummary/TicketDetail (CR-04).
+            // Previously this wrote camelCase blockedReason which never matched
+            // the snake_case key the UI reads.
+            return { ...ticket, blocked, blocked_reason };
           }),
         };
       });

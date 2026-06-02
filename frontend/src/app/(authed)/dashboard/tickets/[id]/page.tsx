@@ -56,6 +56,7 @@ import { useTicketComments, useAddComment } from '@/lib/queries/use-ticket-comme
 import { useTicketWatch } from '@/lib/queries/use-ticket-watch';
 import { useMarkBlocked } from '@/lib/queries/use-mark-blocked';
 import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useAuth } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // Skeleton columns — mirrors assets/[id] shape (pill + mono + text + score)
@@ -88,17 +89,18 @@ function severityGlyph(severity: string | null) {
 function mapCommentsToEntries(
   comments: Array<{
     id: string;
-    userDisplayName: string | null;
+    user_display_name: string | null;
     body: string;
-    createdAt: string;
+    created_at: string;
   }>,
 ): TimelineEntry[] {
+  // CR-05: read snake_case (user_display_name / created_at) — the wire shape.
   return comments.map((c) => ({
     kind: 'comment' as const,
     id: c.id,
-    author: c.userDisplayName,
+    author: c.user_display_name,
     body: c.body,
-    createdAt: c.createdAt,
+    createdAt: c.created_at,
   }));
 }
 
@@ -153,18 +155,19 @@ function buildWatcherList(params: {
 // Inner component (rendered inside ErrorBoundary > Suspense)
 // ---------------------------------------------------------------------------
 
-// Hard-coded current-user placeholder — the app has no established global
-// user hook. The watch-toggle uses currentUserId to patch the watchers
-// array optimistically. We use '' here (no local user context available);
-// the server truth is authoritative on invalidation.
-const CURRENT_USER_ID = '';
-
 function TicketDetailInner() {
   const { id } = useParams<{ id: string }>();
 
+  // WR-06: source the real current-user id from the auth context (useAuth).
+  // The watch-toggle uses it to patch the watchers array optimistically and to
+  // compute isWatching. Empty string only if the session somehow lacks a user
+  // (the (authed) layout already gates unauthenticated access).
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? '';
+
   const detail = useTicketDetail(id);
   const comments = useTicketComments(id);
-  const watch = useTicketWatch(id ?? '', CURRENT_USER_ID);
+  const watch = useTicketWatch(id ?? '', currentUserId);
   // REUSE useMarkBlocked from 13-07 — do NOT redefine it here.
   const markBlocked = useMarkBlocked();
   const addComment = useAddComment(id ?? '');
@@ -223,8 +226,9 @@ function TicketDetailInner() {
     watchers: t.watchers,
   });
 
-  // Is current user already watching?
-  const isWatching = t.watchers.some((w) => w.userId === CURRENT_USER_ID);
+  // Is current user already watching? (WR-06: compares real user id.)
+  const isWatching =
+    !!currentUserId && t.watchers.some((w) => w.userId === currentUserId);
 
   // W7: explicit 900px gate mirrors assets/[id] and Phase 11 D-P-03 threshold
   return (
@@ -247,8 +251,8 @@ function TicketDetailInner() {
 
           {/* Status pills row */}
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill externalStatus={t.externalStatus} blocked={t.blocked} />
-            <SlaPill dueAt={t.slaDueAt} />
+            <StatusPill externalStatus={t.external_status} blocked={t.blocked} />
+            <SlaPill dueAt={t.sla_due_at} />
           </div>
         </header>
 
@@ -257,7 +261,7 @@ function TicketDetailInner() {
           <h2 className="text-sm uppercase tracking-wide text-text-muted">
             Linked vulnerabilities
           </h2>
-          {t.linkedVulns.length === 0 ? (
+          {t.linked_vulns.length === 0 ? (
             <EmptyState>
               <EmptyState.Title>No linked vulnerabilities</EmptyState.Title>
               <EmptyState.Body>
@@ -266,7 +270,7 @@ function TicketDetailInner() {
             </EmptyState>
           ) : (
             <ul className="space-y-1">
-              {t.linkedVulns.map((v) => {
+              {t.linked_vulns.map((v) => {
                 const { glyph, className } = severityGlyph(v.severity);
                 return (
                   <li
@@ -323,13 +327,13 @@ function TicketDetailInner() {
         <div className="rounded-xl border border-border-subtle bg-surface-2 p-4 space-y-3">
           <h3 className="text-xs uppercase tracking-wide text-text-muted font-medium">Details</h3>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill externalStatus={t.externalStatus} blocked={t.blocked} />
-            <SlaPill dueAt={t.slaDueAt} />
+            <StatusPill externalStatus={t.external_status} blocked={t.blocked} />
+            <SlaPill dueAt={t.sla_due_at} />
           </div>
           {/* BlockedToggle — inline editor per D-P-03; reuses 13-07 useMarkBlocked */}
           <BlockedToggle
             blocked={t.blocked}
-            blockedReason={t.blockedReason}
+            blockedReason={t.blocked_reason}
             pending={markBlocked.isPending}
             onToggle={(next) =>
               markBlocked.mutate({

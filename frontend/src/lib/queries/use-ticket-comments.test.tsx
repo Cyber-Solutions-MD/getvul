@@ -42,7 +42,7 @@ describe('useAddComment mutation — optimistic append', () => {
 
     // Pre-seed the cache with an existing comment
     qc.setQueryData(commentsKey, [
-      { id: 'c1', userId: 'u1', userDisplayName: 'Alice', body: 'First', createdAt: new Date().toISOString(), editedAt: null },
+      { id: 'c1', user_id: 'u1', user_display_name: 'Alice', body: 'First', created_at: new Date().toISOString(), edited_at: null },
     ]);
 
     // Import the real hook
@@ -103,7 +103,7 @@ describe('useAddComment mutation behavior — integration', () => {
     const byIdKey = queryKeys.tickets.byId(id);
 
     const existing = [
-      { id: 'c1', userId: 'u1', userDisplayName: 'Alice', body: 'Hello', createdAt: '2024-01-01T10:00:00Z', editedAt: null },
+      { id: 'c1', user_id: 'u1', user_display_name: 'Alice', body: 'Hello', created_at: '2024-01-01T10:00:00Z', edited_at: null },
     ];
 
     qc.setQueryData(commentsKey, existing);

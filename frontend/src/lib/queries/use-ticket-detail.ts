@@ -27,15 +27,21 @@ export type LinkedVuln = {
   cvss: number | null;
 };
 
+// CR-02/03/04: top-level keys are snake_case to match the verbatim JSON the
+// detail endpoint emits (api() does no casing transform). Nested objects
+// (assignee/reporter/watchers/asset) keep camelCase keys because the backend
+// emits THOSE nested keys camelCase (matching the existing reporter/watcher
+// convention on this endpoint).
 export type TicketDetail = {
   id: string;
   provider: TicketProvider;
-  externalTicketUrl: string;
-  externalStatus: string | null;
+  external_ticket_id: string;
+  external_ticket_url: string;
+  external_status: string | null;
   blocked: boolean;
-  blockedReason: string | null;
-  slaDueAt: string | null;
-  /** Ticket assignee (null if not assigned). */
+  blocked_reason: string | null;
+  sla_due_at: string | null;
+  /** CR-02: Person object (or null), never a bare string. */
   assignee: Person | null;
   /**
    * reporter is always typed as Person | null — the People card renders '—' when null.
@@ -44,11 +50,11 @@ export type TicketDetail = {
   reporter: Person | null;
   title: string;
   description: string | null;
-  maxSeverity: string | null;
-  vulnCount: number;
-  criticalCount: number;
-  highCount: number;
-  linkedVulns: LinkedVuln[];
+  max_severity: string | null;
+  vuln_count: number;
+  critical_count: number;
+  high_count: number;
+  linked_vulns: LinkedVuln[];
   watchers: Watcher[];
   asset: {
     assetId: string;

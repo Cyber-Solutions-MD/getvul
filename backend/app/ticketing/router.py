@@ -459,25 +459,33 @@ async def list_ticket_comments(
     Comments FK to tickets(id) using the canonical first_ticket_id (the MIN row id
     in the group returned by list_tickets). Tenant scope enforced by _resolve_group.
     """
+    from app.tenants.models import User
+
     row, _url = await _resolve_group(db, ticket_id, user.tenant_id)
 
+    # CR-05: LEFT JOIN users so each comment carries user_display_name. Without
+    # it the frontend timeline rendered every author as "Unknown". snake_case
+    # keys (user_display_name / created_at / edited_at) match the wire convention
+    # api() consumes verbatim (no casing transform).
     comments_q = (
-        select(TicketComment)
+        select(TicketComment, User.display_name.label("user_display_name"))
+        .outerjoin(User, TicketComment.user_id == User.id)
         .where(TicketComment.ticket_id == row.id)
         .order_by(TicketComment.created_at.asc())
     )
-    results = (await db.execute(comments_q)).scalars().all()
+    results = (await db.execute(comments_q)).all()
 
     return [
         {
             "id": str(c.id),
             "ticket_id": str(c.ticket_id),
             "user_id": str(c.user_id),
+            "user_display_name": user_display_name,
             "body": c.body,
             "created_at": c.created_at.isoformat() if c.created_at else None,
             "edited_at": c.edited_at.isoformat() if c.edited_at else None,
         }
-        for c in results
+        for c, user_display_name in results
     ]
 
 
@@ -751,7 +759,22 @@ async def get_ticket_detail(
     # ── Determine title ───────────────────────────────────────────────────────
     detail_q = (
         select(
+            func.min(Asset.id).label("asset_id"),
             func.min(Asset.hostname).label("hostname"),
+            func.min(Asset.os_name).label("os_name"),
+            func.max(Asset.risk_score).label("risk_score"),
+            func.count(func.distinct(Asset.id)).label("host_count"),
+            func.max(
+                case(
+                    (Vuln.severity == "CRITICAL", 4),
+                    (Vuln.severity == "HIGH", 3),
+                    (Vuln.severity == "MEDIUM", 2),
+                    (Vuln.severity == "LOW", 1),
+                    else_=0,
+                )
+            ).label("max_sev_rank"),
+            func.count().filter(Vuln.severity == "CRITICAL").label("critical_count"),
+            func.count().filter(Vuln.severity == "HIGH").label("high_count"),
             func.min(Ticket.created_by_rule).label("created_by_rule"),
             func.min(Vuln.remediation_action).label("remediation_action"),
             func.min(Vuln.affected_product).label("affected_product"),
@@ -769,20 +792,78 @@ async def get_ticket_detail(
     is_per_remediation = bool(detail.created_by_rule) if detail else False
     if is_per_remediation:
         title = f"{detail.affected_product or 'Unknown'}: {(detail.remediation_action or '')[:80]}"
+        # CR-03: per-remediation description seam — the remediation action text.
+        description = detail.remediation_action if detail else None
     else:
         title = detail.hostname if detail else "Unknown"
+        description = None
 
+    # CR-03: severity aggregates for the People/Asset rail + summary.
+    sev_map = {4: "CRITICAL", 3: "HIGH", 2: "MEDIUM", 1: "LOW", 0: "INFO"}
+    max_severity = sev_map.get(detail.max_sev_rank, "UNKNOWN") if detail else None
+    host_count = detail.host_count if detail else 0
+
+    # CR-03: single-host tickets expose a typed asset object so TicketAssetCard
+    # cross-links to /assets/{id}; multi-host groups send asset=null (the card
+    # then renders the "Multiple hosts" fallback). camelCase nested keys match
+    # the existing reporter/watcher nested-object convention on this endpoint.
+    asset_obj = None
+    if detail and host_count == 1 and detail.asset_id is not None:
+        asset_obj = {
+            "assetId": str(detail.asset_id),
+            "hostname": detail.hostname,
+            "osName": detail.os_name,
+            "riskScore": detail.risk_score,
+        }
+
+    # CR-02: resolve the assignee string (email/user id) to a Person object so
+    # the People card + buildWatcherList receive an object, never a bare string.
+    raw_assignee = group.assignee if group else row.assignee
+    assignee_obj = None
+    if raw_assignee:
+        assignee_row = (
+            await db.execute(
+                select(User.id, User.display_name, User.email).where(
+                    User.email == raw_assignee, User.tenant_id == user.tenant_id
+                )
+            )
+        ).first()
+        if assignee_row:
+            assignee_obj = {
+                "userId": str(assignee_row.id),
+                "displayName": assignee_row.display_name,
+                "email": assignee_row.email,
+            }
+        else:
+            # No matching user row — surface the raw value as the display name
+            # so the card still shows something meaningful (no userId collision).
+            assignee_obj = {
+                "userId": f"assignee:{raw_assignee}",
+                "displayName": raw_assignee,
+                "email": raw_assignee if "@" in raw_assignee else None,
+            }
+
+    raw_provider = group.provider if group else row.provider
     return {
         "id": str(row.id),
-        "provider": group.provider if group else row.provider,
+        # CR-06: lowercased provider for the frontend literal lookups.
+        "provider": raw_provider.lower() if raw_provider else raw_provider,
+        "external_ticket_id": row.external_ticket_id,
         "external_ticket_url": external_ticket_url,
         "external_status": group.external_status if group else row.external_status,
         "blocked": bool(group.blocked) if group else False,
         "blocked_reason": group.blocked_reason if group else None,
         "sla_due_at": group.sla_due_at.isoformat() if group and group.sla_due_at else None,
-        "assignee": group.assignee if group else row.assignee,
+        # CR-02: Person object (or null), never a bare string.
+        "assignee": assignee_obj,
         "reporter": reporter_data,
         "title": title,
+        # CR-03: fields the detail page consumes.
+        "description": description,
+        "max_severity": max_severity,
+        "critical_count": detail.critical_count if detail else 0,
+        "high_count": detail.high_count if detail else 0,
+        "asset": asset_obj,
         "linked_vulns": linked_vulns,
         "watchers": watchers,
         "vuln_count": group.vuln_count if group else 0,

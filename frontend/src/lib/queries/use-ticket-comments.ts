@@ -20,13 +20,16 @@ import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 import { queryKeys } from './keys';
 
+// CR-05: snake_case to match the comments endpoint payload verbatim
+// (api() does no casing transform). The backend now LEFT JOINs users to emit
+// user_display_name; previously every author rendered as "Unknown".
 export type Comment = {
   id: string;
-  userId: string;
-  userDisplayName: string | null;
+  user_id: string;
+  user_display_name: string | null;
   body: string;
-  createdAt: string;
-  editedAt: string | null;
+  created_at: string;
+  edited_at: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -73,11 +76,11 @@ export function useAddComment(id: string) {
         const list = Array.isArray(prev) ? prev : [];
         const optimistic: Comment = {
           id: `optimistic-${Date.now()}`,
-          userId: '',
-          userDisplayName: 'You',
+          user_id: '',
+          user_display_name: 'You',
           body,
-          createdAt: new Date().toISOString(),
-          editedAt: null,
+          created_at: new Date().toISOString(),
+          edited_at: null,
         };
         return [...list, optimistic];
       });

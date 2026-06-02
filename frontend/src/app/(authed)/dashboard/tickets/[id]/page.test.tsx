@@ -32,23 +32,27 @@ const mockMutate = vi.fn();
 const mockAddCommentMutate = vi.fn();
 const mockWatchMutate = vi.fn();
 
+// CR-02/03/04/05: top-level keys are snake_case (the wire shape); nested
+// assignee/reporter/watchers/asset keep camelCase keys (backend emits those
+// nested keys camelCase).
 const MOCK_DETAIL = {
   id: 't1',
   provider: 'jira' as const,
-  externalTicketUrl: 'https://jira.example.com/T-42',
-  externalStatus: 'open',
+  external_ticket_id: 'T-42',
+  external_ticket_url: 'https://jira.example.com/T-42',
+  external_status: 'open',
   blocked: false,
-  blockedReason: null,
-  slaDueAt: null,
+  blocked_reason: null,
+  sla_due_at: null,
   assignee: { userId: 'u1', displayName: 'Alice Smith', email: 'alice@example.com' },
   reporter: { userId: 'u2', displayName: 'Bob Jones', email: 'bob@example.com' },
   title: 'Fix CVE-2024-0001 on prod-db-01',
   description: 'This ticket tracks remediation of CVE-2024-0001.',
-  maxSeverity: 'CRITICAL',
-  vulnCount: 3,
-  criticalCount: 1,
-  highCount: 2,
-  linkedVulns: [
+  max_severity: 'CRITICAL',
+  vuln_count: 3,
+  critical_count: 1,
+  high_count: 2,
+  linked_vulns: [
     { cve: 'CVE-2024-0001', severity: 'CRITICAL', cvss: 9.8 },
     { cve: 'CVE-2024-0002', severity: 'HIGH', cvss: 7.5 },
     { cve: 'CVE-2024-0003', severity: 'HIGH', cvss: 6.1 },
@@ -67,11 +71,11 @@ const MOCK_DETAIL = {
 const MOCK_COMMENTS = [
   {
     id: 'c1',
-    userId: 'u1',
-    userDisplayName: 'Alice Smith',
+    user_id: 'u1',
+    user_display_name: 'Alice Smith',
     body: 'Investigating now.',
-    createdAt: '2024-01-01T10:00:00Z',
-    editedAt: null,
+    created_at: '2024-01-01T10:00:00Z',
+    edited_at: null,
   },
 ];
 
@@ -107,6 +111,19 @@ vi.mock('@/lib/queries/use-mark-blocked', () => ({
   useMarkBlocked: () => ({
     mutate: mockMutate,
     isPending: false,
+  }),
+}));
+
+// WR-06: the page now sources the current-user id from useAuth().
+vi.mock('@/lib/auth', () => ({
+  useAuth: () => ({
+    user: { id: 'u1', email: 'alice@example.com', display_name: 'Alice Smith', tenant_id: 'tn1' },
+    loading: false,
+    token: 'test-token',
+    login: vi.fn(),
+    register: vi.fn(),
+    loginSSO: vi.fn(),
+    logout: vi.fn(),
   }),
 }));
 
