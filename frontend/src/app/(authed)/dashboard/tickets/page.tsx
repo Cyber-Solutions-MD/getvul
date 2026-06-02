@@ -171,7 +171,9 @@ function TicketsPageInner() {
           method: 'POST',
           body: JSON.stringify({
             action,
-            external_ticket_urls: urls,
+            // CR-01: router.py reads body.get("ticket_urls"); the key MUST be
+            // ticket_urls or every bulk action 400s ("No tickets selected").
+            ticket_urls: urls,
             blocked_reason: blockedReason ?? null,
           }),
           headers: { 'Content-Type': 'application/json' },
