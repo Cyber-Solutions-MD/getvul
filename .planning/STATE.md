@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
 status: Ready to execute
-last_updated: "2026-06-02T05:46:42.916Z"
+last_updated: "2026-06-02T06:08:00Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 37
-  completed_plans: 32
-  percent: 86
+  completed_plans: 33
+  percent: 89
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -25,13 +25,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 ## Current Position
 
 Phase: 13 (tickets-list-detail) — EXECUTING
-Plan: 5 of 9 (completed)
+Plan: 6 of 9 (completed)
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
 | Active phase | 13 — `/tickets` List + Detail |
-| Last action | 2026-06-02 — Plan 05 complete: DrillPanel/DrillPanelMobile generalized (D-D-02 additive) + TicketDrillContent (D-D-01) with 15 tests green |
-| Next action | Execute Plan 13-06 (BlockedToggle + useMarkBlocked mutation) |
+| Last action | 2026-06-02 — Plan 06 complete: WatcherStack + ActivityTimeline + CommentInput + BlockedToggle + TicketAssetCard + microcopy.ts; 15 tests green |
+| Next action | Execute Plan 13-07 (tickets list page + backend reshape) |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -71,6 +71,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - close() deletes 'open' + active idKey; ticket callers pass idKey='ticket'; vuln callers get default idKey='cve'
 - TicketDrillData type exported from ticket-drill-content.tsx for Plan 07 contract
 - renderBlockedToggle slot renders disabled placeholder when absent (Plan 06/08 wires real BlockedToggle)
+- WatcherStack role-priority Map dedupes by userId (assignee=0, reporter=1, watcher=2); strongest wins per unique userId
+- ActivityTimeline groups by local calendar day key (YYYY-MM-DD) to avoid locale issues; ascending sort D-C-04
+- BlockedToggle whitespace-only reason coerces to null per D-P-02; backend validator mirrors this
+- CommentInput Ctrl/Cmd+Enter shortcut; char-count warning at 9500 chars before 10000 hard limit
+- TicketAssetCard null assetId renders "Multiple hosts" with no link (multi-host ticket safety)
 
 ---
-*Last updated: 2026-06-02 — Plan 13-05 complete: DrillPanel generalization (D-D-02) + TicketDrillContent (D-D-01)*
+*Last updated: 2026-06-02 — Plan 13-06 complete: WatcherStack + ActivityTimeline + CommentInput + BlockedToggle + TicketAssetCard + microcopy.ts; 15 tests green*
