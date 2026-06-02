@@ -1239,22 +1239,25 @@ type Props = {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Connector sentinel behavior clarification**
    - What we know: `ConnectorUpdate.credentials` is optional; omitting it keeps credentials. `has_credentials: boolean` is on the response. Backend never returns credential values.
    - What's unclear: Should the edit form display `"••••••"` in the input field as a placeholder, or as the actual field value that gets sent back? The v1 edit modal uses blank fields ("leave blank to keep existing") which is simpler but less clear.
    - Recommendation: D-CONN-04 locks the sentinel approach (`"••••••"`-prefilled fields, untouched → omit credentials from PATCH body). Implement as: pre-fill with `"••••••"` (6 bullets) visually; track whether user has changed any field; if unchanged, omit `credentials` from the PATCH; if changed, include only the changed fields.
+   - **RESOLVED** — D-CONN-04 locks omit-credentials-when-unchanged (implemented in 14-02 ConnectorForm).
 
 2. **Notification "Alert categories" field shape**
    - What we know: `GET /api/v1/tenant/settings` returns no explicit `alert_categories` field in the current router.
    - What's unclear: What fields exist in the settings payload for notification preferences beyond `smtp_config` and `syslog_config`.
    - Recommendation: Claude's discretion per CONTEXT.md. If not present, render a placeholder card for "Alert categories" with the same coming-soon EmptyState pattern as API tokens.
+   - **RESOLVED** — Claude's Discretion per CONTEXT.md; render coming-soon EmptyState if field absent (14-05 NotificationsPane).
 
 3. **Audit log response shape from `get_audit_logs`**
    - What we know: `GET /api/v1/tenant/audit-log` calls `get_audit_logs(db, tenant_id, action, resource_type, user_email, page, page_size)`.
    - What's unclear: The exact response envelope — whether it returns `{items, total, page}` or a flat list. The `get_audit_logs` helper in `app/audit.py` was not read.
    - Recommendation: Read `backend/app/audit.py` `get_audit_logs()` function during planning to confirm the response shape.
+   - **RESOLVED** at execution time — 14-05 Task 2 read_first already includes backend/app/audit.py to confirm the envelope shape before implementing.
 
 ---
 
