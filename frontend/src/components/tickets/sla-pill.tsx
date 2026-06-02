@@ -14,7 +14,17 @@
  */
 import { cn } from '@/lib/utils';
 
-// 7-day threshold in milliseconds (D-SLA-04 — defined ONCE here)
+// 7-day threshold in milliseconds (D-SLA-04 — defined ONCE here).
+//
+// WR-03 (intentional, documented): the "soon" window is a single flat 7-day
+// band, NOT derived from the per-severity SLA budgets the backend assigns
+// (CRITICAL 3d / HIGH 14d / ... / INFO 180d). The pill answers "is this due
+// imminently?" on a uniform scale across all severities — the severity itself
+// is already surfaced by the Severity column/glyph, so weighting the SLA band
+// by severity too would double-encode it. The backend SLA chip filter
+// (list_tickets, WR-01) uses the SAME 7-day window so the chip and the pill
+// agree. If product later wants per-severity bands, surface a backend-computed
+// tier and switch this constant to read it.
 const SOON_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 
 type SlaTier = 'overdue' | 'soon' | 'ok' | 'unknown';
