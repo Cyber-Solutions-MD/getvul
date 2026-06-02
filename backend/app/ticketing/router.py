@@ -7,16 +7,21 @@ import uuid
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import audit
 from app.auth.dependencies import get_current_user
 from app.auth.rbac import require_analyst
 from app.auth.schemas import CurrentUser
 from app.db.session import get_db
 from app.ticketing.asana_client import AsanaClient
+from app.ticketing.models import Ticket, TicketComment, TicketWatcher
 from app.ticketing.schemas import (
     AsanaConfigResponse,
     AsanaConfigUpdate,
+    BlockedUpdate,
+    CommentCreate,
     HostTicketCreateRequest,
     TicketCreateRequest,
     TicketRuleCreate,
@@ -375,6 +380,161 @@ async def close_ticket_endpoint(
         return result
     finally:
         await asana_client.close()
+
+
+# ── Canonical-group resolution helper ─────────────────────────────────────────
+#
+# Canonical identity (O1, RESOLVED): a logical ticket is the group of `tickets`
+# rows sharing one `external_ticket_url`. Routes accept `ticket_id: uuid.UUID`
+# (BL-02 → malformed UUID yields 422 not 500). The handler resolves {id} →
+# its row → its `external_ticket_url`, scoped to `tenant_id`. Cross-tenant
+# rows are indistinguishable from missing (IDOR pattern, mirrors snooze_vuln
+# T-10-01) → 404.
+#
+# Returns: (row, external_ticket_url)
+# - row: the resolved Ticket row (used for first_ticket_id in comments/watchers)
+# - external_ticket_url: the group key (used for blocked/sla group updates)
+
+
+async def _resolve_group(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+) -> tuple[Ticket, str]:
+    """Resolve a ticket_id to its group (external_ticket_url) within a tenant.
+
+    Canonical-group identity rule (O1): returns the Ticket row (used as the
+    canonical first_ticket_id for comments/watchers FK) and its external_ticket_url
+    (used for group-scoped blocked/sla UPDATEs).
+
+    Cross-tenant IDs are treated as missing (IDOR guard, T-13-08) → 404.
+    """
+    result = await db.execute(
+        select(Ticket).where(
+            Ticket.id == ticket_id,
+            Ticket.tenant_id == tenant_id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return row, row.external_ticket_url
+
+
+# ── Comment routes ─────────────────────────────────────────────────────────────
+
+
+@router.get("/{ticket_id}/comments")
+async def list_ticket_comments(
+    ticket_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_analyst),
+):
+    """List local audit comments for a logical ticket, chronological ascending (D-C-04).
+
+    Canonical identity (O1): resolves {ticket_id} to first_ticket_id within tenant.
+    Comments FK to tickets(id) using the canonical first_ticket_id (the MIN row id
+    in the group returned by list_tickets). Tenant scope enforced by _resolve_group.
+    """
+    row, _url = await _resolve_group(db, ticket_id, user.tenant_id)
+
+    comments_q = (
+        select(TicketComment)
+        .where(TicketComment.ticket_id == row.id)
+        .order_by(TicketComment.created_at.asc())
+    )
+    results = (await db.execute(comments_q)).scalars().all()
+
+    return [
+        {
+            "id": str(c.id),
+            "ticket_id": str(c.ticket_id),
+            "user_id": str(c.user_id),
+            "body": c.body,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "edited_at": c.edited_at.isoformat() if c.edited_at else None,
+        }
+        for c in results
+    ]
+
+
+@router.post("/{ticket_id}/comments", status_code=201)
+async def add_ticket_comment(
+    ticket_id: uuid.UUID,
+    body: CommentCreate,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_analyst),
+):
+    """Add a local audit comment to a logical ticket (D-C-01/03).
+
+    Canonical identity (O1): resolves {ticket_id} to first_ticket_id within tenant.
+    Comments FK to tickets(id) using the canonical first_ticket_id. Audit-then-commit
+    (AUDIT-01): audit() called BEFORE db.commit() — fail-closed.
+
+    Mass-assignment guard (T-13-09): only CommentCreate.body is written to DB.
+    """
+    row, _url = await _resolve_group(db, ticket_id, user.tenant_id)
+
+    comment = TicketComment(
+        ticket_id=row.id,
+        user_id=user.id,
+        body=body.body,
+    )
+    db.add(comment)
+    await db.flush()
+
+    # Audit BEFORE commit — fail-closed (AUDIT-01, T-13-10)
+    await audit(db, user, "ticket.comment_added", "ticket", str(ticket_id), {})
+    await db.commit()
+    await db.refresh(comment)
+
+    return {
+        "id": str(comment.id),
+        "ticket_id": str(comment.ticket_id),
+        "user_id": str(comment.user_id),
+        "body": comment.body,
+        "created_at": comment.created_at.isoformat() if comment.created_at else None,
+        "edited_at": None,
+    }
+
+
+# ── Blocked route ──────────────────────────────────────────────────────────────
+
+
+@router.post("/{ticket_id}/blocked")
+async def set_ticket_blocked(
+    ticket_id: uuid.UUID,
+    body: BlockedUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_analyst),
+):
+    """Toggle the blocked state for a logical ticket group (D-P-02).
+
+    Canonical identity (O1): blocked/blocked_reason apply to the WHOLE group
+    (UPDATE WHERE external_ticket_url = url AND tenant_id = ...). This mirrors
+    how close_ticket already operates on a group.
+
+    Audit-then-commit (AUDIT-01, T-13-10): audit() called BEFORE db.commit().
+    Mass-assignment guard (T-13-09): only blocked + blocked_reason written to DB.
+    """
+    _row, external_ticket_url = await _resolve_group(db, ticket_id, user.tenant_id)
+
+    # Apply to the WHOLE group (canonical-identity rule O1)
+    await db.execute(
+        update(Ticket)
+        .where(
+            Ticket.external_ticket_url == external_ticket_url,
+            Ticket.tenant_id == user.tenant_id,
+        )
+        .values(blocked=body.blocked, blocked_reason=body.blocked_reason)
+    )
+
+    action = "ticket.blocked" if body.blocked else "ticket.unblocked"
+    # Audit BEFORE commit — fail-closed (AUDIT-01, T-13-10)
+    await audit(db, user, action, "ticket", str(ticket_id), {"reason": body.blocked_reason})
+    await db.commit()
+
+    return {"blocked": body.blocked, "blocked_reason": body.blocked_reason}
 
 
 # ── Asana configuration ──
