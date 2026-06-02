@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings,
+  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GradientText } from '@/components/ui/gradient-text';
@@ -38,6 +38,9 @@ const WORKFLOW_ITEMS: NavItem[] = [
   // is actually `connectors/` (verified during Phase 10 HUMAN-UAT). Correcting
   // the href here; the label stays `Connectors` per D-36 wording.
   { label: 'Tickets',    href: '/dashboard/tickets',    icon: Ticket, chip: 'ticket_open' },
+  // Phase 13 Plan 09 (D-S-01) — standalone /tickets/rules route (sunset rewrite, D-S-01).
+  // No chip per D-N-01 (rules surface does not carry a live count badge).
+  { label: 'Rules',      href: '/dashboard/tickets/rules', icon: Zap },
   { label: 'Connectors', href: '/dashboard/connectors', icon: Plug },
 ];
 
