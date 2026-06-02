@@ -41,32 +41,37 @@ export default function ConfirmModal({
 
   if (!open) return null;
 
+  // Sunset token mapping — Phase 14 restyle (Pitfall 2, D-CONN-06).
+  // No raw palette utilities (gray-*, indigo-*, red-600, yellow-*).
   const btnColor =
     variant === "danger"
-      ? "bg-red-600 hover:bg-red-500 focus:ring-red-500"
+      ? "bg-severity-critical text-white hover:bg-severity-critical/90"
       : variant === "warning"
-        ? "bg-yellow-600 hover:bg-yellow-500 focus:ring-yellow-500"
-        : "bg-indigo-600 hover:bg-indigo-500 focus:ring-indigo-500";
+        ? "bg-amber text-surface hover:bg-amber/90"
+        : "bg-violet text-white hover:bg-violet/90";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm"
+      onClick={onCancel}
+    >
       <div
-        className="mx-4 w-full max-w-md rounded-xl border border-gray-800 bg-gray-900 p-6 shadow-2xl"
+        className="mx-4 w-full max-w-md rounded-xl border border-border-subtle bg-surface-2 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="mt-2 text-sm text-gray-400 whitespace-pre-wrap">{message}</p>
+        <h3 className="text-lg font-semibold text-text">{title}</h3>
+        <p className="mt-2 text-sm text-text-muted whitespace-pre-wrap">{message}</p>
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onCancel}
-            className="rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition"
+            className="rounded-lg border border-border-subtle px-4 py-2 text-sm text-text-muted hover:text-text hover:bg-surface transition"
           >
             {cancelLabel}
           </button>
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${btnColor}`}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface-2 ${btnColor}`}
           >
             {confirmLabel}
           </button>

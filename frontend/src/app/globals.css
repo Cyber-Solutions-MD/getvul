@@ -61,6 +61,27 @@ html { scrollbar-color: var(--color-border-strong) var(--color-bg); }
   --gradient-provider-github: linear-gradient(135deg, #C7BAFF, #A78BFA);
 }
 
+/* Phase 14 — Additional provider gradient tokens (D-CONN-01). Hex lives ONCE here.
+   <ConnectorMark> consumes via var(--gradient-provider-{type}) literal lookup.
+   All at 135deg to match the Phase 13 convention (D-PROV-03). */
+:root {
+  /* Vulnerability scanners */
+  --gradient-provider-crowdstrike:      linear-gradient(135deg, #E04020, #C0301A);
+  --gradient-provider-nessus:           linear-gradient(135deg, #00C176, #008F55);
+  --gradient-provider-defender:         linear-gradient(135deg, #5C9CFF, #2563EB);
+  --gradient-provider-wiz:              linear-gradient(135deg, #6ECCAF, #2E8B57);
+  --gradient-provider-qualys:           linear-gradient(135deg, #E84E4E, #C23B3B);
+  --gradient-provider-rapid7:           linear-gradient(135deg, #E87A2A, #C05C18);
+  /* Identity providers */
+  --gradient-provider-google_workspace: linear-gradient(135deg, #60A5FA, #2563EB);
+  --gradient-provider-azure_entra_id:   linear-gradient(135deg, #818CF8, #4F46E5);
+  --gradient-provider-okta:             linear-gradient(135deg, #818CF8, #4F46E5);
+  /* Enrichment / MDM */
+  --gradient-provider-jamf:             linear-gradient(135deg, #6EE7B7, #059669);
+  --gradient-provider-intune:           linear-gradient(135deg, #818CF8, #4338CA);
+  --gradient-provider-humaans:          linear-gradient(135deg, #67E8F9, #0E7490);
+}
+
 /* Animation keyframes — D-15. Phase 9 only consumes gradient-drift; others
    are pre-declared so phases 10+ don't need to touch globals.css again. */
 @keyframes pulse-urgency {

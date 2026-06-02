@@ -61,4 +61,32 @@ export const queryKeys = {
     watchers: (id: string) => ['tickets', id, 'watchers'] as const,
     rules: () => ['tickets', 'rules'] as const,
   },
+  // Phase 14 — Wave 0 namespace extension (14-00 Task 2).
+  // cspm, settings, directoryUsers consumed by Plans 14-01 through 14-05.
+  cspm: {
+    all: ['cspm'] as const,
+    list: (opts: { filters: object; page: number }) =>
+      ['cspm', 'list', opts] as const,
+    detail: (id: string) => ['cspm', 'detail', id] as const,
+    stats: () => ['cspm', 'stats'] as const,
+    compliance: () => ['cspm', 'compliance'] as const,
+  },
+  settings: {
+    all: ['settings'] as const,
+    tenant: () => ['settings', 'tenant'] as const,
+    users: () => ['settings', 'users'] as const,
+    auditLog: (opts: {
+      action?: string;
+      resource_type?: string;
+      user_email?: string;
+      page: number;
+    }) => ['settings', 'audit-log', opts] as const,
+    groups: () => ['settings', 'groups'] as const,
+  },
+  directoryUsers: {
+    all: ['directory-users'] as const,
+    list: (opts: { filters: object; page: number; sort: string; order: string }) =>
+      ['directory-users', 'list', opts] as const,
+    stats: () => ['directory-users', 'stats'] as const,
+  },
 } as const;

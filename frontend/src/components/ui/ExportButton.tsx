@@ -73,7 +73,7 @@ export default function ExportButton({ resource, label, filters }: Props) {
 
   return (
     <button onClick={handleExport} disabled={loading}
-      className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 disabled:opacity-50">
+      className="flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-2 text-sm text-text-muted hover:bg-surface-2 disabled:opacity-50">
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
       </svg>
