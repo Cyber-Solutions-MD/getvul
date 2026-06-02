@@ -21,21 +21,25 @@ export type TicketsFilters = {
   search?: string;
 };
 
+// CR-04: snake_case end-to-end. The backend (service.py:list_tickets) emits
+// these keys verbatim and api() does NO casing transform (return res.json()),
+// so the frontend type/accessors MUST be snake_case to match the wire payload.
 export type TicketSummary = {
   id: string;
+  /** Lowercased by the backend (CR-06) — 'jira' | 'asana' | 'github'. */
   provider: string;
-  externalId: string;
+  external_ticket_id: string;
   title: string;
-  externalStatus: string | null;
+  external_status: string | null;
   blocked: boolean;
-  blockedReason: string | null;
-  slaDueAt: string | null;
+  blocked_reason: string | null;
+  sla_due_at: string | null;
   assignee: string | null;
-  maxSeverity: string | null;
-  vulnCount: number;
-  criticalCount: number;
-  highCount: number;
-  externalTicketUrl: string;
+  max_severity: string | null;
+  vuln_count: number;
+  critical_count: number;
+  high_count: number;
+  external_ticket_url: string;
 };
 
 export type TicketsResponse = {

@@ -691,6 +691,7 @@ async def list_tickets(
         select(
             Ticket.external_ticket_url,
             func.cast(func.min(func.cast(Ticket.id, String)), String).label("first_ticket_id"),
+            func.min(Ticket.external_ticket_id).label("external_ticket_id"),
             func.min(Ticket.provider).label("provider"),
             func.min(Ticket.external_status).label("external_status"),
             func.min(Ticket.assignee).label("assignee"),
@@ -763,7 +764,10 @@ async def list_tickets(
         items.append(
             {
                 "id": str(row.first_ticket_id),
-                "provider": row.provider,
+                # CR-06: emit provider lowercased so the frontend literal
+                # lookups (ProviderMark, isTicketProvider) match. Stored uppercase.
+                "provider": row.provider.lower() if row.provider else row.provider,
+                "external_ticket_id": row.external_ticket_id,
                 "external_ticket_url": row.external_ticket_url,
                 "external_status": row.external_status,
                 "assignee": row.assignee,

@@ -35,18 +35,18 @@ import TicketsPage from './page';
 const mockTicket = {
   id: 't1',
   provider: 'jira',
-  externalId: 'PROJ-101',
+  external_ticket_id: 'PROJ-101',
   title: 'Fix login bypass',
-  externalStatus: 'open',
+  external_status: 'open',
   blocked: false,
-  blockedReason: null,
-  slaDueAt: null,
+  blocked_reason: null,
+  sla_due_at: null,
   assignee: 'alice@example.com',
-  maxSeverity: 'critical',
-  vulnCount: 5,
-  criticalCount: 2,
-  highCount: 1,
-  externalTicketUrl: 'https://example.atlassian.net/browse/PROJ-101',
+  max_severity: 'critical',
+  vuln_count: 5,
+  critical_count: 2,
+  high_count: 1,
+  external_ticket_url: 'https://example.atlassian.net/browse/PROJ-101',
 };
 
 function renderWithClient(ui: React.ReactElement) {

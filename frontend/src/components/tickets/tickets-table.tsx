@@ -136,7 +136,7 @@ export function TicketsTable({
         </thead>
         <tbody ref={tbodyRef}>
           {rows.map((r, idx) => {
-            const severityKey = r.maxSeverity?.toLowerCase() ?? '';
+            const severityKey = r.max_severity?.toLowerCase() ?? '';
             const glyph = SEVERITY_GLYPH[severityKey] ?? '○';
             const severityClass = SEVERITY_CLASS[severityKey] ?? 'text-text-faint';
             const isSelected = selected.has(r.id);
@@ -162,13 +162,13 @@ export function TicketsTable({
                     checked={isSelected}
                     onChange={() => toggleRow(r.id)}
                     onClick={(e) => e.stopPropagation()}
-                    aria-label={`Select ticket ${r.externalId}`}
+                    aria-label={`Select ticket ${r.external_ticket_id}`}
                     className="rounded border-border text-violet focus:ring-violet"
                   />
                 </td>
                 {/* Severity glyph */}
                 <td className={cn('px-3 py-3 text-sm', severityClass)}>
-                  <span aria-label={r.maxSeverity ?? 'unknown'}>{glyph}</span>
+                  <span aria-label={r.max_severity ?? 'unknown'}>{glyph}</span>
                 </td>
                 {/* Provider mark */}
                 <td className="px-3 py-3">
@@ -178,7 +178,7 @@ export function TicketsTable({
                 </td>
                 {/* ID (mono) */}
                 <td className="px-3 py-3 font-mono text-text">
-                  {r.externalId}
+                  {r.external_ticket_id}
                 </td>
                 {/* Title (truncated, full on hover) */}
                 <td className="px-3 py-3 max-w-[280px]">
@@ -189,9 +189,9 @@ export function TicketsTable({
                 {/* Vulns (VulnCount T·C·H) */}
                 <td className="px-3 py-3">
                   <VulnCount
-                    total={r.vulnCount}
-                    critical={r.criticalCount}
-                    high={r.highCount}
+                    total={r.vuln_count}
+                    critical={r.critical_count}
+                    high={r.high_count}
                   />
                 </td>
                 {/* Assignee */}
@@ -210,13 +210,13 @@ export function TicketsTable({
                 {/* Status */}
                 <td className="px-3 py-3">
                   <StatusPill
-                    externalStatus={r.externalStatus}
+                    externalStatus={r.external_status}
                     blocked={r.blocked}
                   />
                 </td>
                 {/* SLA */}
                 <td className="px-3 py-3">
-                  <SlaPill dueAt={r.slaDueAt} />
+                  <SlaPill dueAt={r.sla_due_at} />
                 </td>
               </tr>
             );
@@ -227,7 +227,7 @@ export function TicketsTable({
       {/* Mobile card layout — visible below 900px (D-L-01) */}
       <ul className="min-[900px]:hidden space-y-2">
         {rows.map((r) => {
-          const severityKey = r.maxSeverity?.toLowerCase() ?? '';
+          const severityKey = r.max_severity?.toLowerCase() ?? '';
           const glyph = SEVERITY_GLYPH[severityKey] ?? '○';
           const severityClass = SEVERITY_CLASS[severityKey] ?? 'text-text-faint';
           const isSelected = selected.has(r.id);
@@ -253,7 +253,7 @@ export function TicketsTable({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-mono text-xs text-text shrink-0">
-                      {r.externalId}
+                      {r.external_ticket_id}
                     </span>
                     <span className="truncate text-sm text-text" title={r.title}>
                       {r.title}
@@ -261,19 +261,19 @@ export function TicketsTable({
                   </div>
                   <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                     <StatusPill
-                      externalStatus={r.externalStatus}
+                      externalStatus={r.external_status}
                       blocked={r.blocked}
                     />
-                    <SlaPill dueAt={r.slaDueAt} />
+                    <SlaPill dueAt={r.sla_due_at} />
                   </div>
                 </div>
               </div>
               {/* Secondary row: VulnCount + Assignee */}
               <div className="mt-2 flex items-center justify-between text-xs text-text-muted">
                 <VulnCount
-                  total={r.vulnCount}
-                  critical={r.criticalCount}
-                  high={r.highCount}
+                  total={r.vuln_count}
+                  critical={r.critical_count}
+                  high={r.high_count}
                 />
                 {r.assignee && (
                   <span className="inline-flex items-center gap-1">

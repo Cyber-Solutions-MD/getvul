@@ -54,6 +54,12 @@ const SLA_ALLOW = ['overdue', 'soon', 'ok'] as const;
 const VIEW_ALLOW = ['list', 'board'] as const;
 type View = (typeof VIEW_ALLOW)[number];
 
+// CR-06: narrow the backend-lowercased provider string to the literal union
+// without an unchecked `as` cast.
+function isTicketProvider(v: string | null): v is 'jira' | 'asana' | 'github' {
+  return v === 'jira' || v === 'asana' || v === 'github';
+}
+
 // 8-column skeleton shape mirrors TicketsTable. Module-scope = stable reference.
 const SKELETON_COLUMNS: SkeletonColumn[] = [
   { kind: 'mono', width: 24 },   // checkbox
@@ -164,7 +170,7 @@ function TicketsPageInner() {
     async (action: BulkAction, blockedReason?: string | null) => {
       const urls = q.data?.items
         .filter((t) => selectedIds.has(t.id))
-        .map((t) => t.externalTicketUrl) ?? [];
+        .map((t) => t.external_ticket_url) ?? [];
       if (urls.length === 0) return;
       try {
         await api('/api/v1/tickets/bulk-action', {
@@ -317,16 +323,20 @@ function TicketsPageInner() {
             ticket={
               selectedTicket
                 ? {
-                    provider: selectedTicket.provider as 'jira' | 'asana' | 'github',
-                    externalId: selectedTicket.externalId,
+                    // CR-06: provider is backend-lowercased; validate rather than
+                    // launder via `as`. Falls back to 'jira' only if somehow off-list.
+                    provider: (isTicketProvider(selectedTicket.provider)
+                      ? selectedTicket.provider
+                      : 'jira'),
+                    externalId: selectedTicket.external_ticket_id,
                     title: selectedTicket.title,
-                    externalUrl: selectedTicket.externalTicketUrl,
-                    externalStatus: selectedTicket.externalStatus,
+                    externalUrl: selectedTicket.external_ticket_url,
+                    externalStatus: selectedTicket.external_status,
                     blocked: selectedTicket.blocked,
-                    slaDueAt: selectedTicket.slaDueAt,
+                    slaDueAt: selectedTicket.sla_due_at,
                     description: null,
                     linkedVulns: [],
-                    totalVulns: selectedTicket.vulnCount,
+                    totalVulns: selectedTicket.vuln_count,
                   }
                 : undefined
             }
@@ -334,7 +344,7 @@ function TicketsPageInner() {
             renderBlockedToggle={({ ticketId }) => (
               <BlockedToggle
                 blocked={selectedTicket?.blocked ?? false}
-                blockedReason={selectedTicket?.blockedReason ?? null}
+                blockedReason={selectedTicket?.blocked_reason ?? null}
                 pending={markBlocked.isPending}
                 onToggle={(next) =>
                   markBlocked.mutate({
@@ -360,16 +370,20 @@ function TicketsPageInner() {
             ticket={
               selectedTicket
                 ? {
-                    provider: selectedTicket.provider as 'jira' | 'asana' | 'github',
-                    externalId: selectedTicket.externalId,
+                    // CR-06: provider is backend-lowercased; validate rather than
+                    // launder via `as`. Falls back to 'jira' only if somehow off-list.
+                    provider: (isTicketProvider(selectedTicket.provider)
+                      ? selectedTicket.provider
+                      : 'jira'),
+                    externalId: selectedTicket.external_ticket_id,
                     title: selectedTicket.title,
-                    externalUrl: selectedTicket.externalTicketUrl,
-                    externalStatus: selectedTicket.externalStatus,
+                    externalUrl: selectedTicket.external_ticket_url,
+                    externalStatus: selectedTicket.external_status,
                     blocked: selectedTicket.blocked,
-                    slaDueAt: selectedTicket.slaDueAt,
+                    slaDueAt: selectedTicket.sla_due_at,
                     description: null,
                     linkedVulns: [],
-                    totalVulns: selectedTicket.vulnCount,
+                    totalVulns: selectedTicket.vuln_count,
                   }
                 : undefined
             }
@@ -377,7 +391,7 @@ function TicketsPageInner() {
             renderBlockedToggle={({ ticketId }) => (
               <BlockedToggle
                 blocked={selectedTicket?.blocked ?? false}
-                blockedReason={selectedTicket?.blockedReason ?? null}
+                blockedReason={selectedTicket?.blocked_reason ?? null}
                 pending={markBlocked.isPending}
                 onToggle={(next) =>
                   markBlocked.mutate({
