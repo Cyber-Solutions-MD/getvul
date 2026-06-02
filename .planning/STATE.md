@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
 status: Ready to execute
-last_updated: "2026-06-02T09:35:00Z"
+last_updated: "2026-06-02T10:15:00Z"
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 37
-  completed_plans: 34
-  percent: 92
+  completed_plans: 35
+  percent: 95
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,14 +24,14 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 ## Current Position
 
-Phase: 13 (tickets-list-detail) — EXECUTING
-Plan: 7 of 9 (completed)
+Phase: 13 (tickets-list-detail) — COMPLETE
+Plan: 9 of 9 (completed)
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
-| Active phase | 13 — `/tickets` List + Detail |
-| Last action | 2026-06-02 — Plan 07 complete: useTickets + useMarkBlocked + TicketsChipBar + TicketsTable + TicketBulkBar + /tickets page rewrite; 15 tests green |
-| Next action | Execute Plan 13-08 (/tickets/[id] detail page) |
+| Active phase | 13 — `/tickets` List + Detail (COMPLETE) |
+| Last action | 2026-06-02 — Plan 08 complete: useTicketDetail + useTicketComments + useAddComment (optimistic) + useTicketWatch (Pitfall-6 rollback) + /tickets/[id] two-column detail page; 24 tests green |
+| Next action | Execute Phase 14 (Remaining Screens) |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -80,6 +80,8 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - useMarkBlocked patches both byId cache AND list cache in onMutate for immediate table row update
 - Predicate-based invalidation targets ['assets', *, 'remediations'] on blocked toggle success (RESEARCH Pattern 4)
 - Board placeholder copy verbatim: "Board view coming in a future update — for now, use the List view with the Status chip filter to organize work by status."
+- CURRENT_USER_ID = '' stub in /tickets/[id] page: no established global user hook; watch toggle functional (server truth authoritative on invalidation); optimistic 'You' watcher patch is degraded until a session context is introduced
+- buildWatcherList constructs D-W-04-compliant role-tagged watcher list on the page (not inside WatcherStack): merge assignee+reporter+watchers, dedupe by userId (strongest role: assignee=0 > reporter=1 > watcher=2), sort chronologically
 
 ---
-*Last updated: 2026-06-02 — Plan 13-07 complete: useTickets + useMarkBlocked + TicketsChipBar + TicketsTable + TicketBulkBar + /tickets page rewrite (v1 sunset); 15 tests green*
+*Last updated: 2026-06-02 — Plan 13-08 complete: useTicketDetail + useTicketComments + useAddComment + useTicketWatch + /tickets/[id] two-column detail page; 24 tests green. Phase 13 COMPLETE.*
