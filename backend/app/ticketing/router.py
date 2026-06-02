@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
@@ -354,6 +354,29 @@ async def bulk_ticket_action(
         finally:
             await asana_client.close()
 
+    elif action in ("block", "unblock"):
+        # Bulk block/unblock: group-scoped UPDATE for each provided external_ticket_url.
+        # Canonical-group identity (O1): blocked/blocked_reason apply to the WHOLE group
+        # (WHERE external_ticket_url = url AND tenant_id = ...), mirroring close_ticket.
+        # Audit BEFORE the single commit — fail-closed (AUDIT-01, T-13-10).
+        blocked_flag = action == "block"
+        blocked_reason = body.get("blocked_reason") if blocked_flag else None
+
+        for url in urls:
+            await db.execute(
+                update(Ticket)
+                .where(
+                    Ticket.external_ticket_url == url,
+                    Ticket.tenant_id == user.tenant_id,
+                )
+                .values(blocked=blocked_flag, blocked_reason=blocked_reason)
+            )
+            audit_action = "ticket.blocked" if blocked_flag else "ticket.unblocked"
+            await audit(db, user, audit_action, "ticket", url, {"reason": blocked_reason})
+            results["processed"] += 1
+
+        await db.commit()
+
     else:
         raise HTTPException(400, f"Unknown action: {action}")
 
@@ -535,6 +558,241 @@ async def set_ticket_blocked(
     await db.commit()
 
     return {"blocked": body.blocked, "blocked_reason": body.blocked_reason}
+
+
+# ── Watch routes ──────────────────────────────────────────────────────────────
+
+
+@router.post("/{ticket_id}/watch")
+async def watch_ticket(
+    ticket_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_analyst),
+):
+    """Subscribe to a logical ticket (D-W-02).
+
+    Idempotent: INSERT ... ON CONFLICT DO NOTHING — always 200 regardless of
+    whether the row already existed (D-W-02 no-op semantics, T-13-13).
+    Canonical identity (O1): resolves {ticket_id} → canonical first_ticket_id
+    within tenant. Audit-then-commit (AUDIT-01).
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    row, _url = await _resolve_group(db, ticket_id, user.tenant_id)
+
+    # Idempotent insert — ON CONFLICT (ticket_id, user_id) DO NOTHING (T-13-13)
+    stmt = (
+        pg_insert(TicketWatcher)
+        .values(ticket_id=row.id, user_id=user.id)
+        .on_conflict_do_nothing(index_elements=["ticket_id", "user_id"])
+    )
+    await db.execute(stmt)
+
+    # Audit BEFORE commit — fail-closed (AUDIT-01, T-13-10)
+    await audit(db, user, "ticket.watch", "ticket", str(ticket_id), {})
+    await db.commit()
+
+    return {"watching": True}
+
+
+@router.delete("/{ticket_id}/watch")
+async def unwatch_ticket(
+    ticket_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_analyst),
+):
+    """Unsubscribe from a logical ticket (D-W-02).
+
+    Idempotent: delete the watcher row if present; no-op if absent — always 200.
+    Canonical identity (O1): resolves to canonical first_ticket_id within tenant.
+    Audit-then-commit (AUDIT-01).
+    """
+    from sqlalchemy import delete as sa_delete
+
+    row, _url = await _resolve_group(db, ticket_id, user.tenant_id)
+
+    # Idempotent delete — no error if row doesn't exist
+    await db.execute(
+        sa_delete(TicketWatcher).where(
+            TicketWatcher.ticket_id == row.id,
+            TicketWatcher.user_id == user.id,
+        )
+    )
+
+    # Audit BEFORE commit — fail-closed (AUDIT-01, T-13-10)
+    await audit(db, user, "ticket.unwatch", "ticket", str(ticket_id), {})
+    await db.commit()
+
+    return {"watching": False}
+
+
+# ── Ticket detail endpoint ────────────────────────────────────────────────────
+
+
+@router.get("/{ticket_id}")
+async def get_ticket_detail(
+    ticket_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_analyst),
+):
+    """Return the resolved logical ticket detail (UX-05-04).
+
+    Canonical identity (O1): resolves {ticket_id} → its external_ticket_url group
+    within tenant. Returns:
+    - assignee: aggregated from the group (already in list_tickets)
+    - reporter (REQUIRED, UX-05-04): the ticket creator from created_by_user_id on the
+      resolved Ticket row; falls back to null if not set. Source: Ticket.created_by_user_id.
+    - linked_vulns: top vulnerabilities in the group (cve + severity + cvss)
+    - watchers: local TicketWatcher rows only (D-PROV-02 — no provider followers in P13).
+      Each watcher carries role: "watcher" (D-W-04 injection-point seam); the frontend
+      People card (Plan 08) assembles the assignee + reporter + watchers display.
+    - blocked, blocked_reason, sla_due_at: bool_or/min over the group.
+    """
+    from app.assets.models import Asset
+    from app.tenants.models import User
+    from app.vulnerabilities.models import Vulnerability as Vuln
+
+    row, external_ticket_url = await _resolve_group(db, ticket_id, user.tenant_id)
+
+    # ── Group aggregates ──────────────────────────────────────────────────────
+    group_q = (
+        select(
+            func.min(Ticket.provider).label("provider"),
+            func.min(Ticket.external_status).label("external_status"),
+            func.min(Ticket.assignee).label("assignee"),
+            func.min(Ticket.ticket_created_at).label("ticket_created_at"),
+            func.max(Ticket.resolved_at).label("resolved_at"),
+            func.count(Ticket.id).label("vuln_count"),
+            func.bool_or(Ticket.blocked).label("blocked"),
+            func.min(Ticket.blocked_reason).label("blocked_reason"),
+            func.min(Ticket.sla_due_at).label("sla_due_at"),
+        )
+        .where(
+            Ticket.external_ticket_url == external_ticket_url,
+            Ticket.tenant_id == user.tenant_id,
+        )
+    )
+    group = (await db.execute(group_q)).first()
+
+    # ── Reporter (UX-05-04) — from created_by_user_id on the resolved row ─────
+    # Source: Ticket.created_by_user_id (the user who created the ticket).
+    # Falls back to null if not set (People card renders '—').
+    reporter_data = None
+    if row.created_by_user_id:
+        reporter_row = (
+            await db.execute(
+                select(User.id, User.display_name, User.email)
+                .where(User.id == row.created_by_user_id)
+            )
+        ).first()
+        if reporter_row:
+            reporter_data = {
+                "userId": str(reporter_row.id),
+                "displayName": reporter_row.display_name,
+                "email": reporter_row.email,
+            }
+
+    # ── Linked vulns (top by severity) ────────────────────────────────────────
+    vulns_q = (
+        select(
+            Vuln.cve_id,
+            Vuln.severity,
+            Vuln.cvss_v3_score.label("cvss"),
+        )
+        .select_from(Ticket)
+        .join(Vuln, Ticket.vulnerability_id == Vuln.id)
+        .where(
+            Ticket.external_ticket_url == external_ticket_url,
+            Ticket.tenant_id == user.tenant_id,
+        )
+        .order_by(
+            case(
+                (Vuln.severity == "CRITICAL", 0),
+                (Vuln.severity == "HIGH", 1),
+                (Vuln.severity == "MEDIUM", 2),
+                (Vuln.severity == "LOW", 3),
+                else_=4,
+            )
+        )
+        .limit(20)
+    )
+    vuln_rows = (await db.execute(vulns_q)).all()
+    linked_vulns = [
+        {
+            "cve": r.cve_id,
+            "severity": r.severity,
+            "cvss": float(r.cvss) if r.cvss is not None else None,
+        }
+        for r in vuln_rows
+    ]
+
+    # ── Watchers (local only — D-PROV-02) ─────────────────────────────────────
+    # FK to tickets(id) using the canonical first_ticket_id (row.id).
+    # Provider followers are out of P13 stub scope; local watchers only.
+    watchers_q = (
+        select(
+            TicketWatcher.user_id,
+            User.display_name,
+        )
+        .join(User, TicketWatcher.user_id == User.id)
+        .where(TicketWatcher.ticket_id == row.id)
+        .order_by(User.display_name)
+    )
+    watcher_rows = (await db.execute(watchers_q)).all()
+    watchers = [
+        {
+            "userId": str(r.user_id),
+            "displayName": r.display_name,
+            "role": "watcher",  # D-W-04: role-tagged so frontend can compose the People card
+        }
+        for r in watcher_rows
+    ]
+
+    # ── Determine title ───────────────────────────────────────────────────────
+    detail_q = (
+        select(
+            func.min(Asset.hostname).label("hostname"),
+            func.min(Ticket.created_by_rule).label("created_by_rule"),
+            func.min(Vuln.remediation_action).label("remediation_action"),
+            func.min(Vuln.affected_product).label("affected_product"),
+        )
+        .select_from(Ticket)
+        .join(Vuln, Ticket.vulnerability_id == Vuln.id)
+        .outerjoin(Asset, Vuln.asset_id == Asset.id)
+        .where(
+            Ticket.external_ticket_url == external_ticket_url,
+            Ticket.tenant_id == user.tenant_id,
+        )
+    )
+    detail = (await db.execute(detail_q)).first()
+
+    is_per_remediation = bool(detail.created_by_rule) if detail else False
+    if is_per_remediation:
+        title = f"{detail.affected_product or 'Unknown'}: {(detail.remediation_action or '')[:80]}"
+    else:
+        title = detail.hostname if detail else "Unknown"
+
+    return {
+        "id": str(row.id),
+        "provider": group.provider if group else row.provider,
+        "external_ticket_url": external_ticket_url,
+        "external_status": group.external_status if group else row.external_status,
+        "blocked": bool(group.blocked) if group else False,
+        "blocked_reason": group.blocked_reason if group else None,
+        "sla_due_at": group.sla_due_at.isoformat() if group and group.sla_due_at else None,
+        "assignee": group.assignee if group else row.assignee,
+        "reporter": reporter_data,
+        "title": title,
+        "linked_vulns": linked_vulns,
+        "watchers": watchers,
+        "vuln_count": group.vuln_count if group else 0,
+        "ticket_created_at": (
+            group.ticket_created_at.isoformat() if group and group.ticket_created_at else None
+        ),
+        "resolved_at": (
+            group.resolved_at.isoformat() if group and group.resolved_at else None
+        ),
+    }
 
 
 # ── Asana configuration ──
