@@ -117,7 +117,12 @@ function defaultSyslog(cfg: Record<string, unknown> | null): SyslogFormValues {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function NotificationsPane() {
+export function NotificationsPane({
+  onDirtyChange,
+}: {
+  /** Reports this pane's dirty state up to the settings page guard (WR-03). */
+  onDirtyChange?: (dirty: boolean) => void;
+} = {}) {
   const { data: settings, isPending, isError } = useTenantSettings();
   const updateSettings = useUpdateTenantSettings();
 
@@ -125,6 +130,11 @@ export function NotificationsPane() {
     smtp: defaultSmtp(null),
     syslog: defaultSyslog(null),
   });
+
+  // WR-03: report dirty state up instead of relying on DOM polling.
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   // Seed form from fetched settings
   // eslint-disable-next-line react-hooks/exhaustive-deps

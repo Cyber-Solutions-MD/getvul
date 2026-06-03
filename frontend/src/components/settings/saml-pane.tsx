@@ -61,7 +61,12 @@ const PROVIDERS: Array<{ id: IdpProvider; label: string; description: string }> 
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SamlPane() {
+export function SamlPane({
+  onDirtyChange,
+}: {
+  /** Reports this pane's dirty state up to the settings page guard (WR-03). */
+  onDirtyChange?: (dirty: boolean) => void;
+} = {}) {
   const { data: settings, isPending, isError } = useTenantSettings();
   const updateSettings = useUpdateTenantSettings();
 
@@ -69,6 +74,11 @@ export function SamlPane() {
     idp_provider: (settings?.idp_provider as IdpProvider) ?? 'LOCAL',
     sso_enforced: settings?.sso_enforced ?? false,
   });
+
+  // WR-03: report dirty state up instead of relying on DOM polling.
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   // Seed dirty-state from fetched settings
   // eslint-disable-next-line react-hooks/exhaustive-deps

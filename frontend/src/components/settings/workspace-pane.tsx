@@ -167,7 +167,12 @@ function UserRow({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function WorkspacePane() {
+export function WorkspacePane({
+  onDirtyChange,
+}: {
+  /** Reports this pane's dirty state up to the settings page guard (WR-03). */
+  onDirtyChange?: (dirty: boolean) => void;
+} = {}) {
   const { user: authUser } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -186,6 +191,11 @@ export function WorkspacePane() {
     domain: '',
     timezone: 'UTC',
   });
+
+  // WR-03: report dirty state up instead of relying on DOM polling.
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   // Seed workspace form from settings
   // eslint-disable-next-line react-hooks/exhaustive-deps

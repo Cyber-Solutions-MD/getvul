@@ -10,8 +10,11 @@
  *   - Default: 'profile'.
  *   - 6 categories: profile / workspace / saml / notifications / api-tokens / audit.
  *
- * Unsaved-changes guard (D-SET-04):
- *   - Active pane reports dirty state via onDirtyChange callback.
+ * Unsaved-changes guard (D-SET-04 / WR-03):
+ *   - Each editable pane reports its dirty state up via an onDirtyChange prop
+ *     wired straight to useDirtyState.isDirty (no DOM polling / selector
+ *     coupling — a SaveBar markup rename can no longer silently disable the
+ *     guard, and there is no setTimeout(0) race).
  *   - Switching category while dirty opens ConfirmModal (UNSAVED_GUARD copy).
  *   - On confirm: navigate + clear dirty. On cancel: stay.
  *
@@ -65,15 +68,14 @@ export default function SettingsPage() {
 
   // Unsaved-changes guard state (D-SET-04)
   // paneDirtyRef is a ref so handleCategoryChange always reads latest value
-  // without needing to be recreated via useCallback.
+  // without needing to be recreated via useCallback. Panes report their dirty
+  // state up through handleDirtyChange (WR-03) — no DOM polling.
   const paneDirtyRef = useRef(false);
-  const [paneDirty, setPaneDirty] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<Category | null>(null);
   const [guardOpen, setGuardOpen] = useState(false);
 
   const handleDirtyChange = useCallback((dirty: boolean) => {
     paneDirtyRef.current = dirty;
-    setPaneDirty(dirty);
   }, []);
 
   function handleCategoryChange(next: Category) {
@@ -92,8 +94,8 @@ export default function SettingsPage() {
     if (pendingCategory) {
       setActiveCategory(pendingCategory);
     }
+    // The destination pane will re-report its own dirty state on mount.
     paneDirtyRef.current = false;
-    setPaneDirty(false);
     setPendingCategory(null);
     setGuardOpen(false);
   }
@@ -104,30 +106,19 @@ export default function SettingsPage() {
   }
 
   // Render the active pane.
-  // For editable panes, we wrap with a dirty-bridge to allow the page-level
-  // guard to fire when the user tries to switch categories.
+  // Editable panes report their dirty state up via onDirtyChange (WR-03) so the
+  // page-level guard can fire when the user tries to switch categories. No DOM
+  // polling or SaveBar selector coupling.
   function renderPane() {
     switch (activeCategory) {
       case 'profile':
         return <ProfilePane />;
       case 'workspace':
-        return (
-          <PaneWithDirtyBridge onDirtyChange={handleDirtyChange}>
-            <WorkspacePane />
-          </PaneWithDirtyBridge>
-        );
+        return <WorkspacePane onDirtyChange={handleDirtyChange} />;
       case 'saml':
-        return (
-          <PaneWithDirtyBridge onDirtyChange={handleDirtyChange}>
-            <SamlPane />
-          </PaneWithDirtyBridge>
-        );
+        return <SamlPane onDirtyChange={handleDirtyChange} />;
       case 'notifications':
-        return (
-          <PaneWithDirtyBridge onDirtyChange={handleDirtyChange}>
-            <NotificationsPane />
-          </PaneWithDirtyBridge>
-        );
+        return <NotificationsPane onDirtyChange={handleDirtyChange} />;
       case 'api-tokens':
         return <ApiTokensPane />;
       case 'audit':
@@ -137,18 +128,8 @@ export default function SettingsPage() {
     }
   }
 
-  // Page-level click listener: refresh the dirty ref before any click is
-  // processed. This ensures that when a sidebar category button is clicked,
-  // paneDirtyRef reflects the current SaveBar state.
-  function handlePageClick() {
-    const hasBar = document.querySelector('[data-save-bar]') !== null;
-    paneDirtyRef.current = hasBar;
-    setPaneDirty(hasBar);
-  }
-
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-    <div onClickCapture={handlePageClick}>
+    <div>
       <SettingsSidebarShell
         activeCategory={activeCategory}
         onCategoryChange={handleCategoryChange}
@@ -167,41 +148,6 @@ export default function SettingsPage() {
         onConfirm={handleGuardConfirm}
         onCancel={handleGuardCancel}
       />
-    </div>
-  );
-}
-
-/**
- * PaneWithDirtyBridge — thin wrapper that monitors the SaveBar's presence to
- * set the page-level paneDirty flag.
- *
- * The SaveBar renders with data-save-bar when the pane is dirty. We detect
- * this by scheduling a check after user interaction (via queueMicrotask so
- * React state has settled before we read the DOM).
- */
-function PaneWithDirtyBridge({
-  children,
-  onDirtyChange,
-}: {
-  children: React.ReactNode;
-  onDirtyChange: (dirty: boolean) => void;
-}) {
-  function scheduleCheck() {
-    // Defer DOM check until after React has flushed the interaction's state
-    // updates and rendered the SaveBar (setTimeout(0) yields after paint flush).
-    setTimeout(() => {
-      const hasBar = document.querySelector('[data-save-bar]') !== null;
-      onDirtyChange(hasBar);
-    }, 0);
-  }
-
-  return (
-    <div
-      onClickCapture={scheduleCheck}
-      onChangeCapture={scheduleCheck}
-      onInputCapture={scheduleCheck}
-    >
-      {children}
     </div>
   );
 }
