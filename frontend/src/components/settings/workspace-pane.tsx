@@ -117,7 +117,12 @@ function UserRow({
             onChange={(e) => onRoleChange(u.id, e.target.value)}
             className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-text focus:border-violet focus:outline-none"
           >
-            <option value="OWNER">Owner</option>
+            {/* WR-08: OWNER is intentionally NOT offered here — transferring
+                ownership must be a deliberate, separate flow, not a one-misclick
+                promotion. Mirrors the Add-user form which also omits OWNER.
+                If the user already IS an owner, show the option so the select
+                stays controlled, but it cannot be re-selected from elsewhere. */}
+            {u.role === 'OWNER' && <option value="OWNER">Owner</option>}
             <option value="ADMIN">Admin</option>
             <option value="ANALYST">Analyst</option>
             <option value="VIEWER">Viewer</option>
@@ -248,6 +253,11 @@ export function WorkspacePane({
   }
 
   async function handleRoleChange(userId: string, role: string) {
+    // WR-09: guard against no-op transitions (avoid a redundant PATCH when the
+    // selected value equals the current cached role).
+    const current = users?.find((u) => u.id === userId);
+    if (current && current.role === role) return;
+
     try {
       await api(`/api/v1/tenant/users/${userId}/role`, {
         method: 'PATCH',
@@ -258,6 +268,11 @@ export function WorkspacePane({
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Could not update role.';
       toast({ variant: 'error', message });
+      // WR-09: re-sync the select with the authoritative cached role. The
+      // uncontrolled DOM value changed on the failed change event; refetching
+      // forces the controlled <select> back to the real (unchanged) role
+      // instead of leaving it stranded on the rejected value.
+      await refetchUsers();
     }
   }
 
