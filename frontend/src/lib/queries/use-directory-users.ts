@@ -115,5 +115,6 @@ export function useDirectoryStats() {
     queryFn: ({ signal }) =>
       api<DirectoryStatsResponse>('/api/v1/users/stats', { signal }),
     staleTime: 60_000,
+    retry: 1,
   });
 }

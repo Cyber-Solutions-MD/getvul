@@ -25,5 +25,6 @@ export function useTenantGroups() {
     queryFn: ({ signal }) =>
       api<TenantGroup[]>('/api/v1/tenant/groups', { signal }),
     staleTime: 60_000,
+    retry: 1,
   });
 }

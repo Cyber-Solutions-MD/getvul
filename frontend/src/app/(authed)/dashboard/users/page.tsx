@@ -338,9 +338,11 @@ function UsersPageInner() {
           {/* Groups header + export */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-text-muted">
-              {groupsQuery.data
-                ? `${groupsQuery.data.length} groups`
-                : 'Loading groups…'}
+              {groupsQuery.isPending
+                ? 'Loading groups…'
+                : groupsQuery.isError
+                  ? 'Groups unavailable'
+                  : `${groupsQuery.data?.length ?? 0} groups`}
             </span>
             <ExportButton
               resource="groups"
@@ -359,8 +361,20 @@ function UsersPageInner() {
             />
           )}
 
+          {/* Error (WR-07): D-X-01 mandates an explicit error state — the
+              groups view previously hung on "Loading groups…" forever. */}
+          {groupsQuery.isError && (
+            <PartialFailureBanner
+              watchKeys={[queryKeys.settings.groups()]}
+              onRetry={() => groupsQuery.refetch()}
+            />
+          )}
+
           {/* Groups list */}
-          {groupsQuery.data && groupsQuery.data.length > 0 && (
+          {!groupsQuery.isPending &&
+            !groupsQuery.isError &&
+            groupsQuery.data &&
+            groupsQuery.data.length > 0 && (
             <div className="space-y-2">
               {groupsQuery.data.map((g) => (
                 <div
@@ -379,7 +393,10 @@ function UsersPageInner() {
           )}
 
           {/* Empty groups */}
-          {groupsQuery.data && groupsQuery.data.length === 0 && (
+          {!groupsQuery.isPending &&
+            !groupsQuery.isError &&
+            groupsQuery.data &&
+            groupsQuery.data.length === 0 && (
             <EmptyState>
               <EmptyState.Title>{microcopy.groupsEmpty.title}</EmptyState.Title>
               <EmptyState.Body>{microcopy.groupsEmpty.body}</EmptyState.Body>
