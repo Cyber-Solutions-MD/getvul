@@ -16,7 +16,18 @@ export default function ExportButton({ resource, label, filters }: Props) {
   async function handleExport() {
     setLoading(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("getvul_token") || "dev-token" : "dev-token";
+      // WR-06: never ship a "dev-token" bearer in production. If there is no
+      // stored token, redirect to login instead of issuing an unauthenticated
+      // request with a placeholder credential. The dev-token convenience
+      // fallback is gated to non-production builds only.
+      const stored = typeof window !== "undefined" ? localStorage.getItem("getvul_token") : null;
+      if (!stored) {
+        if (process.env.NODE_ENV === "production") {
+          if (typeof window !== "undefined") window.location.href = "/login";
+          return;
+        }
+      }
+      const token = stored || "dev-token";
       const params = new URLSearchParams();
       if (filters) {
         for (const [k, v] of Object.entries(filters)) {
