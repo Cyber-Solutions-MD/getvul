@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+import { getFocusable, trapTabKey } from "./focus-trap";
 
 interface ConfirmModalProps {
   open: boolean;
@@ -23,6 +24,8 @@ export default function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (open) {
@@ -30,10 +33,18 @@ export default function ConfirmModal({
     }
   }, [open]);
 
+  // WR-04: Escape to dismiss + trap Tab focus within the dialog so focus can
+  // never reach the page behind the backdrop while the modal is open.
   useEffect(() => {
     if (!open) return;
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") {
+        onCancel();
+        return;
+      }
+      if (e.key === "Tab" && panelRef.current) {
+        trapTabKey(e, getFocusable(panelRef.current));
+      }
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -56,10 +67,14 @@ export default function ConfirmModal({
       onClick={onCancel}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="mx-4 w-full max-w-md rounded-xl border border-border-subtle bg-surface-2 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-text">{title}</h3>
+        <h3 id={titleId} className="text-lg font-semibold text-text">{title}</h3>
         <p className="mt-2 text-sm text-text-muted whitespace-pre-wrap">{message}</p>
         <div className="mt-6 flex justify-end gap-3">
           <button
