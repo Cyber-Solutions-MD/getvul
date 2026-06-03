@@ -12,7 +12,7 @@
  *
  * v1 surface (horizontal tabs, raw palette, inline fetch) fully replaced.
  */
-import { useState, useCallback, Suspense } from 'react';
+import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useUrlState } from '@/hooks/use-url-state';
 import { useUrlStateList } from '@/hooks/use-url-state-list';
@@ -121,24 +121,15 @@ function UsersPageInner() {
 
   const searchParam = params?.get('search') ?? '';
 
+  // WR-01: real pagination state. Reset to page 1 whenever a filter changes so
+  // a narrower result set never leaves us stranded on an out-of-range page.
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [status, department, source, searchParam]);
+
   // Row selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    setSelectedIds((prev) =>
-      prev.length === (directoryQuery.data?.items.length ?? 0)
-        ? []
-        : (directoryQuery.data?.items.map((u) => u.id) ?? [])
-    );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleClearSelection = useCallback(() => setSelectedIds([]), []);
 
   // Stats (for chip-bar axes)
   const statsQuery = useDirectoryStats();
@@ -151,10 +142,38 @@ function UsersPageInner() {
       source: source || undefined,
       search: searchParam || undefined,
     },
-    page: 1,
+    page,
     sort: 'display_name',
     order: 'asc',
   });
+
+  // Stable list of items the selection handlers operate on (WR-02). Deriving
+  // this and depending on it keeps handleSelectAll from closing over a stale
+  // query reference captured on the first render.
+  const items = directoryQuery.data?.items ?? [];
+  const totalPages = directoryQuery.data?.pages ?? 0;
+
+  // WR-05-style clamp: if the current page exceeds the available pages after a
+  // fetch (e.g. result set shrank), snap back to the last valid page.
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [totalPages, page]);
+
+  const handleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds((prev) =>
+      prev.length === items.length ? [] : items.map((u) => u.id)
+    );
+  }, [items]);
+
+  const handleClearSelection = useCallback(() => setSelectedIds([]), []);
 
   // Groups data
   const groupsQuery = useTenantGroups();
@@ -276,6 +295,33 @@ function UsersPageInner() {
                 onSelect={handleSelect}
                 onSelectAll={handleSelectAll}
               />
+            )}
+
+          {/* Pagination (WR-01) — mirrors audit-log-pane controls */}
+          {!directoryQuery.isPending &&
+            !directoryQuery.isError &&
+            totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm text-text-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-text-faint">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm text-text-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
             )}
 
           {/* Export-only bulk bar — D-USR-02 */}
