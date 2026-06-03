@@ -7,10 +7,14 @@
  *   Card 2 — Syslog forwarding: enabled/host/port/protocol/facility
  *   Card 3 — Alert categories: coming-soon EmptyState (no backend field exists)
  *
- * SMTP password sentinel (T-14-17):
- *   Backend returns smtp_config.password as "••••••••" (8 bullets — never the
- *   real secret). If the user does not touch the password field, the sentinel
- *   is preserved in the PATCH body so the backend keeps the stored value.
+ * SMTP password handling (CR-01 / T-14-17):
+ *   The backend never returns the real secret (it masks the stored value). We
+ *   therefore seed the password field EMPTY and track an explicit
+ *   `passwordTouched` flag. The password is included in the PATCH body ONLY
+ *   when the user actually edited the field — otherwise it is omitted entirely
+ *   so the backend keeps the stored value. This mirrors the connector form's
+ *   per-field `touched` tracking and guarantees a displayed mask (of any
+ *   length/shape) can never be round-tripped back as the real password.
  *
  * All three sections commit via ONE shared <SaveBar> (single dirty-state
  * across the pane) → useUpdateTenantSettings({ smtp_config, syslog_config }).
@@ -37,8 +41,18 @@ type SmtpFormValues = {
   host: string;
   port: string;
   username: string;
-  /** Pre-filled with "••••••••" sentinel when loaded from API. */
+  /**
+   * Always seeded EMPTY — never the mask. The stored secret is opaque to the
+   * client; an empty field means "keep stored value" (see passwordTouched).
+   */
   password: string;
+  /**
+   * True once the user edits the password field. Only when this is true is
+   * `password` ever included in the PATCH body. This mirrors the connector
+   * form's per-field `touched` tracking and guarantees a displayed mask can
+   * never be persisted as the real secret (CR-01 / T-14-17).
+   */
+  passwordTouched: boolean;
   from_email: string;
   tls: boolean;
 };
@@ -56,7 +70,9 @@ type NotifFormValues = {
   syslog: SyslogFormValues;
 };
 
-const SMTP_SENTINEL = '••••••••';
+// Placeholder shown in the (empty) password field when a stored secret exists.
+// Purely a UI hint — NEVER the field value, NEVER sent to the backend (CR-01).
+const SMTP_PASSWORD_PLACEHOLDER = '••••••••';
 
 function defaultSmtp(cfg: Record<string, unknown> | null): SmtpFormValues {
   if (!cfg) {
@@ -66,6 +82,7 @@ function defaultSmtp(cfg: Record<string, unknown> | null): SmtpFormValues {
       port: '587',
       username: '',
       password: '',
+      passwordTouched: false,
       from_email: '',
       tls: false,
     };
@@ -75,8 +92,11 @@ function defaultSmtp(cfg: Record<string, unknown> | null): SmtpFormValues {
     host: String(cfg.host ?? ''),
     port: String(cfg.port ?? '587'),
     username: String(cfg.username ?? ''),
-    // Backend sends the sentinel mask — never the real secret (T-14-17).
-    password: String(cfg.password ?? ''),
+    // Seed EMPTY — the backend never returns the real secret and we must never
+    // round-trip a mask back as the password (CR-01 / T-14-17). An empty field
+    // with passwordTouched=false means "keep the stored value".
+    password: '',
+    passwordTouched: false,
     from_email: String(cfg.from_email ?? ''),
     tls: Boolean(cfg.tls || cfg.use_tls),
   };
@@ -135,12 +155,14 @@ export function NotificationsPane() {
       from_email: values.smtp.from_email,
       tls: values.smtp.tls,
     };
-    // T-14-17: Only include password if user actually changed it
-    // (i.e. it's not the sentinel 8-bullet mask)
-    if (values.smtp.password && values.smtp.password !== SMTP_SENTINEL) {
+    // CR-01 / T-14-17: Only include password if the user actually edited the
+    // field. We track this with an explicit `passwordTouched` flag rather than
+    // comparing against a hardcoded mask literal — so a displayed placeholder
+    // (whatever its length/shape) can never be persisted as the real secret.
+    // If the field was not touched, omit it entirely — backend keeps stored value.
+    if (values.smtp.passwordTouched && values.smtp.password) {
       smtpPayload.password = values.smtp.password;
     }
-    // If password is the sentinel, omit from patch — backend keeps stored value.
 
     const syslogPayload = {
       enabled: values.syslog.enabled,
@@ -254,12 +276,21 @@ export function NotificationsPane() {
               <label className="mb-1 block text-sm font-medium text-text">
                 Password / API key
               </label>
-              {/* T-14-17: pre-filled with sentinel; backend keeps stored value if unchanged */}
+              {/* CR-01 / T-14-17: field is seeded EMPTY; the bullet placeholder
+                  is only a hint that a stored secret exists. Editing flips
+                  passwordTouched, which is the sole condition under which the
+                  password is sent. Leaving it blank keeps the stored value. */}
               <input
                 type="password"
                 value={values.smtp.password}
-                onChange={(e) => setSmtpField('password', e.target.value)}
-                placeholder={SMTP_SENTINEL}
+                onChange={(e) => {
+                  setField('smtp', {
+                    ...values.smtp,
+                    password: e.target.value,
+                    passwordTouched: true,
+                  });
+                }}
+                placeholder={SMTP_PASSWORD_PLACEHOLDER}
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text placeholder-text-faint focus:border-violet focus:outline-none"
               />
             </div>
