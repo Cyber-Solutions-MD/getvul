@@ -21,7 +21,7 @@
  * Plan 14-05.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuditLog } from '@/lib/queries/use-audit-log';
 import { SkeletonTable } from '@/components/states';
 import { EmptyState } from '@/components/states';
@@ -68,6 +68,16 @@ export function AuditLogPane() {
 
   const items = data?.items ?? [];
   const totalPages = data?.pages ?? 0;
+
+  // WR-05: after a fetch, if the current page exceeds the available pages
+  // (e.g. a filter narrowed the result set while paginated past the new end),
+  // clamp back to the last valid page. Guarded by totalPages > 0 so the
+  // transient "Page 1 of 0" state during a refetch never triggers a snap.
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [totalPages, page]);
 
   return (
     <div data-pane="audit" className="space-y-4 p-6">
