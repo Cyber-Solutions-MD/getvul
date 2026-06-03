@@ -307,7 +307,13 @@ Plans:
   5. `prefers-color-scheme` honored on first visit; theme toggle persists in `localStorage`; the FOUC-prevention blocking script runs before hydration (verified by no white flash on cold load of `/login` in dark-OS mode)
   6. Lighthouse mobile run on `/login` and `/dashboard` reports ≥ 90 performance AND ≥ 90 accessibility; per-route initial JS budget ≤ 250 KB gzipped (verified via `next build` analyzer output committed to the verification report)
   7. Cross-browser smoke pass — `/login` + `/dashboard` + `/vulnerabilities` + one detail page work in Chrome, Safari, Firefox (latest stable); severity glyphs (■ ▲ ◆ ○ □) render legibly at 14px on each browser's default rendering
-**Plans**: TBD
+**Plans**: 6 plans (4 waves)
+  - [ ] 15-01-PLAN.md — Wave 0: Playwright + axe + lhci install, config, auth fixture, ESLint jsx-a11y config, gitignore
+  - [ ] 15-02-PLAN.md — Wave 1: three-tier mobile nav (bottom-nav / tablet drawer / sidebar) + More bottom sheet
+  - [ ] 15-03-PLAN.md — Wave 1: ResponsiveDialog vaul conversion (ConfirmModal + connector form) + reduced-motion fixes
+  - [ ] 15-04-PLAN.md — Wave 2: drive eslint-plugin-jsx-a11y to zero errors
+  - [ ] 15-05-PLAN.md — Wave 2: Playwright specs (viewport / axe / smoke / reduced-motion) + audit-fix loop
+  - [ ] 15-06-PLAN.md — Wave 3: all-routes bundle budget + Lighthouse gate + PERF-REPORT + HUMAN-UAT
 **UI hint**: yes
 
 ## Progress
