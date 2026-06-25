@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest"
+    "test": "vitest",
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "perf:budget": "node scripts/check-bundle-all.mjs",
+    "perf:lh": "lhci autorun --config=lhci.config.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -32,6 +35,9 @@
     "brace-expansion": ">=2.0.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.61.1",
     "@tanstack/react-query-devtools": "^5.100.10",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
