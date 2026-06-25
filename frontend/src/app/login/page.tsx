@@ -107,7 +107,7 @@ function LeftPanel() {
       {/* Drifting mesh — decorative; aria-hidden so SR doesn't announce it */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-mesh opacity-80 animate-gradient-drift"
+        className="absolute inset-0 bg-gradient-mesh opacity-80 motion-safe:animate-gradient-drift"
       />
       <div className="relative z-10 flex flex-col justify-between px-12 py-16 w-full">
         <div>

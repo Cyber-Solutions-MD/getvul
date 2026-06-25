@@ -111,9 +111,12 @@ export function Hero() {
   return (
     <section aria-labelledby="hero-h" className="rounded-lg border border-border-subtle bg-surface p-6">
       <div className="mb-2 flex items-center gap-2">
-        {/* D-H-05 — pulsing red when criticalOpen > 0; honors prefers-reduced-motion via globals.css */}
+        {/* D-H-05 — pulsing red when criticalOpen > 0.
+            D-11 (Phase 15-03): motion-safe: prefix gates pulse on prefers-reduced-motion.
+            The globals.css blanket (animation-duration: 0.01ms !important) is belt-and-
+            suspenders; motion-safe: is the explicit per-site guard per UX-07-04. */}
         <span
-          className="block h-2 w-2 rounded-full bg-severity-critical animate-pulse"
+          className="block h-2 w-2 rounded-full bg-severity-critical motion-safe:animate-pulse"
           aria-hidden="true"
         />
         <span className="text-xs uppercase tracking-wide text-text-muted">Action required</span>
