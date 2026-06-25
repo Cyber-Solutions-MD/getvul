@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
-status: Ready to plan
-last_updated: "2026-06-03T12:10:13.224Z"
+status: Ready to execute
+last_updated: "2026-06-25T12:35:36.369Z"
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 43
-  completed_plans: 43
-  percent: 100
+  total_plans: 49
+  completed_plans: 44
+  percent: 90
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,18 +20,18 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 14 — remaining-screens
+**Current focus:** Phase 15 — mobile-a11y-perf-quality-gate
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 15 (mobile-a11y-perf-quality-gate) — EXECUTING
+Plan: 2 of 6
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
-| Active phase | 13 — `/tickets` List + Detail (COMPLETE) |
-| Last action | 2026-06-02 — Plan 08 complete: useTicketDetail + useTicketComments + useAddComment (optimistic) + useTicketWatch (Pitfall-6 rollback) + /tickets/[id] two-column detail page; 24 tests green |
-| Next action | Execute Phase 14 (Remaining Screens) |
+| Active phase | 15 — Mobile + a11y + Perf Quality Gate (EXECUTING) |
+| Last action | 2026-06-25 — Plan 01 complete: @playwright/test + @axe-core/playwright + @lhci/cli installed; 3 browser engines downloaded; playwright.config.ts (5 projects) + auth setup fixture + axe WCAG fixture + .eslintrc.json created |
+| Next action | Execute Phase 15 Plan 02 |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -82,6 +82,8 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - Board placeholder copy verbatim: "Board view coming in a future update — for now, use the List view with the Status chip filter to organize work by status."
 - CURRENT_USER_ID = '' stub in /tickets/[id] page: no established global user hook; watch toggle functional (server truth authoritative on invalidation); optimistic 'You' watcher patch is degraded until a session context is introduced
 - buildWatcherList constructs D-W-04-compliant role-tagged watcher list on the page (not inside WatcherStack): merge assignee+reporter+watchers, dedupe by userId (strongest role: assignee=0 > reporter=1 > watcher=2), sort chronologically
+- Phase 15-01: used --legacy-peer-deps for npm install (lucide-react 0.383.0 peer react@^18 vs project's React 19); consistent with existing overrides in package.json
+- Phase 15-01: Playwright 1.61.1 resolved (plan specified ~1.60); API-compatible, no breaking changes
 
 ---
-*Last updated: 2026-06-02 — Plan 13-08 complete: useTicketDetail + useTicketComments + useAddComment + useTicketWatch + /tickets/[id] two-column detail page; 24 tests green. Phase 13 COMPLETE.*
+*Last updated: 2026-06-25 — Plan 15-01 complete: Playwright + axe + lhci installed; playwright.config.ts + auth fixture + axe fixture + .eslintrc.json created; 3 browser engines downloaded. Phase 15 EXECUTING.*

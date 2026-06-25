@@ -308,7 +308,7 @@ Plans:
   6. Lighthouse mobile run on `/login` and `/dashboard` reports ≥ 90 performance AND ≥ 90 accessibility; per-route initial JS budget ≤ 250 KB gzipped (verified via `next build` analyzer output committed to the verification report)
   7. Cross-browser smoke pass — `/login` + `/dashboard` + `/vulnerabilities` + one detail page work in Chrome, Safari, Firefox (latest stable); severity glyphs (■ ▲ ◆ ○ □) render legibly at 14px on each browser's default rendering
 **Plans**: 6 plans (4 waves)
-  - [ ] 15-01-PLAN.md — Wave 0: Playwright + axe + lhci install, config, auth fixture, ESLint jsx-a11y config, gitignore
+  - [x] 15-01-PLAN.md — Wave 0: Playwright + axe + lhci install, config, auth fixture, ESLint jsx-a11y config, gitignore
   - [ ] 15-02-PLAN.md — Wave 1: three-tier mobile nav (bottom-nav / tablet drawer / sidebar) + More bottom sheet
   - [ ] 15-03-PLAN.md — Wave 1: ResponsiveDialog vaul conversion (ConfirmModal + connector form) + reduced-motion fixes
   - [ ] 15-04-PLAN.md — Wave 2: drive eslint-plugin-jsx-a11y to zero errors
