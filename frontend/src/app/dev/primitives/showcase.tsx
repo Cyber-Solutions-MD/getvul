@@ -143,22 +143,30 @@ export default function PrimitivesShowcase() {
 
       <Section title="Input — types and states">
         <div className="grid grid-cols-2 gap-4 max-w-xl">
-          <label className="block text-sm">
-            <span className="block mb-1 text-text-muted">Email</span>
-            <Input type="email" placeholder="you@company.com" />
-          </label>
-          <label className="block text-sm">
-            <span className="block mb-1 text-text-muted">Password (eye-toggle)</span>
-            <Input type="password" defaultValue="hunter2" />
-          </label>
-          <label className="block text-sm">
-            <span className="block mb-1 text-text-muted">Error state</span>
-            <Input type="email" defaultValue="bad@" aria-invalid="true" />
-          </label>
-          <label className="block text-sm">
-            <span className="block mb-1 text-text-muted">Disabled</span>
-            <Input type="text" disabled defaultValue="locked" />
-          </label>
+          <div>
+            <label htmlFor="showcase-email" className="block text-sm">
+              <span className="block mb-1 text-text-muted">Email</span>
+            </label>
+            <Input id="showcase-email" type="email" placeholder="you@company.com" />
+          </div>
+          <div>
+            <label htmlFor="showcase-password" className="block text-sm">
+              <span className="block mb-1 text-text-muted">Password (eye-toggle)</span>
+            </label>
+            <Input id="showcase-password" type="password" defaultValue="hunter2" />
+          </div>
+          <div>
+            <label htmlFor="showcase-email-error" className="block text-sm">
+              <span className="block mb-1 text-text-muted">Error state</span>
+            </label>
+            <Input id="showcase-email-error" type="email" defaultValue="bad@" aria-invalid="true" />
+          </div>
+          <div>
+            <label htmlFor="showcase-disabled" className="block text-sm">
+              <span className="block mb-1 text-text-muted">Disabled</span>
+            </label>
+            <Input id="showcase-disabled" type="text" disabled defaultValue="locked" />
+          </div>
         </div>
       </Section>
 

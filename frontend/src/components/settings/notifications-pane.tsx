@@ -253,8 +253,9 @@ export function NotificationsPane({
         {values.smtp.enabled && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">SMTP host</label>
+              <label htmlFor="smtp-host" className="mb-1 block text-sm font-medium text-text">SMTP host</label>
               <input
+                id="smtp-host"
                 type="text"
                 value={values.smtp.host}
                 onChange={(e) => setSmtpField('host', e.target.value)}
@@ -263,8 +264,9 @@ export function NotificationsPane({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Port</label>
+              <label htmlFor="smtp-port" className="mb-1 block text-sm font-medium text-text">Port</label>
               <input
+                id="smtp-port"
                 type="text"
                 value={values.smtp.port}
                 onChange={(e) => setSmtpField('port', e.target.value)}
@@ -273,8 +275,9 @@ export function NotificationsPane({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Username</label>
+              <label htmlFor="smtp-username" className="mb-1 block text-sm font-medium text-text">Username</label>
               <input
+                id="smtp-username"
                 type="text"
                 value={values.smtp.username}
                 onChange={(e) => setSmtpField('username', e.target.value)}
@@ -283,7 +286,7 @@ export function NotificationsPane({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">
+              <label htmlFor="smtp-password" className="mb-1 block text-sm font-medium text-text">
                 Password / API key
               </label>
               {/* CR-01 / T-14-17: field is seeded EMPTY; the bullet placeholder
@@ -291,6 +294,7 @@ export function NotificationsPane({
                   passwordTouched, which is the sole condition under which the
                   password is sent. Leaving it blank keeps the stored value. */}
               <input
+                id="smtp-password"
                 type="password"
                 value={values.smtp.password}
                 onChange={(e) => {
@@ -305,8 +309,9 @@ export function NotificationsPane({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">From email</label>
+              <label htmlFor="smtp-from-email" className="mb-1 block text-sm font-medium text-text">From email</label>
               <input
+                id="smtp-from-email"
                 type="email"
                 value={values.smtp.from_email}
                 onChange={(e) => setSmtpField('from_email', e.target.value)}
@@ -365,8 +370,9 @@ export function NotificationsPane({
         {values.syslog.enabled && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Syslog host</label>
+              <label htmlFor="syslog-host" className="mb-1 block text-sm font-medium text-text">Syslog host</label>
               <input
+                id="syslog-host"
                 type="text"
                 value={values.syslog.host}
                 onChange={(e) => setSyslogField('host', e.target.value)}
@@ -375,8 +381,9 @@ export function NotificationsPane({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Port</label>
+              <label htmlFor="syslog-port" className="mb-1 block text-sm font-medium text-text">Port</label>
               <input
+                id="syslog-port"
                 type="text"
                 value={values.syslog.port}
                 onChange={(e) => setSyslogField('port', e.target.value)}
@@ -385,8 +392,9 @@ export function NotificationsPane({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Protocol</label>
+              <label htmlFor="syslog-protocol" className="mb-1 block text-sm font-medium text-text">Protocol</label>
               <select
+                id="syslog-protocol"
                 value={values.syslog.protocol}
                 onChange={(e) => setSyslogField('protocol', e.target.value)}
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text focus:border-violet focus:outline-none"
@@ -396,8 +404,9 @@ export function NotificationsPane({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Facility</label>
+              <label htmlFor="syslog-facility" className="mb-1 block text-sm font-medium text-text">Facility</label>
               <select
+                id="syslog-facility"
                 value={values.syslog.facility}
                 onChange={(e) => setSyslogField('facility', e.target.value)}
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text focus:border-violet focus:outline-none"

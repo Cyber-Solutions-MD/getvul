@@ -354,8 +354,9 @@ export function WorkspacePane({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Workspace name (read-only — no self-service rename endpoint) */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Name</label>
+              <label htmlFor="workspace-name" className="mb-1 block text-sm font-medium text-text">Name</label>
               <input
+                id="workspace-name"
                 type="text"
                 value={values.name}
                 readOnly
@@ -366,8 +367,9 @@ export function WorkspacePane({
             </div>
             {/* Domain */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Domain</label>
+              <label htmlFor="workspace-domain" className="mb-1 block text-sm font-medium text-text">Domain</label>
               <input
+                id="workspace-domain"
                 type="text"
                 value={values.domain}
                 onChange={isOwner ? (e) => setField('domain', e.target.value) : undefined}
@@ -379,9 +381,10 @@ export function WorkspacePane({
             </div>
             {/* Timezone */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-text">Timezone</label>
+              <label htmlFor="workspace-timezone" className="mb-1 block text-sm font-medium text-text">Timezone</label>
               {isOwner ? (
                 <select
+                  id="workspace-timezone"
                   value={values.timezone}
                   onChange={(e) => setField('timezone', e.target.value)}
                   className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text focus:border-violet focus:outline-none"
