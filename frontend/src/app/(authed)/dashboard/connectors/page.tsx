@@ -31,7 +31,7 @@ import {
 import type { ConnectorConfigResponse } from '@/lib/queries/use-connectors-admin';
 import { SkeletonTable, EmptyState, PartialFailureBanner } from '@/components/states';
 import ConfirmModal from '@/components/ui/ConfirmModal';
-import { getFocusable, trapTabKey } from '@/components/ui/focus-trap';
+import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { ConnectorCard } from '@/components/connectors/connector-card';
 import { ConnectorForm } from '@/components/connectors/connector-form';
 import {
@@ -161,30 +161,12 @@ export default function ConnectorsPage() {
     setFormState({ open: false, mode: 'add', connectorType: '', fields: [] });
   }
 
-  // WR-04: dialog a11y — Escape closes, Tab is trapped, initial focus lands in
-  // the dialog. Backdrop click no longer dismisses (would discard typed
-  // credentials); the user closes via the X button or the form's Cancel.
-  const formDialogRef = useRef<HTMLDivElement>(null);
+  // D-07 (Phase 15-03): The credential form dialog chrome is handled by
+  // ResponsiveDialog which provides:
+  //   - Mobile: vaul Drawer (Esc + focus trap via vaul)
+  //   - Desktop: backdrop click to close; Esc via onOpenChange
+  // The X button inside the form still calls closeForm() for explicit dismissal.
   const formTitleId = useId();
-
-  useEffect(() => {
-    if (!formState.open) return;
-    // Move focus into the dialog on open.
-    const focusable = formDialogRef.current ? getFocusable(formDialogRef.current) : [];
-    focusable[0]?.focus();
-
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        closeForm();
-        return;
-      }
-      if (e.key === 'Tab' && formDialogRef.current) {
-        trapTabKey(e, getFocusable(formDialogRef.current));
-      }
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [formState.open]);
 
   function handleDelete(connectorId: string) {
     const conn = connectorsQuery.data?.find((c) => c.id === connectorId);
@@ -366,40 +348,40 @@ export default function ConnectorsPage() {
         );
       })}
 
-      {/* Add/Edit form modal (WR-04: dialog a11y; no backdrop-click dismissal
-          so in-progress credential entry is never silently discarded) */}
-      {formState.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm">
-          <div
-            ref={formDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={formTitleId}
-            className="mx-4 w-full max-w-lg overflow-y-auto rounded-xl border border-border-subtle bg-surface-2 p-6 shadow-2xl max-h-[90vh]"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 id={formTitleId} className="text-lg font-semibold text-text">
-                {formState.mode === 'add' ? 'Add connector' : 'Edit connector'}
-              </h2>
-              <button
-                type="button"
-                onClick={closeForm}
-                aria-label="Close"
-                className="rounded-md p-1 text-text-faint transition-colors hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <ConnectorForm
-              mode={formState.mode}
-              connectorType={formState.connectorType}
-              existing={formState.existing}
-              fields={formState.fields}
-              onClose={closeForm}
-            />
+      {/* Add/Edit form — D-07 (Phase 15-03): ResponsiveDialog renders as a vaul
+          bottom sheet on mobile and a centered dialog on desktop. The form title
+          h2 carries id={formTitleId} inside children so aria-labelledby resolves.
+          Note: backdrop-click is disabled in desktop ResponsiveDialog branch via
+          onOpenChange — we call closeForm, not a state-clearing dismiss, so in-
+          progress credential data is never silently discarded. */}
+      <ResponsiveDialog
+        open={formState.open}
+        onOpenChange={(o) => { if (!o) closeForm(); }}
+        ariaLabelledBy={formTitleId}
+      >
+        <div className="p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 id={formTitleId} className="text-lg font-semibold text-text">
+              {formState.mode === 'add' ? 'Add connector' : 'Edit connector'}
+            </h2>
+            <button
+              type="button"
+              onClick={closeForm}
+              aria-label="Close"
+              className="rounded-md p-1 text-text-faint transition-colors hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+            >
+              <X size={18} />
+            </button>
           </div>
+          <ConnectorForm
+            mode={formState.mode}
+            connectorType={formState.connectorType}
+            existing={formState.existing}
+            fields={formState.fields}
+            onClose={closeForm}
+          />
         </div>
-      )}
+      </ResponsiveDialog>
 
       {/* Delete confirm modal */}
       <ConfirmModal
