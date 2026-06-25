@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
 status: Ready to execute
-last_updated: "2026-06-25T12:48:33.600Z"
+last_updated: "2026-06-25T14:24:18.598Z"
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 49
-  completed_plans: 45
-  percent: 92
+  completed_plans: 46
+  percent: 94
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -25,13 +25,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 ## Current Position
 
 Phase: 15 (mobile-a11y-perf-quality-gate) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
 | Active phase | 15 — Mobile + a11y + Perf Quality Gate (EXECUTING) |
-| Last action | 2026-06-25 — Plan 02 complete: Three-tier responsive nav built (bottom-nav, nav-more-sheet, nav-drawer) + nav-items.ts single source-of-truth; AppShell/Topbar wired; UX-07-01/07-02 satisfied |
-| Next action | Execute Phase 15 Plan 03 |
+| Last action | 2026-06-25 — Plan 03 complete: ResponsiveDialog (D-07) + motion-safe fixes (D-11); ConfirmModal + connector form route through vaul on mobile; login gradient-drift + hero urgency dot gated behind motion-safe: |
+| Next action | Execute Phase 15 Plan 04 |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -89,6 +89,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - Phase 15-02: topbar.tsx promoted to 'use client' — onMenuClick/hamburgerRef props added; hamburger conditional on prop presence (backward-compatible)
 - Phase 15-02: Bottom-nav gradient-strip on TOP edge (inverted from sidebar's left edge) per bar orientation
 - Phase 15-02: MORE_ITEMS computed via Set subtraction from ALL_ITEMS — future BOTTOM_NAV_PRIMARY changes auto-update MORE_ITEMS
+- Phase 15-03: ResponsiveDialog if(!open) return null guard (matches drill-panel-mobile precedent; preserves queryByRole('dialog')===null jsdom contract)
+- Phase 15-03: isMobile guard skips programmatic focus + Tab trap in ConfirmModal — vaul manages focus natively on mobile
+- Phase 15-03: Skeleton loading animate-pulse in hero.tsx NOT converted — transient state, acceptable via globals.css blanket per research audit
+- Phase 15-03: motion-safe: Tailwind prefix used for gradient-drift + urgency dot (belt-and-suspenders alongside globals.css blanket; UX-07-04)
 
 ---
-*Last updated: 2026-06-25 — Plan 15-02 complete: Three-tier responsive nav (bottom-nav + vaul more-sheet + tablet drawer) built; nav-items.ts source-of-truth; AppShell/Topbar wired; UX-07-01/07-02 satisfied. Phase 15 EXECUTING.*
+*Last updated: 2026-06-25 — Plan 15-03 complete: ResponsiveDialog (D-07) + motion-safe fixes (D-11); ConfirmModal + connector form route through vaul on mobile; login gradient-drift + hero urgency dot gated behind motion-safe:. Phase 15 EXECUTING.*

@@ -310,7 +310,7 @@ Plans:
 **Plans**: 6 plans (4 waves)
   - [x] 15-01-PLAN.md — Wave 0: Playwright + axe + lhci install, config, auth fixture, ESLint jsx-a11y config, gitignore
   - [x] 15-02-PLAN.md — Wave 1: three-tier mobile nav (bottom-nav / tablet drawer / sidebar) + More bottom sheet
-  - [ ] 15-03-PLAN.md — Wave 1: ResponsiveDialog vaul conversion (ConfirmModal + connector form) + reduced-motion fixes
+  - [x] 15-03-PLAN.md — Wave 1: ResponsiveDialog vaul conversion (ConfirmModal + connector form) + reduced-motion fixes
   - [ ] 15-04-PLAN.md — Wave 2: drive eslint-plugin-jsx-a11y to zero errors
   - [ ] 15-05-PLAN.md — Wave 2: Playwright specs (viewport / axe / smoke / reduced-motion) + audit-fix loop
   - [ ] 15-06-PLAN.md — Wave 3: all-routes bundle budget + Lighthouse gate + PERF-REPORT + HUMAN-UAT
@@ -337,7 +337,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 12. `/assets` List + Detail | v2.0 UI/UX Redesign | 8/8 | Complete    | 2026-06-01 |
 | 13. `/tickets` List + Detail | v2.0 UI/UX Redesign | 9/9 | Complete    | 2026-06-02 |
 | 14. Remaining Screens | v2.0 UI/UX Redesign | 6/6 | Complete    | 2026-06-03 |
-| 15. Mobile + a11y + Perf Quality Gate | v2.0 UI/UX Redesign | 2/6 | In Progress|  |
+| 15. Mobile + a11y + Perf Quality Gate | v2.0 UI/UX Redesign | 3/6 | In Progress|  |
 
 ---
 *Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings.*
