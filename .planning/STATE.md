@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
 status: Ready to execute
-last_updated: "2026-06-25T12:35:36.369Z"
+last_updated: "2026-06-25T12:48:33.600Z"
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 49
-  completed_plans: 44
-  percent: 90
+  completed_plans: 45
+  percent: 92
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -25,13 +25,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 ## Current Position
 
 Phase: 15 (mobile-a11y-perf-quality-gate) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
 | Active phase | 15 — Mobile + a11y + Perf Quality Gate (EXECUTING) |
-| Last action | 2026-06-25 — Plan 01 complete: @playwright/test + @axe-core/playwright + @lhci/cli installed; 3 browser engines downloaded; playwright.config.ts (5 projects) + auth setup fixture + axe WCAG fixture + .eslintrc.json created |
-| Next action | Execute Phase 15 Plan 02 |
+| Last action | 2026-06-25 — Plan 02 complete: Three-tier responsive nav built (bottom-nav, nav-more-sheet, nav-drawer) + nav-items.ts single source-of-truth; AppShell/Topbar wired; UX-07-01/07-02 satisfied |
+| Next action | Execute Phase 15 Plan 03 |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -84,6 +84,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - buildWatcherList constructs D-W-04-compliant role-tagged watcher list on the page (not inside WatcherStack): merge assignee+reporter+watchers, dedupe by userId (strongest role: assignee=0 > reporter=1 > watcher=2), sort chronologically
 - Phase 15-01: used --legacy-peer-deps for npm install (lucide-react 0.383.0 peer react@^18 vs project's React 19); consistent with existing overrides in package.json
 - Phase 15-01: Playwright 1.61.1 resolved (plan specified ~1.60); API-compatible, no breaking changes
+- Phase 15-02: nav-items.ts single source-of-truth for all 9 nav destinations consumed by sidebar/bottom-nav/drawer/more-sheet
+- Phase 15-02: NavDrawer kept mounted with translate (not null-guarded) for motion-safe:transition; NavMoreSheet uses null-guard (vaul portal lifecycle)
+- Phase 15-02: topbar.tsx promoted to 'use client' — onMenuClick/hamburgerRef props added; hamburger conditional on prop presence (backward-compatible)
+- Phase 15-02: Bottom-nav gradient-strip on TOP edge (inverted from sidebar's left edge) per bar orientation
+- Phase 15-02: MORE_ITEMS computed via Set subtraction from ALL_ITEMS — future BOTTOM_NAV_PRIMARY changes auto-update MORE_ITEMS
 
 ---
-*Last updated: 2026-06-25 — Plan 15-01 complete: Playwright + axe + lhci installed; playwright.config.ts + auth fixture + axe fixture + .eslintrc.json created; 3 browser engines downloaded. Phase 15 EXECUTING.*
+*Last updated: 2026-06-25 — Plan 15-02 complete: Three-tier responsive nav (bottom-nav + vaul more-sheet + tablet drawer) built; nav-items.ts source-of-truth; AppShell/Topbar wired; UX-07-01/07-02 satisfied. Phase 15 EXECUTING.*
