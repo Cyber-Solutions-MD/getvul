@@ -1,0 +1,12 @@
+# Playwright auth state — captured JWT; NEVER commit (T-15-01 threat mitigation)
+e2e/.auth/state.json
+.auth/state.json
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# Lighthouse CI results
+lighthouse-results/
+.lighthouseci/
