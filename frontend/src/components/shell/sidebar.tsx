@@ -1,66 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap,
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GradientText } from '@/components/ui/gradient-text';
 import { useStats } from '@/lib/queries/use-stats';
-
-// D-N-01 (Phase 10) — chip key identifies which live count drives each nav item.
-// Only Vulnerabilities (vuln_open_count), Assets (asset_total_count), and Tickets
-// (ticket_open_count) carry chips. CSPM / Connectors / Users / Settings / Dashboard
-// render WITHOUT chips per D-N-01.
-type ChipKey = 'vuln_open' | 'asset_total' | 'ticket_open';
-
-type NavItem = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
-  exact?: boolean;  // /dashboard root uses exact match (D-35) to avoid lighting up for nested routes
-  chip?: ChipKey;   // when set, render a live count chip; otherwise no chip (D-N-01)
-};
-
-// D-36 verbatim — order/grouping/labels preserved. Phase 10 D-N-01 removes the chip
-// from Dashboard and CSPM; only Vulnerabilities + Assets keep chips in this group.
-const TRIAGE_ITEMS: NavItem[] = [
-  { label: 'Dashboard',       href: '/dashboard',                 icon: Home,   exact: true },
-  { label: 'Vulnerabilities', href: '/dashboard/vulnerabilities', icon: Bug,    chip: 'vuln_open' },
-  { label: 'Assets',          href: '/dashboard/assets',          icon: Server, chip: 'asset_total' },
-  { label: 'CSPM',            href: '/dashboard/cspm',            icon: Cloud },
-];
-
-// D-36 grouping preserved. Phase 10 D-N-01 removes the chip from Connectors; only
-// Tickets keeps a chip in this group.
-const WORKFLOW_ITEMS: NavItem[] = [
-  // Phase 9's D-36 spec had "/dashboard/integrations" but the v1 route directory
-  // is actually `connectors/` (verified during Phase 10 HUMAN-UAT). Correcting
-  // the href here; the label stays `Connectors` per D-36 wording.
-  { label: 'Tickets',    href: '/dashboard/tickets',    icon: Ticket, chip: 'ticket_open' },
-  // Phase 13 Plan 09 (D-S-01) — standalone /tickets/rules route (sunset rewrite, D-S-01).
-  // No chip per D-N-01 (rules surface does not carry a live count badge).
-  { label: 'Rules',      href: '/dashboard/tickets/rules', icon: Zap },
-  { label: 'Connectors', href: '/dashboard/connectors', icon: Plug },
-];
-
-const UNLABELED_ITEMS: NavItem[] = [
-  { label: 'Users',    href: '/dashboard/users',    icon: Users },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
-];
-
-function isActive(pathname: string | null, item: NavItem): boolean {
-  if (!pathname) return false;
-  if (item.exact) return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(item.href + '/');
-}
-
-// Em-dash fallback rendered during loading AND on error per D-N-03 — no placeholder
-// bar primitive; the dash preserves chip width across the loading→loaded transition,
-// avoiding CLS. Width of three digits in tabular-nums mono is comparable to the
-// em-dash glyph at the same 11px size, so a 3-digit count does not shift surrounding
-// layout.
-const CHIP_FALLBACK = '—';
+import {
+  TRIAGE_ITEMS, WORKFLOW_ITEMS, UNLABELED_ITEMS, isActive,
+  type NavItem, type ChipKey, CHIP_FALLBACK,
+} from './nav-items';
 
 export function Sidebar() {
   const pathname = usePathname();
