@@ -235,7 +235,15 @@ export function TicketsTable({
           return (
             <li
               key={r.id}
+              role="button"
+              tabIndex={0}
               onClick={() => onRowClick(r)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onRowClick(r);
+                }
+              }}
               className={cn(
                 'cursor-pointer rounded-lg border border-border-subtle bg-surface p-3',
                 'hover:bg-surface-2 active:bg-surface-2',

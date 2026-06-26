@@ -156,16 +156,23 @@ export function TicketBulkBar({
 
       {/* Mark blocked modal — collects shared reason */}
       {modal?.kind === 'block' && (
+        // Backdrop: role="presentation" removes landmark semantics from the overlay;
+        // click or Esc on the backdrop dismisses the modal (keyboard parity).
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="block-modal-title"
+          role="presentation"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) closeModal();
           }}
+          onKeyDown={(e) => { if (e.key === 'Escape') closeModal(); }}
         >
-          <div className="w-full max-w-md rounded-xl border border-border-subtle bg-surface p-6 shadow-xl">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="block-modal-title"
+          tabIndex={-1}
+          className="w-full max-w-md rounded-xl border border-border-subtle bg-surface p-6 shadow-xl"
+        >
             <h2 id="block-modal-title" className="text-lg font-semibold text-text">
               Mark tickets as blocked
             </h2>

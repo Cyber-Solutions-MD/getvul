@@ -169,6 +169,12 @@ export function ReassignCombobox({ assetId, initialEmail, onDone }: ReassignComb
             aria-selected={idx === highlightIdx}
             onMouseEnter={() => setHighlightIdx(idx)}
             onClick={() => commit(u.email)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                commit(u.email);
+              }
+            }}
             className={cn(
               'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm',
               idx === highlightIdx ? 'bg-surface' : 'hover:bg-surface',

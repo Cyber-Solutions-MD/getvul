@@ -95,7 +95,9 @@ export function WatcherStack({ watchers }: { watchers: Watcher[] }) {
   }
 
   return (
-    <div className="relative inline-flex items-center gap-1">
+    // onKeyDown on the wrapper (no role) captures Escape bubbled from within the popup
+    // without attaching handlers to the non-interactive dialog element (jsx-a11y compliant)
+    <div className="relative inline-flex items-center gap-1" onKeyDown={handleKeyDown}>
       {/* Avatar stack — overlapping avatars with negative margin ring */}
       <div className="flex items-center">
         {visible.map((w, i) => (
@@ -122,7 +124,6 @@ export function WatcherStack({ watchers }: { watchers: Watcher[] }) {
           aria-expanded={open}
           aria-haspopup="listbox"
           onClick={toggle}
-          onKeyDown={handleKeyDown}
           className="ml-1 inline-flex items-center justify-center rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-xs font-medium text-text-muted hover:border-border hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-violet"
         >
           +{overflow}
@@ -134,8 +135,8 @@ export function WatcherStack({ watchers }: { watchers: Watcher[] }) {
         <div
           role="dialog"
           aria-label="All watchers"
+          tabIndex={-1}
           className="absolute left-0 top-full z-50 mt-2 min-w-[200px] rounded-xl border border-border-subtle bg-surface-2 p-2 shadow-lg"
-          onKeyDown={handleKeyDown}
         >
           <ul role="list" className="space-y-1">
             {sorted.map((w) => (

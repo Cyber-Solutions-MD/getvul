@@ -77,17 +77,24 @@ export function ResponsiveDialog({
   // The caller (ConfirmModal) retains its own Esc + trapTabKey effects so the
   // desktop focus-trap contract is not regressed.
   return (
+    // Backdrop: click-on-backdrop or Esc dismisses the dialog (keyboard parity).
+    // role="presentation" removes landmark semantics from the overlay layer so
+    // assistive technology only announces the inner role="dialog".
+    // onClick guard (e.target === e.currentTarget) prevents close when the user
+    // clicks inside the dialog panel — no stopPropagation needed on the inner div.
     <div
+      role="presentation"
       className="fixed inset-0 z-[9000] flex items-center justify-center bg-surface/80 backdrop-blur-sm"
-      onClick={() => onOpenChange(false)}
+      onClick={(e) => { if (e.target === e.currentTarget) onOpenChange(false); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onOpenChange(false); }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
+        tabIndex={-1}
         className="mx-4 w-full max-w-md rounded-xl border border-border-subtle bg-surface-2 p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
       >
         {children}
       </div>
