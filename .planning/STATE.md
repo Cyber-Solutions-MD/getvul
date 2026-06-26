@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
 status: Ready to execute
-last_updated: "2026-06-25T14:24:18.598Z"
+last_updated: "2026-06-26T08:51:41.083Z"
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 49
-  completed_plans: 46
-  percent: 94
+  completed_plans: 47
+  percent: 96
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -25,13 +25,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 ## Current Position
 
 Phase: 15 (mobile-a11y-perf-quality-gate) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.0 UI/UX Redesign |
 | Active phase | 15 — Mobile + a11y + Perf Quality Gate (EXECUTING) |
-| Last action | 2026-06-25 — Plan 03 complete: ResponsiveDialog (D-07) + motion-safe fixes (D-11); ConfirmModal + connector form route through vaul on mobile; login gradient-drift + hero urgency dot gated behind motion-safe: |
-| Next action | Execute Phase 15 Plan 04 |
+| Last action | 2026-06-26 — Plan 04 complete: jsx-a11y zero-error sweep; keyboard-operable interactive rows + dialog backdrop keyboard parity; npm run lint exits 0 |
+| Next action | Execute Phase 15 Plan 05 |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
 
 ## v2.0 Phase Map
@@ -93,6 +93,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - Phase 15-03: isMobile guard skips programmatic focus + Tab trap in ConfirmModal — vaul manages focus natively on mobile
 - Phase 15-03: Skeleton loading animate-pulse in hero.tsx NOT converted — transient state, acceptable via globals.css blanket per research audit
 - Phase 15-03: motion-safe: Tailwind prefix used for gradient-drift + urgency dot (belt-and-suspenders alongside globals.css blanket; UX-07-04)
+- Phase 15-04: watcher-stack.tsx Escape key moved to outer wrapper div (no role) — jsx-a11y/no-noninteractive-element-interactions satisfied without changing dialog semantics
+- Phase 15-04: backdrop split pattern (role=presentation outer + role=dialog inner) — AT announces only the inner dialog; Escape/click-outside on outer div
+- Phase 15-04: Wrapper.displayName='Wrapper' pattern for factory-returned test components (react/display-name); vitest-axe.d.ts eslint-disable comments removed (nonexistent rule)
 
 ---
-*Last updated: 2026-06-25 — Plan 15-03 complete: ResponsiveDialog (D-07) + motion-safe fixes (D-11); ConfirmModal + connector form route through vaul on mobile; login gradient-drift + hero urgency dot gated behind motion-safe:. Phase 15 EXECUTING.*
+*Last updated: 2026-06-26 — Plan 15-04 complete: jsx-a11y zero-error sweep; keyboard-operable interactive rows + dialog backdrop keyboard parity; npm run lint exits 0; 113 tests green. Phase 15 EXECUTING.*
