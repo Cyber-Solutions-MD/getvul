@@ -7,9 +7,11 @@ import { useRef, useEffect, type ReactNode } from 'react';
 import { useQueryErrors, type QueryError } from './use-query-errors';
 
 function wrap(client: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'Wrapper';
+  return Wrapper;
 }
 
 describe('useQueryErrors (D-S-03 — QueryCache subscription bridge)', () => {

@@ -13,9 +13,11 @@ import type { ReactNode } from 'react';
 import { PartialFailureBanner } from './partial-failure-banner';
 
 function wrap(client: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'Wrapper';
+  return Wrapper;
 }
 
 describe('<PartialFailureBanner> (D-S-03 — hybrid hook+props mode + amber-not-red)', () => {

@@ -12,9 +12,11 @@ import { queryKeys } from '@/lib/queries/keys';
 const apiMock = vi.mocked(api);
 
 function wrap(client: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'Wrapper';
+  return Wrapper;
 }
 
 describe('useCreateTicketMutation (D-P-04 + Phase 10 BL-06 401 surface)', () => {

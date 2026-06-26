@@ -23,9 +23,11 @@ import { queryKeys } from './keys';
 const apiMock = vi.mocked(api);
 
 function wrap(qc: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'Wrapper';
+  return Wrapper;
 }
 
 describe('useReassignAsset', () => {

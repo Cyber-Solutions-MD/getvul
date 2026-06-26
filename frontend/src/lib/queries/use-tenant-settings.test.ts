@@ -24,8 +24,10 @@ vi.mock('@/components/ui/ToastProvider', () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function wrapper(client: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) =>
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client }, children);
+  Wrapper.displayName = 'Wrapper';
+  return Wrapper;
 }
 
 function makeClient() {

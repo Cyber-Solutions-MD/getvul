@@ -11,9 +11,11 @@ import { queryKeys } from './keys';
 const apiMock = vi.mocked(api);
 
 function wrap(client: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'Wrapper';
+  return Wrapper;
 }
 
 const MOCK_RULE: TicketRule = {

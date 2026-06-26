@@ -43,8 +43,10 @@ function makeClient() {
 }
 
 function wrapper(client: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) =>
+  const W = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client }, children);
+  W.displayName = 'Wrapper';
+  return W;
 }
 
 function Wrapper({ children }: { children: React.ReactNode }) {

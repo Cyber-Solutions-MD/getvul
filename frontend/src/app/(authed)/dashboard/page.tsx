@@ -21,23 +21,26 @@ import { TrendChartSkeleton } from '@/components/ui/trend-chart-skeleton';
 // below at <1280px.
 
 function SectionErrorFallback(section: string) {
-  return (err: Error, reset: () => void): ReactNode => (
-    <section
-      role="alert"
-      className="rounded-lg border border-danger bg-danger-soft p-5"
-    >
-      <p className="text-sm">
-        {microcopy.error.inline(section, 'crash', err.message.slice(0, 40))}
-      </p>
-      <button
-        onClick={reset}
-        className="mt-2 font-mono text-xs underline"
-        type="button"
+  function SectionFallback(err: Error, reset: () => void): ReactNode {
+    return (
+      <section
+        role="alert"
+        className="rounded-lg border border-danger bg-danger-soft p-5"
       >
-        Retry now
-      </button>
-    </section>
-  );
+        <p className="text-sm">
+          {microcopy.error.inline(section, 'crash', err.message.slice(0, 40))}
+        </p>
+        <button
+          onClick={reset}
+          className="mt-2 font-mono text-xs underline"
+          type="button"
+        >
+          Retry now
+        </button>
+      </section>
+    );
+  }
+  return SectionFallback;
 }
 
 export default function DashboardPage() {

@@ -201,7 +201,7 @@ export function ProfilePane() {
         <section className="rounded-lg border border-border-subtle bg-surface p-6">
           <h2 className="mb-1 text-base font-semibold text-text">Change password</h2>
           <p className="mb-4 text-sm text-text-muted">
-            Update your account password. You'll stay signed in after changing it.
+            Update your account password. You&apos;ll stay signed in after changing it.
           </p>
           <form onSubmit={handleChangePassword} className="space-y-4" noValidate>
             <div>

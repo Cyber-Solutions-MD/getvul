@@ -43,11 +43,13 @@ vi.mock('next/navigation', () => ({
 import { AuthProvider, useAuth } from './auth';
 
 function wrap(qc: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>
       <AuthProvider>{children}</AuthProvider>
     </QueryClientProvider>
   );
+  Wrapper.displayName = 'Wrapper';
+  return Wrapper;
 }
 
 describe('useAuth().logout() (D-D-09 / T-10-11)', () => {
