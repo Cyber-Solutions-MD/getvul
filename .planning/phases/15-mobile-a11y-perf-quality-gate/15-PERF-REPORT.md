@@ -2,47 +2,51 @@
 phase: 15
 plan: 06
 artifact: perf-report
-status: pending
+status: partial
 ---
 
 # Phase 15 — Performance Report (SC #6)
 
 > Committed verification artifact per Plan 15-06 success criterion #6.
-> Fill all `(pending)` cells by running `npm run perf:budget` and `npm run perf:lh`
-> (Task 3 — human checkpoint). Do NOT paste credentials or the storageState JWT into
-> this file (T-15-11 threat model).
+> Bundle Budget below is COMPLETE (run headless — no backend needed).
+> Lighthouse Mobile remains pending the live run (Task 3 — needs the stack on :3000).
+> Do NOT paste credentials or the storageState JWT into this file (T-15-11 threat model).
 
-**Run date:** (pending — fill when executed)
-**Commit:** (pending — fill git rev-parse --short HEAD after run)
+**Run date:** 2026-06-27 (bundle budget)
+**Commit:** addb572
 **Branch:** main
 
 ---
 
-## Bundle Budget (<=250 KB gzipped per route)
+## Bundle Budget (<=250 KB gzipped per route) — ✅ PASS
 
-Run: `cd frontend && npm run perf:budget`
+Run: `cd frontend && npm run perf:budget` (`next build` + `scripts/check-bundle-all.mjs`)
 
 | Route | First Load JS | Budget (250 KB) | Result |
 |-------|--------------|-----------------|--------|
-| `/` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/login` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/vulnerabilities` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/assets` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/assets/[id]` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/tickets` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/tickets/[id]` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/tickets/rules` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/cspm` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/connectors` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/users` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dashboard/settings` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
-| `/dev/primitives` | (pending — fill from `npm run perf:budget`) | 250 KB | (pending) |
+| `/` | 102.0 kB | 250 KB | ✅ PASS |
+| `/login` | 144.0 kB | 250 KB | ✅ PASS |
+| `/dashboard` | 138.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/vulnerabilities` | 158.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/assets` | 129.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/assets/[id]` | 161.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/tickets` | 166.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/tickets/[id]` | 137.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/tickets/rules` | 125.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/cspm` | 157.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/connectors` | 153.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/users` | 128.0 kB | 250 KB | ✅ PASS |
+| `/dashboard/settings` | 156.0 kB | 250 KB | ✅ PASS |
+| `/dev/primitives` | 102.0 kB | 250 KB | ✅ PASS |
+| `/_not-found` | 103.0 kB | 250 KB | ✅ PASS |
 
-**Overall budget result:** (pending — PASS / FAIL)
+**Overall budget result:** ✅ PASS — 15/15 routes within budget.
+**Largest route:** `/dashboard/tickets` at 166.0 kB (84 KB headroom under the 250 KB ceiling).
 
-> If any route fails, per D-09 fix it (code-split / trim) and re-run before filling
-> this table. A backend-requiring cause may be deferred with a risk note.
+> Build was green only after the D-09 audit fixes in commit `addb572` (tsconfig e2e
+> exclusion, Playwright baseURL placement, `(authed)` force-dynamic for the
+> useSearchParams-prerender class, connectors Suspense wrapper, nav-drawer Tailwind
+> class disambiguation). No route required code-splitting; no items deferred to backlog.
 
 ---
 
@@ -66,7 +70,7 @@ Run: `cd frontend && npm run perf:lh`
 
 ## Verification Sign-Off
 
-- [ ] `npm run perf:budget` exit 0 — all routes <= 250 KB
+- [x] `npm run perf:budget` exit 0 — all routes <= 250 KB (2026-06-27, commit addb572)
 - [ ] `npm run perf:lh` — /login performance >= 90
 - [ ] `npm run perf:lh` — /login accessibility >= 90
 - [ ] `npm run perf:lh` — /dashboard performance >= 90
