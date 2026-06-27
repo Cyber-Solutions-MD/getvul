@@ -7,6 +7,15 @@ import ToastProvider from '@/components/ui/ToastProvider';
 // redirect pattern (Phase 9 RESEARCH §"Pattern 5 — recommended pick").
 // ToastProvider is hoisted from the deleted (authed)/dashboard/layout.tsx
 // because multiple authed pages still consume `useToast()`.
+//
+// Authed routes are client-rendered behind useAuth() and read URL state via
+// useSearchParams() (chip-bars, drill panels, deep-links). They are never
+// statically served, so opt the whole group out of static prerendering — this
+// resolves the Next.js missing-suspense-with-csr-bailout class for shared
+// components without scattering Suspense boundaries. First Load JS (the perf
+// budget metric) is unaffected by render mode.
+export const dynamic = 'force-dynamic';
+
 export default function AuthedLayout({ children }: { children: ReactNode }) {
   return (
     <ToastProvider>

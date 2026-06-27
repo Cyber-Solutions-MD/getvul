@@ -17,7 +17,7 @@
  *
  * Sunset-tokenized: no raw gray-N or indigo-N utilities.
  */
-import { useState, useEffect, useId, useRef } from 'react';
+import { useState, useEffect, useId, useRef, Suspense } from 'react';
 import { X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -84,7 +84,7 @@ type DeleteState = {
   connectorName: string;
 };
 
-export default function ConnectorsPage() {
+function ConnectorsPageInner() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
   const searchParams = useSearchParams();
@@ -394,5 +394,27 @@ export default function ConnectorsPage() {
         onCancel={() => setDeleteState({ open: false, connectorId: '', connectorName: '' })}
       />
     </div>
+  );
+}
+
+// useSearchParams() (D-CONN-07 deep-link read) requires a Suspense boundary so the
+// page shell can statically prerender (Next.js missing-suspense-with-csr-bailout).
+export default function ConnectorsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-text">Connectors</h1>
+            <p className="mt-1 text-sm text-text-muted">
+              Connect your security tools, ticketing systems, and enrichment sources.
+            </p>
+          </div>
+          <SkeletonTable rows={6} columns={SKELETON_COLUMNS} />
+        </div>
+      }
+    >
+      <ConnectorsPageInner />
+    </Suspense>
   );
 }

@@ -100,7 +100,7 @@ export function NavDrawer({ open, onClose, hamburgerRef }: Props) {
         aria-hidden={!open}
         className={cn(
           'fixed inset-y-0 left-0 z-[9001] w-[280px] bg-bg-darker border-r border-border overflow-y-auto',
-          'motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0,0,0,1)]',
+          'motion-safe:transition-transform motion-safe:[transition-duration:220ms] motion-safe:[transition-timing-function:cubic-bezier(0,0,0,1)]',
           open ? 'translate-x-0' : '-translate-x-full',
           !open && 'pointer-events-none',
         )}

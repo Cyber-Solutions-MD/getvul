@@ -7,11 +7,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: '.',
-  baseURL: 'http://localhost:3000',
 
   reporter: [['list'], ['html', { open: 'never' }]],
 
   use: {
+    // Base URL so specs can use relative navigation (page.goto('/login'))
+    baseURL: 'http://localhost:3000',
     // Collect traces on retry for debugging
     trace: 'on-first-retry',
   },
