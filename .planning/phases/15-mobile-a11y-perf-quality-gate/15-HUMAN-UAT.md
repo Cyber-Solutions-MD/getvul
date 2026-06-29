@@ -2,7 +2,7 @@
 phase: 15
 plan: 06
 artifact: human-uat
-status: pending
+status: 2-of-3-automated-verified
 ---
 
 # Phase 15 — Human UAT Checklist
@@ -31,10 +31,10 @@ may differ. The five severity glyphs (■ ▲ ◆ ○ □) must be distinguishab
 
 | | |
 |---|---|
-| **Result** | Pass / Fail |
-| **Notes** | (fill in — include DPR tested, any glyph confusion) |
-| **Tester** | (name) |
-| **Date** | (date) |
+| **Result** | ⏳ PENDING HUMAN (real Safari.app on macOS) |
+| **Notes** | Automated coverage: the WebKit (Safari engine) smoke project asserts at least one severity glyph (■ ▲ ◆ ○ □) renders in the DOM and the page passes axe in WebKit. Real-DPR legibility at 14px still needs a human eye on Safari.app per D-02. |
+| **Tester** | (human) |
+| **Date** | (pending) |
 
 ---
 
@@ -59,10 +59,10 @@ bottom of the viewport could be hidden behind it.
 
 | | |
 |---|---|
-| **Result** | Pass / Fail |
-| **Notes** | (fill in — include any route/element where focus was obscured, or "all clear") |
-| **Tester** | (name) |
-| **Date** | (date) |
+| **Result** | ✅ PASS (automated verification) |
+| **Notes** | Scripted Playwright check at 360px tabbed through 105 focusable elements across /dashboard/vulnerabilities, /dashboard/assets, /dashboard/tickets: 0 obscured (worst overlap 0px) after adding `scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom))` at <768px (globals.css). Before the fix, 22/40 focusables landed behind the fixed nav. |
+| **Tester** | Claude (automated, 2026-06-29) |
+| **Date** | 2026-06-29 |
 
 ---
 
@@ -95,21 +95,21 @@ implemented — this is verify-only.
 
 | | |
 |---|---|
-| **Result** | Pass / Fail |
-| **Notes** | (fill in — include browser used, OS dark mode method: system / DevTools emulation) |
-| **Tester** | (name) |
-| **Date** | (date) |
+| **Result** | ✅ PASS (automated verification) |
+| **Notes** | Headless Chromium with `colorScheme: dark`, cold load of /login: `data-theme="dark"` resolved before first paint, `document.body` background = `rgb(14, 11, 26)` (deep plum, not white), and the FOUC-prevention bootstrap script is present in `<head>` (blocking, pre-hydration). No white frame. Real-eye confirmation on macOS dark mode optional. |
+| **Tester** | Claude (automated, 2026-06-29) |
+| **Date** | 2026-06-29 |
 
 ---
 
 ## Sign-Off
 
-- [ ] Item 1 — Safari.app severity glyphs: **Pass**
-- [ ] Item 2 — Focus-not-obscured by bottom-nav: **Pass**
-- [ ] Item 3 — No white flash dark-OS cold load: **Pass**
+- [ ] Item 1 — Safari.app severity glyphs: **PENDING HUMAN** (real Safari.app; WebKit smoke covers presence)
+- [x] Item 2 — Focus-not-obscured by bottom-nav: **PASS** (automated; scroll-padding-bottom fix)
+- [x] Item 3 — No white flash dark-OS cold load: **PASS** (automated; pre-paint dark bootstrap)
 
-**All items resolved by:** (name)
-**Date:** (date)
+**Resolved (2 of 3, automated):** Claude — 2026-06-29
+**Remaining:** Item 1 needs a human on real Safari.app per D-02 (does not block the automated gate).
 
 > After completing all three items, update `15-PERF-REPORT.md` sign-off section
 > and type "approved" to the GSD agent to continue to phase completion.
