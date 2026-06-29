@@ -225,7 +225,10 @@ export function TicketsTable({
       </table>
 
       {/* Mobile card layout — visible below 900px (D-L-01) */}
-      <ul className="min-[900px]:hidden space-y-2">
+      {/* Mobile cards are interactive buttons, not a semantic list — a <ul> with
+          role="button" <li> children fails axe list/listitem (the role strips
+          the listitem semantics). Use plain <div>s. */}
+      <div className="min-[900px]:hidden space-y-2">
         {rows.map((r) => {
           const severityKey = r.max_severity?.toLowerCase() ?? '';
           const glyph = SEVERITY_GLYPH[severityKey] ?? '○';
@@ -233,7 +236,7 @@ export function TicketsTable({
           const isSelected = selected.has(r.id);
 
           return (
-            <li
+            <div
               key={r.id}
               role="button"
               tabIndex={0}
@@ -294,10 +297,10 @@ export function TicketsTable({
                   </span>
                 )}
               </div>
-            </li>
+            </div>
           );
         })}
-      </ul>
+      </div>
     </>
   );
 }
