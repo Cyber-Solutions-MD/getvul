@@ -44,6 +44,7 @@ export function ProviderMark({ provider, className }: ProviderMarkProps) {
         className,
       )}
       style={{ background: gradient }}
+      role="img"
       aria-label={provider}
     >
       {/* T-13-14: text node only — React escapes text, no dangerouslySetInnerHTML */}

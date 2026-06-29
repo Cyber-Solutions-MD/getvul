@@ -56,8 +56,9 @@ describe('TicketDrillContent — header (D-D-01)', () => {
         onClose={onClose}
       />
     );
-    // ProviderMark renders a span with aria-label={provider}
-    const mark = screen.getByRole('generic', { name: /jira/i }) as HTMLElement;
+    // ProviderMark renders a span with role="img" + aria-label={provider}
+    // (Phase-15 a11y: role="img" makes the aria-label valid — aria-prohibited-attr).
+    const mark = screen.getByRole('img', { name: /jira/i }) as HTMLElement;
     // The plan says ProviderMark is imported from 'provider-mark'; test that it appears
     expect(mark).toBeDefined();
   });

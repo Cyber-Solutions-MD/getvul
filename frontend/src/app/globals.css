@@ -23,6 +23,14 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  /* Phase-15 a11y override (UX-07-03). The vendored sunset token
+     --color-text-faint: #6B6488 fails WCAG 2.1 AA contrast (2.9–3.6:1) on the
+     dark surfaces at small sizes — caught by the per-route axe gate. #8B84A8 is
+     the minimal same-hue lift that clears 4.5:1 on every dark surface
+     (bg/bg-darker/surface/surface-2) while staying dimmer than text-muted.
+     DESIGN-SYSTEM GAP — reconcile into sketch-findings-getvul foundation.md;
+     sunset.css is vendored and must not be edited directly. */
+  --color-text-faint: #8B84A8;
 }
 
 /* Global focus-visible — D-11 */

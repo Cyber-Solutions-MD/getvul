@@ -36,6 +36,7 @@ export function SeverityRibbon({ counts }: { counts: SeverityCounts }) {
         return (
           <span
             key={key}
+            role="img"
             className={cn(
               'inline-flex items-center font-mono tabular-nums',
               dimmed ? 'text-text-faint' : tint,

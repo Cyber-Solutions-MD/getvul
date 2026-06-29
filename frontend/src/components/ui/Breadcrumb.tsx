@@ -14,7 +14,7 @@
  * expected to be application-relative.
  */
 import Link from 'next/link';
-import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
+import { Children, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 
 export type CrumbProps = {
   href?: string;
@@ -52,6 +52,9 @@ export function Breadcrumb({ children }: BreadcrumbProps) {
   const items = Children.toArray(children).filter(isValidElement) as ReactElement<CrumbProps>[];
   return (
     <nav aria-label="Breadcrumb">
+      {/* Only <li> may be a direct child of <ol> (WCAG list / listitem). The
+          chevron separator is therefore its own aria-hidden <li>, not a wrapping
+          <span> around each crumb. */}
       <ol className="flex items-center gap-2">
         {items.map((item, idx) => {
           // WR-11: stable key prefers the crumb's href, else the text label.
@@ -59,14 +62,14 @@ export function Breadcrumb({ children }: BreadcrumbProps) {
           // parent ever conditionally inserts a crumb mid-trail.
           const key = item.props.href ?? String(item.props.children) ?? `crumb-${idx}`;
           return (
-            <span key={key} className="inline-flex items-center gap-2">
+            <Fragment key={key}>
               {item}
               {idx < items.length - 1 && (
-                <span className="text-text-faint/60" aria-hidden="true">
+                <li className="inline-flex items-center text-text-faint/60" aria-hidden="true">
                   ›
-                </span>
+                </li>
               )}
-            </span>
+            </Fragment>
           );
         })}
       </ol>

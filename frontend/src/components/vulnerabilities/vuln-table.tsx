@@ -187,6 +187,10 @@ export function VulnTable({
     sort === field ? (order === 'asc' ? ' ↑' : ' ↓') : '';
 
   return (
+    // overflow-x-auto: the 7-column table is wider than a phone viewport; let it
+    // scroll within its own container so the page body never scrolls horizontally
+    // (UX-07-01). No mobile card view exists for this surface.
+    <div className="overflow-x-auto">
     <table className="w-full border-collapse text-sm">
       <thead className="sticky top-0 z-10 bg-surface">
         <tr className="border-b border-border-subtle text-left text-xs uppercase tracking-wide text-text-muted">
@@ -327,5 +331,6 @@ export function VulnTable({
         )}
       </tbody>
     </table>
+    </div>
   );
 }

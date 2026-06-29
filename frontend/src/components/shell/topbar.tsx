@@ -45,18 +45,19 @@ export function Topbar({ onMenuClick, hamburgerRef }: TopbarProps) {
       {/* Spacer push right */}
       <div className="flex-1" />
 
-      {/* Bell + Help — D-37 visual only */}
+      {/* Bell + Help — D-37 visual only. Hidden below sm (640px) so the phone
+          topbar (search + avatar) fits without horizontal overflow at 360/390px. */}
       <button
         type="button"
         aria-label="Notifications"
-        className="rounded-md p-2 text-text-muted hover:text-text hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+        className="hidden sm:inline-flex rounded-md p-2 text-text-muted hover:text-text hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
       >
         <Bell className="h-4 w-4" aria-hidden />
       </button>
       <button
         type="button"
         aria-label="Help"
-        className="rounded-md p-2 text-text-muted hover:text-text hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+        className="hidden sm:inline-flex rounded-md p-2 text-text-muted hover:text-text hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
       >
         <HelpCircle className="h-4 w-4" aria-hidden />
       </button>

@@ -47,9 +47,14 @@ function formatRelativeDate(iso: string | null): string {
 }
 
 function roleBadgeClass(role: string): string {
+  // Phase-15 a11y (UX-07-03): OWNER/ADMIN role-badge text fails WCAG AA on the
+  // accent-soft fill in dark mode (pink 4.0:1, violet 4.4:1). Lift to the
+  // brighter same-hue shade (pink-400 / violet-300) to clear 4.5:1 while keeping
+  // the colored-pill identity. Amber/Viewer already pass. DESIGN-SYSTEM GAP —
+  // reconcile accent-on-soft badge contrast into visual-language.md.
   const map: Record<string, string> = {
-    OWNER: 'bg-pink-soft text-pink',
-    ADMIN: 'bg-violet-soft text-violet',
+    OWNER: 'bg-pink-soft text-[#F472B6]',
+    ADMIN: 'bg-violet-soft text-[#C4B5FD]',
     ANALYST: 'bg-amber-soft text-amber',
     VIEWER: 'bg-surface-2 text-text-muted',
   };

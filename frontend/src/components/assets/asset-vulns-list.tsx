@@ -87,16 +87,18 @@ export function AssetVulnsList({ rows, onRowOpen }: AssetVulnsListProps) {
             )}
             data-testid={`vuln-row-${idOrCve}`}
           >
-            <span className={cn('w-5 text-center font-mono', sev.tint)}>{sev.glyph}</span>
-            <span className="w-32 font-mono text-sm text-text">{r.cve_id ?? '—'}</span>
-            <span className="flex-1 truncate text-sm text-text">
+            {/* role="cell" on each child satisfies aria-required-children for the
+                role="row" wrapper (WAI-ARIA grid pattern, completes WR-07). */}
+            <span role="cell" className={cn('w-5 text-center font-mono', sev.tint)}>{sev.glyph}</span>
+            <span role="cell" className="w-32 font-mono text-sm text-text">{r.cve_id ?? '—'}</span>
+            <span role="cell" className="flex-1 truncate text-sm text-text">
               {r.vulnerability_name ?? '—'}
             </span>
-            <span className="font-mono text-sm text-text-faint">
+            <span role="cell" className="font-mono text-sm text-text-faint">
               {r.cvss_v3_score ?? '—'}
             </span>
             {r.cisa_kev && (
-              <span className="rounded border border-severity-critical/40 px-1.5 py-0.5 font-mono text-[10px] uppercase text-severity-critical">
+              <span role="cell" className="rounded border border-severity-critical/40 px-1.5 py-0.5 font-mono text-[10px] uppercase text-severity-critical">
                 KEV
               </span>
             )}

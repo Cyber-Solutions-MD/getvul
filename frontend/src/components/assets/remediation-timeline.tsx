@@ -71,6 +71,7 @@ export function RemediationTimeline({ tickets }: { tickets: RemediationTicket[] 
             <span
               className="mt-1 inline-block h-5 w-5 shrink-0 rounded"
               style={{ background: gradient }}
+              role="img"
               aria-label={provider || 'Unknown provider'}
               data-testid={`provider-mark-${provider.toLowerCase() || 'unknown'}`}
             />

@@ -75,6 +75,7 @@ export function ConnectorMark({ provider, className }: ConnectorMarkProps) {
       // undefined background is treated as no background by the browser —
       // unknown provider renders a plain span with no gradient.
       style={{ background: gradient }}
+      role="img"
       aria-label={provider}
     >
       {/* T-14-01: text node only — React escapes text, no dangerouslySetInnerHTML */}

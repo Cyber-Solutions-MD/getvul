@@ -26,7 +26,10 @@ type StatusConfig = {
 
 const STATUS_MAP: Record<string, StatusConfig> = {
   open: {
-    classes: 'border-violet/40 bg-violet-soft text-violet',
+    // Phase-15 a11y (UX-07-03): text-violet on violet-soft is 4.35:1 (< AA 4.5).
+    // Lift to the brighter same-hue shade (violet-300). DESIGN-SYSTEM GAP:
+    // accent-on-soft badge contrast — reconcile in visual-language.md.
+    classes: 'border-violet/40 bg-violet-soft text-[#C4B5FD]',
     label: 'Open',
   },
   in_progress: {

@@ -75,6 +75,9 @@ export function AssetsTable({ rows, onRowOpen, failedSources }: AssetsTableProps
   );
 
   return (
+    // overflow-x-auto: table is wider than a phone viewport — scroll within its
+    // own container so the page body never scrolls horizontally (UX-07-01).
+    <div className="overflow-x-auto">
     <table className="w-full border-collapse text-sm">
       <thead className="sticky top-0 z-10 bg-surface">
         <tr className="border-b border-border-subtle text-left text-xs uppercase tracking-wide text-text-muted">
@@ -171,5 +174,6 @@ export function AssetsTable({ rows, onRowOpen, failedSources }: AssetsTableProps
         })}
       </tbody>
     </table>
+    </div>
   );
 }
