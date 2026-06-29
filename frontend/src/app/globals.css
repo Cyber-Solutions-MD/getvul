@@ -33,6 +33,15 @@
   --color-text-faint: #8B84A8;
 }
 
+/* Phase-15 a11y (UX-07-03 / WCAG 2.4.11 Focus Not Obscured): at phone widths the
+   bottom-nav is position:fixed over the bottom ~64px. Reserve that space when the
+   browser scrolls a focused element into view, so focus rings never land behind it. */
+@media (max-width: 767px) {
+  html {
+    scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
 /* Global focus-visible — D-11 */
 *:focus-visible {
   outline: 2px solid var(--color-violet);
