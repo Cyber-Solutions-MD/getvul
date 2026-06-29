@@ -17,59 +17,57 @@
 //             (Plan 06 HUMAN-UAT); automated check only confirms DOM presence.
 
 import { test, expect } from './fixtures/axe';
-import { discoverDetailRoute, waitForNav } from './routes';
+import { discoverDetailRoutes, waitForNav, gotoStable } from './routes';
 
 // Smoke route set: login, dashboard, vulnerabilities, and one discovered detail page.
 // Defined as a function so the detail-page discovery runs inside each test.
 
-const SMOKE_STATIC = ['/login', '/dashboard', '/dashboard/vulnerabilities'] as const;
+const SMOKE_AUTHED = ['/dashboard', '/dashboard/vulnerabilities'] as const;
 
-// --- Cross-browser smoke sweep (UX-07-07) ---
+/** Assert a route renders and has zero critical/serious axe violations. */
+async function expectNoBlockingAxe(
+  route: string,
+  makeAxeBuilder: () => { analyze: () => Promise<{ violations: { impact?: string | null; id: string; description: string }[] }> },
+) {
+  const results = await makeAxeBuilder().analyze();
+  const blocking = results.violations.filter(
+    (v) => v.impact === 'critical' || v.impact === 'serious',
+  );
+  if (blocking.length > 0) {
+    console.error(
+      `[smoke] BLOCKING axe violations on ${route}:\n` +
+        blocking.map((v) => `  [${v.impact}] ${v.id}: ${v.description}`).join('\n'),
+    );
+  }
+  expect(blocking, `Zero critical/serious axe violations on ${route} (smoke)`).toHaveLength(0);
+}
+
+// --- /login smoke (UX-07-07) — runs UNAUTHENTICATED ---
+// The login page bounces already-authed users (D-50), so the smoke projects'
+// storageState would redirect us away. Override to an empty session for /login.
+test.describe('Cross-browser smoke — /login (unauthenticated)', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test('login page renders and passes axe in all engines', async ({ page, makeAxeBuilder }) => {
+    await page.goto('/login');
+    await page.locator('h2').first().waitFor({ state: 'visible', timeout: 10_000 });
+    await expect(page.locator('h2').first()).toBeVisible();
+    await expectNoBlockingAxe('/login', makeAxeBuilder);
+  });
+});
+
+// --- Authed smoke sweep (UX-07-07) ---
 test.describe('Cross-browser smoke sweep', () => {
   test('smoke routes render and pass axe in all engines', async ({ page, makeAxeBuilder }) => {
-    // Discover an asset detail page for the smoke run
-    let detailRoute: string | null = null;
-    try {
-      detailRoute = await discoverDetailRoute(
-        page,
-        '/dashboard/assets',
-        'a[href*="/dashboard/assets/"]',
-      );
-    } catch {
-      console.warn('[smoke] Could not discover asset detail route — skipping detail smoke');
-    }
-
-    const routes: string[] = [...SMOKE_STATIC, ...(detailRoute ? [detailRoute] : [])];
+    // Discover one detail page for the smoke run (via API — see routes.ts)
+    const detailRoutes = await discoverDetailRoutes(page);
+    const routes: string[] = [...SMOKE_AUTHED, ...detailRoutes.slice(0, 1)];
 
     for (const route of routes) {
-      await page.goto(route);
-
-      if (route === '/login') {
-        // Login page has no nav landmark — wait for an h2 heading
-        await page.locator('h2').first().waitFor({ state: 'visible', timeout: 10_000 });
-        const heading = page.locator('h2').first();
-        await expect(heading).toBeVisible();
-      } else {
-        // Authed pages — wait for the desktop nav landmark
-        await waitForNav(page, 1280);
-        const nav = page.locator('nav[aria-label="Primary navigation"]');
-        await expect(nav).toBeVisible();
-      }
-
-      // Quick axe check — blocking WCAG 2.1 AA
-      const results = await makeAxeBuilder().analyze();
-      const blocking = results.violations.filter(
-        (v) => v.impact === 'critical' || v.impact === 'serious',
-      );
-      if (blocking.length > 0) {
-        console.error(
-          `[smoke] BLOCKING axe violations on ${route}:\n` +
-            blocking
-              .map((v) => `  [${v.impact}] ${v.id}: ${v.description}`)
-              .join('\n'),
-        );
-      }
-      expect(blocking, `Zero critical/serious axe violations on ${route} (smoke)`).toHaveLength(0);
+      await gotoStable(page, route);
+      await waitForNav(page, 1280);
+      await expect(page.locator('nav[aria-label="Primary navigation"]')).toBeVisible();
+      await expectNoBlockingAxe(route, makeAxeBuilder);
     }
   });
 
@@ -93,13 +91,29 @@ test.describe('Cross-browser smoke sweep', () => {
 
 // --- Theme assertion: data-theme reflects emulated prefers-color-scheme (UX-07-05) ---
 test.describe('Theme bootstrap — data-theme reflects emulated color-scheme', () => {
+  // The bootstrap logic (read prefers-color-scheme → data-theme) is browser-agnostic
+  // app behavior; Chromium + WebKit cover it. Firefox's prefers-color-scheme
+  // emulation is unreliable under Playwright (needs ui.systemUsesDarkTheme, which then
+  // prevents per-test light override), so skip it there.
+  test.skip(({ browserName }) => browserName === 'firefox', 'Firefox colorScheme emulation unreliable in Playwright');
+
+  // Remove any stored preference BEFORE the bootstrap script runs on every
+  // navigation, so the head bootstrap resolves purely from the emulated
+  // prefers-color-scheme. addInitScript runs pre-paint on each goto, which is
+  // more reliable than goto→removeItem→goto (Firefox restores storageState
+  // localStorage on each navigation).
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.removeItem('getvul_theme');
+      } catch {
+        /* localStorage may be unavailable — bootstrap defaults apply */
+      }
+    });
+  });
+
   test('data-theme is "dark" when colorScheme is emulated dark', async ({ page }) => {
-    // Emulate dark BEFORE navigation so the bootstrap script reads it on page load
     await page.emulateMedia({ colorScheme: 'dark' });
-    // Clear localStorage so there is no stored preference overriding the OS signal
-    await page.goto('/login');
-    await page.evaluate(() => localStorage.removeItem('getvul_theme'));
-    // Navigate again to trigger the bootstrap script with the cleared state
     await page.goto('/login');
     await page.locator('h2').first().waitFor({ state: 'visible', timeout: 10_000 });
 
@@ -109,8 +123,6 @@ test.describe('Theme bootstrap — data-theme reflects emulated color-scheme', (
 
   test('data-theme is "light" when colorScheme is emulated light', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/login');
-    await page.evaluate(() => localStorage.removeItem('getvul_theme'));
     await page.goto('/login');
     await page.locator('h2').first().waitFor({ state: 'visible', timeout: 10_000 });
 

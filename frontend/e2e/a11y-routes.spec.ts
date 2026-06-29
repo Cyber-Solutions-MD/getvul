@@ -15,37 +15,17 @@
 // makeAxeBuilderReportOnly fixtures (Plan 01, 15-01-SUMMARY.md).
 
 import { test, expect } from './fixtures/axe';
-import { STATIC_ROUTES, waitForNav, discoverDetailRoute } from './routes';
+import { STATIC_ROUTES, waitForNav, discoverDetailRoutes } from './routes';
 
 // --- Blocking WCAG 2.1 AA sweep across ALL authenticated routes ---
 test.describe('WCAG 2.1 AA axe sweep — all routes (blocking)', () => {
   test('sweeps all routes for critical/serious violations', async ({ page, makeAxeBuilder, makeAxeBuilderReportOnly }) => {
-    // Build the full route list: static + discovered detail pages
-    const routes: string[] = [...STATIC_ROUTES];
-
-    // Discover /dashboard/assets/<id>
-    const assetHref = await discoverDetailRoute(
-      page,
-      '/dashboard/assets',
-      'a[href*="/dashboard/assets/"]',
-    );
-    if (assetHref) {
-      routes.push(assetHref);
-    } else {
-      console.warn('[a11y-routes] assets list is empty — skipping assets detail');
+    // Build the full route list: static + discovered [id] detail pages (via API)
+    const detailRoutes = await discoverDetailRoutes(page);
+    if (detailRoutes.length === 0) {
+      console.warn('[a11y-routes] no detail routes discovered — sweeping static routes only');
     }
-
-    // Discover /dashboard/tickets/<id>
-    const ticketHref = await discoverDetailRoute(
-      page,
-      '/dashboard/tickets',
-      'a[href*="/dashboard/tickets/"]',
-    );
-    if (ticketHref) {
-      routes.push(ticketHref);
-    } else {
-      console.warn('[a11y-routes] tickets list is empty — skipping tickets detail');
-    }
+    const routes: string[] = [...STATIC_ROUTES, ...detailRoutes];
 
     // Default viewport for this describe is the project default (Desktop Chrome at 1280px)
     for (const route of routes) {
