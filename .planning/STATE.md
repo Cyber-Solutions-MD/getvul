@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Production Readiness
-status: Ready to execute
-last_updated: "2026-06-26T08:51:41.083Z"
+milestone: v2.0
+milestone_name: UI/UX Redesign
+status: Milestone complete (Phase 15 verified — 1 non-blocking human spot-check pending)
+last_updated: "2026-06-30T00:00:00Z"
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 49
-  completed_plans: 47
-  percent: 96
+  completed_plans: 49
+  percent: 100
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,19 +20,26 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 15 — mobile-a11y-perf-quality-gate
+**Current focus:** v2.0 milestone COMPLETE — Phase 15 verified (7/7 success criteria).
 
 ## Current Position
 
-Phase: 15 (mobile-a11y-perf-quality-gate) — EXECUTING
-Plan: 5 of 6
+Phase: 15 (mobile-a11y-perf-quality-gate) — COMPLETE
+Plan: 6 of 6 complete
 | Field | Value |
 |-------|-------|
-| Active milestone | v2.0 UI/UX Redesign |
-| Active phase | 15 — Mobile + a11y + Perf Quality Gate (EXECUTING) |
-| Last action | 2026-06-26 — Plan 04 complete: jsx-a11y zero-error sweep; keyboard-operable interactive rows + dialog backdrop keyboard parity; npm run lint exits 0 |
-| Next action | Execute Phase 15 Plan 05 |
+| Active milestone | v2.0 UI/UX Redesign — **COMPLETE** (Phases 9–15 all shipped) |
+| Active phase | 15 — Mobile + a11y + Perf Quality Gate (COMPLETE, verified 7/7) |
+| Last action | 2026-06-30 — Phase 15 closed: full Playwright a11y/responsive/cross-browser gate GREEN on prod build (28 passed); bundle budget 15/15 ≤250 KB; Lighthouse /login 97/95 + /dashboard 90/95; mobile card-view collapse (SC#1) built; ~18 D-09 audit-fix defects resolved |
+| Next action | Optional: human Safari.app glyph spot-check (15-HUMAN-UAT Item 1, non-blocking). Then `/gsd-complete-milestone` to archive v2.0, or start v1.1 (deferred backend hardening, Phases 2–8). |
 | Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
+
+## v2.0 Closeout Notes (2026-06-30)
+
+- **Quality gate green on production build:** Playwright suite 28 passed / 2 skipped (Firefox theme-bootstrap — unreliable colorScheme emulation; covered on Chromium+WebKit) / 0 failed. Bundle budget 15/15 routes ≤250 KB. Lighthouse mobile ≥90 perf+a11y on /login + /dashboard.
+- **Open follow-ups for the design system (flagged, not silent):** three dark-theme contrast overrides were applied at the app layer (vendored `sunset.css` untouched) and must be reconciled into the `sketch-findings-getvul` skill — `--color-text-faint` #6B6488→#8B84A8 (globals.css), OWNER/ADMIN role badges + Open status pill lifted to brighter same-hue shades. Each carries a `DESIGN-SYSTEM GAP` comment.
+- **Pending human:** Safari.app severity-glyph 14px legibility (D-02) — does not block the gate.
+- **Light-theme WCAG** remains the explicitly-deferred UX-D-03 polish pass (the gate audits the shipping dark theme).
 
 ## v2.0 Phase Map
 
@@ -98,4 +105,4 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - Phase 15-04: Wrapper.displayName='Wrapper' pattern for factory-returned test components (react/display-name); vitest-axe.d.ts eslint-disable comments removed (nonexistent rule)
 
 ---
-*Last updated: 2026-06-26 — Plan 15-04 complete: jsx-a11y zero-error sweep; keyboard-operable interactive rows + dialog backdrop keyboard parity; npm run lint exits 0; 113 tests green. Phase 15 EXECUTING.*
+*Last updated: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC). Full quality gate green on the production build (Playwright 28 passed, bundle 15/15, Lighthouse ≥90). v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15). 676 unit tests + lint green.*
