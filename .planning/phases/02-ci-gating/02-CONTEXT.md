@@ -32,7 +32,10 @@ Out of scope (other phases):
   - `mypy app/` (ci.yml:59) — in the `backend` job
   - `npm run lint` (ci.yml:95) — in the `frontend` job
   - `npx tsc --noEmit` (ci.yml:97) — in the `frontend` job
-- **D-03:** Removing the masks WILL surface whatever errors mypy/lint/tsc currently emit (the masks have been hiding them). The phase must drive these to zero — fix the violations, or where a clean fix is out of scope, record an explicit, narrow, commented ignore (e.g. targeted `# type: ignore[code]` / eslint-disable with reason). No blanket suppressions. Research/planning should first run all three locally to size the actual backlog.
+- **D-03 (REVISED 2026-06-30 after research sized the backlog):** Research found the mask was hiding **619 mypy errors across 76 files** (~442 mechanical annotation gaps, ~149 real type bugs). Frontend is clean (lint 0 errors; tsc 6 errors in 2 ticket test files only). Strategy by tool:
+  - **Frontend lint + tsc:** remove `|| true` and fix outright. The 6 tsc errors are one root cause (TanStack Query v5 `UseQueryResult` mock casts in `tickets/page.test.tsx` + `tickets/rules/page.test.tsx`) — fix narrowly with `as unknown as UseQueryResult<T, Error>`.
+  - **mypy:** adopt a **baseline gate** rather than driving all 619 to zero in this phase. Re-enable mypy in CI (remove `|| true`) but run it through a committed baseline (recommended tool: `mypy-baseline` on PyPI — `mypy app/ | mypy-baseline sync` to snapshot, `mypy app/ | mypy-baseline filter` in CI). Effect: **any NEW type error fails the build** (satisfies PROD-02-02's intent), while the 619 pre-existing errors are tracked in a committed baseline file and burned down incrementally in a follow-up phase. The baseline is line-specific and version-controlled — it is NOT a blanket `|| true` mask or a relaxation of `strict = true`. Do NOT relax `[tool.mypy] strict = true`.
+- **D-03b:** The 619-error burn-down is a **deferred follow-up phase** (track separately; see Deferred Ideas). Rationale: 149 are real logic bugs and the test-coverage floor (Phase 8) is not yet in place, so a big-bang fix-all carries regression risk without a safety net. Baseline-now + incremental-later is the chosen path.
 
 ### ZAP DAST policy (SC#4) — **advisory, main + nightly**
 - **D-04:** ZAP stays **non-blocking**. Keep `continue-on-error: true` on all three scans (ci.yml:164/173/182) and keep uploading the report artifacts. Rationale: DAST is slow, needs the app running, and is noisy — gating PR merges on it flakes.
@@ -40,7 +43,8 @@ Out of scope (other phases):
 - **D-06:** Because ZAP is advisory and off-PR, it is **not** a required status check (see D-08). Its value is the nightly/post-merge report, not merge-blocking.
 
 ### Branch protection (SC#5) — **configure now via gh API**
-- **D-07:** Configure programmatically via `gh api` (operator has admin on `Cyber-Solutions-MD/getvul`; `viewerCanAdminister: true`). Require a PR before merging to `main` and require the status checks below to pass. Capture the exact `gh api` invocation / resulting ruleset in the deployment doc so it's reproducible.
+- **D-07:** Configure programmatically via `gh api` (operator has admin on `Cyber-Solutions-MD/getvul`; `viewerCanAdminister: true`), using the **legacy branch-protection API** (`PUT /repos/{owner}/{repo}/branches/main/protection`) — single reproducible call, easier to document than rulesets. Require a PR before merging to `main` and require the status checks below to pass. `enforce_admins: false` (admins may push directly in a pinch — operator decision 2026-06-30). `strict: false` (no force-rebase-before-merge). Capture the exact `gh api` invocation in the deployment doc so it's reproducible.
+  - **Open item for the planner to resolve empirically:** `required_pull_request_reviews` with `required_approving_review_count: 0` may or may not actually enforce "PR required" on GitHub Free (research assumption A1). Test the resulting protection with a direct-push attempt; if count 0 doesn't enforce the PR requirement, document the working configuration.
 - **D-08:** Required status checks (must be green to merge): **`backend`, `frontend`, `semgrep`, `terraform`**. Explicitly NOT required: **`dast`** (advisory per D-04..06).
   - Note for planning: GitHub matches required checks by **job name as reported** (the `name:` of each job/run). Verify the exact check names the runs report once triggers are live, and register those exact strings — a mismatch silently makes a check "not required."
 - **D-09:** `terraform` is required but only meaningful when `infra/` changes. Planning should decide between (a) always-run + fast no-op when infra is unchanged, or (b) path-filtered with a required "passes-when-skipped" shim. Required checks that get skipped on unrelated PRs can block merges on some GitHub configs — resolve this explicitly rather than discovering it on the first frontend-only PR.
@@ -103,6 +107,8 @@ Out of scope (other phases):
 <deferred>
 ## Deferred Ideas
 
+- **mypy 619-error burn-down to zero** — the baseline (D-03) blocks new errors now; clearing the 619 pre-existing errors (442 mechanical annotation gaps + 149 real type bugs across connectors/vulnerabilities/ticketing/assets/auth/etc.) is a **dedicated follow-up phase** to be added to the roadmap once Phase 2 ships. Sequence it before or alongside Phase 8 (test coverage) since the 149 real bugs need a test safety net. The baseline file shrinks as errors are fixed; the gate ratchets.
+- **mypy version pin** (`mypy==2.1.*` in pyproject `[dev]`) for reproducible baseline/CI parity — fold into the burn-down phase or Plan during baseline setup if trivial.
 - **Gate ZAP on a severity threshold** (fail build on High/Medium) — considered and rejected for now (D-04, advisory). Could revisit once DAST noise is characterized.
 - **Update-path reconciliation** (cd.yml vs install.sh cron race; tag-pinned deploys; rollback runbook) — Phase 3 (PROD-03).
 - **New test authoring to raise coverage floor** — Phase 8 (PROD-08).
