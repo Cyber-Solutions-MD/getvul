@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: UI/UX Redesign
-status: v2.0 ARCHIVED & TAGGED (2026-06-30) — audit tech_debt, 0 blockers. Next candidate: v1.1 backend hardening (PROD-02..08)
-last_updated: "2026-06-30T00:00:00Z"
+milestone: v1.0
+milestone_name: Production Readiness
+status: v1.0 RESUMED (2026-06-30) after v2.0 shipped. Active phase 2 (CI Gating) — CONTEXT gathered, ready for planning. Phase 1 complete; phases 2–8 active.
+last_updated: "2026-06-30T12:00:00Z"
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 49
-  completed_plans: 49
-  percent: 100
+  total_phases: 8
+  completed_phases: 1
+  total_plans: 4
+  completed_plans: 4
+  percent: 13
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,19 +20,27 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** v2.0 milestone COMPLETE — Phase 15 verified (7/7 success criteria).
+**Current focus:** v1.0 Production Readiness RESUMED — Phase 2 (CI Gating) context gathered, ready to plan. v2.0 UI/UX Redesign shipped & archived 2026-06-30.
 
 ## Current Position
 
-Phase: 15 (mobile-a11y-perf-quality-gate) — COMPLETE
-Plan: 6 of 6 complete
+Phase: 2 (ci-gating) — CONTEXT gathered, ready for planning
+Plan: 0 of TBD (plans not yet created)
 | Field | Value |
 |-------|-------|
-| Active milestone | v2.0 UI/UX Redesign — **COMPLETE** (Phases 9–15 all shipped) |
-| Active phase | 15 — Mobile + a11y + Perf Quality Gate (COMPLETE, verified 7/7) |
-| Last action | 2026-06-30 — Phase 15 closed: full Playwright a11y/responsive/cross-browser gate GREEN on prod build (28 passed); bundle budget 15/15 ≤250 KB; Lighthouse /login 97/95 + /dashboard 90/95; mobile card-view collapse (SC#1) built; ~18 D-09 audit-fix defects resolved |
-| Next action | Optional: human Safari.app glyph spot-check (15-HUMAN-UAT Item 1, non-blocking). Then `/gsd-complete-milestone` to archive v2.0, or start v1.1 (deferred backend hardening, Phases 2–8). |
-| Phase numbering | Continues from v1.0's last phase (8). v2.0 occupies Phases 9–15. |
+| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phase 1 done; Phases 2–8 active) |
+| Active phase | 2 — CI Gating (re-arm CI triggers, remove `\|\| true` masks, ZAP policy, branch protection) |
+| Last action | 2026-06-30 — Repo cleanup (stale worktrees/branch/marker removed, tooling gitignored, leftover planning docs committed). v1.0 reactivated in ROADMAP. Phase 2 CONTEXT.md written: ZAP advisory (main+nightly, off PRs), branch protection via gh API, required checks = backend/frontend/semgrep/terraform. |
+| Next action | `/gsd-plan-phase 2` — research + plan Phase 2 from 02-CONTEXT.md. Then `/gsd-execute-phase 2`. |
+| Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
+
+## v1.0 Phase 2 Decisions (CONTEXT, 2026-06-30)
+
+- **Triggers:** re-enable `push`→main + `pull_request`→main; keep `workflow_dispatch` (ci.yml:4–8).
+- **Masks:** remove `|| true` from mypy (ci.yml:59), npm lint (95), tsc (97); drive surfaced errors to zero, no blanket suppressions.
+- **ZAP DAST:** advisory — keep `continue-on-error`; run only on push-to-main + a nightly `schedule:` cron, NOT on PRs; not a required check.
+- **Branch protection:** configured via `gh api` (operator has admin); require PR + checks `backend`, `frontend`, `semgrep`, `terraform`; documented in docs/13-deployment.md.
+- **Boundaries:** cd.yml / update-path = Phase 3; new test authoring = Phase 8.
 
 ## v2.0 Closeout Notes (2026-06-30)
 

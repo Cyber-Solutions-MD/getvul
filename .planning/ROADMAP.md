@@ -6,7 +6,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 ## Milestones
 
-- 🚧 **v1.0 Production Readiness** — Phases 1–8 (Phase 1 complete; Phases 2–8 deferred → future v1.1)
+- 🚧 **v1.0 Production Readiness** — Phases 1–8 (Phase 1 complete; Phases 2–8 RESUMED 2026-06-30 after v2.0 shipped — now the active milestone)
 - ✅ **v2.0 UI/UX Redesign** — Phases 9–15 (SHIPPED 2026-06-30) — archived: [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 
 ## Phases
@@ -15,17 +15,10 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-**v1.0 Production Readiness (deferred phases 2–8):**
+**v1.0 Production Readiness (phases 2–8 resumed 2026-06-30 — active):**
 
 - [x] **Phase 1: Multi-Replica State** — Move OIDC state and rate limiter from in-process dicts to Redis
-- [ ] **Phase 2: CI Gating** — Re-enable push/PR triggers and remove `|| true` masks so CI can block bad merges *(deferred)*
-- [ ] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback *(deferred)*
-- [ ] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager *(deferred)*
-- [ ] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY` *(deferred)*
-- [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin *(deferred)*
-- [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod *(deferred)*
-- [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests *(deferred)*
-
+- [ ] **Phase 2: CI Gating** — Re-enable push/PR triggers and remove `|| true` masks so CI can block bad merges- [ ] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback- [ ] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager- [ ] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY`- [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin- [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod- [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
 **v2.0 UI/UX Redesign (SHIPPED 2026-06-30 — Phases 9–15):** full detail archived in [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md).
 
 - [x] **Phase 9: `/login` + Foundation** — Split-screen sunset login + token system + first primitive set
@@ -39,7 +32,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 ## Phase Details
 
 <details>
-<summary>✅ v1.0 Production Readiness — Phase 1 complete; Phases 2–8 deferred</summary>
+<summary>🚧 v1.0 Production Readiness — Phase 1 complete; Phases 2–8 active (resumed 2026-06-30)</summary>
 
 ### Phase 1: Multi-Replica State
 **Goal**: Two backend replicas behind a load balancer can complete an OIDC login and share rate-limit budget without race conditions or lost state.
@@ -58,8 +51,7 @@ Plans:
 - [x] 01-02-PLAN.md — Redis-backed per-tenant rate limiter (sorted-set sliding window) + PROD-01-02 tests + doc/security.md parity
 - [x] 01-03-PLAN.md — Cross-replica integration test suite (2 apps + 1 Redis) for PROD-01-03
 
-### Phase 2: CI Gating *(deferred)*
-**Goal**: A PR with a failing test, type error, or lint error cannot be merged to main.
+### Phase 2: CI Gating**Goal**: A PR with a failing test, type error, or lint error cannot be merged to main.
 **Depends on**: Phase 1 (so the new tests are wired in before CI is enforced)
 **Requirements**: PROD-02-01, PROD-02-02, PROD-02-03, PROD-02-04
 **Success Criteria** (what must be TRUE):
@@ -74,8 +66,7 @@ Plans:
 - [ ] 02-01: Re-enable triggers and remove failure masks
 - [ ] 02-02: ZAP policy decision and branch-protection docs
 
-### Phase 3: Update Path Reconciliation *(deferred)*
-**Goal**: There is exactly one way that production gets new code, and operators have a tested rollback procedure.
+### Phase 3: Update Path Reconciliation**Goal**: There is exactly one way that production gets new code, and operators have a tested rollback procedure.
 **Depends on**: Phase 2 (CI must gate releases first)
 **Requirements**: PROD-03-01, PROD-03-02, PROD-03-03, PROD-03-04
 **Success Criteria** (what must be TRUE):
@@ -89,8 +80,7 @@ Plans:
 - [ ] 03-01: Choose canonical update mechanism + remove the other
 - [ ] 03-02: Tag-pinned CD + rollback runbook
 
-### Phase 4: Doc/Code Parity *(deferred)*
-**Goal**: README, security docs, source code, and the API surface tell the same story about what the product is and what it does.
+### Phase 4: Doc/Code Parity**Goal**: README, security docs, source code, and the API surface tell the same story about what the product is and what it does.
 **Depends on**: Nothing (independent of 1–3, can run in parallel)
 **Requirements**: PROD-04-01, PROD-04-02, PROD-04-03, PROD-04-04, PROD-04-05
 **Success Criteria** (what must be TRUE):
@@ -106,8 +96,7 @@ Plans:
 - [ ] 04-02: VulnSource enum + Qualys/Rapid7 source filter regression
 - [ ] 04-03: Secrets Manager — implement or remove (decision in discuss-phase)
 
-### Phase 5: Encryption Key Lifecycle *(deferred)*
-**Goal**: An operator can confidently lose, restore, and rotate `ENCRYPTION_KEY` without losing connector credentials.
+### Phase 5: Encryption Key Lifecycle**Goal**: An operator can confidently lose, restore, and rotate `ENCRYPTION_KEY` without losing connector credentials.
 **Depends on**: Nothing
 **Requirements**: PROD-05-01, PROD-05-02, PROD-05-03, PROD-05-04
 **Success Criteria** (what must be TRUE):
@@ -121,8 +110,7 @@ Plans:
 - [ ] 05-01: Rotation CLI + transactional re-encryption
 - [ ] 05-02: Operator runbook + startup placeholder check
 
-### Phase 6: Default Admin Hardening *(deferred)*
-**Goal**: A fresh install.sh deploy cannot remain on the default `Admin123!` password by accident; the operator is forced through a rotation.
+### Phase 6: Default Admin Hardening**Goal**: A fresh install.sh deploy cannot remain on the default `Admin123!` password by accident; the operator is forced through a rotation.
 **Depends on**: Nothing (orthogonal to other phases)
 **Requirements**: PROD-06-01, PROD-06-02, PROD-06-03, PROD-06-04
 **Success Criteria** (what must be TRUE):
@@ -137,8 +125,7 @@ Plans:
 - [ ] 06-01: Migration + backend enforcement
 - [ ] 06-02: Frontend force-rotation flow
 
-### Phase 7: Health and Observability *(deferred)*
-**Goal**: Operators and load balancers can distinguish a starting backend from a healthy one, and production logs are machine-parseable.
+### Phase 7: Health and Observability**Goal**: Operators and load balancers can distinguish a starting backend from a healthy one, and production logs are machine-parseable.
 **Depends on**: Nothing
 **Requirements**: PROD-07-01, PROD-07-02, PROD-07-03, PROD-07-04
 **Success Criteria** (what must be TRUE):
@@ -153,8 +140,7 @@ Plans:
 - [ ] 07-01: Split liveness/readiness probes + Nginx wiring
 - [ ] 07-02: JSON structlog in production
 
-### Phase 8: Test Coverage Floor *(deferred)*
-**Goal**: A regression in any implemented connector, the rule engine, or SLA logic is caught by CI.
+### Phase 8: Test Coverage Floor**Goal**: A regression in any implemented connector, the rule engine, or SLA logic is caught by CI.
 **Depends on**: Phase 2 (CI must actually run the tests)
 **Requirements**: PROD-08-01, PROD-08-02, PROD-08-03, PROD-08-04
 **Success Criteria** (what must be TRUE):
