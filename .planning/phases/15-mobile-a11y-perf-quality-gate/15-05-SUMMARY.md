@@ -44,8 +44,10 @@ emulation is unreliable there; covered on Chromium + WebKit).
   (aria-prohibited-attr); `role="cell"` on asset-vuln rows (aria-required-children); breadcrumb
   separators are aria-hidden `<li>` (list/listitem); tickets mobile cards `<ul>/<li role=button>`
   → `<div>` (list/listitem).
-- **Responsive**: topbar Bell/Help hidden < sm (phone overflow); vuln + assets tables wrapped in
-  `overflow-x-auto` (no mobile card view); `scroll-padding-bottom` for the fixed bottom-nav.
+- **Responsive**: topbar Bell/Help hidden < sm (phone overflow); `scroll-padding-bottom` for the
+  fixed bottom-nav. Vuln + assets tables **collapse to a 3-row mobile card view at <900px**
+  (desktop `<table>` `hidden min-[900px]:block`) — fulfills UX-07-01/SC#1 literally (built
+  2026-06-30 per user decision; the interim `overflow-x-auto` is retained as a desktop safety net).
 
 ## Decisions
 
