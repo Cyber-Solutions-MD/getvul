@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: UI/UX Redesign
-status: Milestone complete (Phase 15 verified — 1 non-blocking human spot-check pending)
+status: v2.0 ARCHIVED & TAGGED (2026-06-30) — audit tech_debt, 0 blockers. Next candidate: v1.1 backend hardening (PROD-02..08)
 last_updated: "2026-06-30T00:00:00Z"
 progress:
   total_phases: 7
