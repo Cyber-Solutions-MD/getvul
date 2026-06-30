@@ -19,6 +19,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Lightbulb } from 'lucide-react';
 import { ChipBar, type ChipAxis } from '@/components/ui/ChipBar';
 import { DrillPanel } from '@/components/vulnerabilities/drill-panel';
+import { DrillPanelMobile } from '@/components/vulnerabilities/drill-panel-mobile';
 import { FindingCard } from '@/components/cspm/finding-card';
 import { FindingDrillContent } from '@/components/cspm/finding-drill-content';
 import { ComplianceFrameworkStrip } from '@/components/cspm/compliance-framework-strip';
@@ -277,8 +278,19 @@ function CspmPageInner() {
           </div>
         )}
 
-        {/* DrillPanel — idKey='finding', opens at ?finding=<id>&open=drill */}
+        {/* DrillPanel — idKey='finding', opens at ?finding=<id>&open=drill.
+            Desktop (>=900px) is the 420px right aside; mobile (<900px) is the vaul
+            bottom sheet — pairs with DrillPanelMobile (UX-06-01/UX-07-02), matching
+            the vuln/ticket/asset drill surfaces. */}
         <DrillPanel
+          id={findingId}
+          idKey="finding"
+          ariaLabel="Finding detail"
+          renderContent={({ id, onClose }) => (
+            <FindingDrillContent findingId={id} onClose={onClose} />
+          )}
+        />
+        <DrillPanelMobile
           id={findingId}
           idKey="finding"
           ariaLabel="Finding detail"
