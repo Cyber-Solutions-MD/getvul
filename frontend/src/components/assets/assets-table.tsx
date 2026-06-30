@@ -75,9 +75,10 @@ export function AssetsTable({ rows, onRowOpen, failedSources }: AssetsTableProps
   );
 
   return (
-    // overflow-x-auto: table is wider than a phone viewport — scroll within its
-    // own container so the page body never scrolls horizontally (UX-07-01).
-    <div className="overflow-x-auto">
+    <>
+    {/* Desktop table — >=900px. Below 900px the card view (further down) takes
+        over (UX-07-01 / SC#5). overflow-x-auto is a desktop safety net. */}
+    <div className="hidden min-[900px]:block overflow-x-auto">
     <table className="w-full border-collapse text-sm">
       <thead className="sticky top-0 z-10 bg-surface">
         <tr className="border-b border-border-subtle text-left text-xs uppercase tracking-wide text-text-muted">
@@ -175,5 +176,69 @@ export function AssetsTable({ rows, onRowOpen, failedSources }: AssetsTableProps
       </tbody>
     </table>
     </div>
+
+    {/* Mobile card view — <900px (UX-07-01 / SC#5: 3-row card per row). Cards are
+        interactive buttons. Row 1 hostname + risk · Row 2 OS + owner · Row 3 tags + sources. */}
+    <div className="min-[900px]:hidden space-y-2">
+      {rows.map((r) => {
+        const band = getRiskBand(r.risk_score);
+        const tint = BAND_TINT[band] ?? '';
+        const sources = sourcesOf(r);
+        const isStale = failedSources?.some((s) => sources.includes(s));
+        return (
+          <div
+            key={r.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onRowOpen(r.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onRowOpen(r.id);
+              }
+            }}
+            data-stale={isStale ? 'true' : undefined}
+            className={cn(
+              'cursor-pointer rounded-lg border border-border-subtle bg-surface p-3',
+              'hover:bg-surface-2 active:bg-surface-2',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
+              isStale && 'bg-amber-soft',
+            )}
+          >
+            {/* Row 1: Hostname · Risk score */}
+            <div className="flex items-center gap-2">
+              <span className="truncate font-mono text-sm text-text">{r.hostname ?? '—'}</span>
+              <span className={cn('ml-auto shrink-0 font-mono tabular-nums text-sm', tint)}>
+                {r.risk_score ?? '—'}
+              </span>
+            </div>
+            {/* Row 2: OS · Owner */}
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-text-muted">
+              <span className="truncate">{r.os_name ?? '—'}</span>
+              <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
+                <Avatar name={r.assigned_user ?? undefined} email={r.assigned_user ?? undefined} size={16} />
+                <span className="max-w-[140px] truncate text-text">{r.assigned_user ?? 'Unassigned'}</span>
+              </span>
+            </div>
+            {/* Row 3: Tags · Sources */}
+            {((r.tags ?? []).length > 0 || sources.length > 0) && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(r.tags ?? []).map((t) => (
+                  <span key={t} className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-xs text-text-muted">
+                    {t}
+                  </span>
+                ))}
+                {sources.map((s) => (
+                  <span key={s} className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-muted">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+    </>
   );
 }

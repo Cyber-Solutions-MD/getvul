@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import AssetsPage from './page';
@@ -98,12 +98,13 @@ describe('/assets page', () => {
 
   it('renders the AssetsTable with the loaded row', () => {
     renderWithClient(<AssetsPage />);
-    expect(screen.getByText('prod-db-01')).toBeInTheDocument();
+    // Desktop table + mobile card both render in jsdom (no CSS) — scope to the table.
+    expect(within(screen.getByRole('table')).getByText('prod-db-01')).toBeInTheDocument();
   });
 
   it('clicking a row pushes to /assets/{id}', () => {
     renderWithClient(<AssetsPage />);
-    fireEvent.click(screen.getByText('prod-db-01'));
+    fireEvent.click(within(screen.getByRole('table')).getByText('prod-db-01'));
     expect(push).toHaveBeenCalledWith('/assets/a1');
   });
 });

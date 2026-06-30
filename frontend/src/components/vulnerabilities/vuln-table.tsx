@@ -187,10 +187,11 @@ export function VulnTable({
     sort === field ? (order === 'asc' ? ' ↑' : ' ↓') : '';
 
   return (
-    // overflow-x-auto: the 7-column table is wider than a phone viewport; let it
-    // scroll within its own container so the page body never scrolls horizontally
-    // (UX-07-01). No mobile card view exists for this surface.
-    <div className="overflow-x-auto">
+    <>
+    {/* Desktop table — >=900px (D-V-04). overflow-x-auto is a safety net only;
+        the 7 columns fit the desktop content area. Below 900px the table is
+        hidden and the card view (further down) takes over (UX-07-01 / SC#5). */}
+    <div className="hidden min-[900px]:block overflow-x-auto">
     <table className="w-full border-collapse text-sm">
       <thead className="sticky top-0 z-10 bg-surface">
         <tr className="border-b border-border-subtle text-left text-xs uppercase tracking-wide text-text-muted">
@@ -332,5 +333,82 @@ export function VulnTable({
       </tbody>
     </table>
     </div>
+
+    {/* Mobile card view — <900px (UX-07-01 / Phase-11 SC#5: 3-row card per row).
+        Cards are interactive buttons (not a semantic list). Mirrors the desktop
+        data: Row 1 severity + CVE + SLA · Row 2 title · Row 3 asset + CVSS + badges. */}
+    <div className="min-[900px]:hidden space-y-2">
+      {rows.map((row) => {
+        const sev = normalizeSeverity(row.severity);
+        const idOrCve = row.cve_id ?? row.id;
+        const stale = failedSources.includes(row.source);
+        const sla = slaBand(row.sla_due_at);
+        const cvss = row.cvss ?? row.cvss_v3_score ?? null;
+        const titleText = row.title ?? row.affected_product ?? '—';
+        const assetText = row.asset ?? row.asset_hostname ?? '—';
+        return (
+          <div
+            key={row.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onRowOpen(idOrCve)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onRowOpen(idOrCve);
+              }
+            }}
+            data-stale={stale ? 'true' : undefined}
+            className={cn(
+              'cursor-pointer rounded-lg border border-border-subtle bg-surface p-3',
+              'hover:bg-surface-2 active:bg-surface-2',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
+              stale && 'bg-amber-soft',
+            )}
+          >
+            {/* Row 1: Severity · CVE · SLA */}
+            <div className="flex items-center gap-2">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-xs">
+                <span aria-hidden="true" className={GLYPH_COLOR[sev]}>{GLYPH[sev]}</span>
+                <span className={GLYPH_COLOR[sev]}>{SEVERITY_LABEL[sev]}</span>
+              </span>
+              <span className="truncate font-mono text-xs text-text">{row.cve_id ?? '—'}</span>
+              <span className={cn('ml-auto shrink-0 font-mono text-xs', sla.tone)}>{sla.label}</span>
+            </div>
+            {/* Row 2: Title / Product */}
+            <div className="mt-1.5 truncate text-sm text-text" title={titleText}>{titleText}</div>
+            {/* Row 3: Asset · CVSS · KEV/exploit badges */}
+            <div className="mt-1.5 flex items-center gap-2 text-xs">
+              <span className="truncate font-mono text-text-muted">{assetText}</span>
+              {row.cisa_kev && (
+                <span
+                  aria-label="CISA KEV"
+                  className="ml-auto shrink-0 rounded-md border border-severity-critical bg-pink-soft px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-severity-critical"
+                >
+                  ★ KEV
+                </span>
+              )}
+              {row.exploit_available && (
+                <span
+                  aria-label="exploit available"
+                  className={cn('shrink-0 rounded-md bg-amber-soft px-1.5 py-0.5 text-[10px] font-medium text-amber', !row.cisa_kev && 'ml-auto')}
+                >
+                  ⚡
+                </span>
+              )}
+              <span className={cn('shrink-0 font-mono text-text', !row.cisa_kev && !row.exploit_available && 'ml-auto')}>
+                {cvss !== null ? cvss.toFixed(1) : '—'}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      {rows.length === 0 && (
+        <div className="rounded-lg border border-border-subtle bg-surface px-3 py-6 text-center text-text-muted">
+          {microcopy.table.empty}
+        </div>
+      )}
+    </div>
+    </>
   );
 }

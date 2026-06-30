@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 
 // Wave 2 (Plan 11-05) will create this file. Import is the RED signal.
 import { VulnTable } from './vuln-table';
@@ -100,7 +100,9 @@ describe('<VulnTable> (UX-03-02 + UX-07-03 keyboard + D-V-04 stale-row)', () => 
 
   it('KEV badge rendered next to status when row.cisa_kev === true', () => {
     render(<VulnTable rows={rows} onRowOpen={onRowOpen} onSort={onSort} />);
-    expect(screen.getByText(/KEV/)).toBeInTheDocument();
+    // Both desktop table + mobile card render the KEV badge (no CSS in jsdom) —
+    // scope to the table to avoid a double-match.
+    expect(within(screen.getByRole('table')).getByText(/KEV/)).toBeInTheDocument();
   });
 
   it('SLA column right-aligned mono with color band (overdue/soon/ok)', () => {
