@@ -20,18 +20,19 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 02 — ci-gating
+**Current focus:** Phase 02 — CI Gating **COMPLETE** (2026-07-01); next candidate Phase 3 — Update Path Reconciliation
 
 ## Current Position
 
-Phase: 09
+Phase: 03
 Plan: Not started
 | Field | Value |
 |-------|-------|
-| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phase 1 done; Phases 2–8 active) |
-| Active phase | 2 — CI Gating (re-arm CI triggers, remove `\|\| true` masks, ZAP policy, branch protection) |
-| Last action | 2026-07-01 — Phase 2 planned: research sized the masked backlog (619 mypy errors), mypy strategy revised to a **baseline gate** (block new errors, burn down the 619 in a deferred follow-up). 2 plans, 2 waves; plan-checker PASSED after 1 revision (embedded verify-script bodies; human-verify checkpoint before the live gh api branch-protection PUT). |
-| Next action | `/gsd-execute-phase 2` (/clear first). Wave 1 = 02-01 (autonomous). Wave 2 = 02-02 (checkpoint — will pause for you to confirm the branch-protection JSON before it hits the live repo). |
+| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–2 done; Phases 3–8 remaining) |
+| Last completed phase | 2 — CI Gating ✓ (2026-07-01) — CI armed on push/PR/nightly, `\|\| true` masks removed, mypy baseline gate (with `set +o pipefail` fix), live `main` branch protection requiring 4 checks + a PR; failing-check merge-block proven live (PR #13 → BLOCKED). Verifier 11/12 + live protection re-check passed. |
+| Last action | 2026-07-01 — Phase 2 executed (2 waves): 02-01 armed CI; 02-02 applied live branch protection + empirical proof + docs. Code review found + fixed WR-03 (mypy pipefail would have failed Backend every run). |
+| Next action | Phase 3 (Update Path Reconciliation) needs planning: `/gsd-discuss-phase 3` then `/gsd-plan-phase 3`. |
+| Deploy note | Local `main` is ~286 commits ahead of `origin/main`; armed `ci.yml` not yet on remote `main` — pushing this work to remote is a separate step. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
 | Follow-up queued | mypy 619-error burn-down = a new deferred phase (baseline ratchets down); sequence before/with Phase 8. |
 

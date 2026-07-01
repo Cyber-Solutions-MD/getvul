@@ -18,7 +18,13 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 **v1.0 Production Readiness (phases 2–8 resumed 2026-06-30 — active):**
 
 - [x] **Phase 1: Multi-Replica State** — Move OIDC state and rate limiter from in-process dicts to Redis
-- [ ] **Phase 2: CI Gating** — Re-enable push/PR triggers and remove `|| true` masks so CI can block bad merges- [ ] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback- [ ] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager- [ ] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY`- [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin- [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod- [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
+- [x] **Phase 2: CI Gating** — Re-enable push/PR triggers and remove `|| true` masks so CI can block bad merges (complete 2026-07-01)
+- [ ] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback
+- [ ] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager
+- [ ] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY`
+- [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin
+- [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod
+- [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
 **v2.0 UI/UX Redesign (SHIPPED 2026-06-30 — Phases 9–15):** full detail archived in [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md).
 
 - [x] **Phase 9: `/login` + Foundation** — Split-screen sunset login + token system + first primitive set
@@ -172,7 +178,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. Multi-Replica State | v1.0 Production Readiness | 4/4 | Complete | 2026-05-09 |
-| 2. CI Gating | v1.0 Production Readiness | 0/2 | Deferred | - |
+| 2. CI Gating | v1.0 Production Readiness | 2/2 | Complete | 2026-07-01 |
 | 3. Update Path Reconciliation | v1.0 Production Readiness | 0/2 | Deferred | - |
 | 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Deferred | - |
 | 5. Encryption Key Lifecycle | v1.0 Production Readiness | 0/2 | Deferred | - |
