@@ -71,7 +71,7 @@ describe('/tickets page', () => {
       error: null,
       refetch: vi.fn(),
       // Minimal TanStack query result shape
-    } as ReturnType<typeof useTicketsModule.useTickets>);
+    } as unknown as ReturnType<typeof useTicketsModule.useTickets>);
   });
 
   it('Test 1: renders 8 column headers and row data', () => {
@@ -93,7 +93,7 @@ describe('/tickets page', () => {
       isLoading: false,
       error: new Error('Connection refused: cannot reach backend'),
       refetch: vi.fn(),
-    } as ReturnType<typeof useTicketsModule.useTickets>);
+    } as unknown as ReturnType<typeof useTicketsModule.useTickets>);
     const { unmount } = renderWithClient(<TicketsPage />);
     // PartialFailureBanner should be present (role='alert')
     expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe('/tickets page', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as ReturnType<typeof useTicketsModule.useTickets>);
+    } as unknown as ReturnType<typeof useTicketsModule.useTickets>);
     renderWithClient(<TicketsPage />);
     // Should show EmptyState (role='status'), no error alert
     expect(screen.queryByRole('alert')).toBeNull();
@@ -131,7 +131,7 @@ describe('/tickets page', () => {
       isLoading: false,
       error: new Error('asana_not_configured: no connector found for tenant'),
       refetch: vi.fn(),
-    } as ReturnType<typeof useTicketsModule.useTickets>);
+    } as unknown as ReturnType<typeof useTicketsModule.useTickets>);
     const { container } = renderWithClient(<TicketsPage />);
     // The page should render a link to /dashboard/connectors
     const connectorLinks = container.querySelectorAll('a[href*="/dashboard/connectors"]');

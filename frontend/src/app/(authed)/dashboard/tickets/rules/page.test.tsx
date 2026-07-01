@@ -86,7 +86,7 @@ describe('/tickets/rules page', () => {
       isLoading: false,
       error: null,
       refetch,
-    } as ReturnType<typeof useTicketRules>);
+    } as unknown as ReturnType<typeof useTicketRules>);
   });
 
   it('Test 1: renders ChipBar and rules table with rule name + enabled state', () => {
@@ -125,7 +125,7 @@ describe('/tickets/rules page', () => {
       isLoading: false,
       error: null,
       refetch,
-    } as ReturnType<typeof useTicketRules>);
+    } as unknown as ReturnType<typeof useTicketRules>);
 
     const { container } = renderWithClient(<RulesPage />);
     // EmptyState has role="status"
