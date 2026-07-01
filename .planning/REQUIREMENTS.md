@@ -15,10 +15,10 @@ Each requirement maps to one phase in [ROADMAP.md](ROADMAP.md). Sourced from the
 
 ### CI Gating (PROD-02)
 
-- [ ] **PROD-02-01**: `.github/workflows/ci.yml` push and pull_request triggers re-enabled — covers [.github/workflows/ci.yml:3-8](.github/workflows/ci.yml#L3-L8)
-- [ ] **PROD-02-02**: Remove `|| true` from mypy, frontend lint, frontend typecheck steps so failures block the workflow
-- [ ] **PROD-02-03**: ZAP scan steps either fail the build on findings above an agreed severity, or run as a separate non-blocking workflow with clearly labeled status (decision in discuss-phase)
-- [ ] **PROD-02-04**: Branch-protection on `main` requires CI green (out-of-band repo setting; documented)
+- [x] **PROD-02-01**: `.github/workflows/ci.yml` push and pull_request triggers re-enabled — covers [.github/workflows/ci.yml:3-8](.github/workflows/ci.yml#L3-L8)
+- [x] **PROD-02-02**: Remove `|| true` from mypy, frontend lint, frontend typecheck steps so failures block the workflow (mypy via committed baseline gate)
+- [x] **PROD-02-03**: ZAP scan steps run as a non-blocking advisory job (continue-on-error), gated off PRs onto post-merge + nightly schedule
+- [x] **PROD-02-04**: Branch-protection on `main` requires CI green (applied live, empirically proven, documented in docs/13-deployment.md)
 
 ### Update Path Reconciliation (PROD-03)
 
@@ -103,10 +103,10 @@ These are tracked but **not** in scope for the production-readiness milestone. P
 | PROD-01-01 | Phase 1 | Pending |
 | PROD-01-02 | Phase 1 | Pending |
 | PROD-01-03 | Phase 1 | Pending |
-| PROD-02-01 | Phase 2 | Pending |
-| PROD-02-02 | Phase 2 | Pending |
-| PROD-02-03 | Phase 2 | Pending |
-| PROD-02-04 | Phase 2 | Pending |
+| PROD-02-01 | Phase 2 | Complete |
+| PROD-02-02 | Phase 2 | Complete |
+| PROD-02-03 | Phase 2 | Complete |
+| PROD-02-04 | Phase 2 | Complete |
 | PROD-03-01 | Phase 3 | Pending |
 | PROD-03-02 | Phase 3 | Pending |
 | PROD-03-03 | Phase 3 | Pending |

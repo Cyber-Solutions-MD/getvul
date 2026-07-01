@@ -63,8 +63,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Arm ci.yml (push/PR/nightly triggers), remove frontend masks + fix 6 tsc casts, wire mypy baseline gate, gate DAST off PRs + bump ZAP pins
-- [ ] 02-02-PLAN.md — Branch protection via gh api (4 required checks) + empirical failing-PR/merge-block test + CI-gating docs
+- [x] 02-01-PLAN.md — Arm ci.yml (push/PR/nightly triggers), remove frontend masks + fix 6 tsc casts, wire mypy baseline gate, gate DAST off PRs + bump ZAP pins
+- [x] 02-02-PLAN.md — Branch protection via gh api (4 required checks) + empirical failing-PR/merge-block test + CI-gating docs
 
 ### Phase 3: Update Path Reconciliation**Goal**: There is exactly one way that production gets new code, and operators have a tested rollback procedure.
 **Depends on**: Phase 2 (CI must gate releases first)
