@@ -19,7 +19,7 @@ getvul/
 ├── docker-compose.yml      Dev/prod stack (5 services)
 ├── docker-compose.ci.yml   Slim stack for CI DAST jobs (no nginx, no hot-reload)
 ├── Makefile                Developer commands (~25 targets)
-├── install.sh              8-step VM bootstrap (Docker, certs, .env, migrate, admin, seed, cron)
+├── install.sh              7-step VM bootstrap (Docker, certs, .env, migrate, admin, seed)
 ├── README.md               High-level project README (see PROD-04-02 for scanner-count drift)
 ├── .env / .env.example     Environment configuration
 ├── .gitignore              Python + Node + Terraform + secrets patterns
@@ -195,8 +195,6 @@ nginx/
 
 ```
 scripts/
-├── auto-update.sh         Runs daily at 3:00 UTC (per startup.sh) — fetches latest commit,
-│                          rebuilds, health-checks. Logs to /var/log/getvul-update.log.
 └── deploy.sh              Manual SSH push: ./scripts/deploy.sh <VM_IP> [SSH_USER]
 ```
 

@@ -194,12 +194,9 @@ flowchart LR
     end
     subgraph "VM"
         DC["Docker Compose<br/>nginx · backend · frontend · postgres · redis"]
-        CRON["cron: getvul-update<br/>(hourly per install.sh)"]
     end
     STIP --> FW --> VM
     VM --> DC
-    VM --> CRON
-    CRON -->|git pull + rebuild| DC
 ```
 
 Terraform templates exist for all three clouds ([infra/gcp/](../infra/gcp/), [infra/aws/](../infra/aws/), [infra/azure/](../infra/azure/)). GCP is primary; the others validate in CI but are not actively deployed. See [13-deployment.md](13-deployment.md).

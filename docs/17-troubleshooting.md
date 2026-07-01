@@ -101,21 +101,19 @@ docker stop getvul-test-redis
 
 ## B. Production / deploy
 
-### B1. Hourly cron and CD both deploy at the same time
+### B1. A migrated VM still has the old auto-update cron installed
 
-**Symptom** — A release went out via CD (`cd.yml`), and 30 minutes later the VM rolls back to a different SHA — or a previously-fixed bug reappears.
+**Symptom** — A VM provisioned by an older `install.sh`/`startup.sh` still redeploys `main` HEAD on a timer, fighting the GitHub Actions CD deploy.
 
-**Cause** — `install.sh` registers an hourly cron (`/etc/cron.d/getvul-update`, [install.sh:108](../install.sh#L108)) that does `git pull` + `docker compose up -d --build`. If `main` advanced after CD ran, the cron pulls the newer SHA. Two competing release paths — see [12-pipelines-cicd.md](12-pipelines-cicd.md) and PROD-03.
+**Cause** — The auto-update cron was removed from provisioning in PROD-03, but editing the scripts does not touch a VM that was already provisioned. The residual `/etc/cron.d/getvul-update` (or a root crontab entry) and `/usr/local/bin/getvul-update` binary persist on that VM.
 
-**Fix (interim)** — Disable one of them on the VM:
+**Fix** — One-time cleanup on the live VM (safe to run even if the files are absent — `-f` suppresses errors):
 ```bash
-# Disable the cron:
-sudo rm /etc/cron.d/getvul-update
-# Or disable CD until Phase 3 picks one path:
-# (in repo settings → Actions → workflow → Disable workflow)
+sudo rm -f /etc/cron.d/getvul-update /usr/local/bin/getvul-update
+crontab -l 2>/dev/null | grep -v getvul-update | crontab -
 ```
 
-PROD-03 will pick a canonical path.
+Deployments now flow exclusively through GitHub Actions CD — see [13-deployment.md](13-deployment.md#rollback) and [12-pipelines-cicd.md](12-pipelines-cicd.md).
 
 ### B2. TLS certificate expired
 
