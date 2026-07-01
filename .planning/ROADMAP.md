@@ -60,11 +60,11 @@ Plans:
   3. Frontend lint and tsc steps fail the workflow on errors
   4. ZAP findings have an explicit policy: either gate the build above an agreed severity, or run as a labeled non-blocking workflow
   5. Branch protection on `main` requires CI green (documented in [doc/deployment.md](doc/deployment.md))
-**Plans**: TBD (likely 2)
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Re-enable triggers and remove failure masks
-- [ ] 02-02: ZAP policy decision and branch-protection docs
+- [ ] 02-01-PLAN.md — Arm ci.yml (push/PR/nightly triggers), remove frontend masks + fix 6 tsc casts, wire mypy baseline gate, gate DAST off PRs + bump ZAP pins
+- [ ] 02-02-PLAN.md — Branch protection via gh api (4 required checks) + empirical failing-PR/merge-block test + CI-gating docs
 
 ### Phase 3: Update Path Reconciliation**Goal**: There is exactly one way that production gets new code, and operators have a tested rollback procedure.
 **Depends on**: Phase 2 (CI must gate releases first)
