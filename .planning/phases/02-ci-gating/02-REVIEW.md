@@ -18,8 +18,18 @@ findings:
   warning: 4
   info: 3
   total: 7
-status: issues_found
+status: resolved
+resolution:
+  fixed: [WR-01, WR-02, WR-03]
+  accepted: [WR-04, IN-01, IN-02, IN-03]
+  resolved_in: d8c1585
 ---
+
+> **Resolution (2026-07-01, commit d8c1585):**
+> - **WR-03 (fixed, empirically verified):** the `mypy app/ | mypy-baseline filter` step leaked mypy's exit 1 under GitHub Actions' default `bash -eo pipefail`, failing the required Backend check on every run. Fixed with an inline `set +o pipefail`. Verified: baselined-only errors → step exit 0; a newly-injected type error → step exit 1 (gate still blocks).
+> - **WR-01 / WR-02 (fixed):** `docs/12-pipelines-cicd.md` per-job tables still described the removed masks and listed PROD-02 as a pending cleanup target; corrected to hard-fail / baseline-gated, refreshed the drifted `ci.yml` line anchors, and marked PROD-02 complete.
+> - **WR-04 (accepted):** Semgrep SAST depends on an external SaaS + token; this is the existing architecture (out of Phase 2 scope) and is noted, not changed.
+> - **IN-01 / IN-02 / IN-03 (accepted / deferred):** minor verifier hardening (assert `strict`/`enforce_admins`/review-count, guard `c["context"]`, tighten `verify-docs.sh` greps) — low-priority, left for a follow-up.
 
 # Phase 2: Code Review Report
 
