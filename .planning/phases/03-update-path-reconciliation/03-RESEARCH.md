@@ -514,9 +514,13 @@ Remove lines 73–79 entirely. The `git pull origin main` on line 37–38 (the "
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three questions were resolved during planning (Phase 3 plans 03-01 / 03-02).
+> Q1 and Q2 are deferred as out-of-scope discretion items; Q3 is implemented.
 
 1. **startup.sh `git pull origin main` on first boot (line 37–38)**
+   - **RESOLVED:** Claude's Discretion — deferred. startup.sh is a one-time GCE first-boot metadata script; the `git pull` on VM re-use is low risk (fresh Terraform apply only) and out of Phase 3 scope. Converting it to a tag checkout is a clean follow-up, not required to meet PROD-03-01..04.
    - What we know: startup.sh clones the repo on first boot; if the repo already exists, it runs `git pull origin main`. After this phase, the canonical deploy is tag-based, not `main` HEAD.
    - What's unclear: startup.sh is a one-time GCE metadata startup script. New VMs will not have the cron. The `git pull origin main` on re-use of an existing VM is a residual concern.
    - Recommendation: Update the "already exists" branch to `git fetch --tags --force && git checkout --force <LATEST_TAG>` and document the tag as a Terraform variable. This is low priority for Phase 3 (the live VM is already running; startup.sh fires only on fresh Terraform apply), but is a clean improvement to consider.
@@ -525,11 +529,13 @@ Remove lines 73–79 entirely. The `git pull origin main` on line 37–38 (the "
    - What we know: GitHub Actions `type: string` inputs have no built-in pattern validation. A typo in the tag name will cause the `git checkout` step to fail with a clear error message, which is acceptable.
    - What's unclear: Should there be a pre-validation step that confirms the tag exists on the remote before SSHing to the VM? (`git ls-remote --tags origin "$DEPLOY_TAG"`)
    - Recommendation: The fail-fast guard (checking that `DEPLOY_TAG` is non-empty) is sufficient for Phase 3. A tag-existence check is a nice-to-have and can be added in a follow-up.
+   - **RESOLVED:** out of scope — the non-empty `DEPLOY_TAG` fail-fast guard plus git's own unresolvable-ref rejection is sufficient for Phase 3. Optional `git ls-remote` pre-check deferred.
 
 3. **docs/02-architecture.md mermaid diagram scope**
    - What we know: Lines 197–202 show a `CRON` node in the architecture mermaid diagram. This diagram lives in the architecture overview doc, not the pipeline doc.
    - What's unclear: CONTEXT.md §canonical_refs lists only `docs/13-deployment.md` and `docs/12-pipelines-cicd.md` explicitly. The `docs/02-architecture.md` and `docs/07-project-structure.md` cron references were found by grep and are in scope per D-03 ("clean up every reference").
    - Recommendation: Update `docs/02-architecture.md` and `docs/07-project-structure.md` as part of the D-03 doc cleanup wave.
+   - **RESOLVED:** implemented — `docs/02-architecture.md`, `docs/07-project-structure.md`, and `docs/17-troubleshooting.md` are all in Plan 03-01 Task 2's `files_modified`.
 
 ---
 
