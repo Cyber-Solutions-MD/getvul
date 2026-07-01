@@ -56,7 +56,7 @@ jobs:
       - name: Format check (ruff)
         run: ruff format --check .
       - name: Type check (mypy)
-        run: mypy app/ || true
+        run: mypy app/ | mypy-baseline filter
       - name: Run migrations
         env:
           DATABASE_URL: postgresql+asyncpg://getvul:getvul@localhost:5432/getvul_test
