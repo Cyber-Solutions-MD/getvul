@@ -81,11 +81,11 @@ Plans:
   2. CD pinning is to a release tag, not `git reset --hard origin/main`
   3. [doc/deployment.md](doc/deployment.md) has a "Rollback" section with the exact commands to revert to the prior release
   4. A dry-run rollback has been performed on a test VM and recorded in the phase verification
-**Plans**: TBD (likely 2)
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: Choose canonical update mechanism + remove the other
-- [ ] 03-02: Tag-pinned CD + rollback runbook
+- [ ] 03-01-PLAN.md — Hard-remove the auto-update cron (install.sh + all 3 cloud startup.sh + git rm auto-update.sh) and clean cron references in architecture/structure/troubleshooting docs (PROD-03-01, PROD-03-02)
+- [ ] 03-02-PLAN.md — Tag-pinned CD (cd.yml checkout rewrite + release_tag dispatch input) and rollback runbook in docs/13-deployment.md with migration caveat + docs/12 & mermaid reconciliation (PROD-03-03, PROD-03-04)
 
 ### Phase 4: Doc/Code Parity
 **Goal**: README, security docs, source code, and the API surface tell the same story about what the product is and what it does.
