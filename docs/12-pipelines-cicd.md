@@ -7,12 +7,12 @@ GetVul uses **GitHub Actions** for both CI and CD. Two workflow files live in [.
 ```mermaid
 flowchart LR
     DEV[Developer<br/>git push] --> BR[branch on GitHub]
-    BR --> WD[manual dispatch<br/>workflow_dispatch only<br/>see PROD-02]
+    BR --> WD[push→main · PR→main<br/>nightly schedule · dispatch]
     WD --> CI
 
     subgraph CI [ci.yml — 5 jobs]
-        BE[backend<br/>ruff · format · mypy* · alembic · pytest+cov]
-        FE[frontend<br/>npm install · lint* · tsc* · build]
+        BE[backend<br/>ruff · format · mypy baseline · alembic · pytest+cov]
+        FE[frontend<br/>npm install · lint · tsc · build]
         TF[terraform<br/>fmt · init -backend=false · validate]
         SAST[semgrep<br/>semgrep ci]
         DAST[zap dast<br/>3 scans · continue-on-error]
@@ -34,7 +34,7 @@ flowchart LR
 
     CRON[Hourly cron on VM<br/>install.sh:108] -.also pulls.-> BUILD
 
-    note["* = soft-fail today<br/>(|| true / continue-on-error)<br/>Phase 2 removes the masks"]
+    note["backend/frontend now hard-fail<br/>(masks removed in Phase 2)<br/>mypy baseline-gated · DAST advisory"]
 ```
 
 Source: [diagrams/pipelines-cicd.mmd](diagrams/pipelines-cicd.mmd).
@@ -49,14 +49,16 @@ Full file: [.github/workflows/ci.yml](../.github/workflows/ci.yml).
 
 ```yaml
 on:
-  workflow_dispatch:  # Manual trigger only — re-enable push/PR triggers when ready
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC nightly DAST sweep
 ```
 
-⚠ **Today CI runs only on manual dispatch.** Push and PR triggers are commented out (lines 5–8). PROD-02 (Phase 2: CI Gating) will re-enable them and remove the soft-fail masks listed below.
+CI runs on push to `main`, every PR targeting `main`, a nightly schedule (03:00 UTC), and on-demand dispatch. The soft-fail masks are gone: `backend` and `frontend` now hard-fail, with mypy gated through a committed baseline (see [13-deployment.md](13-deployment.md#ci-gating--branch-protection)). The four checks Backend, Frontend, Semgrep SAST, and Terraform Validate gate merges to `main`; `OWASP ZAP DAST` is advisory (post-merge + nightly, `continue-on-error`).
 
 ### Job: `backend`
 
@@ -159,7 +161,7 @@ on:
         default: false
 ```
 
-So CD runs on **GitHub release publish** or **manual dispatch**.
+So CD runs on **GitHub release publish** or an on-demand **`workflow_dispatch`** run.
 
 ### Job: `deploy`
 

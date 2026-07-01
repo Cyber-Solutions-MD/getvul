@@ -40,6 +40,59 @@ There is no separate **staging** environment. CD goes straight to production.
 
 ---
 
+## CI Gating & Branch Protection
+
+Merges to `main` are gated. CI runs on every push to `main`, every pull request targeting `main`, a nightly `schedule` (`0 3 * * *`, 03:00 UTC — the DAST sweep), and on-demand `workflow_dispatch`. See [12-pipelines-cicd.md](12-pipelines-cicd.md) for the job breakdown.
+
+### Required checks
+
+Four checks must be green before a PR can merge:
+
+| Check | Job | What it gates |
+|-------|-----|---------------|
+| **Backend** | `backend` | ruff, format, mypy (baseline-filtered), Alembic, pytest+cov |
+| **Frontend** | `frontend` | lint, `tsc --noEmit`, build |
+| **Semgrep SAST** | `semgrep` | static analysis |
+| **Terraform Validate** | `terraform` | `fmt` + `validate` |
+
+`OWASP ZAP DAST` is **not** a required check. It is advisory: it runs post-merge and on the nightly schedule with `continue-on-error`, so a DAST finding never blocks a merge.
+
+### The mypy baseline gate
+
+mypy is no longer masked with `|| true`. The `backend` job runs `mypy app/ | mypy-baseline filter` against the committed `backend/mypy-baseline.txt` snapshot (619 pre-existing errors captured at Phase 2). **New** type errors fail CI; the pre-existing errors are baselined and burned down in a later phase. `strict = true` stays on. The filename matches `mypy-baseline`'s default `baseline_path`, so the filter finds it with no extra flag.
+
+### Branch-protection policy
+
+Protection is applied to `main` via a single reproducible API call using the committed request body [.github/branch-protection.json](../.github/branch-protection.json):
+
+- **PR required** before merging (`required_pull_request_reviews` present, `required_approving_review_count: 0` — a PR is required but no approver is mandated).
+- **`enforce_admins: false`** — repo admins may push directly in a pinch. This is a deliberate operator trade-off; set it to `true` for the harder enforcement that also binds admins.
+- **`strict: false`** — a branch need not be up to date with `main` before merging (avoids serialized merge queues).
+
+Reproducible command:
+
+```bash
+gh api --method PUT \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  repos/Cyber-Solutions-MD/getvul/branches/main/protection \
+  --input .github/branch-protection.json
+```
+
+Read-back check (exits 0 only if the four required checks are registered and DAST is not):
+
+```bash
+python3 .github/verify-branch-protection.py Cyber-Solutions-MD/getvul
+```
+
+### Empirical verification
+
+The gate was proven live (Phase 2): a PR carrying a deliberate type error turned the **Frontend** required check red, and GitHub reported the merge state as `BLOCKED` — the merge could not proceed. `OWASP ZAP DAST` was `SKIPPED` on that PR run, confirming it is not required.
+
+The direct-push-to-`main` enforcement (whether `required_approving_review_count: 0` alone rejects a `git push origin HEAD:main`) was **not** exercised against the live repo — the active operator holds admin and `enforce_admins: false`, so a test push would land on `main` rather than being rejected. This remains an operator-verified item; if strict PR-only pushes are needed, set `enforce_admins: true` or move to a ruleset that binds direct pushes.
+
+---
+
 ## Local Development
 
 ```bash
