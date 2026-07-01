@@ -58,7 +58,13 @@ jobs:
       - name: Format check (ruff)
         run: ruff format --check .
       - name: Type check (mypy)
-        run: mypy app/ | mypy-baseline filter
+        # pipefail (GitHub Actions default shell) would leak mypy's non-zero exit —
+        # mypy exits 1 whenever any error exists, including baselined ones. Disable it
+        # so the pipeline's exit code is mypy-baseline filter's: 0 when only baselined
+        # errors remain, non-zero only on NEW errors. That is the actual gate.
+        run: |
+          set +o pipefail
+          mypy app/ | mypy-baseline filter
       - name: Run migrations
         env:
           DATABASE_URL: postgresql+asyncpg://getvul:getvul@localhost:5432/getvul_test

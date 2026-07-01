@@ -71,7 +71,7 @@ Runs on Ubuntu latest, Python 3.12, with sidecar Postgres 16 + Redis 7 services.
 | Install deps | `pip install -e ".[dev]"` | — |
 | Lint | `ruff check .` | hard-fail |
 | Format check | `ruff format --check .` | hard-fail |
-| Type check | `mypy app/ \|\| true` | ⚠ **soft** ([line 59](../.github/workflows/ci.yml#L59)) |
+| Type check | `mypy app/ \| mypy-baseline filter` | hard-fail on **new** errors ([line 67](../.github/workflows/ci.yml#L67)) |
 | Migrate | `alembic upgrade head` against `getvul_test` DB | hard-fail |
 | Test | `pytest -v --cov=app --cov-report=xml` (env: `JWT_SECRET_KEY=test-secret`, `ENVIRONMENT=test`) | hard-fail |
 | Coverage upload | `codecov/codecov-action@v5` (only on PRs) | — |
@@ -83,8 +83,8 @@ Runs on Ubuntu latest, Python 3.12, with sidecar Postgres 16 + Redis 7 services.
 | Checkout | `actions/checkout@v5` | — |
 | Setup Node | `actions/setup-node@v5` (20, with `cache: npm`) | — |
 | Install | `npm install --legacy-peer-deps` | — |
-| Lint | `npm run lint \|\| true` | ⚠ **soft** ([line 95](../.github/workflows/ci.yml#L95)) |
-| Type check | `npx tsc --noEmit \|\| true` | ⚠ **soft** ([line 97](../.github/workflows/ci.yml#L97)) |
+| Lint | `npm run lint` | hard-fail ([line 103](../.github/workflows/ci.yml#L103)) |
+| Type check | `npx tsc --noEmit` | hard-fail ([line 105](../.github/workflows/ci.yml#L105)) |
 | Build | `npm run build` (`NEXT_PUBLIC_API_URL=http://localhost:8000`) | hard-fail |
 
 ### Job: `terraform`
@@ -112,34 +112,25 @@ If the token is set, results are published to semgrep.dev for tracking.
 
 ### Job: `dast`
 
-`needs: [backend, frontend]`. Spins up the slim CI compose ([docker-compose.ci.yml](../docker-compose.ci.yml)), polls `/health` until ready, then runs three ZAP scans.
+`needs: [backend, frontend]`, and gated with `if: github.event_name != 'pull_request'` so it does **not** run on PRs — it runs post-merge (push→main) and on the nightly schedule. Spins up the slim CI compose ([docker-compose.ci.yml](../docker-compose.ci.yml)), polls `/health` until ready, then runs three ZAP scans.
 
 | Step | Target | Soft-fail? |
 |------|--------|------------|
-| ZAP API Scan | `http://localhost:8000/openapi.json` | ⚠ `continue-on-error: true` ([line 164](../.github/workflows/ci.yml#L164)) |
-| ZAP Baseline (backend) | `http://localhost:8000` | ⚠ `continue-on-error: true` ([line 173](../.github/workflows/ci.yml#L173)) |
-| ZAP Baseline (frontend) | `http://localhost:3000` | ⚠ `continue-on-error: true` ([line 182](../.github/workflows/ci.yml#L182)) |
+| ZAP API Scan | `http://localhost:8000/openapi.json` | ⚠ `continue-on-error: true` ([line 173](../.github/workflows/ci.yml#L173)) |
+| ZAP Baseline (backend) | `http://localhost:8000` | ⚠ `continue-on-error: true` ([line 182](../.github/workflows/ci.yml#L182)) |
+| ZAP Baseline (frontend) | `http://localhost:3000` | ⚠ `continue-on-error: true` ([line 191](../.github/workflows/ci.yml#L191)) |
 | Cleanup | `docker compose -f docker-compose.ci.yml down -v` | always runs (`if: always()`) |
 
 Each ZAP step uploads its report as a CI artifact (e.g. `zap-api-scan`).
 
-### Soft-fail summary (Phase 2 cleanup target)
+### Gating status (PROD-02 — complete)
 
-| Step | File:line |
-|------|-----------|
-| `mypy app/` | [.github/workflows/ci.yml:59](../.github/workflows/ci.yml#L59) |
-| `npm run lint` | [.github/workflows/ci.yml:95](../.github/workflows/ci.yml#L95) |
-| `npx tsc --noEmit` | [.github/workflows/ci.yml:97](../.github/workflows/ci.yml#L97) |
-| ZAP API Scan | [.github/workflows/ci.yml:164](../.github/workflows/ci.yml#L164) |
-| ZAP Baseline backend | [.github/workflows/ci.yml:173](../.github/workflows/ci.yml#L173) |
-| ZAP Baseline frontend | [.github/workflows/ci.yml:182](../.github/workflows/ci.yml#L182) |
+The soft-fail masks are gone; the gate is enforced. Delivered in Phase 2 (see [13-deployment.md](13-deployment.md#ci-gating--branch-protection)):
 
-PROD-02 deliverables (from [.planning/REQUIREMENTS.md](../.planning/REQUIREMENTS.md)):
-
-- PROD-02-01 — re-enable push + pull_request triggers
-- PROD-02-02 — remove the three `|| true` masks above
-- PROD-02-03 — make a definitive ZAP gating decision
-- PROD-02-04 — branch protection on `main` requires CI green
+- PROD-02-01 — push + pull_request triggers re-enabled (plus a nightly schedule)
+- PROD-02-02 — the three `mypy`/`lint`/`tsc` `|| true` masks removed; mypy now runs through a committed baseline (`mypy app/ | mypy-baseline filter`), hard-failing only on **new** errors
+- PROD-02-03 — ZAP DAST kept advisory (`continue-on-error`) and gated off PRs; it runs post-merge and nightly, and is **not** a required check
+- PROD-02-04 — `main` branch protection requires the four checks (Backend, Frontend, Semgrep SAST, Terraform Validate) green + a PR before merge; empirically proven a failing check blocks the merge
 
 ---
 
