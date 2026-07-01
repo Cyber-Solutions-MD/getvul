@@ -37,8 +37,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 ## Phase Details
 
-<details>
-<summary>🚧 v1.0 Production Readiness — Phase 1 complete; Phases 2–8 active (resumed 2026-06-30)</summary>
+## 🚧 v1.0 Production Readiness — Phase 1 complete; Phases 2–8 active (resumed 2026-06-30)
 
 ### Phase 1: Multi-Replica State
 **Goal**: Two backend replicas behind a load balancer can complete an OIDC login and share rate-limit budget without race conditions or lost state.
@@ -57,7 +56,8 @@ Plans:
 - [x] 01-02-PLAN.md — Redis-backed per-tenant rate limiter (sorted-set sliding window) + PROD-01-02 tests + doc/security.md parity
 - [x] 01-03-PLAN.md — Cross-replica integration test suite (2 apps + 1 Redis) for PROD-01-03
 
-### Phase 2: CI Gating**Goal**: A PR with a failing test, type error, or lint error cannot be merged to main.
+### Phase 2: CI Gating
+**Goal**: A PR with a failing test, type error, or lint error cannot be merged to main.
 **Depends on**: Phase 1 (so the new tests are wired in before CI is enforced)
 **Requirements**: PROD-02-01, PROD-02-02, PROD-02-03, PROD-02-04
 **Success Criteria** (what must be TRUE):
@@ -72,7 +72,8 @@ Plans:
 - [x] 02-01-PLAN.md — Arm ci.yml (push/PR/nightly triggers), remove frontend masks + fix 6 tsc casts, wire mypy baseline gate, gate DAST off PRs + bump ZAP pins
 - [x] 02-02-PLAN.md — Branch protection via gh api (4 required checks) + empirical failing-PR/merge-block test + CI-gating docs
 
-### Phase 3: Update Path Reconciliation**Goal**: There is exactly one way that production gets new code, and operators have a tested rollback procedure.
+### Phase 3: Update Path Reconciliation
+**Goal**: There is exactly one way that production gets new code, and operators have a tested rollback procedure.
 **Depends on**: Phase 2 (CI must gate releases first)
 **Requirements**: PROD-03-01, PROD-03-02, PROD-03-03, PROD-03-04
 **Success Criteria** (what must be TRUE):
@@ -86,7 +87,8 @@ Plans:
 - [ ] 03-01: Choose canonical update mechanism + remove the other
 - [ ] 03-02: Tag-pinned CD + rollback runbook
 
-### Phase 4: Doc/Code Parity**Goal**: README, security docs, source code, and the API surface tell the same story about what the product is and what it does.
+### Phase 4: Doc/Code Parity
+**Goal**: README, security docs, source code, and the API surface tell the same story about what the product is and what it does.
 **Depends on**: Nothing (independent of 1–3, can run in parallel)
 **Requirements**: PROD-04-01, PROD-04-02, PROD-04-03, PROD-04-04, PROD-04-05
 **Success Criteria** (what must be TRUE):
@@ -102,7 +104,8 @@ Plans:
 - [ ] 04-02: VulnSource enum + Qualys/Rapid7 source filter regression
 - [ ] 04-03: Secrets Manager — implement or remove (decision in discuss-phase)
 
-### Phase 5: Encryption Key Lifecycle**Goal**: An operator can confidently lose, restore, and rotate `ENCRYPTION_KEY` without losing connector credentials.
+### Phase 5: Encryption Key Lifecycle
+**Goal**: An operator can confidently lose, restore, and rotate `ENCRYPTION_KEY` without losing connector credentials.
 **Depends on**: Nothing
 **Requirements**: PROD-05-01, PROD-05-02, PROD-05-03, PROD-05-04
 **Success Criteria** (what must be TRUE):
@@ -116,7 +119,8 @@ Plans:
 - [ ] 05-01: Rotation CLI + transactional re-encryption
 - [ ] 05-02: Operator runbook + startup placeholder check
 
-### Phase 6: Default Admin Hardening**Goal**: A fresh install.sh deploy cannot remain on the default `Admin123!` password by accident; the operator is forced through a rotation.
+### Phase 6: Default Admin Hardening
+**Goal**: A fresh install.sh deploy cannot remain on the default `Admin123!` password by accident; the operator is forced through a rotation.
 **Depends on**: Nothing (orthogonal to other phases)
 **Requirements**: PROD-06-01, PROD-06-02, PROD-06-03, PROD-06-04
 **Success Criteria** (what must be TRUE):
@@ -131,7 +135,8 @@ Plans:
 - [ ] 06-01: Migration + backend enforcement
 - [ ] 06-02: Frontend force-rotation flow
 
-### Phase 7: Health and Observability**Goal**: Operators and load balancers can distinguish a starting backend from a healthy one, and production logs are machine-parseable.
+### Phase 7: Health and Observability
+**Goal**: Operators and load balancers can distinguish a starting backend from a healthy one, and production logs are machine-parseable.
 **Depends on**: Nothing
 **Requirements**: PROD-07-01, PROD-07-02, PROD-07-03, PROD-07-04
 **Success Criteria** (what must be TRUE):
@@ -146,7 +151,8 @@ Plans:
 - [ ] 07-01: Split liveness/readiness probes + Nginx wiring
 - [ ] 07-02: JSON structlog in production
 
-### Phase 8: Test Coverage Floor**Goal**: A regression in any implemented connector, the rule engine, or SLA logic is caught by CI.
+### Phase 8: Test Coverage Floor
+**Goal**: A regression in any implemented connector, the rule engine, or SLA logic is caught by CI.
 **Depends on**: Phase 2 (CI must actually run the tests)
 **Requirements**: PROD-08-01, PROD-08-02, PROD-08-03, PROD-08-04
 **Success Criteria** (what must be TRUE):
@@ -161,8 +167,6 @@ Plans:
 - [ ] 08-01: Connector happy-path tests with mocked HTTP
 - [ ] 08-02: Ticket rule engine + SLA service tests
 - [ ] 08-03: Tenant-isolation regression for search/notifications/reports
-
-</details>
 
 ## ✅ v2.0 UI/UX Redesign — SHIPPED 2026-06-30
 
