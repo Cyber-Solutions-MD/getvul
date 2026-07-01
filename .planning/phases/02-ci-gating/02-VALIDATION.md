@@ -2,8 +2,8 @@
 phase: 2
 slug: ci-gating
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-30
 ---
 
@@ -67,11 +67,11 @@ created: 2026-06-30
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verify or live-CI/`gh api` verification
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references (N/A — none)
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s (local) / async (CI)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have automated verify or live-CI/`gh api` verification (every `<task>` has an `<automated>` verify; the two checkpoint tasks use live `gh api`/PR verification)
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (N/A — no new test files; existing pytest/vitest/Redis infra covers the phase, research §"Wave 0 Gaps": none)
+- [x] No watch-mode flags (`gh pr checks --watch` is a bounded CI-poll in a checkpoint task, not a local watch-mode test runner)
+- [x] Feedback latency < 60s (local) / async (CI)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** signed off 2026-07-01 — Wave 0 N/A (no new tests); all tasks carry automated verify or checkpoint live-repo verification; scripts authored verbatim in-plan (non-vacuous).

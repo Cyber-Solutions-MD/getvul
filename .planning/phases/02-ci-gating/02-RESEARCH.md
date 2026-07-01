@@ -522,17 +522,13 @@ function mockQueryResult<T>(overrides: Partial<UseQueryResult<T, Error>>): UseQu
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does the operator want `enforce_admins: true` or `false`?**
+1. **Does the operator want `enforce_admins: true` or `false`?** — RESOLVED: `false` per CONTEXT D-07 (operator decision 2026-06-30 — admins may push directly in a pinch). The plan sets `enforce_admins: false` in `.github/branch-protection.json`, surfaces the choice at the Task 1 checkpoint before the PUT, and documents `true` as the harder-enforcement option in `docs/13-deployment.md`.
    - What we know: `enforce_admins: false` allows admin to bypass; `true` enforces on all including admins.
-   - What's unclear: Operator preference.
-   - Recommendation: Default to `false` in the plan; document the option explicitly in the deployment docs.
 
-2. **mypy version pinning in CI**
-   - What we know: `pyproject.toml` specifies `mypy>=1.13`; the venv has `2.1.0`. CI will resolve the latest >=1.13 version.
-   - What's unclear: Whether to pin `mypy==2.1.*` in pyproject.toml for reproducibility.
-   - Recommendation: Pin to `mypy==2.1.*` in the CI/dev dependencies after verifying the backlog fix against 2.1.0.
+2. **mypy version pinning in CI** — RESOLVED: deferred per CONTEXT Deferred Ideas ("mypy version pin — fold into the burn-down phase or Plan during baseline setup if trivial"). Plan 02-01 Task 2 Step 4 pins mypy only if the freshly installed version is 2.x (`mypy>=2.1,<3`) to keep the committed baseline reproducible; otherwise it leaves `mypy>=1.13` and records the resolved version in the SUMMARY. The full pin decision travels with the deferred 619-error burn-down phase.
+   - What we know: `pyproject.toml` specifies `mypy>=1.13`; the venv has `2.1.0`. CI resolves the latest >=1.13 version.
 
 ---
 
