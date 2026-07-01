@@ -88,28 +88,12 @@ echo "[6/7] Creating default admin user..."
 sudo docker compose exec -T backend python3 /app/create_admin.py 2>&1 || echo "    Skipped (backend not ready yet — register manually)."
 
 # ── Step 7: Load seed/demo data ──
-echo "[7/8] Loading demo data..."
+echo "[7/7] Loading demo data..."
 sudo docker compose exec -T backend python3 /app/seed_data.py 2>&1 || echo "    Skipped."
 
-# ── Step 8: Set up auto-update cron ──
-if [ ! -f /usr/local/bin/getvul-update ]; then
-    echo "[8/8] Setting up auto-update..."
-    sudo tee /usr/local/bin/getvul-update > /dev/null << SCRIPT
-#!/bin/bash
-set -e
-LOG="/var/log/getvul-update.log"
-echo "\$(date) — Checking for updates..." >> \$LOG
-cd $APP_DIR
-git pull >> \$LOG 2>&1
-docker compose up -d --build >> \$LOG 2>&1
-echo "\$(date) — Update complete" >> \$LOG
-SCRIPT
-    sudo chmod +x /usr/local/bin/getvul-update
-    echo "0 * * * * root /usr/local/bin/getvul-update" | sudo tee /etc/cron.d/getvul-update > /dev/null
-    echo "    Auto-update scheduled hourly."
-else
-    echo "[8/8] Auto-update already configured — skipping."
-fi
+# ── Step 8: Auto-update cron removed (PROD-03) ──
+# Deployments are managed exclusively via GitHub Actions CD (.github/workflows/cd.yml).
+# To clean up a cron installed by a previous version of this script, see docs/17-troubleshooting.md §B1.
 
 # ── Done ──
 echo ""
@@ -119,7 +103,6 @@ echo "=============================="
 echo ""
 echo "  Access:  https://$(curl -sf ifconfig.me 2>/dev/null || echo '<your-vm-ip>')"
 echo "  Logs:    sudo docker compose -f $APP_DIR/docker-compose.yml logs -f"
-echo "  Update:  sudo /usr/local/bin/getvul-update"
 echo ""
 echo "  Default login:"
 echo "    Email:    admin@getvul.local"

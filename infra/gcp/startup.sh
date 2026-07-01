@@ -1,6 +1,6 @@
 #!/bin/bash
 # GetVul VM startup script — runs once on first boot
-# Installs Docker, clones repo, starts the app, sets up daily auto-update
+# Installs Docker, clones repo, starts the app
 
 set -e
 
@@ -70,13 +70,8 @@ fi
 echo "Starting GetVul..."
 docker compose up -d --build
 
-# ── Install auto-update cron ──
-echo "Setting up daily auto-update..."
-cp scripts/auto-update.sh /usr/local/bin/getvul-update
-chmod +x /usr/local/bin/getvul-update
-
-# Run daily at 3:00 AM UTC
-(crontab -l 2>/dev/null | grep -v getvul-update; echo "0 3 * * * /usr/local/bin/getvul-update >> /var/log/${app_name}-update.log 2>&1") | crontab -
+# ── Auto-update cron removed (PROD-03) ──
+# Deployments run exclusively via GitHub Actions CD (.github/workflows/cd.yml).
 
 echo "=== Startup complete $(date) ==="
 echo "App running at http://$(curl -s ifconfig.me)"

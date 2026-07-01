@@ -1,5 +1,5 @@
 # GetVul — Azure infrastructure
-# Single VM running Docker Compose with auto-update
+# Single VM running Docker Compose with CD-based deploys
 
 terraform {
   required_version = ">= 1.7"

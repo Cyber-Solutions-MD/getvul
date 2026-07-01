@@ -1,5 +1,5 @@
 # GetVul — Amazon Web Services infrastructure
-# Single EC2 instance running Docker Compose with auto-update
+# Single EC2 instance running Docker Compose with CD-based deploys
 
 terraform {
   required_version = ">= 1.7"
