@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
-status: v1.0 RESUMED (2026-06-30) after v2.0 shipped. Active phase 2 (CI Gating) — CONTEXT gathered, ready for planning. Phase 1 complete; phases 2–8 active.
-last_updated: "2026-06-30T12:00:00Z"
+status: Ready to execute
+last_updated: "2026-07-01T07:52:41.672Z"
 progress:
-  total_phases: 8
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 13
+  total_phases: 9
+  completed_phases: 8
+  total_plans: 55
+  completed_plans: 53
+  percent: 96
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,15 +24,16 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 ## Current Position
 
-Phase: 2 (ci-gating) — CONTEXT gathered, ready for planning
-Plan: 0 of TBD (plans not yet created)
+Phase: 2 (ci-gating) — PLANNED, ready to execute
+Plan: 0 of 2 executed (both plans verified — checker PASSED iteration 2)
 | Field | Value |
 |-------|-------|
 | Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phase 1 done; Phases 2–8 active) |
 | Active phase | 2 — CI Gating (re-arm CI triggers, remove `\|\| true` masks, ZAP policy, branch protection) |
-| Last action | 2026-06-30 — Repo cleanup (stale worktrees/branch/marker removed, tooling gitignored, leftover planning docs committed). v1.0 reactivated in ROADMAP. Phase 2 CONTEXT.md written: ZAP advisory (main+nightly, off PRs), branch protection via gh API, required checks = backend/frontend/semgrep/terraform. |
-| Next action | `/gsd-plan-phase 2` — research + plan Phase 2 from 02-CONTEXT.md. Then `/gsd-execute-phase 2`. |
+| Last action | 2026-07-01 — Phase 2 planned: research sized the masked backlog (619 mypy errors), mypy strategy revised to a **baseline gate** (block new errors, burn down the 619 in a deferred follow-up). 2 plans, 2 waves; plan-checker PASSED after 1 revision (embedded verify-script bodies; human-verify checkpoint before the live gh api branch-protection PUT). |
+| Next action | `/gsd-execute-phase 2` (/clear first). Wave 1 = 02-01 (autonomous). Wave 2 = 02-02 (checkpoint — will pause for you to confirm the branch-protection JSON before it hits the live repo). |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
+| Follow-up queued | mypy 619-error burn-down = a new deferred phase (baseline ratchets down); sequence before/with Phase 8. |
 
 ## v1.0 Phase 2 Decisions (CONTEXT, 2026-06-30)
 
