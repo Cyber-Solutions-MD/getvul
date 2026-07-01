@@ -55,7 +55,7 @@ A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlate
 <!-- Originally planned as v1.0 Phases 2–8. v1.0 Phase 1 (Multi-Replica State) shipped 2026-05-09. The remaining backend hardening work is parked while v2.0 UI/UX Redesign takes precedence — backend and frontend don't share files, so v1.0 can resume in parallel or sequentially without conflict. -->
 
 - [x] **PROD-01**: Multi-replica safe — OIDC state and rate limiter on Redis (Phase 01, 2026-05-09) ✓
-- [ ] **PROD-02**: CI gating — push/PR triggers re-enabled, no `|| true` masks *(deferred)*
+- [x] **PROD-02**: CI gating — push/PR triggers re-enabled, no `|| true` masks, mypy baseline gate, `main` branch protection requires 4 checks green + a PR (Phase 02, 2026-07-01) ✓
 - [ ] **PROD-03**: Single canonical update path — auto-update cron and CD release flow reconciled *(deferred)*
 - [ ] **PROD-04**: Doc/code parity — CSP/COOP headers shipped, README scanner count, `VulnSource` enum *(deferred)*
 - [ ] **PROD-05**: Encryption-key backup/rotation story documented and supported *(deferred)*
@@ -123,7 +123,9 @@ A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlate
 
 ## Current State
 
-**Shipped:** v0.1 feature set + **v1.0 Phase 1** (multi-replica state, 2026-05-09) + **v2.0 UI/UX Redesign** (Phases 9–15, 2026-06-30 — every authenticated screen rebuilt on the sunset design system; quality gate green on the production build). v2.0 archive: `.planning/milestones/v2.0-*`.
+**Shipped:** v0.1 feature set + **v1.0 Phase 1** (multi-replica state, 2026-05-09) + **v1.0 Phase 2** (CI gating, 2026-07-01 — CI armed on push/PR/nightly, `|| true` masks removed, mypy baseline gate, `main` branch protection requiring 4 checks green + a PR; failing-check merge-block proven live) + **v2.0 UI/UX Redesign** (Phases 9–15, 2026-06-30 — every authenticated screen rebuilt on the sunset design system; quality gate green on the production build). v2.0 archive: `.planning/milestones/v2.0-*`.
+
+> Note: the armed CI + branch protection are configured on the `Cyber-Solutions-MD/getvul` remote, but local `main` is ~286 commits ahead of `origin/main` and the armed `ci.yml` is not yet on remote `main` — pushing this work to remote is a separate deployment step.
 
 **Tech debt (tracked in [BACKLOG.md](BACKLOG.md), non-blocking):** legacy-route 308 redirects; dead `/integrations` redirect; `useDocumentTitle` missing on 5 pages; dark-theme contrast DESIGN-SYSTEM GAPs to reconcile into sketch-findings; Nyquist validation partial on 5 phases; Safari.app glyph human spot-check.
 
@@ -149,7 +151,7 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-30 after v2.0 UI/UX Redesign milestone — Phases 9–15 shipped (every authenticated screen rebuilt on the sunset design system). Phase 15 closed the milestone: full mobile/a11y/perf quality gate GREEN on the production build (Playwright 28 passed, bundle 15/15 ≤250 KB, Lighthouse /login 97/95 + /dashboard 90/95), ~18 D-09 audit-fix defects resolved, mobile table card-view collapse built, CSPM mobile drill fixed post-audit. Milestone audit: tech_debt — 0 blockers, 48/48 requirements wired; tech-debt + Nyquist partials logged to BACKLOG.md. v2.0 archived to `.planning/milestones/v2.0-*`. Next candidate: v1.1 deferred backend hardening (PROD-02..08).*
+*Last updated: 2026-07-01 after v1.0 Phase 2 (CI Gating) — PROD-02 complete: CI armed, masks removed, mypy baseline gate (with pipefail fix), live `main` branch protection proven to block a failing-check merge. Prior footer: 2026-06-30 after v2.0 UI/UX Redesign milestone — Phases 9–15 shipped (every authenticated screen rebuilt on the sunset design system). Phase 15 closed the milestone: full mobile/a11y/perf quality gate GREEN on the production build (Playwright 28 passed, bundle 15/15 ≤250 KB, Lighthouse /login 97/95 + /dashboard 90/95), ~18 D-09 audit-fix defects resolved, mobile table card-view collapse built, CSPM mobile drill fixed post-audit. Milestone audit: tech_debt — 0 blockers, 48/48 requirements wired; tech-debt + Nyquist partials logged to BACKLOG.md. v2.0 archived to `.planning/milestones/v2.0-*`. Next candidate: v1.1 deferred backend hardening (PROD-02..08).*
 
 <details>
 <summary>Prior milestone footer (v2.0 in-flight — Phase 14)</summary>
