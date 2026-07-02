@@ -19,7 +19,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 - [x] **Phase 1: Multi-Replica State** — Move OIDC state and rate limiter from in-process dicts to Redis
 - [x] **Phase 2: CI Gating** — Re-enable push/PR triggers and remove `|| true` masks so CI can block bad merges (complete 2026-07-01)
-- [ ] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback
+- [x] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback (complete 2026-07-02)
 - [ ] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager
 - [ ] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY`
 - [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin
@@ -84,8 +84,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Hard-remove the auto-update cron (install.sh + all 3 cloud startup.sh + git rm auto-update.sh) and clean cron references in architecture/structure/troubleshooting docs (PROD-03-01, PROD-03-02)
-- [ ] 03-02-PLAN.md — Tag-pinned CD (cd.yml checkout rewrite + release_tag dispatch input) and rollback runbook in docs/13-deployment.md with migration caveat + docs/12 & mermaid reconciliation (PROD-03-03, PROD-03-04)
+- [x] 03-01-PLAN.md — Hard-remove the auto-update cron (install.sh + all 3 cloud startup.sh + git rm auto-update.sh) and clean cron references in architecture/structure/troubleshooting docs (PROD-03-01, PROD-03-02)
+- [x] 03-02-PLAN.md — Tag-pinned CD (cd.yml checkout rewrite + release_tag dispatch input) and rollback runbook in docs/13-deployment.md with migration caveat + docs/12 & mermaid reconciliation (PROD-03-03, PROD-03-04)
 
 ### Phase 4: Doc/Code Parity
 **Goal**: README, security docs, source code, and the API surface tell the same story about what the product is and what it does.
@@ -183,7 +183,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 |-------|-----------|----------------|--------|-----------|
 | 1. Multi-Replica State | v1.0 Production Readiness | 4/4 | Complete | 2026-05-09 |
 | 2. CI Gating | v1.0 Production Readiness | 2/2 | Complete | 2026-07-01 |
-| 3. Update Path Reconciliation | v1.0 Production Readiness | 0/2 | Deferred | - |
+| 3. Update Path Reconciliation | v1.0 Production Readiness | 2/2 | Complete | 2026-07-02 |
 | 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Deferred | - |
 | 5. Encryption Key Lifecycle | v1.0 Production Readiness | 0/2 | Deferred | - |
 | 6. Default Admin Hardening | v1.0 Production Readiness | 0/2 | Deferred | - |

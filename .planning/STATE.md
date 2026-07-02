@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
-status: Executing Phase 03
-last_updated: "2026-07-01T14:40:39.547Z"
+status: Ready to plan
+last_updated: "2026-07-02T10:31:06.623Z"
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 6
-  percent: 75
+  completed_plans: 8
+  percent: 100
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,18 +20,19 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 03 — update-path-reconciliation
+**Current focus:** Phase 3 complete — next up Phase 4 (Doc/Code Parity)
 
 ## Current Position
 
-Phase: 03 (update-path-reconciliation) — EXECUTING
-Plan: 1 of 2
+Phase: 4
+Plan: Not started
 | Field | Value |
 |-------|-------|
 | Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–2 done; Phases 3–8 remaining) |
-| Last completed phase | 2 — CI Gating ✓ (2026-07-01) — CI armed on push/PR/nightly, `\|\| true` masks removed, mypy baseline gate (with `set +o pipefail` fix), live `main` branch protection requiring 4 checks + a PR; failing-check merge-block proven live (PR #13 → BLOCKED). Verifier 11/12 + live protection re-check passed. |
-| Last action | 2026-07-01 — Phase 2 executed (2 waves): 02-01 armed CI; 02-02 applied live branch protection + empirical proof + docs. Code review found + fixed WR-03 (mypy pipefail would have failed Backend every run). |
-| Next action | Phase 3 (Update Path Reconciliation) needs planning: `/gsd-discuss-phase 3` then `/gsd-plan-phase 3`. |
+| Last completed phase | 3 — Update Path Reconciliation ✓ (2026-07-02) — auto-update cron hard-removed (install.sh + 3× startup.sh + `git rm` auto-update.sh); CD pinned to `refs/tags/$DEPLOY_TAG` with allowlist-validated `release_tag` dispatch input; rollback runbook in docs/13 with DB-migration warning. Verifier 9/10 (1 human dry-run pending, tracked in 03-HUMAN-UAT.md). Code review caught + fixed a critical cd.yml command-injection RCE (CR-01) and a branch-checkout bypass (WR-01). |
+| Last action | 2026-07-02 — Phase 3 executed (1 wave, 2 plans). Recovered from a stale-base worktree incident (03-02 worktree tried to mass-delete phases 11–15/backend/frontend; salvaged scoped files only, no data lost). Fixed CR-01/WR-01/WR-05 post-review (commit 37c3a37). |
+| Next action | Phase 4 (Doc/Code Parity) needs planning: `/gsd-discuss-phase 4` then `/gsd-plan-phase 4`. |
+| Open items | 03 human dry-run rollback on a test VM (SC#4) still pending; cd.yml WR-02/03/04 (host-key verification, remote set -e, health-loop) logged in 03-REVIEW.md, not yet fixed. |
 | Deploy note | Local `main` is ~286 commits ahead of `origin/main`; armed `ci.yml` not yet on remote `main` — pushing this work to remote is a separate step. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
 | Follow-up queued | mypy 619-error burn-down = a new deferred phase (baseline ratchets down); sequence before/with Phase 8. |

@@ -22,10 +22,10 @@ Each requirement maps to one phase in [ROADMAP.md](ROADMAP.md). Sourced from the
 
 ### Update Path Reconciliation (PROD-03)
 
-- [ ] **PROD-03-01**: One canonical update mechanism chosen (GH-Actions release CD **or** hourly cron — not both) — covers [install.sh:97-109](install.sh#L97-L109) and [.github/workflows/cd.yml:32-64](.github/workflows/cd.yml#L32-L64)
-- [ ] **PROD-03-02**: `install.sh` no longer registers a competing cron when GH-Actions CD is used (or vice versa, by config flag)
-- [ ] **PROD-03-03**: CD flow uses `git fetch && git checkout <tag>` against a release tag, not `git reset --hard origin/main`
-- [ ] **PROD-03-04**: Rollback procedure documented in [doc/deployment.md](doc/deployment.md)
+- [x] **PROD-03-01**: One canonical update mechanism chosen (GH-Actions release CD **or** hourly cron — not both) — covers [install.sh:97-109](install.sh#L97-L109) and [.github/workflows/cd.yml:32-64](.github/workflows/cd.yml#L32-L64)
+- [x] **PROD-03-02**: `install.sh` no longer registers a competing cron when GH-Actions CD is used (or vice versa, by config flag)
+- [x] **PROD-03-03**: CD flow uses `git fetch && git checkout <tag>` against a release tag, not `git reset --hard origin/main`
+- [x] **PROD-03-04**: Rollback procedure documented in [doc/deployment.md](doc/deployment.md)
 
 ### Doc/Code Parity (PROD-04)
 
@@ -107,10 +107,10 @@ These are tracked but **not** in scope for the production-readiness milestone. P
 | PROD-02-02 | Phase 2 | Complete |
 | PROD-02-03 | Phase 2 | Complete |
 | PROD-02-04 | Phase 2 | Complete |
-| PROD-03-01 | Phase 3 | Pending |
-| PROD-03-02 | Phase 3 | Pending |
-| PROD-03-03 | Phase 3 | Pending |
-| PROD-03-04 | Phase 3 | Pending |
+| PROD-03-01 | Phase 3 | Complete |
+| PROD-03-02 | Phase 3 | Complete |
+| PROD-03-03 | Phase 3 | Complete |
+| PROD-03-04 | Phase 3 | Complete |
 | PROD-04-01 | Phase 4 | Pending |
 | PROD-04-02 | Phase 4 | Pending |
 | PROD-04-03 | Phase 4 | Pending |
