@@ -19,7 +19,7 @@ flowchart LR
 
     subgraph CD [cd.yml — deploy to GCE]
         SSH[SSH to VM]
-        PULL[git fetch + reset --hard origin/main]
+        PULL[git fetch --tags + checkout release tag]
         BUILD[docker compose build --no-cache]
         UP[docker compose up -d]
         HC[health-check loop]
@@ -27,6 +27,4 @@ flowchart LR
         SSH --> PULL --> BUILD --> UP --> HC --> VER
     end
 
-    CRON[Hourly cron on VM<br/>install.sh:108] -.also pulls.-> BUILD
-
-    note["* = soft-fail today<br/>(|| true / continue-on-error)<br/>Phase 2 removes the masks"]
+    note["backend/frontend now hard-fail<br/>(masks removed in Phase 2)<br/>mypy baseline-gated · DAST advisory"]

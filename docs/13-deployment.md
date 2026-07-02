@@ -40,59 +40,6 @@ There is no separate **staging** environment. CD goes straight to production.
 
 ---
 
-## CI Gating & Branch Protection
-
-Merges to `main` are gated. CI runs on every push to `main`, every pull request targeting `main`, a nightly `schedule` (`0 3 * * *`, 03:00 UTC — the DAST sweep), and on-demand `workflow_dispatch`. See [12-pipelines-cicd.md](12-pipelines-cicd.md) for the job breakdown.
-
-### Required checks
-
-Four checks must be green before a PR can merge:
-
-| Check | Job | What it gates |
-|-------|-----|---------------|
-| **Backend** | `backend` | ruff, format, mypy (baseline-filtered), Alembic, pytest+cov |
-| **Frontend** | `frontend` | lint, `tsc --noEmit`, build |
-| **Semgrep SAST** | `semgrep` | static analysis |
-| **Terraform Validate** | `terraform` | `fmt` + `validate` |
-
-`OWASP ZAP DAST` is **not** a required check. It is advisory: it runs post-merge and on the nightly schedule with `continue-on-error`, so a DAST finding never blocks a merge.
-
-### The mypy baseline gate
-
-mypy is no longer masked with `|| true`. The `backend` job runs `mypy app/ | mypy-baseline filter` against the committed `backend/mypy-baseline.txt` snapshot (619 pre-existing errors captured at Phase 2). **New** type errors fail CI; the pre-existing errors are baselined and burned down in a later phase. `strict = true` stays on. The filename matches `mypy-baseline`'s default `baseline_path`, so the filter finds it with no extra flag.
-
-### Branch-protection policy
-
-Protection is applied to `main` via a single reproducible API call using the committed request body [.github/branch-protection.json](../.github/branch-protection.json):
-
-- **PR required** before merging (`required_pull_request_reviews` present, `required_approving_review_count: 0` — a PR is required but no approver is mandated).
-- **`enforce_admins: false`** — repo admins may push directly in a pinch. This is a deliberate operator trade-off; set it to `true` for the harder enforcement that also binds admins.
-- **`strict: false`** — a branch need not be up to date with `main` before merging (avoids serialized merge queues).
-
-Reproducible command:
-
-```bash
-gh api --method PUT \
-  -H "Accept: application/vnd.github+json" \
-  -H "X-GitHub-Api-Version: 2022-11-28" \
-  repos/Cyber-Solutions-MD/getvul/branches/main/protection \
-  --input .github/branch-protection.json
-```
-
-Read-back check (exits 0 only if the four required checks are registered and DAST is not):
-
-```bash
-python3 .github/verify-branch-protection.py Cyber-Solutions-MD/getvul
-```
-
-### Empirical verification
-
-The gate was proven live (Phase 2): a PR carrying a deliberate type error turned the **Frontend** required check red, and GitHub reported the merge state as `BLOCKED` — the merge could not proceed. `OWASP ZAP DAST` was `SKIPPED` on that PR run, confirming it is not required.
-
-The direct-push-to-`main` enforcement (whether `required_approving_review_count: 0` alone rejects a `git push origin HEAD:main`) was **not** exercised against the live repo — the active operator holds admin and `enforce_admins: false`, so a test push would land on `main` rather than being rejected. This remains an operator-verified item; if strict PR-only pushes are needed, set `enforce_admins: true` or move to a ruleset that binds direct pushes.
-
----
-
 ## Local Development
 
 ```bash
@@ -213,7 +160,6 @@ The install script runs 8 steps automatically:
 5. Waits for backend health check to pass
 6. Creates default admin user (`admin@getvul.local` / `Admin123!`) via `create_admin.py`
 7. Seeds demo data via `seed_data.py` (25 assets, 150+ vulns, 20 CSPM findings, 10 Jira tickets, 15 users, 5 notifications, 7 connectors)
-8. Sets up hourly auto-update cron
 
 ### Step 8: Access the application
 
@@ -399,7 +345,7 @@ sudo chown -R $USER:$USER /opt/getvul
 bash /opt/getvul/install.sh
 ```
 
-The script runs 8 steps: Docker install, TLS cert generation, `.env` creation with auto-generated secrets, container build, backend health check, admin user creation, seed demo data, and hourly auto-update cron.
+The script runs 7 steps: Docker install, TLS cert generation, `.env` creation with auto-generated secrets, container build, backend health check, admin user creation, and seed demo data.
 
 ### Step 9: Access the application
 
@@ -554,7 +500,7 @@ sudo chown -R $USER:$USER /opt/getvul
 bash /opt/getvul/install.sh
 ```
 
-The script runs 8 steps: Docker install, TLS cert generation, `.env` creation with auto-generated secrets, container build, backend health check, admin user creation, seed demo data, and hourly auto-update cron.
+The script runs 7 steps: Docker install, TLS cert generation, `.env` creation with auto-generated secrets, container build, backend health check, admin user creation, and seed demo data.
 
 ### Step 8: Access the application
 
@@ -749,7 +695,7 @@ docker compose exec backend alembic current
 - [ ] Set SLA policy per severity (Settings > General > SLA)
 - [ ] Configure syslog forwarding to SIEM (Settings > Audit Log)
 - [ ] Set up database backup schedule
-- [ ] Verify auto-update cron is active (set up by install.sh) — **or disable it** if you've adopted CD-based releases (see PROD-03 in [12-pipelines-cicd.md](12-pipelines-cicd.md))
+- [ ] Confirm no legacy auto-update cron remains on the VM (removed in PROD-03): `ls /etc/cron.d/ | grep getvul` returns nothing
 - [ ] Run CI pipeline before going live
 
 ---
@@ -772,45 +718,52 @@ terraform init
 terraform apply -var=project_id=<your-gcp-project> -var=ssh_public_key="$(cat ~/.ssh/id_ed25519.pub)"
 ```
 
-The startup script in [infra/gcp/startup.sh](../infra/gcp/startup.sh) clones the repo to `/opt/getvul`, generates a default `.env` template (with `CHANGE-ME` placeholders), runs `docker compose up -d --build`, and sets up a daily cron at 03:00 UTC for `auto-update`.
-
-> Note the install path divergence: `install.sh` in the repo writes an **hourly** cron (line 108), while `infra/gcp/startup.sh` writes a **daily** cron (line 78). PROD-03 reconciles this.
+The startup script in [infra/gcp/startup.sh](../infra/gcp/startup.sh) clones the repo to `/opt/getvul`, generates a default `.env` template (with `CHANGE-ME` placeholders), and runs `docker compose up -d --build`.
 
 ## Release process
 
-Two flows exist today (one of them is going away in Phase 3):
-
-1. **Auto-update cron (default after `install.sh`)** — every hour, `getvul-update` runs `git pull` then `docker compose up -d --build`. Logs to `/var/log/getvul-update.log`. Always deploys whatever is on `main`.
-2. **CD on GitHub release** — see [12-pipelines-cicd.md](12-pipelines-cicd.md). SSH from the runner, `git fetch`, `git reset --hard origin/main`, rebuild, health-check, prune.
-
-PROD-03 will pick one and disable the other.
+Production gets new code exactly one way: an operator publishes a GitHub release, which fires the CD workflow ([.github/workflows/cd.yml](../.github/workflows/cd.yml)). CD SSHes to the VM, checks out the released tag (`git fetch --tags --force && git checkout --force <tag>`), rebuilds, health-checks, and prunes. A manual deploy or rollback uses the same workflow via `workflow_dispatch` with a `release_tag` input — see [Rollback](#rollback). There is no auto-update cron (removed in PROD-03).
 
 ## Rollback
 
-There is **no scripted rollback procedure** today (PROD-03-04 will fix this). The manual procedure:
+Rollback is re-deploying a prior release tag through the same CD workflow — there is no separate rollback script. Every rollback lands on a real, CI-gated release tag (never a hand-picked SHA).
+
+### Step 1 — Identify the prior release tag
 
 ```bash
-# SSH to the VM
-ssh deploy@$VM_IP
-cd /opt/getvul
-
-# Find the previous good SHA
-git log --oneline -10
-
-# Reset to it
-git reset --hard <previous-sha>
-
-# Rebuild and restart
-docker compose up -d --build
-
-# Verify
-curl -sf http://localhost:8000/health
+gh release list --limit 5
 ```
 
-Notes:
+The newest entry is the current (bad) release; the next entry down is the prior good release. Or open the GitHub Releases page and note the previous version.
 
-- This does **not** roll back database migrations. If the bad release added a migration that's destructive, you'll need to write a manual down-migration or restore from backup.
-- The auto-update cron will silently re-deploy the bad SHA on its next tick. Disable the cron during a rollback: `sudo rm /etc/cron.d/getvul-update`.
+### Step 2 — Check whether the bad release ran a destructive migration
+
+> **WARNING — A CODE ROLLBACK DOES NOT REVERT DATABASE MIGRATIONS.**
+>
+> Rolling back via a git tag restores code only. If the bad release added an Alembic
+> migration that dropped a column or table, checking out the prior tag will NOT restore
+> that data — the prior code will fail or corrupt data when the schema no longer matches.
+> You must restore from a `pg_dump` backup taken before the failed deploy. If no backup
+> exists, the data may be unrecoverable. Contact your DBA before proceeding.
+>
+> If the migration was purely additive (added a column / created a table), a code rollback
+> is safe — the prior code simply ignores the new schema objects.
+>
+> Automated down-migrations and pre-deploy snapshots are out of scope for this phase (deferred to PROD-05 / backup policy).
+
+### Step 3 — Trigger the CD workflow at the prior tag
+
+```bash
+gh workflow run cd.yml --field release_tag=<prior-tag>   # e.g. v1.0.0
+```
+
+Or: GitHub UI → Actions → "CD — Deploy to GCE" → Run workflow → enter the prior tag in `release_tag`.
+
+The CD job SSHes to the VM, runs `git fetch --tags --force && git checkout --force <prior-tag>`, rebuilds, and health-checks — the identical path a normal release deploy takes.
+
+### Step 4 — Verify
+
+Watch the Actions run. Its "Verify deployment" step curls `GET /health` externally and checks for `"status":"ok"`. On success the app is running the prior release.
 
 ## Backups
 

@@ -5,10 +5,10 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-      force:
-        description: "Force deploy (skip CI check)"
-        type: boolean
-        default: false
+      release_tag:
+        description: "Release tag to deploy (e.g. v1.0.0) — use for manual deploys and rollbacks"
+        type: string
+        required: false
 
 env:
   VM_HOST: ${{ secrets.GCE_VM_IP }}
@@ -21,6 +21,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Resolve deploy tag
+        run: |
+          DEPLOY_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
+          if [ -z "$DEPLOY_TAG" ]; then
+            echo "ERROR: No deploy tag resolved."
+            echo "  - Release triggers: tag comes from github.event.release.tag_name"
+            echo "  - Manual dispatch: provide the release_tag input"
+            exit 1
+          fi
+          echo "Deploying tag: $DEPLOY_TAG"
+          echo "DEPLOY_TAG=$DEPLOY_TAG" >> "$GITHUB_ENV"
+
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -30,27 +42,29 @@ jobs:
 
       - name: Deploy to VM
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << 'DEPLOY'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << DEPLOY
             set -e
             cd /opt/getvul
 
-            echo "=== Deploying GetVul $(date) ==="
+            echo "=== Deploying GetVul ${{ env.DEPLOY_TAG }} \$(date) ==="
 
-            # Pull latest code
-            git fetch origin main
-            git reset --hard origin/main
+            # Fetch all tags (--force updates re-tagged releases; a branch fetch does NOT update tag refs)
+            git fetch --tags --force
+
+            # Checkout the specific release tag (detached HEAD is expected and correct)
+            git checkout --force "${{ env.DEPLOY_TAG }}"
 
             # Rebuild and restart
             docker compose build --no-cache
             docker compose up -d
 
             # Wait for health
-            for i in $(seq 1 30); do
+            for i in \$(seq 1 30); do
               if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
                 echo "Health check passed!"
                 break
               fi
-              echo "  waiting... ($i/30)"
+              echo "  waiting... (\$i/30)"
               sleep 5
             done
 
@@ -60,7 +74,7 @@ jobs:
             # Cleanup
             docker image prune -f
 
-            echo "=== Deploy complete $(date) ==="
+            echo "=== Deploy complete \$(date) ==="
           DEPLOY
 
       - name: Verify deployment
@@ -68,8 +82,8 @@ jobs:
           sleep 5
           STATUS=$(curl -sf http://${{ env.VM_HOST }}/health | grep -o '"status":"ok"' || echo "FAILED")
           if [ "$STATUS" = '"status":"ok"' ]; then
-            echo "✅ Deployment verified — app is healthy"
+            echo "Deployment verified — app is healthy at tag ${{ env.DEPLOY_TAG }}"
           else
-            echo "❌ Deployment verification failed"
+            echo "Deployment verification failed"
             exit 1
           fi

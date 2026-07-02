@@ -7,12 +7,12 @@ GetVul uses **GitHub Actions** for both CI and CD. Two workflow files live in [.
 ```mermaid
 flowchart LR
     DEV[Developer<br/>git push] --> BR[branch on GitHub]
-    BR --> WD[push→main · PR→main<br/>nightly schedule · dispatch]
+    BR --> WD[manual dispatch<br/>workflow_dispatch only<br/>see PROD-02]
     WD --> CI
 
     subgraph CI [ci.yml — 5 jobs]
-        BE[backend<br/>ruff · format · mypy baseline · alembic · pytest+cov]
-        FE[frontend<br/>npm install · lint · tsc · build]
+        BE[backend<br/>ruff · format · mypy* · alembic · pytest+cov]
+        FE[frontend<br/>npm install · lint* · tsc* · build]
         TF[terraform<br/>fmt · init -backend=false · validate]
         SAST[semgrep<br/>semgrep ci]
         DAST[zap dast<br/>3 scans · continue-on-error]
@@ -24,15 +24,13 @@ flowchart LR
 
     subgraph CD [cd.yml — deploy to GCE]
         SSH[SSH to VM]
-        PULL[git fetch + reset --hard origin/main]
+        PULL[git fetch --tags + checkout release tag]
         BUILD[docker compose build --no-cache]
         UP[docker compose up -d]
         HC[health-check loop]
         VER[verify external /health]
         SSH --> PULL --> BUILD --> UP --> HC --> VER
     end
-
-    CRON[Hourly cron on VM<br/>install.sh:108] -.also pulls.-> BUILD
 
     note["backend/frontend now hard-fail<br/>(masks removed in Phase 2)<br/>mypy baseline-gated · DAST advisory"]
 ```
@@ -49,16 +47,14 @@ Full file: [.github/workflows/ci.yml](../.github/workflows/ci.yml).
 
 ```yaml
 on:
-  workflow_dispatch:  # Manual trigger
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  schedule:
-    - cron: '0 3 * * *'   # 03:00 UTC nightly DAST sweep
+  workflow_dispatch:  # Manual trigger only — re-enable push/PR triggers when ready
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
 ```
 
-CI runs on push to `main`, every PR targeting `main`, a nightly schedule (03:00 UTC), and on-demand dispatch. The soft-fail masks are gone: `backend` and `frontend` now hard-fail, with mypy gated through a committed baseline (see [13-deployment.md](13-deployment.md#ci-gating--branch-protection)). The four checks Backend, Frontend, Semgrep SAST, and Terraform Validate gate merges to `main`; `OWASP ZAP DAST` is advisory (post-merge + nightly, `continue-on-error`).
+⚠ **Today CI runs only on manual dispatch.** Push and PR triggers are commented out (lines 5–8). PROD-02 (Phase 2: CI Gating) will re-enable them and remove the soft-fail masks listed below.
 
 ### Job: `backend`
 
@@ -71,7 +67,7 @@ Runs on Ubuntu latest, Python 3.12, with sidecar Postgres 16 + Redis 7 services.
 | Install deps | `pip install -e ".[dev]"` | — |
 | Lint | `ruff check .` | hard-fail |
 | Format check | `ruff format --check .` | hard-fail |
-| Type check | `mypy app/ \| mypy-baseline filter` | hard-fail on **new** errors ([line 67](../.github/workflows/ci.yml#L67)) |
+| Type check | `mypy app/ \|\| true` | ⚠ **soft** ([line 59](../.github/workflows/ci.yml#L59)) |
 | Migrate | `alembic upgrade head` against `getvul_test` DB | hard-fail |
 | Test | `pytest -v --cov=app --cov-report=xml` (env: `JWT_SECRET_KEY=test-secret`, `ENVIRONMENT=test`) | hard-fail |
 | Coverage upload | `codecov/codecov-action@v5` (only on PRs) | — |
@@ -83,8 +79,8 @@ Runs on Ubuntu latest, Python 3.12, with sidecar Postgres 16 + Redis 7 services.
 | Checkout | `actions/checkout@v5` | — |
 | Setup Node | `actions/setup-node@v5` (20, with `cache: npm`) | — |
 | Install | `npm install --legacy-peer-deps` | — |
-| Lint | `npm run lint` | hard-fail ([line 103](../.github/workflows/ci.yml#L103)) |
-| Type check | `npx tsc --noEmit` | hard-fail ([line 105](../.github/workflows/ci.yml#L105)) |
+| Lint | `npm run lint \|\| true` | ⚠ **soft** ([line 95](../.github/workflows/ci.yml#L95)) |
+| Type check | `npx tsc --noEmit \|\| true` | ⚠ **soft** ([line 97](../.github/workflows/ci.yml#L97)) |
 | Build | `npm run build` (`NEXT_PUBLIC_API_URL=http://localhost:8000`) | hard-fail |
 
 ### Job: `terraform`
@@ -112,25 +108,34 @@ If the token is set, results are published to semgrep.dev for tracking.
 
 ### Job: `dast`
 
-`needs: [backend, frontend]`, and gated with `if: github.event_name != 'pull_request'` so it does **not** run on PRs — it runs post-merge (push→main) and on the nightly schedule. Spins up the slim CI compose ([docker-compose.ci.yml](../docker-compose.ci.yml)), polls `/health` until ready, then runs three ZAP scans.
+`needs: [backend, frontend]`. Spins up the slim CI compose ([docker-compose.ci.yml](../docker-compose.ci.yml)), polls `/health` until ready, then runs three ZAP scans.
 
 | Step | Target | Soft-fail? |
 |------|--------|------------|
-| ZAP API Scan | `http://localhost:8000/openapi.json` | ⚠ `continue-on-error: true` ([line 173](../.github/workflows/ci.yml#L173)) |
-| ZAP Baseline (backend) | `http://localhost:8000` | ⚠ `continue-on-error: true` ([line 182](../.github/workflows/ci.yml#L182)) |
-| ZAP Baseline (frontend) | `http://localhost:3000` | ⚠ `continue-on-error: true` ([line 191](../.github/workflows/ci.yml#L191)) |
+| ZAP API Scan | `http://localhost:8000/openapi.json` | ⚠ `continue-on-error: true` ([line 164](../.github/workflows/ci.yml#L164)) |
+| ZAP Baseline (backend) | `http://localhost:8000` | ⚠ `continue-on-error: true` ([line 173](../.github/workflows/ci.yml#L173)) |
+| ZAP Baseline (frontend) | `http://localhost:3000` | ⚠ `continue-on-error: true` ([line 182](../.github/workflows/ci.yml#L182)) |
 | Cleanup | `docker compose -f docker-compose.ci.yml down -v` | always runs (`if: always()`) |
 
 Each ZAP step uploads its report as a CI artifact (e.g. `zap-api-scan`).
 
-### Gating status (PROD-02 — complete)
+### Soft-fail summary (Phase 2 cleanup target)
 
-The soft-fail masks are gone; the gate is enforced. Delivered in Phase 2 (see [13-deployment.md](13-deployment.md#ci-gating--branch-protection)):
+| Step | File:line |
+|------|-----------|
+| `mypy app/` | [.github/workflows/ci.yml:59](../.github/workflows/ci.yml#L59) |
+| `npm run lint` | [.github/workflows/ci.yml:95](../.github/workflows/ci.yml#L95) |
+| `npx tsc --noEmit` | [.github/workflows/ci.yml:97](../.github/workflows/ci.yml#L97) |
+| ZAP API Scan | [.github/workflows/ci.yml:164](../.github/workflows/ci.yml#L164) |
+| ZAP Baseline backend | [.github/workflows/ci.yml:173](../.github/workflows/ci.yml#L173) |
+| ZAP Baseline frontend | [.github/workflows/ci.yml:182](../.github/workflows/ci.yml#L182) |
 
-- PROD-02-01 — push + pull_request triggers re-enabled (plus a nightly schedule)
-- PROD-02-02 — the three `mypy`/`lint`/`tsc` `|| true` masks removed; mypy now runs through a committed baseline (`mypy app/ | mypy-baseline filter`), hard-failing only on **new** errors
-- PROD-02-03 — ZAP DAST kept advisory (`continue-on-error`) and gated off PRs; it runs post-merge and nightly, and is **not** a required check
-- PROD-02-04 — `main` branch protection requires the four checks (Backend, Frontend, Semgrep SAST, Terraform Validate) green + a PR before merge; empirically proven a failing check blocks the merge
+PROD-02 deliverables (from [.planning/REQUIREMENTS.md](../.planning/REQUIREMENTS.md)):
+
+- PROD-02-01 — re-enable push + pull_request triggers
+- PROD-02-02 — remove the three `|| true` masks above
+- PROD-02-03 — make a definitive ZAP gating decision
+- PROD-02-04 — branch protection on `main` requires CI green
 
 ---
 
@@ -146,24 +151,26 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-      force:
-        description: "Force deploy (skip CI check)"
-        type: boolean
-        default: false
+      release_tag:
+        description: "Release tag to deploy (e.g. v1.0.0) — for manual deploys and rollbacks"
+        type: string
+        required: false
 ```
 
-So CD runs on **GitHub release publish** or an on-demand **`workflow_dispatch`** run.
+So CD runs on **GitHub release publish** or **manual dispatch**.
 
 ### Job: `deploy`
 
 Single job, `runs-on: ubuntu-latest`.
 
-1. **Configure SSH** — drops `secrets.GCE_SSH_PRIVATE_KEY` into `~/.ssh/deploy_key`, runs `ssh-keyscan -H $GCE_VM_IP` to populate `known_hosts`.
-2. **Deploy to VM** — opens an SSH session as `deploy@$GCE_VM_IP` and runs:
+1. **Resolve deploy tag** — a step resolves `DEPLOY_TAG` from `github.event.release.tag_name || inputs.release_tag`. Exits 1 if no tag is resolved (fail-fast guard).
+2. **Configure SSH** — drops `secrets.GCE_SSH_PRIVATE_KEY` into `~/.ssh/deploy_key`, runs `ssh-keyscan -H $GCE_VM_IP` to populate `known_hosts`.
+3. **Deploy to VM** — opens an SSH session as `deploy@$GCE_VM_IP` and runs:
+   A 'Resolve deploy tag' step first sets `DEPLOY_TAG` from `github.event.release.tag_name || inputs.release_tag`.
    ```bash
    cd /opt/getvul
-   git fetch origin main
-   git reset --hard origin/main      # ⚠ destructive — see PROD-03-03 below
+   git fetch --tags --force
+   git checkout --force "$DEPLOY_TAG"   # detached HEAD — the released tag
    docker compose build --no-cache
    docker compose up -d
    for i in $(seq 1 30); do
@@ -173,7 +180,7 @@ Single job, `runs-on: ubuntu-latest`.
    curl -sf http://localhost:8000/health || exit 1
    docker image prune -f
    ```
-3. **Verify deployment** — back on the runner, curls `http://$GCE_VM_IP/health` and checks the body for `"status":"ok"`. Exits 1 if not.
+4. **Verify deployment** — back on the runner, curls `http://$GCE_VM_IP/health` and checks the body for `"status":"ok"`. Exits 1 if not.
 
 ### Required secrets
 
@@ -183,12 +190,9 @@ Single job, `runs-on: ubuntu-latest`.
 | `GCE_SSH_PRIVATE_KEY` | SSH private key authorized in the VM's `~/.ssh/authorized_keys` |
 | `SEMGREP_APP_TOKEN` (CI only) | Optional — enables result publishing |
 
-### Known issues (Phase 3 — PROD-03)
+### PROD-03 — resolved
 
-- **PROD-03-01** — There are two competing update paths: (a) this CD job on release, and (b) the hourly cron installed by `install.sh` (line 108) which `git pull`s + rebuilds every hour. Either one can deploy unreleased code in the wrong race condition.
-- **PROD-03-02** — The hourly cron must be disabled (or made conditional) when CD is the chosen path.
-- **PROD-03-03** — The CD `git reset --hard origin/main` deploys whatever HEAD is on `main`, not the released tag. Released tags should be checked out by SHA.
-- **PROD-03-04** — No documented rollback. To roll back today: SSH to the VM, `git reset --hard <previous-sha>`, `docker compose up -d --build`. This should be scripted.
+The competing auto-update cron was removed and CD now deploys the released tag (not main HEAD). Rollback is documented in [13-deployment.md](13-deployment.md#rollback).
 
 ---
 
