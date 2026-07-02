@@ -22,12 +22,26 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Resolve deploy tag
+        env:
+          # Bind the untrusted expressions to env vars instead of interpolating
+          # them directly into the script — prevents ${{ }} injection at this step.
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          DISPATCH_TAG: ${{ inputs.release_tag }}
         run: |
-          DEPLOY_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
+          DEPLOY_TAG="${RELEASE_TAG_NAME:-$DISPATCH_TAG}"
           if [ -z "$DEPLOY_TAG" ]; then
             echo "ERROR: No deploy tag resolved."
             echo "  - Release triggers: tag comes from github.event.release.tag_name"
             echo "  - Manual dispatch: provide the release_tag input"
+            exit 1
+          fi
+          # Allowlist tag names. This value is later expanded on the CD runner and
+          # on the production VM, so rejecting shell metacharacters here closes the
+          # command-injection path (must start alphanumeric; no '/', so a value like
+          # 'refs/tags/../heads/main' cannot traverse into a branch ref either).
+          if ! printf '%s' "$DEPLOY_TAG" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*$'; then
+            echo "ERROR: release_tag '$DEPLOY_TAG' contains disallowed characters."
+            echo "  Allowed: letters, digits, and . _ - (must start with a letter or digit)."
             exit 1
           fi
           echo "Deploying tag: $DEPLOY_TAG"
@@ -42,29 +56,37 @@ jobs:
 
       - name: Deploy to VM
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << DEPLOY
+          # Pass DEPLOY_TAG as a remote environment variable (allowlisted above) and
+          # use a QUOTED heredoc so the VM-side shell performs all $(...)/$var
+          # expansion — nothing from the workflow is expanded host-side.
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${{ env.VM_USER }}@${{ env.VM_HOST }}" DEPLOY_TAG="$DEPLOY_TAG" bash -s << 'DEPLOY'
             set -e
             cd /opt/getvul
 
-            echo "=== Deploying GetVul ${{ env.DEPLOY_TAG }} \$(date) ==="
+            echo "=== Deploying GetVul $DEPLOY_TAG $(date) ==="
 
             # Fetch all tags (--force updates re-tagged releases; a branch fetch does NOT update tag refs)
             git fetch --tags --force
 
-            # Checkout the specific release tag (detached HEAD is expected and correct)
-            git checkout --force "${{ env.DEPLOY_TAG }}"
+            # Deploy the release TAG only — never a branch or arbitrary SHA (PROD-03-03).
+            # Verify the tag ref resolves to a commit, then check it out via refs/tags/.
+            if ! git rev-parse -q --verify "refs/tags/$DEPLOY_TAG^{commit}" >/dev/null; then
+              echo "ERROR: refs/tags/$DEPLOY_TAG not found after fetch — refusing to deploy."
+              exit 1
+            fi
+            git checkout --force "refs/tags/$DEPLOY_TAG"
 
             # Rebuild and restart
             docker compose build --no-cache
             docker compose up -d
 
             # Wait for health
-            for i in \$(seq 1 30); do
+            for i in $(seq 1 30); do
               if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
                 echo "Health check passed!"
                 break
               fi
-              echo "  waiting... (\$i/30)"
+              echo "  waiting... ($i/30)"
               sleep 5
             done
 
@@ -74,15 +96,15 @@ jobs:
             # Cleanup
             docker image prune -f
 
-            echo "=== Deploy complete \$(date) ==="
+            echo "=== Deploy complete $(date) ==="
           DEPLOY
 
       - name: Verify deployment
         run: |
           sleep 5
-          STATUS=$(curl -sf http://${{ env.VM_HOST }}/health | grep -o '"status":"ok"' || echo "FAILED")
+          STATUS=$(curl -sf "http://${{ env.VM_HOST }}/health" | grep -o '"status":"ok"' || echo "FAILED")
           if [ "$STATUS" = '"status":"ok"' ]; then
-            echo "Deployment verified — app is healthy at tag ${{ env.DEPLOY_TAG }}"
+            echo "Deployment verified — app is healthy at tag $DEPLOY_TAG"
           else
             echo "Deployment verification failed"
             exit 1

@@ -228,8 +228,8 @@ If Redis is healthy but the callback still 503s, look at backend logs for the ac
 
 ### D3. CD deploys old code
 
-**Symptom** — Released tag `v1.2.3` but the VM is running `main`'s latest commit, not the tag.
+**Symptom** — Released tag `v1.2.3` but the VM is running an unexpected commit.
 
-**Cause** — `cd.yml` does `git fetch origin main && git reset --hard origin/main` ([cd.yml:40-41](../.github/workflows/cd.yml#L40-L41)). It deploys `origin/main`, not the tag. PROD-03-03 will fix this.
+**Cause** — Resolved in PROD-03-03. `cd.yml` previously did `git reset --hard origin/main`, which deployed `main` HEAD rather than the released tag. It now resolves a `DEPLOY_TAG`, runs `git fetch --tags --force`, and checks out `refs/tags/$DEPLOY_TAG` explicitly ([cd.yml](../.github/workflows/cd.yml)) — the VM always runs the exact released tag.
 
-**Fix (interim)** — Don't allow new commits on `main` between cutting the release and the CD job finishing. Or SSH to the VM after the CD run and `git checkout v1.2.3` manually.
+**Fix** — If the VM is on the wrong revision, re-run the deploy for the intended tag via **Actions → CD → Run workflow** with the `release_tag` input (see the rollback runbook in [docs/13-deployment.md](13-deployment.md)). A dispatched `release_tag` that is not an existing tag (e.g. a branch name like `main`) is now rejected before checkout.
