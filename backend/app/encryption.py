@@ -28,3 +28,11 @@ def decrypt_value(ciphertext: str) -> str:
 def generate_key() -> str:
     """Generate a new Fernet encryption key. Run once, store in .env."""
     return Fernet.generate_key().decode()
+
+
+def _fernet_for(key: str) -> Fernet:
+    """Return a Fernet instance for an explicit key string.
+
+    Raises ValueError if key is not a valid 32-byte url-safe base64 Fernet key.
+    """
+    return Fernet(key.encode())
