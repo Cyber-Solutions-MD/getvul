@@ -97,12 +97,12 @@ Plans:
   3. `VulnSource` enum at [backend/app/vulnerabilities/models.py:31](backend/app/vulnerabilities/models.py#L31) includes `QUALYS` and `RAPID7`; existing rows backfilled or migrated
   4. Filtering vulns by `source=QUALYS` and `source=RAPID7` returns expected rows in a regression test
   5. `aws_region` / `secrets_manager_prefix` config and `boto3` dep are either implemented end-to-end or removed (no dead config)
-**Plans**: TBD (likely 3)
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Ship CSP and COOP headers + ZAP regression
-- [ ] 04-02: VulnSource enum + Qualys/Rapid7 source filter regression
-- [ ] 04-03: Secrets Manager — implement or remove (decision in discuss-phase)
+- [ ] 04-01-PLAN.md — Ship CSP + COOP headers on SecurityHeadersMiddleware, flip docs/16-security.md drift rows, verify README scanner parity (PROD-04-01, PROD-04-02)
+- [ ] 04-02-PLAN.md — Extend VulnSource enum (QUALYS + RAPID7) + API source-filter regression incl. tenant scope (PROD-04-03, PROD-04-04)
+- [ ] 04-03-PLAN.md — Exhaustive AWS Secrets Manager / boto3 removal + doc scrub + pip reinstall + repo-wide grep verification (PROD-04-05)
 
 ### Phase 5: Encryption Key Lifecycle
 **Goal**: An operator can confidently lose, restore, and rotate `ENCRYPTION_KEY` without losing connector credentials.
@@ -184,7 +184,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 1. Multi-Replica State | v1.0 Production Readiness | 4/4 | Complete | 2026-05-09 |
 | 2. CI Gating | v1.0 Production Readiness | 2/2 | Complete | 2026-07-01 |
 | 3. Update Path Reconciliation | v1.0 Production Readiness | 2/2 | Complete | 2026-07-02 |
-| 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Deferred | - |
+| 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Planned | - |
 | 5. Encryption Key Lifecycle | v1.0 Production Readiness | 0/2 | Deferred | - |
 | 6. Default Admin Hardening | v1.0 Production Readiness | 0/2 | Deferred | - |
 | 7. Health and Observability | v1.0 Production Readiness | 0/2 | Deferred | - |
