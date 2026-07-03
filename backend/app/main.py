@@ -91,6 +91,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        )
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         # Prevent caching of API responses
         if request.url.path.startswith("/api/") or request.url.path.startswith("/auth/"):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"

@@ -104,17 +104,12 @@ Enforced on registration and password change. Old hashes are kept in `users.pass
 | `Cross-Origin-Resource-Policy` | `same-origin` | applied to all responses |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | applied to all responses |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | applied to all responses |
+| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'; base-uri 'none'` | applied to all responses (PROD-04-01) |
+| `Cross-Origin-Opener-Policy` | `same-origin` | applied to all responses (PROD-04-01) |
 | `Cache-Control` | `no-store, no-cache, must-revalidate, max-age=0` | only on `/api/` and `/auth/` paths |
 | `Pragma` | `no-cache` | only on `/api/` and `/auth/` paths |
 
-### Drift — documented but not yet emitted
-
-| Header | Doc claim | Reality |
-|--------|-----------|---------|
-| `Content-Security-Policy` | listed as enabled in older docs | ✗ **not** emitted by `SecurityHeadersMiddleware` (PROD-04-01) |
-| `Cross-Origin-Opener-Policy` | listed as enabled in older docs | ✗ **not** emitted by `SecurityHeadersMiddleware` (PROD-04-01) |
-
-The frontend's [frontend/next.config.js](../frontend/next.config.js) does ship a CSP from the Next.js side covering its own routes — but the API responses don't carry one yet. PROD-04-01 will land both headers on backend responses.
+Note: the frontend's [frontend/next.config.js](../frontend/next.config.js) also ships its own CSP covering HTML routes — that policy includes `script-src`/`style-src` directives appropriate for HTML resource loading. The backend CSP (`default-src 'none'`) is deliberately stricter because the backend serves only JSON.
 
 ### From Nginx ([nginx/nginx.conf:29-32](../nginx/nginx.conf#L29-L32) and `:119`)
 
