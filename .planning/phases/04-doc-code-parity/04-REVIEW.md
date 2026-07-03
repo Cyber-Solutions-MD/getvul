@@ -20,7 +20,9 @@ findings:
   warning: 2
   info: 4
   total: 6
-status: issues_found
+warnings_resolved: 2
+status: resolved
+resolution: "WR-01 and WR-02 fixed in commit bc2df7b — strict CSP scoped off debug-only docs routes, docs/16-security.md corrected, dispatch-level unit tests added. Info items left as parity-backlog notes."
 ---
 
 # Phase 4: Code Review Report
