@@ -469,12 +469,13 @@ if filters.source:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`.env` edit automation**
    - What we know: `.env` is not git-tracked; it exists on dev VM; permission-denied for direct tool reads
    - What's unclear: Whether the implementer has write access to `.env` during plan execution
    - Recommendation: Plan task should include `sed -i '/^AWS_REGION=/d; /^SECRETS_MANAGER_PREFIX=/d' .env` as an operator step, documented as "manual if permission denied"
+   - **RESOLVED:** handled as `checkpoint:human-action` in 04-03 Task 3 with the `sed -i` operator step; harmless no-op if write access is unavailable (the load-bearing change is removing the fields from `config.py`, after which pydantic ignores stray env vars).
 
 ---
 
