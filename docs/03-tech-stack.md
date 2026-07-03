@@ -20,7 +20,6 @@ Defined in [backend/pyproject.toml](../backend/pyproject.toml).
 | Redis | `>=5.2` | Async Redis client (`redis.asyncio`) |
 | python-jose | `>=3.3` (`[cryptography]`) | JWT issue/decode (HS256) |
 | httpx | `>=0.27` | Async HTTP for connectors and tests |
-| boto3 | `>=1.35` | AWS SDK (Secrets Manager — declared, currently unused) |
 | orjson | `>=3.10` | Fast JSON in responses |
 | tenacity | `>=9.0` | Retry decorators around connector calls |
 | croniter | `>=3.0` | Cron parsing for scheduled reports & ticket rules |

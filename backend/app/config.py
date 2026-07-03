@@ -34,9 +34,5 @@ class Settings(BaseSettings):
     # Connector Defaults
     sync_interval_minutes: int = 15
 
-    # AWS
-    aws_region: str = "us-east-1"
-    secrets_manager_prefix: str = "getvul/"
-
 
 settings = Settings()

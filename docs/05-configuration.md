@@ -77,13 +77,6 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 |----------|---------|----------|---------|--------------|
 | `SYNC_INTERVAL_MINUTES` | `15` | no | `Settings.sync_interval_minutes` | Default sync cadence for new connector configs (each connector can override). |
 
-### AWS (declared but currently unused — PROD-04-05)
-
-| Variable | Default | Required | Read by | What it does |
-|----------|---------|----------|---------|--------------|
-| `AWS_REGION` | `us-east-1` | no | `Settings.aws_region` ([config.py:38](../backend/app/config.py#L38)) | Reserved for AWS Secrets Manager integration. Not currently consumed by any code path — Phase 4 will decide whether to use it or remove it. |
-| `SECRETS_MANAGER_PREFIX` | `getvul/` | no | `Settings.secrets_manager_prefix` ([config.py:39](../backend/app/config.py#L39)) | Reserved (same as above). |
-
 ### Frontend (Next.js)
 
 Only `NEXT_PUBLIC_*` variables are visible to the browser bundle.
