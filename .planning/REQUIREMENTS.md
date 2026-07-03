@@ -29,11 +29,11 @@ Each requirement maps to one phase in [ROADMAP.md](ROADMAP.md). Sourced from the
 
 ### Doc/Code Parity (PROD-04)
 
-- [ ] **PROD-04-01**: Backend security middleware emits `Content-Security-Policy` and `Cross-Origin-Opener-Policy` headers — covers [doc/security.md:31](doc/security.md#L31) drift
-- [ ] **PROD-04-02**: Top-level [README.md](README.md) updated to reflect 6 scanner sources (CrowdStrike, Nessus, Defender, Wiz, Qualys, Rapid7), matching [doc/overview.md:10](doc/overview.md#L10)
-- [ ] **PROD-04-03**: `VulnSource` enum extended to include `QUALYS` and `RAPID7` — [backend/app/vulnerabilities/models.py:31](backend/app/vulnerabilities/models.py#L31); migration + backfill if needed
-- [ ] **PROD-04-04**: Verify Qualys/Rapid7 vulns persist and surface in dashboard filters (regression test)
-- [ ] **PROD-04-05**: Either implement Secrets Manager support OR remove `aws_region` / `secrets_manager_prefix` config + `boto3` dep — pick one in discuss-phase
+- [x] **PROD-04-01**: Backend security middleware emits `Content-Security-Policy` and `Cross-Origin-Opener-Policy` headers — covers [doc/security.md:31](doc/security.md#L31) drift
+- [x] **PROD-04-02**: Top-level [README.md](README.md) updated to reflect 6 scanner sources (CrowdStrike, Nessus, Defender, Wiz, Qualys, Rapid7), matching [doc/overview.md:10](doc/overview.md#L10)
+- [x] **PROD-04-03**: `VulnSource` enum extended to include `QUALYS` and `RAPID7` — [backend/app/vulnerabilities/models.py:31](backend/app/vulnerabilities/models.py#L31); migration + backfill if needed
+- [x] **PROD-04-04**: Verify Qualys/Rapid7 vulns persist and surface in dashboard filters (regression test)
+- [x] **PROD-04-05**: Either implement Secrets Manager support OR remove `aws_region` / `secrets_manager_prefix` config + `boto3` dep — pick one in discuss-phase
 
 ### Encryption Key Lifecycle (PROD-05)
 
@@ -111,11 +111,11 @@ These are tracked but **not** in scope for the production-readiness milestone. P
 | PROD-03-02 | Phase 3 | Complete |
 | PROD-03-03 | Phase 3 | Complete |
 | PROD-03-04 | Phase 3 | Complete |
-| PROD-04-01 | Phase 4 | Pending |
-| PROD-04-02 | Phase 4 | Pending |
-| PROD-04-03 | Phase 4 | Pending |
-| PROD-04-04 | Phase 4 | Pending |
-| PROD-04-05 | Phase 4 | Pending |
+| PROD-04-01 | Phase 4 | Complete |
+| PROD-04-02 | Phase 4 | Complete |
+| PROD-04-03 | Phase 4 | Complete |
+| PROD-04-04 | Phase 4 | Complete |
+| PROD-04-05 | Phase 4 | Complete |
 | PROD-05-01 | Phase 5 | Pending |
 | PROD-05-02 | Phase 5 | Pending |
 | PROD-05-03 | Phase 5 | Pending |

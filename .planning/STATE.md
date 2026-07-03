@@ -20,7 +20,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 04 — doc-code-parity
+**Current focus:** Phase 4 complete — next up Phase 5 (Encryption Key Lifecycle)
 
 ## Current Position
 
@@ -28,11 +28,11 @@ Phase: 5
 Plan: Not started
 | Field | Value |
 |-------|-------|
-| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–2 done; Phases 3–8 remaining) |
-| Last completed phase | 3 — Update Path Reconciliation ✓ (2026-07-02) — auto-update cron hard-removed (install.sh + 3× startup.sh + `git rm` auto-update.sh); CD pinned to `refs/tags/$DEPLOY_TAG` with allowlist-validated `release_tag` dispatch input; rollback runbook in docs/13 with DB-migration warning. Verifier 9/10 (1 human dry-run pending, tracked in 03-HUMAN-UAT.md). Code review caught + fixed a critical cd.yml command-injection RCE (CR-01) and a branch-checkout bypass (WR-01). |
-| Last action | 2026-07-02 — Phase 3 executed (1 wave, 2 plans). Recovered from a stale-base worktree incident (03-02 worktree tried to mass-delete phases 11–15/backend/frontend; salvaged scoped files only, no data lost). Fixed CR-01/WR-01/WR-05 post-review (commit 37c3a37). |
-| Next action | Phase 4 (Doc/Code Parity) needs planning: `/gsd-discuss-phase 4` then `/gsd-plan-phase 4`. |
-| Open items | 03 human dry-run rollback on a test VM (SC#4) still pending; cd.yml WR-02/03/04 (host-key verification, remote set -e, health-loop) logged in 03-REVIEW.md, not yet fixed. |
+| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–4 done; Phases 5–8 remaining) |
+| Last completed phase | 4 — Doc/Code Parity ✓ (2026-07-03) — CSP + COOP headers emitted (scoped off debug-only Swagger/ReDoc routes after a code-review catch, WR-01/WR-02 fixed); README↔overview 6-scanner parity confirmed; `VulnSource` extended to all 6 sources with a tenant-scoped source-filter regression test; dead AWS Secrets Manager / boto3 config removed end-to-end. Verifier 5/5 SC. PROD-04-01..05 all Complete. |
+| Last action | 2026-07-03 — Phase 4 executed (1 wave, 3 plans; 04-03 had a human-action checkpoint for the untracked `.env`, operator confirmed "done"). Recovered from a stale-base worktree incident (04-02 worktree would have reverted phases 3–15 + resurrected auto-update.sh, 74,991 deletions; caught pre-merge via `git diff --stat`, salvaged 3 scoped files, no data lost). Fixed code-review WR-01/WR-02 inline (commit bc2df7b). |
+| Next action | Phase 5 (Encryption Key Lifecycle). Recommended first: `/gsd-secure-phase 4` (security_enforcement on, no 04-SECURITY.md yet). Then `/gsd-discuss-phase 5` → `/gsd-plan-phase 5`. |
+| Open items | Phase 4: `/gsd-secure-phase 4` not yet run (each 04 plan carried a threat model); optional dev smoke-check of Swagger `/docs` under DEBUG=true (04-HUMAN-UAT.md, status resolved). 03 human dry-run rollback on a test VM (SC#4) still pending; cd.yml WR-02/03/04 logged in 03-REVIEW.md, not yet fixed. |
 | Deploy note | Local `main` is ~286 commits ahead of `origin/main`; armed `ci.yml` not yet on remote `main` — pushing this work to remote is a separate step. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
 | Follow-up queued | mypy 619-error burn-down = a new deferred phase (baseline ratchets down); sequence before/with Phase 8. |
