@@ -799,7 +799,10 @@ Step 2.6: No external tool dependencies for this phase. All libraries are existi
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+Both questions below have inline recommendations and are addressed in the phase plans
+(Q1 → Plan 05-01 Task 2 zero-tenant guard; Q2 → Plan 05-02 Task 2 runbook scope note).
 
 1. **Audit row when zero tenants exist**
    - What we know: The rotation would find 0 `ConnectorConfig` rows in a fresh DB; querying `tenants LIMIT 1` would return None.
