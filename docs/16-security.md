@@ -104,12 +104,12 @@ Enforced on registration and password change. Old hashes are kept in `users.pass
 | `Cross-Origin-Resource-Policy` | `same-origin` | applied to all responses |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | applied to all responses |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | applied to all responses |
-| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'; base-uri 'none'` | applied to all responses (PROD-04-01) |
+| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'; base-uri 'none'` | applied to every response except the debug-only docs routes `/docs`, `/redoc`, `/openapi.json` (PROD-04-01) |
 | `Cross-Origin-Opener-Policy` | `same-origin` | applied to all responses (PROD-04-01) |
 | `Cache-Control` | `no-store, no-cache, must-revalidate, max-age=0` | only on `/api/` and `/auth/` paths |
 | `Pragma` | `no-cache` | only on `/api/` and `/auth/` paths |
 
-Note: the frontend's [frontend/next.config.js](../frontend/next.config.js) also ships its own CSP covering HTML routes — that policy includes `script-src`/`style-src` directives appropriate for HTML resource loading. The backend CSP (`default-src 'none'`) is deliberately stricter because the backend serves only JSON.
+Note: the frontend's [frontend/next.config.js](../frontend/next.config.js) also ships its own CSP covering HTML routes — that policy includes `script-src`/`style-src` directives appropriate for HTML resource loading. The backend CSP (`default-src 'none'`) is deliberately stricter because the backend serves JSON on all production routes. The one exception is the interactive API docs (`/docs`, `/redoc`, `/openapi.json`), which are HTML/JS and mounted **only** when `DEBUG=true`; the middleware skips the strict CSP on those paths so Swagger UI and ReDoc render during local development. In production (`DEBUG=false`) those routes do not exist, so the strict policy covers the entire live surface.
 
 ### From Nginx ([nginx/nginx.conf:29-32](../nginx/nginx.conf#L29-L32) and `:119`)
 

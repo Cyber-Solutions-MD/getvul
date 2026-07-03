@@ -82,6 +82,12 @@ async def lifespan(app: FastAPI):
 
 # ── Security headers middleware ──
 
+# Swagger UI (/docs), ReDoc (/redoc) and the OpenAPI schema (/openapi.json) are
+# mounted only when settings.debug is True. Their HTML pages load JS/CSS from a
+# CDN and fetch the schema, so the strict API CSP (default-src 'none') would
+# render them blank. These routes never exist in production (debug=False).
+DOCS_PATHS = frozenset({"/docs", "/redoc", "/openapi.json"})
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -91,9 +97,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-        )
+        # Lock the JSON API surface down to nothing, but skip the strict policy
+        # for the debug-only interactive docs routes so Swagger UI / ReDoc render.
+        if not (settings.debug and request.url.path in DOCS_PATHS):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+            )
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         # Prevent caching of API responses
         if request.url.path.startswith("/api/") or request.url.path.startswith("/auth/"):
