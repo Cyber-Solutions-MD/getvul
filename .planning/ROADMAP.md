@@ -100,9 +100,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Ship CSP + COOP headers on SecurityHeadersMiddleware, flip docs/16-security.md drift rows, verify README scanner parity (PROD-04-01, PROD-04-02)
-- [ ] 04-02-PLAN.md — Extend VulnSource enum (QUALYS + RAPID7) + API source-filter regression incl. tenant scope (PROD-04-03, PROD-04-04)
-- [ ] 04-03-PLAN.md — Exhaustive AWS Secrets Manager / boto3 removal + doc scrub + pip reinstall + repo-wide grep verification (PROD-04-05)
+- [x] 04-01-PLAN.md — Ship CSP + COOP headers on SecurityHeadersMiddleware, flip docs/16-security.md drift rows, verify README scanner parity (PROD-04-01, PROD-04-02)
+- [x] 04-02-PLAN.md — Extend VulnSource enum (QUALYS + RAPID7) + API source-filter regression incl. tenant scope (PROD-04-03, PROD-04-04)
+- [x] 04-03-PLAN.md — Exhaustive AWS Secrets Manager / boto3 removal + doc scrub + pip reinstall + repo-wide grep verification (PROD-04-05)
 
 ### Phase 5: Encryption Key Lifecycle
 **Goal**: An operator can confidently lose, restore, and rotate `ENCRYPTION_KEY` without losing connector credentials.
