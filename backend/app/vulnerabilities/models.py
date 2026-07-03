@@ -33,6 +33,8 @@ class VulnSource(str, enum.Enum):
     NESSUS = "NESSUS"
     DEFENDER = "DEFENDER"
     WIZ = "WIZ"
+    QUALYS = "QUALYS"
+    RAPID7 = "RAPID7"
 
 
 class Confidence(str, enum.Enum):
