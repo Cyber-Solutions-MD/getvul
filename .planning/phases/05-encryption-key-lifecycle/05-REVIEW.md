@@ -13,8 +13,15 @@ findings:
   warning: 6
   info: 4
   total: 12
-status: issues_found
+status: resolved
+resolved_commit: fix(05) harden rotation abort contract + address code review
 ---
+
+> **Resolution (2026-07-06):** Both blockers (CR-01, CR-02) and WR-01, WR-02, WR-05,
+> WR-06, IN-03 fixed inline; WR-03 addressed via runbook maintenance-window note.
+> Deferred (documented behavior, low risk): WR-04 (double decrypt pass in confirm flow),
+> IN-01/IN-02 (cosmetic import dedup in main.py), IN-04 (runbook ordering of the safer
+> env-var invocation). See the `fix(05)` commit.
 
 # Phase 5: Code Review Report
 
