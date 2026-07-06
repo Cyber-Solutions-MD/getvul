@@ -56,7 +56,9 @@ def _check_secrets_at_startup() -> list[str]:
     else:
         try:
             Fernet(settings.encryption_key.encode())
-        except (ValueError, Exception):
+        except (ValueError, TypeError):
+            # Fernet raises ValueError (binascii.Error is a ValueError subclass)
+            # for malformed keys; TypeError for non-bytes input.
             issues.append("ENCRYPTION_KEY is set but is not a valid Fernet key")
 
     # --- JWT_SECRET_KEY check ---

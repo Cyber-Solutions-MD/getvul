@@ -150,8 +150,10 @@ async def test_rotate_aborts_on_bad_row(db_session, tenant_a):
     db_session.add(bad_row)
     await db_session.commit()
 
-    with pytest.raises((RotationPreflightError, Exception)):
+    # Must abort with a CONTROLLED RotationPreflightError, not a raw crash (WR-01).
+    with pytest.raises(RotationPreflightError) as exc_info:
         await rotate_credentials(key_a, key_b)
+    assert exc_info.value.phase == "preflight"
 
     # Good row must still decrypt with key_a (no partial write)
     from sqlalchemy import select
@@ -166,6 +168,50 @@ async def test_rotate_aborts_on_bad_row(db_session, tenant_a):
         ).scalars().first()
         cmap = json.loads(good_reloaded.credentials_secret_arn)
         assert _fernet_for(key_a).decrypt(cmap["api_key"].encode()).decode() == "real-secret"
+
+
+async def test_rotate_aborts_on_malformed_json_shapes(db_session, tenant_a):
+    """CR-01: non-dict JSON and non-string field values abort cleanly, not with AttributeError."""
+    from sqlalchemy import select
+
+    from app.db.session import async_session_factory
+    from app.encryption import RotationPreflightError, rotate_credentials
+    from app.ticketing.models import ConnectorConfig
+
+    key_a = generate_key()
+    key_b = generate_key()
+
+    # Good row so there is real work that must be rolled back
+    good_encrypted = json.dumps({"api_key": _fernet_for(key_a).encrypt(b"real").decode()})
+    db_session.add(
+        ConnectorConfig(tenant_id=tenant_a, connector_type="NESSUS", credentials_secret_arn=good_encrypted)
+    )
+    # Valid JSON but not an object (e.g. a bare number)
+    db_session.add(
+        ConnectorConfig(tenant_id=tenant_a, connector_type="QUALYS", credentials_secret_arn=json.dumps(5))
+    )
+    # Object with a non-string field value
+    db_session.add(
+        ConnectorConfig(
+            tenant_id=tenant_a, connector_type="RAPID7", credentials_secret_arn=json.dumps({"api_key": 5})
+        )
+    )
+    await db_session.commit()
+
+    # Must be a controlled preflight abort — NOT an uncaught AttributeError
+    with pytest.raises(RotationPreflightError) as exc_info:
+        await rotate_credentials(key_a, key_b)
+    assert exc_info.value.phase == "preflight"
+
+    # Good row still decrypts with key_a (nothing was written)
+    async with async_session_factory() as fresh:
+        good = (
+            await fresh.execute(
+                select(ConnectorConfig).where(ConnectorConfig.connector_type == "NESSUS")
+            )
+        ).scalars().first()
+        cmap = json.loads(good.credentials_secret_arn)
+        assert _fernet_for(key_a).decrypt(cmap["api_key"].encode()).decode() == "real"
 
 
 async def test_dry_run_no_rows(db_session):
@@ -258,9 +304,6 @@ async def test_audit_event(db_session, tenant_a):
         details_str = json.dumps(row.details)
         assert key_a not in details_str
         assert key_b not in details_str
-        assert "key" not in details_str.lower() or all(
-            k not in details_str for k in [key_a, key_b]
-        )
 
 
 async def test_sc4_rotation_is_real(db_session, tenant_a):

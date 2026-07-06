@@ -185,6 +185,8 @@ docker compose exec -T backend python3 -m app.encryption verify
 
 Rotation is a **single atomic transaction**: if any row fails to re-encrypt or fails post-verify, the entire operation aborts and rolls back — no mixed-key state is ever written. The tool prints a confirmation prompt before writing; use `--yes` to skip it in automated pipelines.
 
+**Run rotation during a maintenance window.** Rotation reads all connector rows, re-encrypts, and commits in one transaction, but the API stays live meanwhile. If an operator creates or edits a connector (Settings > Connectors) *while* rotation runs, that write encrypts with the **old** key and can be missed by the in-flight rotation — leaving a row that becomes undecryptable once `ENCRYPTION_KEY` is swapped. Do not perform connector create/update operations between starting rotation and restarting the backend with the new key.
+
 **Operational safety note (T-05-08):** `--new-key` can appear in `ps aux` output on a shared VM. Prefer generating the key in a shell whose history is cleared afterwards, or pass it via an environment variable:
 
 ```bash

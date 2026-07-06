@@ -99,8 +99,17 @@ async def verify_credentials(current_key: str) -> dict:
                 failures.append((str(connector.id), str(connector.tenant_id), "<json_parse>"))
                 continue
 
+            if not isinstance(encrypted_map, dict):
+                failing_count += 1
+                failures.append((str(connector.id), str(connector.tenant_id), "<not_object>"))
+                continue
+
             row_ok = True
             for field, ciphertext in encrypted_map.items():
+                if not isinstance(ciphertext, str):
+                    row_ok = False
+                    failures.append((str(connector.id), str(connector.tenant_id), field))
+                    continue
                 try:
                     f.decrypt(ciphertext.encode())
                 except (InvalidToken, ValueError):
@@ -151,99 +160,102 @@ async def rotate_credentials(
     new_fernet = _fernet_for(new_key)
 
     async with async_session_factory() as db:
-        # Load all rows with credentials in a single query
-        result = await db.execute(
-            select(ConnectorConfig).where(ConnectorConfig.credentials_secret_arn.isnot(None))
-        )
-        connectors = result.scalars().all()
-
-        # Count distinct tenants
-        tenant_count_result = await db.execute(
-            select(func.count(ConnectorConfig.tenant_id.distinct())).where(
-                ConnectorConfig.credentials_secret_arn.isnot(None)
+        try:
+            # Load all rows with credentials in a single query
+            result = await db.execute(
+                select(ConnectorConfig).where(ConnectorConfig.credentials_secret_arn.isnot(None))
             )
-        )
-        tenant_count = tenant_count_result.scalar_one()
+            connectors = result.scalars().all()
 
-        # PRE-FLIGHT: decrypt every field with old key, collect failures
-        preflight_failures: list[tuple[str, str, str]] = []
-        # Store decoded plaintexts for re-encryption
-        decoded_maps: dict[str, dict[str, str]] = {}
-
-        for connector in connectors:
-            try:
-                encrypted_map = json.loads(connector.credentials_secret_arn)  # type: ignore[arg-type]
-            except (json.JSONDecodeError, TypeError):
-                preflight_failures.append((str(connector.id), str(connector.tenant_id), "<json_parse>"))
-                continue
-
-            row_plains: dict[str, str] = {}
-            for field, ciphertext in encrypted_map.items():
-                try:
-                    plaintext = old_fernet.decrypt(ciphertext.encode()).decode()
-                    row_plains[field] = plaintext
-                except (InvalidToken, ValueError):
-                    preflight_failures.append((str(connector.id), str(connector.tenant_id), field))
-
-            decoded_maps[str(connector.id)] = row_plains
-
-        if preflight_failures:
-            await db.rollback()
-            raise RotationPreflightError(preflight_failures, phase="preflight")
-
-        rotated_count = len(connectors)
-
-        # DRY RUN: report count and bail without writing
-        if dry_run:
-            await db.rollback()
-            return {
-                "rotated": rotated_count,
-                "tenants": tenant_count,
-                "failures": [],
-                "dry_run": True,
-            }
-
-        # RE-ENCRYPT: build new ciphertexts with new_key, update rows in memory
-        for connector in connectors:
-            plains = decoded_maps[str(connector.id)]
-            new_map = {
-                field: new_fernet.encrypt(plaintext.encode()).decode()
-                for field, plaintext in plains.items()
-            }
-            connector.credentials_secret_arn = json.dumps(new_map)
-
-        # POST-VERIFY (D-04): decrypt every re-encrypted field with new_key before commit
-        post_failures: list[tuple[str, str, str]] = []
-        for connector in connectors:
-            try:
-                encrypted_map = json.loads(connector.credentials_secret_arn)  # type: ignore[arg-type]
-            except (json.JSONDecodeError, TypeError):
-                post_failures.append((str(connector.id), str(connector.tenant_id), "<json_parse>"))
-                continue
-
-            for field, ciphertext in encrypted_map.items():
-                try:
-                    new_fernet.decrypt(ciphertext.encode())
-                except (InvalidToken, ValueError):
-                    post_failures.append((str(connector.id), str(connector.tenant_id), field))
-
-        if post_failures:
-            await db.rollback()
-            raise RotationPreflightError(post_failures, phase="post_verify")
-
-        # AUDIT (D-08): write AuditLog directly (not via audit() helper — avoids FK sentinel)
-        if audit and rotated_count > 0:
-            # Query for a real tenant_id to satisfy the NOT NULL FK
-            first_tenant_result = await db.execute(
-                select(ConnectorConfig.tenant_id).where(
+            # Count distinct tenants
+            tenant_count_result = await db.execute(
+                select(func.count(ConnectorConfig.tenant_id.distinct())).where(
                     ConnectorConfig.credentials_secret_arn.isnot(None)
-                ).limit(1)
+                )
             )
-            first_tenant_id = first_tenant_result.scalar_one_or_none()
+            tenant_count = tenant_count_result.scalar_one()
 
-            if first_tenant_id is not None:
+            # PRE-FLIGHT: decrypt every field with old key, collect failures
+            preflight_failures: list[tuple[str, str, str]] = []
+            # Store decoded plaintexts for re-encryption
+            decoded_maps: dict[str, dict[str, str]] = {}
+
+            for connector in connectors:
+                try:
+                    encrypted_map = json.loads(connector.credentials_secret_arn)  # type: ignore[arg-type]
+                except (json.JSONDecodeError, TypeError):
+                    preflight_failures.append((str(connector.id), str(connector.tenant_id), "<json_parse>"))
+                    continue
+
+                # Guard against valid-JSON-but-not-an-object shapes (e.g. "5", "[1,2]")
+                if not isinstance(encrypted_map, dict):
+                    preflight_failures.append((str(connector.id), str(connector.tenant_id), "<not_object>"))
+                    continue
+
+                row_plains: dict[str, str] = {}
+                for field, ciphertext in encrypted_map.items():
+                    # Guard against non-string field values (e.g. {"api_key": 5})
+                    if not isinstance(ciphertext, str):
+                        preflight_failures.append((str(connector.id), str(connector.tenant_id), field))
+                        continue
+                    try:
+                        plaintext = old_fernet.decrypt(ciphertext.encode()).decode()
+                        row_plains[field] = plaintext
+                    except (InvalidToken, ValueError):
+                        preflight_failures.append((str(connector.id), str(connector.tenant_id), field))
+
+                decoded_maps[str(connector.id)] = row_plains
+
+            if preflight_failures:
+                await db.rollback()
+                raise RotationPreflightError(preflight_failures, phase="preflight")
+
+            # Rows actually carrying at least one re-encryptable field (WR-05:
+            # empty "{}" maps are no-ops and must not inflate the audit row_count).
+            rotated_count = sum(1 for c in connectors if decoded_maps.get(str(c.id)))
+
+            # DRY RUN: report count and bail without writing
+            if dry_run:
+                await db.rollback()
+                return {
+                    "rotated": rotated_count,
+                    "tenants": tenant_count,
+                    "failures": [],
+                    "dry_run": True,
+                }
+
+            # RE-ENCRYPT: build new ciphertexts with new_key, update rows in memory
+            for connector in connectors:
+                plains = decoded_maps[str(connector.id)]
+                new_map = {
+                    field: new_fernet.encrypt(plaintext.encode()).decode()
+                    for field, plaintext in plains.items()
+                }
+                connector.credentials_secret_arn = json.dumps(new_map)
+
+            # POST-VERIFY (D-04): decrypt every re-encrypted field with new_key before commit.
+            # Re-encryption produced these maps, so they are always dict[str, str];
+            # a failure here means a genuine Fernet/round-trip fault.
+            post_failures: list[tuple[str, str, str]] = []
+            for connector in connectors:
+                encrypted_map = json.loads(connector.credentials_secret_arn)  # type: ignore[arg-type]
+                for field, ciphertext in encrypted_map.items():
+                    try:
+                        new_fernet.decrypt(ciphertext.encode())
+                    except (InvalidToken, ValueError):
+                        post_failures.append((str(connector.id), str(connector.tenant_id), field))
+
+            if post_failures:
+                await db.rollback()
+                raise RotationPreflightError(post_failures, phase="post_verify")
+
+            # AUDIT (D-08): write AuditLog directly (not via audit() helper — avoids FK sentinel)
+            if audit and rotated_count > 0:
+                # A tenant_id is guaranteed present: rotated_count > 0 implies a
+                # non-empty connectors list, each with a NOT NULL tenant_id (WR-06:
+                # reuse a loaded row rather than a second query that could disagree).
                 log = AuditLog(
-                    tenant_id=first_tenant_id,
+                    tenant_id=connectors[0].tenant_id,
                     user_id=None,
                     user_email="system:cli",
                     action="encryption.key_rotated",
@@ -259,8 +271,16 @@ async def rotate_credentials(
                 )
                 db.add(log)
 
-        # COMMIT once (D-01/D-03: single transaction)
-        await db.commit()
+            # COMMIT once (D-01/D-03: single transaction)
+            await db.commit()
+        except RotationPreflightError:
+            # Controlled abort — already rolled back above; re-raise for the caller.
+            raise
+        except Exception:
+            # Defense-in-depth: no code path may leave the session mid-transaction
+            # in a partially-mutated state (T-05-02). Roll back, then propagate.
+            await db.rollback()
+            raise
 
     return {
         "rotated": rotated_count,
@@ -327,6 +347,14 @@ async def _cmd_verify() -> None:
         sys.exit(1)
 
 
+def _print_rotation_failure(e: RotationPreflightError) -> None:
+    """Print a controlled rotation-failure report (no key material)."""
+    print(f"Rotation failed ({e.phase}):")
+    for connector_id, tenant_id, field in e.failures:
+        print(f"  connector={connector_id} tenant={tenant_id} field={field}")
+    print("No rows were modified. The old key is still active.")
+
+
 async def _cmd_rotate(args: argparse.Namespace) -> None:
     """Run rotate subcommand."""
     # Validate new key before doing anything (D-04/T-05-04)
@@ -349,14 +377,20 @@ async def _cmd_rotate(args: argparse.Namespace) -> None:
             print("Rotation aborted.")
             sys.exit(0)
 
-    # D-05: for non-dry-run, show row/tenant count and ask for confirmation
+    # D-05: for non-dry-run, show row/tenant count and ask for confirmation.
+    # The count call runs the full pre-flight and can raise, so guard it too
+    # (CR-02) — otherwise a bad dataset crashes before the friendly path.
     if not args.dry_run:
-        dry_result = await rotate_credentials(
-            old_key=settings.encryption_key,
-            new_key=args.new_key,
-            dry_run=True,
-            audit=False,
-        )
+        try:
+            dry_result = await rotate_credentials(
+                old_key=settings.encryption_key,
+                new_key=args.new_key,
+                dry_run=True,
+                audit=False,
+            )
+        except RotationPreflightError as e:
+            _print_rotation_failure(e)
+            sys.exit(1)
         n_rows = dry_result["rotated"]
         m_tenants = dry_result["tenants"]
 
@@ -376,10 +410,7 @@ async def _cmd_rotate(args: argparse.Namespace) -> None:
             dry_run=args.dry_run,
         )
     except RotationPreflightError as e:
-        print(f"Rotation failed ({e.phase}):")
-        for connector_id, tenant_id, field in e.failures:
-            print(f"  connector={connector_id} tenant={tenant_id} field={field}")
-        print("No rows were modified. The old key is still active.")
+        _print_rotation_failure(e)
         sys.exit(1)
 
     if args.dry_run:
