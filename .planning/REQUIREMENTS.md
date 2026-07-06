@@ -37,10 +37,10 @@ Each requirement maps to one phase in [ROADMAP.md](ROADMAP.md). Sourced from the
 
 ### Encryption Key Lifecycle (PROD-05)
 
-- [ ] **PROD-05-01**: Documented backup procedure for `ENCRYPTION_KEY` (where it lives, who restores it, RTO)
-- [ ] **PROD-05-02**: Key rotation runbook — generate new key, re-encrypt all connector credentials in a transaction, verify decrypt round-trip
-- [ ] **PROD-05-03**: Optional CLI command (`python -m app.encryption rotate`) implementing the rotation
-- [ ] **PROD-05-04**: Operator alert if `.env` is missing or contains a placeholder `ENCRYPTION_KEY`
+- [x] **PROD-05-01**: Documented backup procedure for `ENCRYPTION_KEY` (where it lives, who restores it, RTO)
+- [x] **PROD-05-02**: Key rotation runbook — generate new key, re-encrypt all connector credentials in a transaction, verify decrypt round-trip
+- [x] **PROD-05-03**: Optional CLI command (`python -m app.encryption rotate`) implementing the rotation
+- [x] **PROD-05-04**: Operator alert if `.env` is missing or contains a placeholder `ENCRYPTION_KEY`
 
 ### Default Admin Hardening (PROD-06)
 
@@ -116,10 +116,10 @@ These are tracked but **not** in scope for the production-readiness milestone. P
 | PROD-04-03 | Phase 4 | Complete |
 | PROD-04-04 | Phase 4 | Complete |
 | PROD-04-05 | Phase 4 | Complete |
-| PROD-05-01 | Phase 5 | Pending |
-| PROD-05-02 | Phase 5 | Pending |
-| PROD-05-03 | Phase 5 | Pending |
-| PROD-05-04 | Phase 5 | Pending |
+| PROD-05-01 | Phase 5 | Complete |
+| PROD-05-02 | Phase 5 | Complete |
+| PROD-05-03 | Phase 5 | Complete |
+| PROD-05-04 | Phase 5 | Complete |
 | PROD-06-01 | Phase 6 | Pending |
 | PROD-06-02 | Phase 6 | Pending |
 | PROD-06-03 | Phase 6 | Pending |
