@@ -347,3 +347,96 @@ def test_cli_dispatch_smoke():
     # generate-key subcommand
     args = parser.parse_args(["generate-key"])
     assert args.command == "generate-key"
+
+
+# ── Task 4 (Plan 02): _check_secrets_at_startup() unit tests ─────────────────
+#
+# These tests import _check_secrets_at_startup from app.main and patch
+# settings attributes with monkeypatch. They require NO database or Redis.
+
+
+ENCRYPTION_KEY_PLACEHOLDER = (
+    "CHANGE-ME-generate-with-python-c-from-cryptography.fernet-import-Fernet-Fernet.generate_key"
+)
+JWT_SECRET_PLACEHOLDER = "CHANGE-ME-IN-PRODUCTION"
+
+
+def test_startup_check_encryption_placeholder_dev(monkeypatch):
+    """Dev mode + placeholder encryption_key → non-empty issues list, no raise."""
+    import app.main as main
+
+    monkeypatch.setattr(main.settings, "environment", "development")
+    monkeypatch.setattr(main.settings, "encryption_key", ENCRYPTION_KEY_PLACEHOLDER)
+    monkeypatch.setattr(main.settings, "jwt_secret_key", "non-placeholder-jwt-secret")
+
+    issues = main._check_secrets_at_startup()
+    assert isinstance(issues, list)
+    assert len(issues) > 0
+
+
+def test_startup_check_encryption_placeholder_prod(monkeypatch):
+    """Prod mode + placeholder encryption_key → RuntimeError raised."""
+    import app.main as main
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setattr(main.settings, "environment", "production")
+    monkeypatch.setattr(main.settings, "encryption_key", ENCRYPTION_KEY_PLACEHOLDER)
+    monkeypatch.setattr(main.settings, "jwt_secret_key", "non-placeholder-jwt-secret")
+
+    with pytest.raises(RuntimeError):
+        main._check_secrets_at_startup()
+
+
+def test_startup_check_encryption_invalid_prod(monkeypatch):
+    """Prod mode + invalid Fernet key → RuntimeError raised (ValueError path)."""
+    import app.main as main
+
+    monkeypatch.setattr(main.settings, "environment", "production")
+    monkeypatch.setattr(main.settings, "encryption_key", "short-not-fernet")
+    monkeypatch.setattr(main.settings, "jwt_secret_key", "non-placeholder-jwt-secret")
+
+    with pytest.raises(RuntimeError):
+        main._check_secrets_at_startup()
+
+
+def test_startup_check_valid_key_ok(monkeypatch):
+    """Prod mode + valid Fernet key + non-placeholder JWT → returns [] (no issues)."""
+    import app.main as main
+    from cryptography.fernet import Fernet
+
+    valid_key = Fernet.generate_key().decode()
+    monkeypatch.setattr(main.settings, "environment", "production")
+    monkeypatch.setattr(main.settings, "encryption_key", valid_key)
+    monkeypatch.setattr(main.settings, "jwt_secret_key", "non-placeholder-jwt-secret")
+
+    issues = main._check_secrets_at_startup()
+    assert issues == []
+
+
+def test_startup_check_jwt_placeholder_prod(monkeypatch):
+    """Prod mode + valid encryption_key + placeholder JWT → RuntimeError raised."""
+    import app.main as main
+    from cryptography.fernet import Fernet
+
+    valid_key = Fernet.generate_key().decode()
+    monkeypatch.setattr(main.settings, "environment", "production")
+    monkeypatch.setattr(main.settings, "encryption_key", valid_key)
+    monkeypatch.setattr(main.settings, "jwt_secret_key", JWT_SECRET_PLACEHOLDER)
+
+    with pytest.raises(RuntimeError):
+        main._check_secrets_at_startup()
+
+
+def test_startup_check_jwt_placeholder_dev(monkeypatch):
+    """Dev mode + valid encryption_key + placeholder JWT → non-empty issues, no raise."""
+    import app.main as main
+    from cryptography.fernet import Fernet
+
+    valid_key = Fernet.generate_key().decode()
+    monkeypatch.setattr(main.settings, "environment", "development")
+    monkeypatch.setattr(main.settings, "encryption_key", valid_key)
+    monkeypatch.setattr(main.settings, "jwt_secret_key", JWT_SECRET_PLACEHOLDER)
+
+    issues = main._check_secrets_at_startup()
+    assert isinstance(issues, list)
+    assert len(issues) > 0

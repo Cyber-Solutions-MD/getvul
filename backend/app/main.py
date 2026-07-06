@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timezone
 
 import redis.asyncio as redis
 import structlog
+from cryptography.fernet import Fernet
 from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -32,10 +33,61 @@ from app.vulnerabilities.router import router as vuln_router
 
 logger = structlog.get_logger()
 
+# Placeholder literals — copied verbatim from config.py defaults so we can
+# detect when an operator has not replaced them with real values.
+ENCRYPTION_KEY_PLACEHOLDER = (
+    "CHANGE-ME-generate-with-python-c-from-cryptography.fernet-import-Fernet-Fernet.generate_key"
+)
+JWT_SECRET_PLACEHOLDER = "CHANGE-ME-IN-PRODUCTION"
+
+
+def _check_secrets_at_startup() -> list[str]:
+    """Validate ENCRYPTION_KEY and JWT_SECRET_KEY at startup.
+
+    Returns a list of issue strings. In development, issues are logged as
+    warnings and the list is returned. In production, any issues cause a
+    RuntimeError (hard-fail boot). Key material is never logged.
+    """
+    issues: list[str] = []
+
+    # --- ENCRYPTION_KEY check ---
+    if not settings.encryption_key or settings.encryption_key == ENCRYPTION_KEY_PLACEHOLDER:
+        issues.append("ENCRYPTION_KEY is unset or uses the default placeholder")
+    else:
+        try:
+            Fernet(settings.encryption_key.encode())
+        except (ValueError, Exception):
+            issues.append("ENCRYPTION_KEY is set but is not a valid Fernet key")
+
+    # --- JWT_SECRET_KEY check ---
+    if settings.jwt_secret_key == JWT_SECRET_PLACEHOLDER:
+        issues.append("JWT_SECRET_KEY uses the default placeholder")
+
+    # Log each issue (without key material)
+    for msg in issues:
+        if settings.environment == "production":
+            logger.critical("startup_secret_check_failed", issue=msg)
+        else:
+            logger.warning("startup_secret_check_warning", issue=msg)
+
+    # Hard-fail in production
+    if issues and settings.environment == "production":
+        raise RuntimeError(
+            "Backend refused to start: insecure secrets detected. "
+            "Set ENCRYPTION_KEY and JWT_SECRET_KEY to non-placeholder values."
+        )
+
+    return issues
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
+    # Validate secrets before any other startup work (T-05-05).
+    # Raises RuntimeError in production if ENCRYPTION_KEY or JWT_SECRET_KEY
+    # are unset / placeholder / invalid. Warns and continues in development.
+    _check_secrets_at_startup()
+
     # Start background sync scheduler
     if settings.environment in ("development", "production"):
         from app.connectors.scheduler import start_scheduler

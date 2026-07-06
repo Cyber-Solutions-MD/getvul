@@ -138,6 +138,71 @@ Note: the frontend's [frontend/next.config.js](../frontend/next.config.js) also 
 - Never logged or exposed in API responses
 - Encryption key sourced from `ENCRYPTION_KEY` environment variable
 
+## Encryption Key Backup & Rotation
+
+### Single-key model
+
+One global `ENCRYPTION_KEY` (a Fernet symmetric key) encrypts every tenant's **connector credentials** — specifically the `credentials_secret_arn` column in `connector_configs`. This scope is connector credentials only; SMTP configuration is stored separately and does not use this key. Because the key is global, rotation affects all tenants at once and a lost key impacts everyone.
+
+### Backup procedure
+
+Store the current `ENCRYPTION_KEY` in the organisation's existing secrets vault or password manager (1Password, HashiCorp Vault, or a cloud secrets manager such as AWS Secrets Manager or Azure Key Vault). Requirements:
+
+- **Off-box**: the backup must not live on the same VM as the database or application server.
+- **Access-controlled**: restrict read access to the platform/security owner role.
+- **Not in the repo**: never commit the key to version control.
+- **Not in the DB backup**: a DB backup encrypted with the same key offers no additional protection if both are compromised together.
+
+The platform/security owner who holds the vault entry is responsible for restoring it.
+
+### Recovery Time Objective
+
+**RTO: ≤ 15 minutes.** Recovery = retrieve the backed-up key from the vault, paste it into `.env` as `ENCRYPTION_KEY=<key>`, and restart the backend container. 15 minutes accounts for vault access, paste, and container restart on any standard hosting environment.
+
+### Rotation runbook
+
+Run the following command sequence. Perform step 1 before any other action.
+
+```bash
+# 1. Back up the CURRENT key to the vault + snapshot the DB first.
+
+# 2. Generate a new key:
+docker compose exec -T backend python3 -m app.encryption generate-key
+
+# 3. Dry-run to preview affected rows (writes nothing):
+docker compose exec -T backend python3 -m app.encryption rotate --new-key <NEW_KEY> --dry-run
+
+# 4. Rotate for real (re-encrypts all connector creds in one transaction, verifies round-trip):
+docker compose exec -T backend python3 -m app.encryption rotate --new-key <NEW_KEY>
+
+# 5. Set ENCRYPTION_KEY=<NEW_KEY> in .env and restart the backend:
+#    (the tool does NOT edit .env for you)
+docker compose restart backend
+
+# 6. Confirm:
+docker compose exec -T backend python3 -m app.encryption verify
+```
+
+Rotation is a **single atomic transaction**: if any row fails to re-encrypt or fails post-verify, the entire operation aborts and rolls back — no mixed-key state is ever written. The tool prints a confirmation prompt before writing; use `--yes` to skip it in automated pipelines.
+
+**Operational safety note (T-05-08):** `--new-key` can appear in `ps aux` output on a shared VM. Prefer generating the key in a shell whose history is cleared afterwards, or pass it via an environment variable:
+
+```bash
+export NEW_ENCRYPTION_KEY=$(docker compose exec -T backend python3 -m app.encryption generate-key)
+docker compose exec -T backend python3 -m app.encryption rotate --new-key "$NEW_ENCRYPTION_KEY"
+```
+
+### Lost-key recovery
+
+Connector credentials are cryptographically **unrecoverable** without the key. If the key is lost and no vault backup exists, recovery steps are:
+
+1. Generate a fresh key: `docker compose exec -T backend python3 -m app.encryption generate-key`
+2. Set `ENCRYPTION_KEY=<new key>` in `.env` and restart the backend.
+3. Re-enter each connector's credentials through **Settings > Connectors** in the UI. Each re-entry re-encrypts under the new key.
+
+Existing ciphertexts in the database are unreadable and will be silently overwritten on re-entry.
+
+
 ## Audit Logging
 
 All user actions are recorded in the `audit_logs` table:
