@@ -13,6 +13,9 @@ Covers:
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import uuid
 
 import pytest
@@ -483,3 +486,90 @@ def test_startup_check_jwt_placeholder_dev(monkeypatch):
     issues = main._check_secrets_at_startup()
     assert isinstance(issues, list)
     assert len(issues) > 0
+
+
+# ── Task 1 (Plan 03): subprocess regression test for rotate CLI gap ───────────
+#
+# This test exercises the REAL operator path: python -m app.encryption rotate
+# in a fresh subprocess that does NOT load conftest.py (so conftest's eager
+# model imports do NOT paper over the mapper-config gap). It would FAIL on the
+# pre-fix encryption.py (NoReferencedTableError) and PASS on the fixed code.
+
+
+async def test_rotate_cli_subprocess_completes_and_audits(db_session, tenant_a):
+    """Subprocess regression: rotate CLI end-to-end against a seeded row.
+
+    Reproduces the real operator path (python -m app.encryption rotate) using
+    a fresh interpreter that does NOT import conftest.py. Fails on pre-fix code
+    with NoReferencedTableError; passes after the app.tenants.models registration
+    fix in rotate_credentials() (Phase 05 UAT gap — Test 5).
+    """
+    from app.ticketing.models import ConnectorConfig
+
+    key_a = generate_key()
+    key_b = generate_key()
+
+    # Seed ONE ConnectorConfig row encrypted with key_a so the CLI has work to do.
+    creds = {"api_key": "cli-subprocess-secret"}
+    encrypted = json.dumps(
+        {k: _fernet_for(key_a).encrypt(v.encode()).decode() for k, v in creds.items()}
+    )
+    row = ConnectorConfig(
+        tenant_id=tenant_a,
+        connector_type="NESSUS",
+        credentials_secret_arn=encrypted,
+    )
+    db_session.add(row)
+    # Commit so the row is visible to the subprocess's independent session.
+    await db_session.commit()
+
+    # Build subprocess environment: inherit the current env (carries DATABASE_URL,
+    # REDIS_URL etc. that the fixtures set up) then override the encryption key.
+    env = os.environ.copy()
+    env["ENCRYPTION_KEY"] = key_a  # CLI reads this as the OLD key via settings.encryption_key
+    env["ENVIRONMENT"] = "development"  # avoid any prod startup gates defensively
+
+    # Run the CLI from backend/ so `app` is importable as a package.
+    proc = subprocess.run(
+        [sys.executable, "-m", "app.encryption", "rotate", "--new-key", key_b, "--yes"],
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),  # backend/
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    # The rotation must complete without error (pre-fix: non-zero + NoReferencedTableError).
+    assert proc.returncode == 0, proc.stderr
+    assert "NoReferencedTableError" not in proc.stderr
+    assert "Rotated 1 rows" in proc.stdout
+
+    # Assert the AuditLog row landed AND the credential was re-encrypted under key_b.
+    # Use a FRESH session — the subprocess used its own session; the db_session fixture
+    # session is separate and must not see the subprocess's uncommitted state.
+    from app.audit import AuditLog
+    from app.db.session import async_session_factory
+    from sqlalchemy import select
+
+    async with async_session_factory() as fresh:
+        audit_rows = (
+            await fresh.execute(
+                select(AuditLog).where(AuditLog.action == "encryption.key_rotated")
+            )
+        ).scalars().all()
+        assert len(audit_rows) >= 1
+        assert audit_rows[0].user_email == "system:cli"
+
+        row_reloaded = (
+            await fresh.execute(
+                select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)
+            )
+        ).scalars().first()
+        cmap = json.loads(row_reloaded.credentials_secret_arn)
+        assert (
+            _fernet_for(key_b).decrypt(cmap["api_key"].encode()).decode()
+            == "cli-subprocess-secret"
+        )
+
+    # Assert no key material leaked to the child's stdout (T-05-01 discipline).
+    assert key_a not in proc.stdout and key_b not in proc.stdout
