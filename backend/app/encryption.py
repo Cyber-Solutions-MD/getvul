@@ -153,6 +153,13 @@ async def rotate_credentials(
     """
     from app.audit import AuditLog
     from app.db.session import async_session_factory
+    # audit_logs has FKs into users.id AND tenants.id (see app/audit.py). Both target
+    # tables are owned by app/tenants/models.py. When rotate runs via the standalone CLI
+    # (`python -m app.encryption`), those models are otherwise never imported, so persisting
+    # AuditLog triggers mapper configuration that raises NoReferencedTableError before any
+    # commit. Importing the module registers both User and Tenant, resolving both FKs.
+    # (Phase 05 UAT gap — Test 5.) Do NOT remove: the eager conftest imports mask this in tests.
+    from app.tenants import models as _tenants_models  # noqa: F401  (import for mapper registration)
     from app.ticketing.models import ConnectorConfig
 
     # Validate both keys upfront (raises ValueError for invalid keys)
