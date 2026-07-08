@@ -20,7 +20,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 4 complete — next up Phase 5 (Encryption Key Lifecycle)
+**Current focus:** Phase 5 complete — next up Phase 6 (Default Admin Hardening)
 
 ## Current Position
 
@@ -28,11 +28,11 @@ Phase: 6
 Plan: Not started
 | Field | Value |
 |-------|-------|
-| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–4 done; Phases 5–8 remaining) |
-| Last completed phase | 4 — Doc/Code Parity ✓ (2026-07-03) — CSP + COOP headers emitted (scoped off debug-only Swagger/ReDoc routes after a code-review catch, WR-01/WR-02 fixed); README↔overview 6-scanner parity confirmed; `VulnSource` extended to all 6 sources with a tenant-scoped source-filter regression test; dead AWS Secrets Manager / boto3 config removed end-to-end. Verifier 5/5 SC. PROD-04-01..05 all Complete. |
-| Last action | 2026-07-03 — Phase 4 executed (1 wave, 3 plans; 04-03 had a human-action checkpoint for the untracked `.env`, operator confirmed "done"). Recovered from a stale-base worktree incident (04-02 worktree would have reverted phases 3–15 + resurrected auto-update.sh, 74,991 deletions; caught pre-merge via `git diff --stat`, salvaged 3 scoped files, no data lost). Fixed code-review WR-01/WR-02 inline (commit bc2df7b). |
-| Next action | Phase 5 (Encryption Key Lifecycle). Recommended first: `/gsd-secure-phase 4` (security_enforcement on, no 04-SECURITY.md yet). Then `/gsd-discuss-phase 5` → `/gsd-plan-phase 5`. |
-| Open items | Phase 4: threat-secure ✓ (04-SECURITY.md, 7/7 closed, threats_open: 0); optional dev smoke-check of Swagger `/docs` under DEBUG=true (04-HUMAN-UAT.md, status resolved). 03 human dry-run rollback on a test VM (SC#4) still pending; cd.yml WR-02/03/04 logged in 03-REVIEW.md, not yet fixed. |
+| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–5 done; Phases 6–8 remaining) |
+| Last completed phase | 5 — Encryption Key Lifecycle ✓ (2026-07-08) — rotation CLI (`python -m app.encryption rotate/verify/generate-key`) with transactional abort-all re-encryption + dry-run + audit; startup placeholder/invalid-key check (hard-fail prod / warn dev); backup & rotation runbook (RTO ≤15 min) in docs/16-security.md. Gap closure 05-03 fixed the rotate CLI `NoReferencedTableError` (function-local `app.tenants.models` import registers audit_logs FK targets in the standalone process) + subprocess regression test. Verifier 4/4 must-haves, UAT 10/10, 05-SECURITY.md present. PROD-05-01..04 Complete. |
+| Last action | 2026-07-08 — Phase 5 gap closure executed via `/gsd-execute-phase 05 --gaps-only` (1 plan, 05-03; worktree fast-forward merge, code review 0 blockers, regression gate green at file-level isolation). NOTE: a defensive `git stash`/`pop` around hook validation accidentally popped an unrelated pre-existing stash (BL-01 WR-06 combined) causing transient conflicts in 3 router/service files — restored to HEAD, the stash remains intact in the list. |
+| Next action | Phase 6 (Default Admin Hardening). `/gsd-discuss-phase 6` → `/gsd-plan-phase 6` → `/gsd-execute-phase 6`. |
+| Open items | Phase 5: 1 human-UAT item outstanding (05-HUMAN-UAT.md, partial) — confirm uvicorn propagates the prod-mode secrets RuntimeError to a non-zero container exit via `docker compose up` (decision logic already human-verified in UAT Tests 7–9; thin wrapper only). Phase 4: 03 human dry-run rollback on a test VM (SC#4) still pending; cd.yml WR-02/03/04 logged in 03-REVIEW.md, not yet fixed. |
 | Deploy note | Local `main` is ~286 commits ahead of `origin/main`; armed `ci.yml` not yet on remote `main` — pushing this work to remote is a separate step. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
 | Follow-up queued | mypy 619-error burn-down = a new deferred phase (baseline ratchets down); sequence before/with Phase 8. |

@@ -21,7 +21,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 2: CI Gating** — Re-enable push/PR triggers and remove `|| true` masks so CI can block bad merges (complete 2026-07-01)
 - [x] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback (complete 2026-07-02)
 - [x] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager (complete 2026-07-03)
-- [ ] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY`
+- [x] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY` (complete 2026-07-08)
 - [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin
 - [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod
 - [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
