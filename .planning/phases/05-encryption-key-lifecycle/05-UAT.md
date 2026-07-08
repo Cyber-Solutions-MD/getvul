@@ -1,9 +1,9 @@
 ---
-status: testing
+status: resolved
 phase: 05-encryption-key-lifecycle
 source: [05-01-SUMMARY.md, 05-02-SUMMARY.md]
 started: 2026-07-06T15:00:45Z
-updated: 2026-07-06T15:12:00Z
+updated: 2026-07-08T00:00:00Z
 ---
 
 ## Current Test
@@ -34,9 +34,10 @@ note: "Dry-run printed backup reminder + '[dry-run] Would rotate 1 rows across 1
 
 ### 5. Full Key Rotation
 expected: `python3 -m app.encryption rotate --new-key <newkey> --yes` re-encrypts all connector credentials in a single transaction, prints a restart instruction WITHOUT echoing the actual key value, and does NOT modify `.env`. After updating ENCRYPTION_KEY in .env and restarting, `verify` prints all rows OK with the new key.
-result: issue
-reported: "The documented full rotation command crashes before completing. `python3 -m app.encryption rotate --new-key <key> --yes` raises sqlalchemy.exc.NoReferencedTableError: Foreign key associated with column 'audit_logs.user_id' could not find table 'users'. Rotation never completes. Reproduced in the real container deployment path, not just locally. verify/dry-run work because they don't write an audit row; the actual rotate does (D-08) and fails."
+result: pass
+reported: "The documented full rotation command crashed before completing. `python3 -m app.encryption rotate --new-key <key> --yes` raised sqlalchemy.exc.NoReferencedTableError: Foreign key associated with column 'audit_logs.user_id' could not find table 'users'. Rotation never completed. Reproduced in the real container deployment path, not just locally. verify/dry-run worked because they don't write an audit row; the actual rotate does (D-08) and failed."
 severity: blocker
+resolved_by: "Plan 05-03 (gap closure) — commit dd72e40. Added function-local `from app.tenants import models` inside rotate_credentials() before the AuditLog write, registering both User (users) and Tenant (tenants) so mapper configuration resolves both audit_logs FKs in the standalone CLI process. Guarded by subprocess regression test test_rotate_cli_subprocess_completes_and_audits (commit 6b5658f) which invokes the real `python -m app.encryption rotate` operator path in a fresh interpreter and asserts exit 0, no NoReferencedTableError, 'Rotated 1 rows', the encryption.key_rotated AuditLog row, re-encryption under the new key, and no key-material leak. Re-verified in 05-VERIFICATION.md (4/4 must-haves, gap closed)."
 
 ### 6. Rotation Aborts on Bad Data (Abort-All-or-Nothing)
 expected: If any row cannot be decrypted with the old key during rotation, the whole operation rolls back with a RotationPreflightError — no rows are left in a mixed-key state. Good rows remain decryptable with the original key afterward (no partial re-encryption).
@@ -66,8 +67,8 @@ note: "Section present with all elements: single global-key model ('one global')
 ## Summary
 
 total: 10
-passed: 9
-issues: 1
+passed: 10
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -75,7 +76,8 @@ blocked: 0
 ## Gaps
 
 - truth: "python3 -m app.encryption rotate --new-key <key> completes a full key rotation, re-encrypting all connector credentials in a single transaction"
-  status: failed
+  status: resolved
+  resolution: "Fixed by gap-closure plan 05-03 (commits dd72e40 fix + 6b5658f regression test). rotate_credentials() now imports app.tenants.models (User + Tenant) function-locally before the AuditLog write, so SQLAlchemy mapper configuration resolves audit_logs.user_id -> users.id and audit_logs.tenant_id -> tenants.id in the standalone CLI process. Subprocess regression test test_rotate_cli_subprocess_completes_and_audits reproduces the real operator path (fails pre-fix, passes post-fix). Re-verified 2026-07-08 in 05-VERIFICATION.md."
   reason: "User reported: The documented full rotation command crashes with sqlalchemy.exc.NoReferencedTableError: Foreign key associated with column 'audit_logs.user_id' could not find table 'users'. Rotation never completes. Reproduced in the container deployment path. verify/dry-run work; the real rotate fails at the audit write (D-08)."
   severity: blocker
   test: 5
