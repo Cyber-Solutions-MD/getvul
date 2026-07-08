@@ -118,7 +118,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md — Rotation CLI (`_fernet_for` refactor + rotate/verify/generate-key via `python -m app.encryption`) + transactional abort-all re-encryption with pre-flight/post-verify, dry-run, confirmation, backup reminder, `encryption.key_rotated` audit, and SC#4 E2E test (PROD-05-02, PROD-05-03)
 - [x] 05-02-PLAN.md — Startup placeholder/invalid-key check in `main.py` lifespan (encryption + JWT, hard-fail prod / warn dev) + backup & rotation runbook in `docs/16-security.md` (PROD-05-01, PROD-05-03, PROD-05-04)
-- [ ] 05-03-PLAN.md — Gap closure (UAT Test 5 blocker): register User+Tenant models in `rotate_credentials()` before the AuditLog write so the standalone `python -m app.encryption rotate` CLI no longer crashes with NoReferencedTableError, + subprocess regression test reproducing the real operator path (PROD-05-02, PROD-05-03)
+- [x] 05-03-PLAN.md — Gap closure (UAT Test 5 blocker): register User+Tenant models in `rotate_credentials()` before the AuditLog write so the standalone `python -m app.encryption rotate` CLI no longer crashes with NoReferencedTableError, + subprocess regression test reproducing the real operator path (PROD-05-02, PROD-05-03)
 
 ### Phase 6: Default Admin Hardening
 **Goal**: A fresh install.sh deploy cannot remain on the default `Admin123!` password by accident; the operator is forced through a rotation.
