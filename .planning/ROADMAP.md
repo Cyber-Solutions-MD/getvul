@@ -130,11 +130,13 @@ Plans:
   3. Auth dependency rejects all non-`/auth/change-password` calls with 403 + `password_change_required` reason while the flag is set
   4. Frontend login flow reads the flag from `/auth/me` and routes to a force-rotation page
   5. Successful rotation clears the flag and emits an `auth.first_login_rotation` audit event
-**Plans**: TBD (likely 2)
+**Plans**: 4 plans (0 Wave 0 test scaffold + 3 execution waves)
 
 Plans:
-- [ ] 06-01: Migration + backend enforcement
-- [ ] 06-02: Frontend force-rotation flow
+- [ ] 06-00-PLAN.md — Wave 0: create backend + frontend test scaffolds (RED targets for Nyquist)
+- [ ] 06-01-PLAN.md — Migration 029 + User column + create_admin seed flag + apply (PROD-06-01)
+- [ ] 06-02-PLAN.md — JWT claim + CurrentUser + 403 enforcement gate/allowlist + rotation completion (clear flag, audit, fresh tokens) (PROD-06-02, PROD-06-04)
+- [ ] 06-03-PLAN.md — Frontend /change-password page + auth.tsx redirect gate (PROD-06-03)
 
 ### Phase 7: Health and Observability
 **Goal**: Operators and load balancers can distinguish a starting backend from a healthy one, and production logs are machine-parseable.
