@@ -9,7 +9,9 @@ from jose import jwt
 from app.auth.jwt import create_access_token, create_refresh_token, decode_token
 from app.auth.rbac import ROLE_HIERARCHY, _check_role
 from app.auth.schemas import CurrentUser
+from app.auth.service import issue_tokens
 from app.config import settings
+from app.tenants.models import Tenant, User, UserRole
 
 # ── JWT Tests ──
 
@@ -117,3 +119,36 @@ class TestRBAC:
         assert ROLE_HIERARCHY["OWNER"] > ROLE_HIERARCHY["ADMIN"]
         assert ROLE_HIERARCHY["ADMIN"] > ROLE_HIERARCHY["ANALYST"]
         assert ROLE_HIERARCHY["ANALYST"] > ROLE_HIERARCHY["VIEWER"]
+
+
+# ── Login-response shape (PROD-06-03 / SC#4 gap regression) ──
+
+
+class TestLoginResponseFlag:
+    """The /auth/login TokenResponse.user (UserInfo) must carry
+    must_change_password so the SPA gate fires on the primary login path,
+    not only after a hard reload that re-hits /auth/me. Regression for the
+    06-VERIFICATION.md SC#4 blocker (code review WR-01)."""
+
+    def _make(self, flag: bool) -> tuple[User, Tenant]:
+        tenant = Tenant(id=uuid.uuid4(), name="GetVul", domain="getvul.local", is_active=True)
+        user = User(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            email="admin@getvul.local",
+            display_name="Admin",
+            avatar_url=None,
+            role=UserRole.OWNER,
+            must_change_password=flag,
+        )
+        return user, tenant
+
+    def test_login_userinfo_carries_flag_when_set(self):
+        user, tenant = self._make(True)
+        resp = issue_tokens(user, tenant)
+        assert resp.user.must_change_password is True
+
+    def test_login_userinfo_flag_false_by_default(self):
+        user, tenant = self._make(False)
+        resp = issue_tokens(user, tenant)
+        assert resp.user.must_change_password is False

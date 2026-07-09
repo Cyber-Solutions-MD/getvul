@@ -31,7 +31,7 @@ vi.mock('next/navigation', () => ({
 import Page from './page';
 // AuthProvider owns the redirect gate under test (Wave 3 adds the
 // must_change_password branch to its route-guard useEffect).
-import { AuthProvider } from '@/lib/auth';
+import { AuthProvider, useAuth } from '@/lib/auth';
 
 function renderWithClient(ui: React.ReactElement) {
   const qc = new QueryClient({
@@ -81,6 +81,59 @@ describe('change-password', () => {
         <div>protected content</div>
       </AuthProvider>,
     );
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith('/change-password'),
+    );
+  });
+
+  it('redirect gate fires after a fresh SPA login (no reload)', async () => {
+    // SC#4 regression (code review WR-01): the flagged user comes in through the
+    // primary login path — no stored token, so no mount /auth/me. The gate must
+    // arm from the /auth/login response's UserInfo, which now carries
+    // must_change_password. Before the fix, UserInfo lacked the field and the
+    // user landed on /dashboard into a wall of 403s.
+    global.fetch = vi.fn((url: string) => {
+      if (String(url).includes('/auth/login')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              access_token: 'flagged-access',
+              refresh_token: 'flagged-refresh',
+              user: {
+                id: 'u1',
+                email: 'admin@getvul.local',
+                display_name: 'Admin',
+                avatar_url: null,
+                role: 'OWNER',
+                tenant_id: 't1',
+                tenant_name: 'GetVul',
+                must_change_password: true,
+              },
+            }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+    }) as unknown as typeof fetch;
+
+    function LoginTrigger() {
+      const { login } = useAuth();
+      return (
+        <button onClick={() => login('admin@getvul.local', 'Admin123!')}>
+          sign in
+        </button>
+      );
+    }
+
+    renderWithClient(
+      <AuthProvider>
+        <LoginTrigger />
+      </AuthProvider>,
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /sign in/i }));
 
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith('/change-password'),

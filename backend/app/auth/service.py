@@ -88,6 +88,7 @@ def issue_tokens(user: User, tenant: Tenant) -> TokenResponse:
             role=user.role.value if isinstance(user.role, UserRole) else user.role,
             tenant_id=tenant.id,
             tenant_name=tenant.name,
+            must_change_password=user.must_change_password,
         ),
     )
 

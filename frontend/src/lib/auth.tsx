@@ -20,9 +20,10 @@ interface User {
   role: string;
   tenant_id: string;
   tenant_name: string;
-  // D-14 / PROD-06-03: sourced from /auth/me only. When true, the AuthProvider
-  // route-guard below forces the user onto /change-password until they rotate
-  // the default install credentials. Optional so pre-flag backends still parse.
+  // D-14 / PROD-06-03: sourced from both /auth/me and the /auth/login response
+  // (UserInfo). When true, the AuthProvider route-guard below forces the user
+  // onto /change-password until they rotate the default install credentials.
+  // Optional so pre-flag backends still parse.
   must_change_password?: boolean;
 }
 
@@ -111,12 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loading, user, pathname, router]);
 
-  // PROD-06-03: force-rotation gate. A user still on the default install
-  // credentials carries must_change_password from /auth/me — push them to
+  // PROD-06-03 / SC#4: force-rotation gate. A user still on the default install
+  // credentials carries must_change_password on BOTH the /auth/me response (hard
+  // reload / mount) and the /auth/login response (primary SPA login path) — so
+  // setUser from either source arms this gate, which pushes them to
   // /change-password from anywhere but that page. Lives here (not in
-  // (authed)/layout.tsx) so it also fires post-login: the mount fetchMe
-  // resolves the flag, then this gate redirects. The authoritative check is
-  // the Wave 2 backend 403 in get_current_user — this is the UX half.
+  // (authed)/layout.tsx) so it fires regardless of which entry path set the
+  // user. The authoritative check is the Wave 2 backend 403 in
+  // get_current_user — this is the UX half.
   useEffect(() => {
     if (!loading && user?.must_change_password && pathname !== '/change-password') {
       router.replace('/change-password');

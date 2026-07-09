@@ -44,6 +44,11 @@ class UserInfo(BaseModel):
     role: str
     tenant_id: uuid.UUID
     tenant_name: str
+    # PROD-06-03 / SC#4: the login response must carry the forced-rotation flag
+    # so the SPA can gate a flagged user onto /change-password immediately after
+    # login — without waiting for a hard reload to hit /auth/me. Defaults false
+    # so pre-flag callers stay valid.
+    must_change_password: bool = False
 
 
 class RefreshRequest(BaseModel):
