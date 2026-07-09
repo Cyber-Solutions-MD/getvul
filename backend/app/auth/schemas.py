@@ -14,6 +14,7 @@ class CurrentUser(BaseModel):
     tenant_id: uuid.UUID
     email: str
     role: str
+    must_change_password: bool = False
 
 
 class AuthorizationURL(BaseModel):

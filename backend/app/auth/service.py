@@ -69,6 +69,7 @@ def issue_tokens(user: User, tenant: Tenant) -> TokenResponse:
         tenant_id=str(user.tenant_id),
         email=user.email,
         role=user.role.value if isinstance(user.role, UserRole) else user.role,
+        must_change_password=user.must_change_password,
     )
     refresh_token = create_refresh_token(
         user_id=str(user.id),
@@ -114,6 +115,7 @@ async def refresh_access_token(db: AsyncSession, refresh_token_str: str) -> Refr
         tenant_id=str(user.tenant_id),
         email=user.email,
         role=user.role.value if isinstance(user.role, UserRole) else user.role,
+        must_change_password=user.must_change_password,
     )
 
     return RefreshResponse(

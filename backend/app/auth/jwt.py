@@ -22,6 +22,7 @@ class TokenPayload:
         token_type: str = "access",
         exp: datetime | None = None,
         jti: str | None = None,
+        must_change_password: bool = False,
     ):
         self.sub = sub
         self.tenant_id = tenant_id
@@ -30,6 +31,7 @@ class TokenPayload:
         self.token_type = token_type
         self.exp = exp
         self.jti = jti or str(uuid.uuid4())
+        self.must_change_password = must_change_password
 
 
 def create_access_token(
@@ -37,6 +39,7 @@ def create_access_token(
     tenant_id: str,
     email: str,
     role: str,
+    must_change_password: bool = False,
 ) -> str:
     """Create a short-lived access token (15 min default)."""
     now = datetime.now(UTC)
@@ -48,6 +51,7 @@ def create_access_token(
         "email": email,
         "role": role,
         "type": "access",
+        "must_change_password": must_change_password,
         "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": expire,
@@ -94,4 +98,5 @@ def decode_token(token: str) -> TokenPayload:
         role=payload.get("role", "VIEWER"),
         token_type=payload.get("type", "access"),
         jti=payload.get("jti"),
+        must_change_password=payload.get("must_change_password", False),
     )
