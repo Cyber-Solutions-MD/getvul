@@ -39,8 +39,8 @@ async def create_admin():
         hashed = hash_password("Admin123!")
         await db.execute(
             text(
-                "INSERT INTO users (id, tenant_id, email, display_name, role, password_hash, is_active, idp_subject, idp_source) "
-                "VALUES (gen_random_uuid(), :tid, 'admin@getvul.local', 'Admin', 'OWNER', :pw, true, 'local-admin', 'local')"
+                "INSERT INTO users (id, tenant_id, email, display_name, role, password_hash, is_active, idp_subject, idp_source, must_change_password) "
+                "VALUES (gen_random_uuid(), :tid, 'admin@getvul.local', 'Admin', 'OWNER', :pw, true, 'local-admin', 'local', true)"
             ),
             {"tid": str(tenant), "pw": hashed},
         )
