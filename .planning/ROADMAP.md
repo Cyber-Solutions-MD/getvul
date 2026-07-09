@@ -22,7 +22,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 3: Update Path Reconciliation** — Pick one canonical update mechanism; document rollback (complete 2026-07-02)
 - [x] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager (complete 2026-07-03)
 - [x] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY` (complete 2026-07-08)
-- [ ] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin
+- [x] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin (complete 2026-07-09)
 - [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod
 - [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
 **v2.0 UI/UX Redesign (SHIPPED 2026-06-30 — Phases 9–15):** full detail archived in [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md).
@@ -133,10 +133,10 @@ Plans:
 **Plans**: 4 plans (0 Wave 0 test scaffold + 3 execution waves)
 
 Plans:
-- [ ] 06-00-PLAN.md — Wave 0: create backend + frontend test scaffolds (RED targets for Nyquist)
-- [ ] 06-01-PLAN.md — Migration 029 + User column + create_admin seed flag + apply (PROD-06-01)
-- [ ] 06-02-PLAN.md — JWT claim + CurrentUser + 403 enforcement gate/allowlist + rotation completion (clear flag, audit, fresh tokens) (PROD-06-02, PROD-06-04)
-- [ ] 06-03-PLAN.md — Frontend /change-password page + auth.tsx redirect gate (PROD-06-03)
+- [x] 06-00-PLAN.md — Wave 0: create backend + frontend test scaffolds (RED targets for Nyquist)
+- [x] 06-01-PLAN.md — Migration 029 + User column + create_admin seed flag + apply (PROD-06-01)
+- [x] 06-02-PLAN.md — JWT claim + CurrentUser + 403 enforcement gate/allowlist + rotation completion (clear flag, audit, fresh tokens) (PROD-06-02, PROD-06-04)
+- [x] 06-03-PLAN.md — Frontend /change-password page + auth.tsx redirect gate (PROD-06-03)
 
 ### Phase 7: Health and Observability
 **Goal**: Operators and load balancers can distinguish a starting backend from a healthy one, and production logs are machine-parseable.
@@ -189,7 +189,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 3. Update Path Reconciliation | v1.0 Production Readiness | 2/2 | Complete | 2026-07-02 |
 | 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Planned | - |
 | 5. Encryption Key Lifecycle | v1.0 Production Readiness | 0/2 | Deferred | - |
-| 6. Default Admin Hardening | v1.0 Production Readiness | 0/2 | Deferred | - |
+| 6. Default Admin Hardening | v1.0 Production Readiness | 4/4 | Complete | 2026-07-09 |
 | 7. Health and Observability | v1.0 Production Readiness | 0/2 | Deferred | - |
 | 8. Test Coverage Floor | v1.0 Production Readiness | 0/3 | Deferred | - |
 | 9. `/login` + Foundation | v2.0 UI/UX Redesign | 6/6 | Complete | 2026-05-13 |

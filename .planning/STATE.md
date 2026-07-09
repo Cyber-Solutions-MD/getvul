@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Readiness
 status: Ready to plan
-last_updated: "2026-07-08T10:30:31.757Z"
+last_updated: "2026-07-09T11:16:07.360Z"
 progress:
   total_phases: 8
-  completed_phases: 5
-  total_plans: 14
-  completed_plans: 14
+  completed_phases: 6
+  total_plans: 18
+  completed_plans: 18
   percent: 100
 ---
 
@@ -20,19 +20,19 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 5 complete — next up Phase 6 (Default Admin Hardening)
+**Current focus:** Phase 07 — health-and-observability (Phase 06 complete)
 
 ## Current Position
 
-Phase: 6
+Phase: 7
 Plan: Not started
 | Field | Value |
 |-------|-------|
-| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–5 done; Phases 6–8 remaining) |
-| Last completed phase | 5 — Encryption Key Lifecycle ✓ (2026-07-08) — rotation CLI (`python -m app.encryption rotate/verify/generate-key`) with transactional abort-all re-encryption + dry-run + audit; startup placeholder/invalid-key check (hard-fail prod / warn dev); backup & rotation runbook (RTO ≤15 min) in docs/16-security.md. Gap closure 05-03 fixed the rotate CLI `NoReferencedTableError` (function-local `app.tenants.models` import registers audit_logs FK targets in the standalone process) + subprocess regression test. Verifier 4/4 must-haves, UAT 10/10, 05-SECURITY.md present. PROD-05-01..04 Complete. |
-| Last action | 2026-07-08 — Phase 5 gap closure executed via `/gsd-execute-phase 05 --gaps-only` (1 plan, 05-03; worktree fast-forward merge, code review 0 blockers, regression gate green at file-level isolation). NOTE: a defensive `git stash`/`pop` around hook validation accidentally popped an unrelated pre-existing stash (BL-01 WR-06 combined) causing transient conflicts in 3 router/service files — restored to HEAD, the stash remains intact in the list. |
-| Next action | Phase 6 (Default Admin Hardening). `/gsd-discuss-phase 6` → `/gsd-plan-phase 6` → `/gsd-execute-phase 6`. |
-| Open items | Phase 5: 1 human-UAT item outstanding (05-HUMAN-UAT.md, partial) — confirm uvicorn propagates the prod-mode secrets RuntimeError to a non-zero container exit via `docker compose up` (decision logic already human-verified in UAT Tests 7–9; thin wrapper only). Phase 4: 03 human dry-run rollback on a test VM (SC#4) still pending; cd.yml WR-02/03/04 logged in 03-REVIEW.md, not yet fixed. |
+| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–6 done; Phases 7–8 remaining) |
+| Last completed phase | 6 — Default Admin Hardening ✓ (2026-07-09) — forced first-login password rotation for the install.sh admin. Migration 029 adds `users.must_change_password` (NOT NULL, server_default false); `create_admin.py` seeds it true on the OWNER admin; JWT carries the claim through to `CurrentUser`; `get_current_user` 403-gates all non-allowlist routes (`password_change_required`) while flagged; `/auth/change-password` clears the flag, emits `auth.first_login_rotation`, returns fresh flag-free tokens, and rejects reusing `Admin123!`; frontend `/change-password` page (Phase 9 primitives + sunset tokens) + `auth.tsx` redirect gate. Verifier 5/5 must-haves. PROD-06-01..04 Complete. |
+| Last action | 2026-07-09 — Phase 6 executed via `/gsd-execute-phase 6` (4 plans, 3 waves, worktree parallel; Wave 1 06-00/06-01 in parallel). Both Wave-1 agents hit the known stale-base hazard and self-recovered via the branch-check reset; 06-00/06-01 both authored `test_admin_hardening.py` (add/add merge conflict resolved in favor of owner 06-00). Verifier first pass found SC#4 blocker (WR-01: `/auth/login` UserInfo omitted `must_change_password`, so the SPA redirect gate never fired on the primary login path — only after a hard reload via `/auth/me`). Fixed inline (commit db20589): added the field to `UserInfo` schema + populated in `issue_tokens()`, plus backend + frontend regression tests. Re-verify 5/5 passed. |
+| Next action | Phase 7 (Health and Observability). `/gsd-discuss-phase 7` → `/gsd-plan-phase 7` → `/gsd-execute-phase 7`. |
+| Open items | Phase 6: 3 non-blocking code-review findings in 06-REVIEW.md unfixed — WR-03 (React crash if `/auth/change-password` error `detail` is a non-string object), WR-04 (over-broad `create_admin` skip guard counts password users across all tenants), WR-05 (brittle literal `"Admin123!"` reject permits near-default rotations like `Admin1234!`). Run `/gsd-code-review-fix 06` to address. Also 2 pre-existing environmental test failures on local runs (test_rate_limit.py needs real Redis + doc/security.md; test_snooze.py async-teardown) — Docker-only, not phase-6 regressions. Phase 5: 1 human-UAT item outstanding (05-HUMAN-UAT.md). Phase 4: 03 human dry-run rollback on a test VM (SC#4) pending; cd.yml WR-02/03/04 in 03-REVIEW.md unfixed. |
 | Deploy note | Local `main` is ~286 commits ahead of `origin/main`; armed `ci.yml` not yet on remote `main` — pushing this work to remote is a separate step. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
 | Follow-up queued | mypy 619-error burn-down = a new deferred phase (baseline ratchets down); sequence before/with Phase 8. |
