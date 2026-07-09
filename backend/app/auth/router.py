@@ -197,19 +197,53 @@ async def change_password_endpoint(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Change current user's password."""
+    """Change current user's password.
+
+    When the caller is a flagged (must_change_password) user, this completes the
+    forced first-login rotation (D-09): clear the DB flag, emit an
+    auth.first_login_rotation audit row BEFORE commit (AUDIT-01 fail-closed),
+    then return fresh flag-free tokens so the client needs no extra round-trip.
+    """
     from app.auth.password import change_password
+
+    flag_was_set = user.must_change_password
+    new_password = body.get("new_password", "")
+
+    # Belt-and-suspenders (T-06-default-cred-reuse): the default tenant has
+    # history_count=0, so password-history reuse-prevention is disabled. A
+    # flagged admin could otherwise "rotate" back to the install credential and
+    # defeat the whole gate. Reject the literal default password.
+    if flag_was_set and new_password == "Admin123!":
+        raise HTTPException(400, "Choose a password other than the default install credential")
 
     result = await change_password(
         db,
         user.id,
         current_password=body.get("current_password"),
-        new_password=body.get("new_password", ""),
+        new_password=new_password,
     )
     if "error" in result:
         raise HTTPException(400, result["error"])
+
+    if not flag_was_set:
+        await db.commit()
+        return result
+
+    # Flagged rotation completion — strict order: clear flag -> audit -> commit -> issue_tokens.
+    from sqlalchemy import select
+
+    from app.audit import audit
+    from app.tenants.models import Tenant, User
+
+    user_row = (await db.execute(select(User).where(User.id == user.id))).scalar_one()
+    tenant_row = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+    user_row.must_change_password = False
+
+    await audit(db, user, "auth.first_login_rotation", "user", str(user.id), {"email": user.email})
     await db.commit()
-    return result
+    await db.refresh(user_row)
+
+    return issue_tokens(user_row, tenant_row)
 
 
 @router.post("/forgot-password")
