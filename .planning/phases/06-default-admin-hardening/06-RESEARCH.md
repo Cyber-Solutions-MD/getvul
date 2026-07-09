@@ -459,7 +459,7 @@ async def get_current_user(
     return current_user
 ```
 
-**Note on path normalization:** The auth router is mounted at `/api/v1` in `main.py` (verify). The allowlist entries in D-07 are bare paths (`/auth/change-password`), but the actual request path will be `/api/v1/auth/change-password`. The enforcement logic must match correctly — either use `endswith()` or store allowlist as the full mounted path. Planner must verify the router mount prefix.
+**Path prefix confirmed [VERIFIED: main.py:258]:** The auth router is mounted at prefix `/auth` (`app.include_router(auth_router, prefix="/auth", ...)`). The allowlist entries in D-07 (`/auth/change-password`, `/auth/me`, `/auth/logout`, `/auth/refresh`) match `request.url.path` exactly — a simple `path in ALLOWLIST` frozenset check is correct. No `endswith()` or prefix stripping needed.
 
 ### Pattern 4: Frontend Redirect Gate Extension
 
@@ -512,11 +512,11 @@ useEffect(() => {
 
 ## Common Pitfalls
 
-### Pitfall 1: Router mount prefix breaks the allowlist path match
-**What goes wrong:** The enforcement gate checks `request.url.path` against `/auth/change-password`, but the actual request path is `/api/v1/auth/change-password` — so EVERY path is blocked including the allowlisted ones.
-**Why it happens:** The auth router is mounted with a prefix in `main.py`. `request.url.path` returns the full path including the prefix.
-**How to avoid:** Use `path.endswith(allowed)` for simple substring match, or store allowlist as the full mounted paths (e.g., `"/api/v1/auth/change-password"`). Verify the prefix in `main.py` before hardcoding.
-**Warning signs:** All `/auth/*` calls return 403 with `password_change_required` even on a non-flagged user.
+### Pitfall 1: Allowlist trailing-slash drift
+**What goes wrong:** Client sends `/auth/change-password/` (trailing slash). The exact frozenset check `path in ALLOWLIST` fails and the endpoint is blocked for a flagged user trying to rotate their password.
+**Why it happens:** FastAPI has `redirect_slashes=True` by default and will 307-redirect the trailing-slash form, so in practice the `/auth/change-password` endpoint URL the client calls never has a trailing slash. Low risk, but worth a test.
+**How to avoid:** Use the frozenset `path in MUST_CHANGE_PASSWORD_ALLOWLIST` — FastAPI normalization means `request.url.path` will be the canonical non-slash form for router-matched paths.
+**Warning signs:** `/auth/change-password/` (trailing slash) returns 403 instead of being redirected/passing through.
 
 ### Pitfall 2: Dev-token path in `get_current_user` doesn't set the new field
 **What goes wrong:** The dev-token shortcut (lines 43–50 in `dependencies.py`) constructs `CurrentUser(id=..., email=..., role=...)` — it will silently get `must_change_password=False` after the field is added with a default. This is correct behavior, but if someone tests with dev-token and a flagged admin, enforcement won't fire.
@@ -556,7 +556,7 @@ useEffect(() => {
 |--------|--------|-----------|
 | Old flagged access token used after rotation | Attacker/user has a cached token from before rotation | Accepted D-05 edge case — 15min window; endpoint returns fresh tokens; client must replace |
 | Old UN-flagged refresh token used to get a new access token | User rotates but doesn't discard old refresh token | `refresh_access_token()` re-reads DB; if flag was set (e.g., by admin), new access token WILL carry the flag. Conversely, if flag was cleared, new access token will NOT carry it — correct behavior |
-| Allowlist bypass via path traversal | `GET /api/v1/auth/change-password/../vulnerabilities` | FastAPI normalizes paths before routing; `request.url.path` returns the normalized path |
+| Allowlist bypass via path traversal | `GET /auth/change-password/../vulnerabilities` | FastAPI normalizes paths before routing; `request.url.path` returns the normalized path |
 | SSO users hit the flag | SSO user with no `password_hash` gets flagged | D-15 scope is generic, but SSO users have `password_hash = None`. The `/auth/change-password` endpoint will error for them. Deferred per CONTEXT.md — keep `must_change_password` as `False` for SSO-created users by convention |
 | Force-rotation page accessible without auth | `/change-password` outside `(authed)` group has no server-side auth check | Page must call `/auth/me` on mount to get the flag; if `/auth/me` returns 401 (no token), redirect to `/login`. The page is a UI gate, not a security boundary — the backend `change_password_endpoint` still validates the JWT |
 
@@ -714,12 +714,12 @@ Step 2.6: No new external dependencies. Phase adds a boolean column and auth mid
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Router mount prefix for allowlist path matching**
-   - What we know: Auth router is registered in `main.py` with a prefix (likely `/api/v1`)
-   - What's unclear: The exact prefix determines whether allowlist entries must be `/auth/change-password` or `/api/v1/auth/change-password`
-   - Recommendation: Planner must read `backend/app/main.py` line where `router.include_router(auth_router, ...)` is called and record the prefix before writing the allowlist constant.
+> All four are closed. Q1 was resolved during research (verified against live code). Q2–Q4 were Claude's-Discretion planning choices and are now decided and wired into the Phase 6 plans: Q2 → `/auth/change-password` returns a fresh `TokenResponse` in the body when the flag was set (06-02 Task 3); Q3 → literal `Admin123!` hard-reject added to the endpoint (06-02 Task 3); Q4 → `confirm_password` field + zod refinement included on the form (06-03 Task 2).
+
+1. **Router mount prefix — RESOLVED [VERIFIED: main.py:258]**
+   - Auth router is mounted at prefix `/auth`. Allowlist entries match `request.url.path` exactly. `path in frozenset({"/auth/change-password", "/auth/me", "/auth/logout", "/auth/refresh"})` is the correct check. No open question remains.
 
 2. **Token re-issue mechanism: response body or redirect to `/auth/refresh`**
    - What we know: D-09c says "re-issue fresh access+refresh tokens" — Claude's Discretion on mechanism
@@ -742,10 +742,10 @@ Step 2.6: No new external dependencies. Phase adds a boolean column and auth mid
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Auth router is mounted with a `/api/v1` prefix in `main.py` | Pitfall 1, Pattern 3 | Allowlist path check always fails or always passes — enforcement broken in one direction |
+| A1 | Auth router is mounted with a `/auth` prefix (VERIFIED `main.py:258`) | Pitfall 1, Pattern 3 | N/A — verified; allowlist paths match `request.url.path` directly |
 | A2 | The default tenant created by `create_admin.py` has `password_policy = null` (no history enforcement) | Open Questions #3 | If policy does enforce history, the Admin123! belt-and-suspenders check may be redundant but harmless |
 
-**Planner action for A1:** Read `backend/app/main.py` auth router include call to confirm prefix before writing the allowlist constant.
+**A1 confirmed:** `backend/app/main.py:258` — `app.include_router(auth_router, prefix="/auth", tags=["Authentication"])`. No planner action needed.
 
 ---
 
