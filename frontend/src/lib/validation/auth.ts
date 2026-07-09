@@ -20,3 +20,18 @@ export const resetSchema = z.object({
   newPassword: z.string().min(8, 'At least 8 characters.'),
 });
 export type ResetInput = z.infer<typeof resetSchema>;
+
+// PROD-06-03: forced first-login rotation. current_password / new_password
+// match the Wave 2 POST /auth/change-password contract; confirm_password is a
+// client-only guard cross-checked via .refine (the backend never sees it).
+export const changePasswordSchema = z
+  .object({
+    current_password: z.string().min(1, 'Enter your current password.'),
+    new_password: z.string().min(8, 'At least 8 characters.'),
+    confirm_password: z.string().min(1, 'Confirm your new password.'),
+  })
+  .refine((d) => d.new_password === d.confirm_password, {
+    message: "Passwords don't match.",
+    path: ['confirm_password'],
+  });
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
