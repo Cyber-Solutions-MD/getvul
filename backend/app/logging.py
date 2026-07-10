@@ -1,17 +1,30 @@
 """Operational logging configuration for the GetVul API.
 
-This module provides structured logging via structlog for the FastAPI application.
-It is distinct from the audit CEF/syslog pipeline in app/audit.py (D-18, kept
-independent). The full implementation (ProcessorFormatter, JSONRenderer, stdlib
-bridge) lands in plan 07-02. This stub exposes the three public names so that
-`from app.logging import configure_logging, redact_sensitive_keys, SENSITIVE_KEYS`
-resolves cleanly — allowing test collection (07-00) and middleware wiring (07-01)
-to proceed before the real logging config is in place.
+This module configures structured logging via structlog for the FastAPI
+application, unifying the app structlog stream and the stdlib uvicorn.*
+loggers through a single processor chain (D-11, D-12).
+
+It is wholly distinct from the audit CEF/syslog pipeline in app/audit.py
+(D-18). The two channels are kept independent by design: configure_logging()
+does not touch the SysLogHandler that audit.py wires, and audit.py does not
+call configure_logging().
+
+Usage (from lifespan in main.py):
+    from app.logging import configure_logging
+    configure_logging()  # must be the FIRST call in lifespan — before any
+                         # structlog.get_logger() is used (Pitfall 5 / A3)
 """
 
+import logging
+import sys
+
+import structlog
+
+from app.config import settings
+
 # D-17: Keys whose values must be scrubbed to "[REDACTED]" before any log
-# rendering. This set is intentionally frozen so processors can iterate over it
-# safely without risk of mutation.
+# rendering.  The frozenset is intentionally immutable so processors can
+# iterate over it safely without risk of mutation.
 SENSITIVE_KEYS: frozenset = frozenset(
     {
         "authorization",
@@ -30,27 +43,151 @@ def redact_sensitive_keys(logger, method, event_dict):
 
     Structlog processor signature: (logger, method, event_dict) -> event_dict.
     Must run BEFORE the renderer (JSONRenderer / ConsoleRenderer) in the
-    processor chain.
+    processor chain so that sensitive values never reach the output stream.
 
-    Full implementation lands in plan 07-02. The stub raises NotImplementedError
-    so that test_redact_sensitive_keys (which calls this directly) fails for the
-    right reason — confirming the RED state — rather than silently passing with
-    an empty implementation.
+    Iterates over SENSITIVE_KEYS (the frozen set) rather than over
+    event_dict.items() while mutating, which would raise RuntimeError on
+    dict size change during iteration (Pitfall 6).
+
+    Returns the event_dict unchanged except for redacted keys.
+    Does not raise on an empty dict.
     """
-    raise NotImplementedError("implemented in 07-02")
+    for key in SENSITIVE_KEYS:
+        if key in event_dict:
+            event_dict[key] = "[REDACTED]"
+    return event_dict
+
+
+class _ProbePathFilter(logging.Filter):
+    """Drop uvicorn.access records for /health and /ready probe paths (D-19).
+
+    Suppresses ONLY the "GET /ready ... 503" / "GET /health ... 200" lines
+    emitted by the uvicorn access logger — it does NOT touch the application
+    structlog logger, so a failed /ready still emits its own
+    readiness_check_failed event (Pitfall 7: different logger instances).
+    """
+
+    _PROBE_PATHS = ("/health", "/ready")
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        msg = record.getMessage()
+        return not any(path in msg for path in self._PROBE_PATHS)
 
 
 def configure_logging() -> None:
     """Configure structlog + stdlib root logger for a unified output stream.
 
-    - production (ENVIRONMENT=production): JSON via JSONRenderer + orjson
-    - dev: human-readable via ConsoleRenderer
-    - Min level: INFO in prod, DEBUG in dev
-    - Both structlog and stdlib loggers (uvicorn.*) emit through the same chain
+    Environment-gated renderer selection (D-11, D-16):
+    - ENVIRONMENT=production  →  JSON via JSONRenderer(serializer=orjson.dumps)
+    - any other value          →  human-readable ConsoleRenderer
 
-    Full implementation lands in plan 07-02. The stub is a no-op so that
-    app startup (lifespan) does not crash before 07-02 lands — logging tests
-    will still be RED because they assert a ProcessorFormatter/JSONRenderer is
-    configured, which a no-op does not do.
+    Level gating (D-16):
+    - production (DEBUG=false)  →  INFO
+    - dev (DEBUG=true)          →  DEBUG
+
+    Processor chain (D-15, D-11):
+    Both structlog loggers and stdlib loggers (uvicorn.access, uvicorn.error,
+    uvicorn) flow through the same shared_processors chain, unified via
+    ProcessorFormatter and foreign_pre_chain.
+
+    Sensitive key redaction (D-17, T-07-02-01):
+    redact_sensitive_keys runs LAST in shared_processors (i.e., immediately
+    before the renderer) so it scrubs values regardless of which code path
+    produced the event.
+
+    Probe-path suppression (D-19):
+    _ProbePathFilter is added to the uvicorn.access logger to suppress the
+    routine access-log lines for /health and /ready. Application-level
+    readiness_check_failed events (different logger) are not affected.
+
+    IMPORTANT — Pitfall 5 / A3:
+    structlog.reset_defaults() is called FIRST to guarantee a clean slate,
+    defeating the module-level `logger = structlog.get_logger()` cache in
+    main.py (line 34) regardless of import order.
     """
-    return
+    # Step 1: Reset structlog to a clean slate BEFORE any configuration.
+    # This defeats the module-level logger cache in main.py (Pitfall 5 / A3).
+    structlog.reset_defaults()
+
+    import orjson  # local import — keeps side effects minimal at module load
+
+    # Step 2: Level gating — INFO in production, DEBUG in dev (D-16).
+    min_level = logging.DEBUG if settings.debug else logging.INFO
+
+    # Step 3: Build the shared processor chain.
+    # Order is significant (D-15 default field keys, Pitfall 6, T-07-02-03):
+    #   - merge_contextvars FIRST so request_id is injected before any other
+    #     processor sees the event dict.
+    #   - redact_sensitive_keys LAST so it runs after all context enrichment
+    #     and immediately before the renderer.
+    shared_processors = [
+        structlog.contextvars.merge_contextvars,        # injects request_id (D-13)
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        redact_sensitive_keys,                          # MUST be last before renderer (D-17)
+    ]
+
+    # Step 4: Choose renderer based on environment (D-11).
+    # structlog's JSONRenderer calls serializer(event_dict, default=...) —
+    # passing a `default` kwarg. orjson.dumps accepts `default` but the
+    # signature differs (positional). Wrap to decode bytes → str and absorb
+    # the extra kwargs; orjson handles datetime/UUID natively so `default` is
+    # rarely needed, but we forward it via the orjson `option` mechanism if
+    # required (rule: never drop kwargs silently). A simple absorbing wrapper
+    # is the correct approach here.
+    def _json_serializer(obj, **_kw):
+        return orjson.dumps(obj).decode("utf-8")
+
+    if settings.environment == "production":
+        renderer = structlog.processors.JSONRenderer(serializer=_json_serializer)
+    else:
+        renderer = structlog.dev.ConsoleRenderer()
+
+    # Step 5: Configure structlog.
+    # processors list must end with wrap_for_formatter so structlog-native log
+    # events are routed through the stdlib StreamHandler below (D-11, Pitfall 2).
+    structlog.configure(
+        processors=shared_processors
+        + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.make_filtering_bound_logger(min_level),
+        cache_logger_on_first_use=True,
+    )
+
+    # Step 6: Create ProcessorFormatter for the stdlib side.
+    # remove_processors_meta MUST be first — strips _record/_from_structlog
+    # internal keys that ProcessorFormatter injects (Pitfall 2).
+    # foreign_pre_chain applies shared_processors to records that originate
+    # from stdlib loggers (uvicorn.access, uvicorn.error, etc.) so they travel
+    # through the same enrichment chain (D-11, T-07-02-03).
+    formatter = structlog.stdlib.ProcessorFormatter(
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
+        foreign_pre_chain=shared_processors,
+    )
+
+    # Step 7: Attach ONE StreamHandler to the root logger.
+    # Clearing existing handlers first prevents duplicate output if
+    # configure_logging() is ever called more than once (e.g., in tests).
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.handlers = []       # remove any handler basicConfig may have added
+    root_logger.addHandler(handler)
+    root_logger.setLevel(min_level)
+
+    # Step 8: Suppress /health + /ready from uvicorn.access (D-19).
+    # Failed /ready still emits its own readiness_check_failed via the
+    # application structlog logger — that path is a different logger and
+    # is NOT suppressed here (Pitfall 7).
+    logging.getLogger("uvicorn.access").addFilter(_ProbePathFilter())
