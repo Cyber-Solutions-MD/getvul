@@ -23,7 +23,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 4: Doc/Code Parity** — Ship missing CSP/COOP headers, fix scanner-count drift, extend `VulnSource` enum, decide on Secrets Manager (complete 2026-07-03)
 - [x] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY` (complete 2026-07-08)
 - [x] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin (complete 2026-07-09)
-- [ ] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod
+- [x] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod (complete 2026-07-10)
 - [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
 **v2.0 UI/UX Redesign (SHIPPED 2026-06-30 — Phases 9–15):** full detail archived in [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md).
 
@@ -191,7 +191,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Planned | - |
 | 5. Encryption Key Lifecycle | v1.0 Production Readiness | 0/2 | Deferred | - |
 | 6. Default Admin Hardening | v1.0 Production Readiness | 4/4 | Complete | 2026-07-09 |
-| 7. Health and Observability | v1.0 Production Readiness | 0/2 | Deferred | - |
+| 7. Health and Observability | v1.0 Production Readiness | 3/3 | Complete | 2026-07-10 |
 | 8. Test Coverage Floor | v1.0 Production Readiness | 0/3 | Deferred | - |
 | 9. `/login` + Foundation | v2.0 UI/UX Redesign | 6/6 | Complete | 2026-05-13 |
 | 10. `/dashboard` | v2.0 UI/UX Redesign | 6/6 | Complete    | 2026-05-18 |
