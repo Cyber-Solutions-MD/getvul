@@ -51,10 +51,10 @@ Each requirement maps to one phase in [ROADMAP.md](ROADMAP.md). Sourced from the
 
 ### Health and Observability (PROD-07)
 
-- [ ] **PROD-07-01**: `GET /health` becomes a liveness probe (no dependencies)
-- [ ] **PROD-07-02**: `GET /ready` is a readiness probe checking Postgres connectivity + Redis ping with bounded timeout
-- [ ] **PROD-07-03**: Nginx upstream health check uses `/ready` (not `/health`) so a sick backend de-registers
-- [ ] **PROD-07-04**: structlog output is JSON in production (`ENVIRONMENT=production`); env-gated
+- [x] **PROD-07-01**: `GET /health` becomes a liveness probe (no dependencies)
+- [x] **PROD-07-02**: `GET /ready` is a readiness probe checking Postgres connectivity + Redis ping with bounded timeout
+- [x] **PROD-07-03**: Nginx upstream health check uses `/ready` (not `/health`) so a sick backend de-registers
+- [x] **PROD-07-04**: structlog output is JSON in production (`ENVIRONMENT=production`); env-gated
 
 ### Test Coverage (PROD-08)
 
@@ -124,10 +124,10 @@ These are tracked but **not** in scope for the production-readiness milestone. P
 | PROD-06-02 | Phase 6 | Pending |
 | PROD-06-03 | Phase 6 | Pending |
 | PROD-06-04 | Phase 6 | Pending |
-| PROD-07-01 | Phase 7 | Pending |
-| PROD-07-02 | Phase 7 | Pending |
-| PROD-07-03 | Phase 7 | Pending |
-| PROD-07-04 | Phase 7 | Pending |
+| PROD-07-01 | Phase 7 | Complete |
+| PROD-07-02 | Phase 7 | Complete |
+| PROD-07-03 | Phase 7 | Complete |
+| PROD-07-04 | Phase 7 | Complete |
 | PROD-08-01 | Phase 8 | Pending |
 | PROD-08-02 | Phase 8 | Pending |
 | PROD-08-03 | Phase 8 | Pending |
