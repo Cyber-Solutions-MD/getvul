@@ -312,6 +312,11 @@ def create_app() -> FastAPI:
 
         t0 = time.monotonic()
         try:
+            # Resolve the factory at call time (mirrors the lifespan import at the
+            # top of this module) so a live-swapped session factory — e.g. a test
+            # simulating a Postgres outage — is honored instead of a stale binding.
+            from app.db.session import async_session_factory
+
             async with async_session_factory() as session:
                 await asyncio.wait_for(session.execute(text("SELECT 1")), timeout=0.5)
             checks["postgres"] = {"ok": True, "latency_ms": round((time.monotonic() - t0) * 1000)}
