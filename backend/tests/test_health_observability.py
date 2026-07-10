@@ -433,3 +433,56 @@ def test_redact_sensitive_keys():
     # Empty dict must not raise
     empty_result = redact_sensitive_keys(None, "info", {})
     assert empty_result == {}, f"Empty dict must return empty dict; got {empty_result!r}"
+
+
+def test_redact_sensitive_keys_case_insensitive_and_nested():
+    """redact_sensitive_keys() catches title-cased and nested credentials (CR-01).
+
+    The processor also runs over foreign uvicorn records via foreign_pre_chain,
+    where HTTP header keys arrive title-cased ('Authorization', 'Cookie') and
+    credentials appear nested inside dicts/lists. An exact-case, top-level-only
+    scrub would leak these in cleartext.
+    """
+    event_dict = {
+        # Title-cased header keys — must match case-insensitively.
+        "Authorization": "Bearer xyz",
+        "Cookie": "session=abc",
+        # Nested credential inside a sub-dict (e.g. structured request context).
+        "request": {"headers": {"Authorization": "Bearer nested"}, "path": "/x"},
+        # Credential nested inside a list of dicts.
+        "items": [{"token": "sk-deep"}, {"user": "bob"}],
+        "user": "alice",
+    }
+    result = redact_sensitive_keys(None, "info", event_dict)
+
+    assert result["Authorization"] == "[REDACTED]", "title-cased Authorization must redact"
+    assert result["Cookie"] == "[REDACTED]", "title-cased Cookie must redact"
+    assert result["request"]["headers"]["Authorization"] == "[REDACTED]", (
+        f"nested Authorization must redact; got {result['request']['headers']!r}"
+    )
+    assert result["request"]["path"] == "/x", "non-sensitive nested value must be untouched"
+    assert result["items"][0]["token"] == "[REDACTED]", "token nested in list must redact"
+    assert result["items"][1]["user"] == "bob", "non-sensitive nested value must be untouched"
+    assert result["user"] == "alice", "top-level non-sensitive value must be untouched"
+
+
+def test_probe_filter_exact_path_match():
+    """_ProbePathFilter suppresses exact probe paths only, not substrings (WR-01).
+
+    Substring matching would wrongly drop legitimate traffic like /health-history
+    or a request carrying '/ready' in its query string.
+    """
+    from app.logging import _ProbePathFilter
+
+    probe = _ProbePathFilter()
+
+    def _rec(msg: str) -> logging.LogRecord:
+        return logging.LogRecord("uvicorn.access", logging.INFO, __file__, 0, msg, None, None)
+
+    # Exact probe paths → suppressed (filter returns False)
+    assert probe.filter(_rec('127.0.0.1:5 - "GET /ready HTTP/1.1" 200')) is False
+    assert probe.filter(_rec('127.0.0.1:5 - "GET /health HTTP/1.1" 200')) is False
+    # Look-alike / query-carrying paths → kept (filter returns True)
+    assert probe.filter(_rec('127.0.0.1:5 - "GET /health-history HTTP/1.1" 200')) is True
+    assert probe.filter(_rec('127.0.0.1:5 - "GET /assets?redirect=/ready HTTP/1.1" 200')) is True
+    assert probe.filter(_rec('127.0.0.1:5 - "GET /readyz HTTP/1.1" 200')) is True

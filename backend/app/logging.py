@@ -16,6 +16,7 @@ Usage (from lifespan in main.py):
 """
 
 import logging
+import re
 import sys
 
 import structlog
@@ -38,6 +39,33 @@ SENSITIVE_KEYS: frozenset = frozenset(
 )
 
 
+def _is_sensitive(key) -> bool:
+    """True if `key` names a sensitive value, matched case-insensitively (D-17).
+
+    HTTP header keys arrive title-cased (`Authorization`, `Cookie`) via the
+    uvicorn foreign_pre_chain, so an exact-case comparison would miss them.
+    SENSITIVE_KEYS is stored lowercase; compare against `key.lower()`.
+    """
+    return isinstance(key, str) and key.lower() in SENSITIVE_KEYS
+
+
+def _redact_value(value):
+    """Recursively redact sensitive keys nested inside mappings/sequences.
+
+    A leaked credential is just as sensitive one level down (e.g. a
+    `headers={"Authorization": ...}` sub-dict), so the scrub must descend into
+    nested dicts and lists rather than only touching the top level.
+    """
+    if isinstance(value, dict):
+        return {
+            k: ("[REDACTED]" if _is_sensitive(k) else _redact_value(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return type(value)(_redact_value(v) for v in value)
+    return value
+
+
 def redact_sensitive_keys(logger, method, event_dict):
     """Scrub known-sensitive keys from the structlog event dict before rendering.
 
@@ -45,16 +73,20 @@ def redact_sensitive_keys(logger, method, event_dict):
     Must run BEFORE the renderer (JSONRenderer / ConsoleRenderer) in the
     processor chain so that sensitive values never reach the output stream.
 
-    Iterates over SENSITIVE_KEYS (the frozen set) rather than over
-    event_dict.items() while mutating, which would raise RuntimeError on
-    dict size change during iteration (Pitfall 6).
+    Matching is case-insensitive (title-cased HTTP header keys) and recursive
+    (nested dicts/lists), because this processor also runs over foreign uvicorn
+    records via foreign_pre_chain where credentials appear nested and
+    title-cased (D-17, CR-01).
 
-    Returns the event_dict unchanged except for redacted keys.
-    Does not raise on an empty dict.
+    Snapshots the key list before mutating so reassigning values never triggers
+    a "dict changed size during iteration" error (Pitfall 6). Does not raise on
+    an empty dict.
     """
-    for key in SENSITIVE_KEYS:
-        if key in event_dict:
+    for key in list(event_dict.keys()):
+        if _is_sensitive(key):
             event_dict[key] = "[REDACTED]"
+        else:
+            event_dict[key] = _redact_value(event_dict[key])
     return event_dict
 
 
@@ -67,11 +99,18 @@ class _ProbePathFilter(logging.Filter):
     readiness_check_failed event (Pitfall 7: different logger instances).
     """
 
-    _PROBE_PATHS = ("/health", "/ready")
+    _PROBE_PATHS = frozenset({"/health", "/ready"})
+    # uvicorn access lines look like: '127.0.0.1:52340 - "GET /ready HTTP/1.1" 200'
+    # Capture the request target between the method and " HTTP/", dropping any
+    # query string, so we match the exact path — not a substring. Substring
+    # matching would wrongly suppress /health-history or ?redirect=/ready (WR-01).
+    _REQUEST_LINE = re.compile(r'"[A-Z]+ (?P<path>[^ ?]+)(?:\?[^ ]*)? HTTP/')
 
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
-        msg = record.getMessage()
-        return not any(path in msg for path in self._PROBE_PATHS)
+        match = self._REQUEST_LINE.search(record.getMessage())
+        if match is None:
+            return True  # not a request line we recognize — keep it
+        return match.group("path") not in self._PROBE_PATHS
 
 
 def configure_logging() -> None:
@@ -134,14 +173,12 @@ def configure_logging() -> None:
 
     # Step 4: Choose renderer based on environment (D-11).
     # structlog's JSONRenderer calls serializer(event_dict, default=...) —
-    # passing a `default` kwarg. orjson.dumps accepts `default` but the
-    # signature differs (positional). Wrap to decode bytes → str and absorb
-    # the extra kwargs; orjson handles datetime/UUID natively so `default` is
-    # rarely needed, but we forward it via the orjson `option` mechanism if
-    # required (rule: never drop kwargs silently). A simple absorbing wrapper
-    # is the correct approach here.
-    def _json_serializer(obj, **_kw):
-        return orjson.dumps(obj).decode("utf-8")
+    # passing a `default` callable for types the serializer can't handle
+    # natively. orjson.dumps accepts `default` too, so forward it (rather than
+    # dropping it, which would raise TypeError on any non-native type — WR-04).
+    # orjson returns bytes; decode to str for ProcessorFormatter.
+    def _json_serializer(obj, default=None, **_kw):
+        return orjson.dumps(obj, default=default).decode("utf-8")
 
     if settings.environment == "production":
         renderer = structlog.processors.JSONRenderer(serializer=_json_serializer)
