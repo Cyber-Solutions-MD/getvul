@@ -153,7 +153,7 @@ Plans:
 Plans:
 - [x] 07-00-PLAN.md — Wave 0: RED test scaffold (test_health_observability.py, full D-21 matrix + D-13/14/17) + importable logging.py stub
 - [x] 07-01-PLAN.md — /health + /ready split (JSONResponse 503, 500ms bound), RequestIdMiddleware, configure_logging() call-site, nginx upstream + /ready, compose healthcheck flip (PROD-07-01, PROD-07-02, PROD-07-03)
-- [ ] 07-02-PLAN.md — structlog unified JSON stream + redaction + probe access-log suppression + Failure Modes operator runbook (PROD-07-04)
+- [x] 07-02-PLAN.md — structlog unified JSON stream + redaction + probe access-log suppression + Failure Modes operator runbook (PROD-07-04)
 
 ### Phase 8: Test Coverage Floor
 **Goal**: A regression in any implemented connector, the rule engine, or SLA logic is caught by CI.
