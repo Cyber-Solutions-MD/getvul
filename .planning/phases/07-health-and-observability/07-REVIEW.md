@@ -16,7 +16,11 @@ findings:
   warning: 5
   info: 5
   total: 11
-status: issues_found
+status: resolved
+resolution:
+  fixed: [CR-01, WR-01, WR-04, WR-05]
+  out_of_scope: [WR-02]   # pre-existing CORS bug from initial scaffold — not a Phase 7 change
+  accepted: [WR-03]       # configure_logging() in lifespan is the plan's design decision (07-01)
 ---
 
 # Phase 7: Code Review Report
@@ -24,7 +28,20 @@ status: issues_found
 **Reviewed:** 2026-07-10
 **Depth:** standard
 **Files Reviewed:** 7
-**Status:** issues_found
+**Status:** resolved
+
+## Resolution (2026-07-10)
+
+Fixed in follow-up commits during phase execution:
+- **CR-01** — `redact_sensitive_keys` now matches case-insensitively and recurses into nested dicts/lists; two regression tests added. D-17 control is now effective.
+- **WR-01** — `_ProbePathFilter` parses the exact request path instead of substring matching.
+- **WR-04** — `_json_serializer` forwards the `default` callable to orjson.
+- **WR-05** — healthcheck `urlopen` bounded with `timeout=4`; `start_period` widened to 60s.
+
+Not addressed here (with rationale):
+- **WR-02** (CORS wildcard `allow_origins`) — pre-existing defect from the initial project scaffold (`c39c79c`), not introduced by Phase 7. A real bug; flagged for a dedicated fix outside this phase's scope.
+- **WR-03** (`configure_logging()` runs in lifespan, after uvicorn setup) — this is the design chosen in plan 07-01 (D: call it as the first lifespan statement). Moving it to import time is a design change beyond this phase's mandate.
+- Info-level findings — noted; deferred as non-blocking cleanup.
 
 ## Summary
 
