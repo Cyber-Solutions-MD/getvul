@@ -168,9 +168,11 @@ Phase 7 may add a Slack webhook for sync failures and CD deploys — not yet sco
 
 ## Recommended additions (post-v1.0)
 
-- A real `/healthz` that pings DB + Redis (PROD-07-01).
-- A `/readyz` separate from `/healthz` (PROD-07-02).
-- JSON log formatter so log shippers (Vector, Fluent Bit) can parse uniformly.
+Shipped in Phase 7 (Health & Observability): the liveness/readiness split
+(`GET /health` + `GET /ready`, PROD-07-01/PROD-07-02) and the production JSON
+log formatter (see [Failure Modes & Operator Response](#failure-modes--operator-response)
+below). The items below remain future work:
+
 - Prometheus metrics for HTTP request count/latency/errors and scheduler tick health.
 - A Grafana dashboard or Kibana saved view derived from those metrics.
 - Slack/email alerting on CD failure or sync-failure spikes.
