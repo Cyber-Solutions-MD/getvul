@@ -683,22 +683,25 @@ monkeypatch.setattr(app.state.redis, "pipeline", boom_pipeline)
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **configure_logging() call-site ordering vs module-level logger caching**
    - What we know: `main.py` line 34 creates `logger = structlog.get_logger()` at module import time. With `cache_logger_on_first_use=True`, calling `configure_logging()` inside `lifespan()` may happen after the logger is already cached.
    - What's unclear: Does `structlog.get_logger()` at module level actually trigger caching, or is caching deferred until the first `.info()`/`.debug()` call on the bound logger?
    - Recommendation: The planner should add a `structlog.reset_defaults()` call at the start of `configure_logging()` to guarantee a clean slate regardless of import order, or move the call to module-level in `logging.py`. Document the chosen approach clearly in the code.
+   - **RESOLVED:** `configure_logging()` calls `structlog.reset_defaults()` as its first statement, and is invoked as the first statement in `lifespan()` (per 07-01 Task 1 + 07-02 Task 1 actions). This guarantees a clean slate regardless of the module-level `logger` created at import time.
 
 2. **Dev compose nginx/frontend `depends_on` condition**
    - What we know: Currently no `condition: service_healthy` for the backend in dev compose. Adding a backend healthcheck will make the service emit health status but won't automatically gate other services.
    - What's unclear: Is the desired UX to make dev startup wait for Postgres+Redis to be up before nginx starts? This adds ~10-30s to `docker compose up` in dev.
    - Recommendation: Leave dev `depends_on` unconditioned for now; CI already has the condition; document the asymmetry.
+   - **RESOLVED:** Dev `depends_on` is left unconditioned (07-01 Task 3 action); the CI/dev asymmetry is documented in the Failure Modes runbook (07-02 Task 2).
 
 3. **Runbook doc placement (D-20)**
    - What we know: CONTEXT.md suggests `docs/16-security.md` or a new ops doc; `docs/15-monitoring-logging.md` already exists and covers structlog.
    - What's unclear: Whether failure-mode runbook belongs in 15 (monitoring/logging) or 16 (security/compliance) or a new `docs/17a-operations.md`.
    - Recommendation: Append to `docs/15-monitoring-logging.md` under a new "## Failure Modes & Operator Response" section — it's a better semantic fit than security.md.
+   - **RESOLVED:** The Failure Modes & Operator Response runbook is appended to `docs/15-monitoring-logging.md` (07-02 Task 2).
 
 ---
 
