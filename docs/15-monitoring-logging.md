@@ -80,9 +80,42 @@ Compatible with Splunk, IBM QRadar, Microsoft Sentinel, Elastic SIEM, and any CE
 
 | Endpoint | What it does | Used by |
 |----------|--------------|---------|
-| `GET /health` | Returns `{"status":"ok","service":"getvul-api"}` immediately. Does **not** check DB or Redis. | Docker Compose, CD verification, load-balancer probes |
+| `GET /health` | Returns `{"status":"ok","service":"getvul-api"}` immediately. Does **not** check DB or Redis. Liveness only — process-alive signal. | Docker Compose, CD verification, load-balancer probes |
+| `GET /ready` | Checks Postgres `SELECT 1` + Redis `PING`, each bounded to 500 ms via `asyncio.wait_for`. Returns 200 when both are healthy; 503 when either fails. Body carries per-dependency detail. | Docker Compose healthcheck (interval 5 s), nginx upstream, external HTTPS uptime monitors |
 
-Phase 7 (PROD-07-01) will add a separate liveness vs readiness check and surface DB / Redis connectivity. Today, a backend that has lost its DB connection still returns 200 from `/health` until uvicorn itself crashes.
+Phase 7 (PROD-07) separated liveness (`/health`) from readiness (`/ready`). The backend healthcheck in both `docker-compose.yml` and `docker-compose.ci.yml` now targets `/ready` so compose correctly waits for DB + Redis to be reachable before marking the backend `service_healthy`.
+
+## Failure Modes & Operator Response
+
+`/ready` (Postgres `SELECT 1` + Redis `PING`, 500 ms bound each) is the readiness gate. The docker-compose backend healthcheck (interval 5 s) is the de-facto active monitor for this single-VM topology. Failure detection works on two surfaces: (a) `/ready` returns 503 with a per-dependency body showing exactly which dependency failed, and (b) the backend emits a structured `readiness_check_failed` log line at ERROR level naming the failed dependency. On each failed check the compose healthcheck counter increments; after the configured retries the container is restarted automatically.
+
+| Symptom | `/ready` response | Log event | Operator action |
+|---------|-------------------|-----------|-----------------|
+| **Postgres unreachable or down** | `503` `{"status":"not_ready","checks":{"postgres":{"ok":false,"error":"ConnectionRefusedError"},"redis":{"ok":true,"latency_ms":N}}}` | `readiness_check_failed` with `postgres_ok=False` | Run `docker compose ps` and `pg_isready -h localhost -p 5432` to confirm Postgres container state. Check connection pool exhaustion via SQLAlchemy pool logs. Restart the Postgres container or scale pool size. Compose restarts the backend once `/ready` recovers. |
+| **Redis unreachable or down** | `503` `{"status":"not_ready","checks":{"postgres":{"ok":true,"latency_ms":N},"redis":{"ok":false,"error":"ConnectionError"}}}` | `readiness_check_failed` with `redis_ok=False` | Run `docker compose ps` and `redis-cli ping` to confirm Redis container state. **Note:** the rate limiter fails-OPEN (traffic still flows via the `redis_unavailable` fallback in the rate-limiter middleware), but OIDC session state fails-CLOSED (new logins are blocked). Restore Redis promptly. The node correctly reports not-ready per the D-04 hard-fail policy even though some traffic would still flow — the 503 is the honest signal that Redis is gone. |
+| **Dependency slow (> 500 ms)** | `503` `{"status":"not_ready","checks":{"postgres":{"ok":false,"error":"timeout"},...}}` | `readiness_check_failed` with `postgres_ok=False` or `redis_ok=False` | Investigate dependency latency and saturation. Check Postgres query plans (`pg_stat_activity`), connection pool depth, and Redis memory/CPU. The 500 ms timeout is intentionally tight — if the dependency is intermittently slow, tune the probe timeout or address the underlying performance issue. |
+
+### nginx upstream — single-VM limitation
+
+The `nginx.conf` `http` block defines:
+
+```nginx
+upstream backend {
+    server backend:8000 max_fails=3 fail_timeout=30s;
+}
+```
+
+**Open-source nginx ignores `max_fails` and `fail_timeout` for a single-server upstream group.** Per the [nginx upstream module docs](https://nginx.org/en/docs/http/ngx_http_upstream_module.html):
+
+> "If there is only a single server in a group, max_fails, fail_timeout and slow_start parameters are ignored, and such a server will never be considered unavailable."
+
+This means passive ejection is **silently inert** on this single-backend deployment — even if the backend returns 5xx responses, nginx continues to route traffic to it. The upstream block is intentional forward-compatible scaffolding: passive ejection activates automatically when a second `server` entry is added to the group.
+
+The **actual readiness gate** for this deployment is the docker-compose healthcheck + container restart policy. If you want active probing to page on repeated 503 responses, wire an external HTTPS uptime monitor (e.g., UptimeRobot, Pingdom, Grafana Cloud) to `GET /ready` and alert on repeated 503. Active health checks (`health_check` directive) are nginx Plus only and are not available in open-source nginx.
+
+### CI/dev `depends_on` asymmetry
+
+`docker-compose.ci.yml` gates the `frontend` service on `backend: condition: service_healthy`, so CI does not start frontend integration tests until `/ready` passes (Postgres + Redis both up). `docker-compose.yml` (dev) intentionally leaves `depends_on` unconditioned to keep dev startup fast — nginx and the frontend start immediately without waiting for the backend healthcheck to pass.
 
 ## Metrics
 
