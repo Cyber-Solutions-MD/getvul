@@ -304,6 +304,47 @@ def create_app() -> FastAPI:
     async def health_check():
         return {"status": "ok", "service": "getvul-api"}
 
+    @app.get("/ready")
+    async def readiness_check(request: Request):
+        """Readiness probe — Postgres SELECT 1 + Redis PING, 500ms bound each (D-06)."""
+        checks: dict = {}
+        overall_ok = True
+
+        t0 = time.monotonic()
+        try:
+            async with async_session_factory() as session:
+                await asyncio.wait_for(session.execute(text("SELECT 1")), timeout=0.5)
+            checks["postgres"] = {"ok": True, "latency_ms": round((time.monotonic() - t0) * 1000)}
+        except TimeoutError:
+            checks["postgres"] = {"ok": False, "error": "timeout"}
+            overall_ok = False
+        except Exception as exc:
+            checks["postgres"] = {"ok": False, "error": type(exc).__name__}
+            overall_ok = False
+
+        t0 = time.monotonic()
+        try:
+            await asyncio.wait_for(request.app.state.redis.ping(), timeout=0.5)
+            checks["redis"] = {"ok": True, "latency_ms": round((time.monotonic() - t0) * 1000)}
+        except TimeoutError:
+            checks["redis"] = {"ok": False, "error": "timeout"}
+            overall_ok = False
+        except Exception as exc:
+            checks["redis"] = {"ok": False, "error": type(exc).__name__}
+            overall_ok = False
+
+        status = "ready" if overall_ok else "not_ready"
+        if not overall_ok:
+            logger.error(
+                "readiness_check_failed",
+                postgres_ok=checks["postgres"]["ok"],
+                redis_ok=checks["redis"]["ok"],
+            )
+        return JSONResponse(
+            content={"status": status, "checks": checks},
+            status_code=200 if overall_ok else 503,
+        )
+
     # ── Export routes ──
 
     @app.get("/api/v1/export/{resource}")
