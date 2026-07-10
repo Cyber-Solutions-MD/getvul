@@ -1,5 +1,7 @@
 """GetVul API — entry point."""
 
+import asyncio
+import re
 import time
 import uuid
 import uuid as _uuid
@@ -11,11 +13,16 @@ import structlog
 from cryptography.fernet import Fernet
 from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from redis.exceptions import RedisError
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+from structlog.contextvars import bind_contextvars, clear_contextvars
+
+from app.db.session import async_session_factory
+from app.logging import configure_logging
 
 from app.assets.router import router as asset_router
 from app.auth.dependencies import get_current_user
@@ -85,6 +92,10 @@ def _check_secrets_at_startup() -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
+    # Configure structured logging first — before any other startup work so
+    # every subsequent log line (including secrets check) uses the right renderer.
+    configure_logging()
+
     # Validate secrets before any other startup work (T-05-05).
     # Raises RuntimeError in production if ENCRYPTION_KEY or JWT_SECRET_KEY
     # are unset / placeholder / invalid. Warns and continues in development.
@@ -226,6 +237,27 @@ class TenantRateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# ── Request ID middleware ──
+
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Generate or validate X-Request-ID and bind it to structlog contextvars."""
+
+    async def dispatch(self, request: Request, call_next):
+        clear_contextvars()
+        inbound = request.headers.get("X-Request-ID", "")
+        if inbound and _REQUEST_ID_RE.match(inbound):
+            request_id = inbound            # honor sanitized inbound (len<=128, charset [A-Za-z0-9._-])
+        else:
+            request_id = str(uuid.uuid4())  # invalid/oversized/missing -> mint UUID4
+        bind_contextvars(request_id=request_id)
+        response: Response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
 def create_app() -> FastAPI:
     """Build a fresh FastAPI instance with the full middleware/router stack.
 
@@ -253,6 +285,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(TenantRateLimitMiddleware)
+    app.add_middleware(RequestIdMiddleware)
 
     # ── Routes ──
     app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
