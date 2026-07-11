@@ -17,6 +17,12 @@ export type QueryError = {
   requestId: string;
 };
 
+// Stable empty reference for the SSR/hydration snapshot. useSyncExternalStore
+// requires getServerSnapshot to return a CACHED value — a fresh `[]` literal
+// each call triggers React's "getServerSnapshot should be cached to avoid an
+// infinite loop" error (mirrors the getSnapshot cacheRef treatment below).
+const EMPTY_ERRORS: QueryError[] = [];
+
 function extractCode(err: Error): number | string {
   // Phase 10 microcopy.ts pattern: error objects carry .code when api.ts
   // attaches it; fall back to 'unknown' so the banner still renders.
@@ -82,8 +88,9 @@ export function useQueryErrors(keys: readonly QueryKey[]): QueryError[] {
     [cache, keys]
   );
 
-  // SSR fallback: no errors during server render.
-  const getServerSnapshot = () => [] as QueryError[];
+  // SSR fallback: no errors during server render. Must return a STABLE
+  // reference (not a fresh `[]`) or useSyncExternalStore loops — see EMPTY_ERRORS.
+  const getServerSnapshot = () => EMPTY_ERRORS;
 
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
