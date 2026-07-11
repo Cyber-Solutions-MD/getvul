@@ -50,6 +50,13 @@ interface AuthState {
   loginSSO: (provider: 'google' | 'azure') => Promise<void>;
   logout: () => void;
   token: string | null;
+  // PROD-06-03 fix: apply a token-issuing response (access/refresh + fresh
+  // UserInfo) into both localStorage AND in-memory state. The force-rotation
+  // gate reads `user.must_change_password` from React state, so the
+  // change-password success handler must update state here — writing
+  // localStorage alone leaves the stale flagged user in memory and the gate
+  // bounces the user back to /change-password after a successful rotation.
+  applyAuthData: (data: unknown) => void;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -59,6 +66,7 @@ const AuthContext = createContext<AuthState>({
   loginSSO: async () => {},
   logout: () => {},
   token: null,
+  applyAuthData: () => {},
 });
 
 export function useAuth() { return useContext(AuthContext); }
@@ -162,6 +170,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data.user) setUser(data.user);
   }
 
+  // PROD-06-03 fix: public wrapper so flows outside AuthProvider (the
+  // /change-password rotation handler) can push a fresh token-issuing response
+  // into both storage and in-memory state. Without updating `user` here, the
+  // force-rotation gate below keeps reading the stale flagged user and bounces
+  // the caller back to /change-password after a successful rotation.
+  const applyAuthData = useCallback((data: unknown) => {
+    const d = data as { access_token?: string };
+    if (d?.access_token) storeTokens(d);
+  }, []);
+
   function clearAuth() {
     localStorage.removeItem("getvul_token");
     localStorage.removeItem("getvul_refresh");
@@ -258,7 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, router, qc]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, loginSSO, logout, token }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginSSO, logout, token, applyAuthData }}>
       {children}
     </AuthContext.Provider>
   );

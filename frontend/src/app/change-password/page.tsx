@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import { changePasswordSchema } from '@/lib/validation/auth';
+import { useAuth } from '@/lib/auth';
 import { sanitizeNext } from '@/app/login/sanitize-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +45,7 @@ function ChangePasswordFallback() {
 function ChangePasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { applyAuthData } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof changePasswordSchema>>({
@@ -94,16 +96,13 @@ function ChangePasswordForm() {
 
     // T-06-token-replay: overwrite the old flagged tokens with the fresh
     // flag-free ones BEFORE navigating, so the guard doesn't bounce the user
-    // back to /change-password (Pitfall 3).
+    // back to /change-password (Pitfall 3). applyAuthData updates BOTH
+    // localStorage AND the AuthProvider's in-memory `user` — the force-rotation
+    // gate reads `user.must_change_password` from React state, so a
+    // localStorage-only write left the stale flagged user in memory and looped
+    // the user back here after a successful rotation.
     const data = await resp.json().catch(() => ({}));
-    if (typeof window !== 'undefined') {
-      if (data?.access_token) {
-        localStorage.setItem('getvul_token', data.access_token);
-      }
-      if (data?.refresh_token) {
-        localStorage.setItem('getvul_refresh', data.refresh_token);
-      }
-    }
+    applyAuthData(data);
 
     // T-06-open-redirect: sanitizeNext keeps ?next to same-origin relative
     // paths only; defaults to /dashboard.
