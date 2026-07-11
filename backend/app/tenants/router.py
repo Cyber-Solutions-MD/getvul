@@ -108,7 +108,14 @@ async def get_tenant_settings(
     user: Annotated[CurrentUser, Depends(require_admin)],
 ):
     """Get tenant settings including SSO enforcement."""
-    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+    # scalar_one_or_none (not scalar_one): a valid JWT can outlive its tenant
+    # (e.g. tenant deleted while a session token is still live). scalar_one()
+    # would raise an unhandled NoResultFound → 500, and a 500 that escapes the
+    # route lacks CORS headers, so the browser sees an opaque "Failed to fetch"
+    # instead of a usable error. Return a clean 404 instead.
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one_or_none()
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     return {
         "sso_enforced": tenant.sso_enforced,
         "idp_provider": tenant.idp_provider,
