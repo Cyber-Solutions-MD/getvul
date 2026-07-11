@@ -650,6 +650,30 @@ async def unwatch_ticket(
     return {"watching": False}
 
 
+# ── Ticket Rules (list) ──
+# NOTE: this static route MUST be declared before the /{ticket_id} catch-all
+# below. FastAPI matches routes in declaration order — if /{ticket_id} comes
+# first, GET /tickets/rules is captured by it and 422s trying to parse "rules"
+# as a UUID (uuid_parsing on path param ticket_id).
+
+
+@router.get("/rules")
+async def list_rules(
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """List all ticket rules."""
+    from sqlalchemy import select
+
+    from app.ticketing.models import TicketRule
+
+    result = await db.execute(
+        select(TicketRule).where(TicketRule.tenant_id == user.tenant_id).order_by(TicketRule.created_at.desc())
+    )
+    rules = result.scalars().all()
+    return [TicketRuleResponse.model_validate(r) for r in rules]
+
+
 # ── Ticket detail endpoint ────────────────────────────────────────────────────
 
 
@@ -1009,23 +1033,6 @@ async def update_asana_config(
 
 
 # ── Ticket Rules ──
-
-
-@router.get("/rules")
-async def list_rules(
-    db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    """List all ticket rules."""
-    from sqlalchemy import select
-
-    from app.ticketing.models import TicketRule
-
-    result = await db.execute(
-        select(TicketRule).where(TicketRule.tenant_id == user.tenant_id).order_by(TicketRule.created_at.desc())
-    )
-    rules = result.scalars().all()
-    return [TicketRuleResponse.model_validate(r) for r in rules]
 
 
 @router.post("/rules")
