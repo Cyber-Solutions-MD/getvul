@@ -22,6 +22,7 @@ import { CspmStatusPill } from './cspm-status-pill';
 import { SEVERITY_GLYPH, SEVERITY_CLASS } from './microcopy';
 import { PartialFailureBanner } from '@/components/states';
 import { useCspmDetail } from '@/lib/queries/use-cspm-detail';
+import { ApiError } from '@/lib/api';
 
 // T-14-12: literal lookup — unknown cloud_provider falls through to undefined
 const CLOUD_PROVIDER_MAP: Record<string, ConnectorProvider> = {
@@ -36,7 +37,7 @@ export type FindingDrillContentProps = {
 };
 
 export function FindingDrillContent({ findingId, onClose }: FindingDrillContentProps) {
-  const { data, isPending, isError } = useCspmDetail(findingId);
+  const { data, isPending, isError, error } = useCspmDetail(findingId);
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isPending) {
@@ -79,7 +80,11 @@ export function FindingDrillContent({ findingId, onClose }: FindingDrillContentP
         </div>
         <div className="flex-1 p-5">
           <PartialFailureBanner
-            errors={[{ code: 'ERR', requestId: '' }]}
+            errors={[
+              error instanceof ApiError
+                ? { code: error.code, requestId: error.requestId, message: error.message }
+                : { code: 'ERR', requestId: 'unknown', message: error instanceof Error ? error.message : undefined },
+            ]}
           />
         </div>
       </div>

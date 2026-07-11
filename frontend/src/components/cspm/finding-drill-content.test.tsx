@@ -9,7 +9,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // ── Module mocks (must be top-level before imports) ───────────────────────────
-vi.mock('@/lib/api', () => ({ api: vi.fn() }));
+vi.mock('@/lib/api', () => ({
+  api: vi.fn(),
+  // ApiError is referenced by finding-drill-content's error mapping
+  // (error instanceof ApiError); provide a real subclass so the check works.
+  ApiError: class ApiError extends Error {
+    code: number;
+    requestId: string;
+    constructor(message: string, code: number, requestId: string) {
+      super(message);
+      this.name = 'ApiError';
+      this.code = code;
+      this.requestId = requestId;
+    }
+  },
+}));
 vi.mock('@/components/ui/ToastProvider', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
