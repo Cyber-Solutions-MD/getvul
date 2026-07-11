@@ -25,6 +25,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useUrlStateList } from '@/hooks/use-url-state-list';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useTicketRules, type TicketRule } from '@/lib/queries/use-ticket-rules';
+import { ApiError } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 // XSS allow-list for status chip (T-12-05 / T-13-31).
@@ -52,15 +53,27 @@ const SKELETON_COLUMNS: SkeletonColumn[] = [
   { kind: 'mono', width: 100 },  // schedule
 ];
 
+// Map an unknown error to the banner's {code, requestId, message} row. api.ts
+// throws ApiError carrying the HTTP status + Phase-07 X-Request-ID; surface
+// those in their proper slots (previously code was hardcoded and err.message
+// was crammed into requestId). WR-10: pass full err.message — the banner
+// truncates visually.
+function toErrorRow(err: unknown, fallbackCode: number | string) {
+  if (err instanceof ApiError) {
+    return { code: err.code, requestId: err.requestId, message: err.message };
+  }
+  return {
+    code: fallbackCode,
+    requestId: 'unknown',
+    message: err instanceof Error ? err.message : undefined,
+  };
+}
+
 function pageErrorFallback(err: Error, reset: () => void): ReactNode {
-  // WR-10: pass full err.message — PartialFailureBanner truncates visually.
   return (
     <div className="space-y-4 p-6">
       <h1 className="sr-only">Automation rules</h1>
-      <PartialFailureBanner
-        errors={[{ code: 'crash', requestId: err.message || 'unknown' }]}
-        onRetry={reset}
-      />
+      <PartialFailureBanner errors={[toErrorRow(err, 'crash')]} onRetry={reset} />
     </div>
   );
 }
@@ -180,13 +193,7 @@ function RulesPageInner() {
           empty data would show contradictory "No rules" + alert states. */}
       {q.error ? (
         <PartialFailureBanner
-          errors={[
-            {
-              code: 'http_error',
-              // WR-10: full err.message — no .slice or .substring
-              requestId: String((q.error as Error).message) || 'unknown',
-            },
-          ]}
+          errors={[toErrorRow(q.error, 'http_error')]}
           onRetry={() => q.refetch()}
         />
       ) : q.isLoading ? (
