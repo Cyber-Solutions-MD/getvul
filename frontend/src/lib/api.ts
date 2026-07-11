@@ -1,5 +1,35 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
+// Typed API error carrying the HTTP status + the Phase-07 X-Request-ID so
+// downstream error UI (use-query-errors.ts → PartialFailureBanner) can render
+// "HTTP <code> · Request ID <id>" for operator correlation. Throwing a bare
+// Error dropped both (banner showed "HTTP unknown · Request ID unknown") and
+// stringified object-valued `detail` to "[object Object]".
+export class ApiError extends Error {
+  code: number;
+  requestId: string;
+  constructor(message: string, code: number, requestId: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.requestId = requestId;
+  }
+}
+
+// FastAPI puts the machine-readable payload under `detail`, which may be a
+// string OR a structured object (e.g. {"reason": "password_change_required"}).
+// Coerce to a human string without ever producing "[object Object]".
+function extractDetailMessage(body: unknown, status: number): string {
+  const detail = (body as { detail?: unknown } | null | undefined)?.detail;
+  if (typeof detail === "string" && detail) return detail;
+  if (detail && typeof detail === "object") {
+    const d = detail as { reason?: unknown; message?: unknown };
+    if (typeof d.message === "string" && d.message) return d.message;
+    if (typeof d.reason === "string" && d.reason) return d.reason;
+  }
+  return `API error: ${status}`;
+}
+
 function getToken(): string {
   if (typeof window !== "undefined") {
     return localStorage.getItem("getvul_token") || "dev-token";
@@ -95,8 +125,9 @@ export async function api<T = any>(
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(error.detail || `API error: ${res.status}`);
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    const requestId = res.headers?.get("x-request-id") || "unknown";
+    throw new ApiError(extractDetailMessage(body, res.status), res.status, requestId);
   }
 
   return res.json();

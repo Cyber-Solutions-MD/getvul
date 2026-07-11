@@ -32,7 +32,7 @@ Object.defineProperty(window, 'localStorage', {
   configurable: true,
 });
 
-import { api } from './api';
+import { api, ApiError } from './api';
 
 // Regression-style coverage for api():
 // - signal pass-through (Phase 10 / RESEARCH Pattern 5)
@@ -103,10 +103,44 @@ describe('api() wrapper', () => {
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
+      headers: new Headers({ 'x-request-id': 'req-500' }),
       json: async () => ({ detail: 'boom' }),
     } as Response);
 
     await expect(api('/x')).rejects.toThrow('boom');
+  });
+
+  it('throws ApiError carrying HTTP status + X-Request-ID (banner correlation)', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: new Headers({ 'x-request-id': 'req-abc-123' }),
+      json: async () => ({ detail: 'boom' }),
+    } as Response);
+
+    const err = await api('/x').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe('boom');
+    expect(err.code).toBe(500);
+    expect(err.requestId).toBe('req-abc-123');
+  });
+
+  it('coerces object-valued detail to a string (no "[object Object]")', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      headers: new Headers({ 'x-request-id': 'req-403' }),
+      json: async () => ({ detail: { reason: 'password_change_required' } }),
+    } as Response);
+
+    const err = await api('/x').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe('password_change_required');
+    expect(err.message).not.toContain('[object Object]');
+    expect(err.code).toBe(403);
+    expect(err.requestId).toBe('req-403');
   });
 
   it('BL-06: POST + 401 does NOT transparently retry — surfaces the auth failure to caller', async () => {
