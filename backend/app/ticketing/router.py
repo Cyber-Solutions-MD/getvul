@@ -703,22 +703,19 @@ async def get_ticket_detail(
     row, external_ticket_url = await _resolve_group(db, ticket_id, user.tenant_id)
 
     # ── Group aggregates ──────────────────────────────────────────────────────
-    group_q = (
-        select(
-            func.min(Ticket.provider).label("provider"),
-            func.min(Ticket.external_status).label("external_status"),
-            func.min(Ticket.assignee).label("assignee"),
-            func.min(Ticket.ticket_created_at).label("ticket_created_at"),
-            func.max(Ticket.resolved_at).label("resolved_at"),
-            func.count(Ticket.id).label("vuln_count"),
-            func.bool_or(Ticket.blocked).label("blocked"),
-            func.min(Ticket.blocked_reason).label("blocked_reason"),
-            func.min(Ticket.sla_due_at).label("sla_due_at"),
-        )
-        .where(
-            Ticket.external_ticket_url == external_ticket_url,
-            Ticket.tenant_id == user.tenant_id,
-        )
+    group_q = select(
+        func.min(Ticket.provider).label("provider"),
+        func.min(Ticket.external_status).label("external_status"),
+        func.min(Ticket.assignee).label("assignee"),
+        func.min(Ticket.ticket_created_at).label("ticket_created_at"),
+        func.max(Ticket.resolved_at).label("resolved_at"),
+        func.count(Ticket.id).label("vuln_count"),
+        func.bool_or(Ticket.blocked).label("blocked"),
+        func.min(Ticket.blocked_reason).label("blocked_reason"),
+        func.min(Ticket.sla_due_at).label("sla_due_at"),
+    ).where(
+        Ticket.external_ticket_url == external_ticket_url,
+        Ticket.tenant_id == user.tenant_id,
     )
     group = (await db.execute(group_q)).first()
 
@@ -728,10 +725,7 @@ async def get_ticket_detail(
     reporter_data = None
     if row.created_by_user_id:
         reporter_row = (
-            await db.execute(
-                select(User.id, User.display_name, User.email)
-                .where(User.id == row.created_by_user_id)
-            )
+            await db.execute(select(User.id, User.display_name, User.email).where(User.id == row.created_by_user_id))
         ).first()
         if reporter_row:
             reporter_data = {
@@ -912,12 +906,8 @@ async def get_ticket_detail(
         "linked_vulns": linked_vulns,
         "watchers": watchers,
         "vuln_count": group.vuln_count if group else 0,
-        "ticket_created_at": (
-            group.ticket_created_at.isoformat() if group and group.ticket_created_at else None
-        ),
-        "resolved_at": (
-            group.resolved_at.isoformat() if group and group.resolved_at else None
-        ),
+        "ticket_created_at": (group.ticket_created_at.isoformat() if group and group.ticket_created_at else None),
+        "resolved_at": (group.resolved_at.isoformat() if group and group.resolved_at else None),
     }
 
 

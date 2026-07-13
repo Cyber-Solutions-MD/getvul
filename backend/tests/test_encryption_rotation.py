@@ -16,13 +16,11 @@ import json
 import os
 import subprocess
 import sys
-import uuid
 
 import pytest
 from cryptography.fernet import Fernet, InvalidToken
 
 from app.encryption import _fernet_for, generate_key
-
 
 # ── Task 1: _fernet_for() unit tests ────────────────────────────────────────
 
@@ -77,10 +75,8 @@ async def test_rotate_all_rows(db_session, tenant_a):
 
     async with async_session_factory() as fresh:
         rows = (
-            await fresh.execute(
-                select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)
-            )
-        ).scalars().all()
+            (await fresh.execute(select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a))).scalars().all()
+        )
         assert len(rows) == 2
         for row in rows:
             cmap = json.loads(row.credentials_secret_arn)
@@ -117,10 +113,10 @@ async def test_rotate_verifies(db_session, tenant_a):
 
     async with async_session_factory() as fresh:
         reloaded = (
-            await fresh.execute(
-                select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)
-            )
-        ).scalars().first()
+            (await fresh.execute(select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)))
+            .scalars()
+            .first()
+        )
         cmap = json.loads(reloaded.credentials_secret_arn)
         assert _fernet_for(key_b).decrypt(cmap["token"].encode()).decode() == "my-api-token"
 
@@ -165,10 +161,10 @@ async def test_rotate_aborts_on_bad_row(db_session, tenant_a):
 
     async with async_session_factory() as fresh:
         good_reloaded = (
-            await fresh.execute(
-                select(ConnectorConfig).where(ConnectorConfig.connector_type == "NESSUS")
-            )
-        ).scalars().first()
+            (await fresh.execute(select(ConnectorConfig).where(ConnectorConfig.connector_type == "NESSUS")))
+            .scalars()
+            .first()
+        )
         cmap = json.loads(good_reloaded.credentials_secret_arn)
         assert _fernet_for(key_a).decrypt(cmap["api_key"].encode()).decode() == "real-secret"
 
@@ -186,18 +182,12 @@ async def test_rotate_aborts_on_malformed_json_shapes(db_session, tenant_a):
 
     # Good row so there is real work that must be rolled back
     good_encrypted = json.dumps({"api_key": _fernet_for(key_a).encrypt(b"real").decode()})
-    db_session.add(
-        ConnectorConfig(tenant_id=tenant_a, connector_type="NESSUS", credentials_secret_arn=good_encrypted)
-    )
+    db_session.add(ConnectorConfig(tenant_id=tenant_a, connector_type="NESSUS", credentials_secret_arn=good_encrypted))
     # Valid JSON but not an object (e.g. a bare number)
-    db_session.add(
-        ConnectorConfig(tenant_id=tenant_a, connector_type="QUALYS", credentials_secret_arn=json.dumps(5))
-    )
+    db_session.add(ConnectorConfig(tenant_id=tenant_a, connector_type="QUALYS", credentials_secret_arn=json.dumps(5)))
     # Object with a non-string field value
     db_session.add(
-        ConnectorConfig(
-            tenant_id=tenant_a, connector_type="RAPID7", credentials_secret_arn=json.dumps({"api_key": 5})
-        )
+        ConnectorConfig(tenant_id=tenant_a, connector_type="RAPID7", credentials_secret_arn=json.dumps({"api_key": 5}))
     )
     await db_session.commit()
 
@@ -209,10 +199,10 @@ async def test_rotate_aborts_on_malformed_json_shapes(db_session, tenant_a):
     # Good row still decrypts with key_a (nothing was written)
     async with async_session_factory() as fresh:
         good = (
-            await fresh.execute(
-                select(ConnectorConfig).where(ConnectorConfig.connector_type == "NESSUS")
-            )
-        ).scalars().first()
+            (await fresh.execute(select(ConnectorConfig).where(ConnectorConfig.connector_type == "NESSUS")))
+            .scalars()
+            .first()
+        )
         cmap = json.loads(good.credentials_secret_arn)
         assert _fernet_for(key_a).decrypt(cmap["api_key"].encode()).decode() == "real"
 
@@ -236,10 +226,8 @@ async def test_dry_run_no_rows(db_session):
     # No audit row written
     async with async_session_factory() as fresh:
         count = (
-            await fresh.execute(
-                select(AuditLog).where(AuditLog.action == "encryption.key_rotated")
-            )
-        ).scalars().all()
+            (await fresh.execute(select(AuditLog).where(AuditLog.action == "encryption.key_rotated"))).scalars().all()
+        )
         assert len(count) == 0
 
 
@@ -293,10 +281,8 @@ async def test_audit_event(db_session, tenant_a):
 
     async with async_session_factory() as fresh:
         audit_rows = (
-            await fresh.execute(
-                select(AuditLog).where(AuditLog.action == "encryption.key_rotated")
-            )
-        ).scalars().all()
+            (await fresh.execute(select(AuditLog).where(AuditLog.action == "encryption.key_rotated"))).scalars().all()
+        )
         assert len(audit_rows) >= 1
         row = audit_rows[0]
         assert row.action == "encryption.key_rotated"
@@ -338,10 +324,10 @@ async def test_sc4_rotation_is_real(db_session, tenant_a):
     # Step 2: Reload and verify decrypts with B
     async with async_session_factory() as fresh:
         reloaded = (
-            await fresh.execute(
-                select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)
-            )
-        ).scalars().first()
+            (await fresh.execute(select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)))
+            .scalars()
+            .first()
+        )
         cmap_b = json.loads(reloaded.credentials_secret_arn)
         # Must decrypt with B
         assert _fernet_for(key_b).decrypt(cmap_b["api_key"].encode()).decode() == "sc4-secret"
@@ -353,10 +339,10 @@ async def test_sc4_rotation_is_real(db_session, tenant_a):
     # Step 4: Reload and assert B-keyed ciphertext no longer decrypts with B
     async with async_session_factory() as fresh2:
         reloaded2 = (
-            await fresh2.execute(
-                select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)
-            )
-        ).scalars().first()
+            (await fresh2.execute(select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)))
+            .scalars()
+            .first()
+        )
         cmap_a = json.loads(reloaded2.credentials_secret_arn)
         # cmap_a["api_key"] is now encrypted with key_a; decrypting with key_b MUST fail
         with pytest.raises(InvalidToken):
@@ -422,8 +408,8 @@ def test_startup_check_encryption_placeholder_dev(monkeypatch):
 
 def test_startup_check_encryption_placeholder_prod(monkeypatch):
     """Prod mode + placeholder encryption_key → RuntimeError raised."""
+
     import app.main as main
-    from cryptography.fernet import Fernet
 
     monkeypatch.setattr(main.settings, "environment", "production")
     monkeypatch.setattr(main.settings, "encryption_key", ENCRYPTION_KEY_PLACEHOLDER)
@@ -447,8 +433,9 @@ def test_startup_check_encryption_invalid_prod(monkeypatch):
 
 def test_startup_check_valid_key_ok(monkeypatch):
     """Prod mode + valid Fernet key + non-placeholder JWT → returns [] (no issues)."""
-    import app.main as main
     from cryptography.fernet import Fernet
+
+    import app.main as main
 
     valid_key = Fernet.generate_key().decode()
     monkeypatch.setattr(main.settings, "environment", "production")
@@ -461,8 +448,9 @@ def test_startup_check_valid_key_ok(monkeypatch):
 
 def test_startup_check_jwt_placeholder_prod(monkeypatch):
     """Prod mode + valid encryption_key + placeholder JWT → RuntimeError raised."""
-    import app.main as main
     from cryptography.fernet import Fernet
+
+    import app.main as main
 
     valid_key = Fernet.generate_key().decode()
     monkeypatch.setattr(main.settings, "environment", "production")
@@ -475,8 +463,9 @@ def test_startup_check_jwt_placeholder_prod(monkeypatch):
 
 def test_startup_check_jwt_placeholder_dev(monkeypatch):
     """Dev mode + valid encryption_key + placeholder JWT → non-empty issues, no raise."""
-    import app.main as main
     from cryptography.fernet import Fernet
+
+    import app.main as main
 
     valid_key = Fernet.generate_key().decode()
     monkeypatch.setattr(main.settings, "environment", "development")
@@ -511,9 +500,7 @@ async def test_rotate_cli_subprocess_completes_and_audits(db_session, tenant_a):
 
     # Seed ONE ConnectorConfig row encrypted with key_a so the CLI has work to do.
     creds = {"api_key": "cli-subprocess-secret"}
-    encrypted = json.dumps(
-        {k: _fernet_for(key_a).encrypt(v.encode()).decode() for k, v in creds.items()}
-    )
+    encrypted = json.dumps({k: _fernet_for(key_a).encrypt(v.encode()).decode() for k, v in creds.items()})
     row = ConnectorConfig(
         tenant_id=tenant_a,
         connector_type="NESSUS",
@@ -547,29 +534,25 @@ async def test_rotate_cli_subprocess_completes_and_audits(db_session, tenant_a):
     # Assert the AuditLog row landed AND the credential was re-encrypted under key_b.
     # Use a FRESH session — the subprocess used its own session; the db_session fixture
     # session is separate and must not see the subprocess's uncommitted state.
+    from sqlalchemy import select
+
     from app.audit import AuditLog
     from app.db.session import async_session_factory
-    from sqlalchemy import select
 
     async with async_session_factory() as fresh:
         audit_rows = (
-            await fresh.execute(
-                select(AuditLog).where(AuditLog.action == "encryption.key_rotated")
-            )
-        ).scalars().all()
+            (await fresh.execute(select(AuditLog).where(AuditLog.action == "encryption.key_rotated"))).scalars().all()
+        )
         assert len(audit_rows) >= 1
         assert audit_rows[0].user_email == "system:cli"
 
         row_reloaded = (
-            await fresh.execute(
-                select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)
-            )
-        ).scalars().first()
-        cmap = json.loads(row_reloaded.credentials_secret_arn)
-        assert (
-            _fernet_for(key_b).decrypt(cmap["api_key"].encode()).decode()
-            == "cli-subprocess-secret"
+            (await fresh.execute(select(ConnectorConfig).where(ConnectorConfig.tenant_id == tenant_a)))
+            .scalars()
+            .first()
         )
+        cmap = json.loads(row_reloaded.credentials_secret_arn)
+        assert _fernet_for(key_b).decrypt(cmap["api_key"].encode()).decode() == "cli-subprocess-secret"
 
     # Assert no key material leaked to the child's stdout (T-05-01 discipline).
     assert key_a not in proc.stdout and key_b not in proc.stdout

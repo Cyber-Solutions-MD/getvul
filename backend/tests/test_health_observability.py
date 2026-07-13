@@ -26,8 +26,7 @@ import re
 import pytest
 import structlog
 
-from app.logging import configure_logging, redact_sensitive_keys, SENSITIVE_KEYS
-
+from app.logging import configure_logging, redact_sensitive_keys
 
 # ---------------------------------------------------------------------------
 # D-02 / PROD-07-01: liveness probe
@@ -44,9 +43,7 @@ async def test_health_always_200(single_app):
     resp = await client.get("/health")
     assert resp.status_code == 200
     body = resp.json()
-    assert body == {"status": "ok", "service": "getvul-api"}, (
-        f"Expected verbatim D-02 body; got {body!r}"
-    )
+    assert body == {"status": "ok", "service": "getvul-api"}, f"Expected verbatim D-02 body; got {body!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +65,7 @@ async def test_ready_200_both_up(single_app):
     # Guard: skip if Postgres is not reachable (sandbox environments)
     try:
         from sqlalchemy import text
+
         from app.db.session import async_session_factory
 
         async with async_session_factory() as session:
@@ -77,32 +75,20 @@ async def test_ready_200_both_up(single_app):
 
     client, app = single_app
     resp = await client.get("/ready")
-    assert resp.status_code == 200, (
-        f"/ready should return 200 when both deps are healthy; got {resp.status_code}"
-    )
+    assert resp.status_code == 200, f"/ready should return 200 when both deps are healthy; got {resp.status_code}"
     body = resp.json()
 
     # Top-level shape — must NOT be wrapped under "detail"
-    assert "detail" not in body, (
-        f"Body must be top-level per D-05; got 'detail' wrapper: {body!r}"
-    )
+    assert "detail" not in body, f"Body must be top-level per D-05; got 'detail' wrapper: {body!r}"
     assert body["status"] == "ready", f"Expected status='ready'; got {body.get('status')!r}"
 
     postgres_check = body.get("checks", {}).get("postgres", {})
-    assert postgres_check.get("ok") is True, (
-        f"postgres check must be ok=True; got {postgres_check!r}"
-    )
-    assert "latency_ms" in postgres_check, (
-        f"postgres check must include latency_ms; got {postgres_check!r}"
-    )
+    assert postgres_check.get("ok") is True, f"postgres check must be ok=True; got {postgres_check!r}"
+    assert "latency_ms" in postgres_check, f"postgres check must include latency_ms; got {postgres_check!r}"
 
     redis_check = body.get("checks", {}).get("redis", {})
-    assert redis_check.get("ok") is True, (
-        f"redis check must be ok=True; got {redis_check!r}"
-    )
-    assert "latency_ms" in redis_check, (
-        f"redis check must include latency_ms; got {redis_check!r}"
-    )
+    assert redis_check.get("ok") is True, f"redis check must be ok=True; got {redis_check!r}"
+    assert "latency_ms" in redis_check, f"redis check must include latency_ms; got {redis_check!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +102,10 @@ async def test_ready_503_postgres_down(single_app, monkeypatch):
     Monkeypatches the async_session_factory to raise ConnectionRefusedError so
     the DB probe fails. Asserts body has top-level shape (no "detail" wrapper).
     """
-    from app.db import session as session_module
-    from unittest.mock import AsyncMock, MagicMock
     import contextlib
+    from unittest.mock import AsyncMock
+
+    from app.db import session as session_module
 
     # Build a fake session whose execute() raises immediately
     mock_session = AsyncMock()
@@ -134,20 +121,12 @@ async def test_ready_503_postgres_down(single_app, monkeypatch):
 
     client, app = single_app
     resp = await client.get("/ready")
-    assert resp.status_code == 503, (
-        f"/ready must return 503 when Postgres is down; got {resp.status_code}"
-    )
+    assert resp.status_code == 503, f"/ready must return 503 when Postgres is down; got {resp.status_code}"
     body = resp.json()
-    assert "detail" not in body, (
-        f"Body must be top-level per D-05; got 'detail' wrapper: {body!r}"
-    )
-    assert body.get("status") == "not_ready", (
-        f"Expected status='not_ready'; got {body.get('status')!r}"
-    )
+    assert "detail" not in body, f"Body must be top-level per D-05; got 'detail' wrapper: {body!r}"
+    assert body.get("status") == "not_ready", f"Expected status='not_ready'; got {body.get('status')!r}"
     postgres_check = body.get("checks", {}).get("postgres", {})
-    assert postgres_check.get("ok") is False, (
-        f"postgres check must be ok=False; got {postgres_check!r}"
-    )
+    assert postgres_check.get("ok") is False, f"postgres check must be ok=False; got {postgres_check!r}"
 
 
 async def test_ready_503_redis_down(single_app, monkeypatch):
@@ -164,14 +143,10 @@ async def test_ready_503_redis_down(single_app, monkeypatch):
     monkeypatch.setattr(app.state.redis, "ping", boom_ping)
 
     resp = await client.get("/ready")
-    assert resp.status_code == 503, (
-        f"/ready must return 503 when Redis is down; got {resp.status_code}"
-    )
+    assert resp.status_code == 503, f"/ready must return 503 when Redis is down; got {resp.status_code}"
     body = resp.json()
     redis_check = body.get("checks", {}).get("redis", {})
-    assert redis_check.get("ok") is False, (
-        f"redis check must be ok=False; got {redis_check!r}"
-    )
+    assert redis_check.get("ok") is False, f"redis check must be ok=False; got {redis_check!r}"
 
 
 async def test_ready_503_timeout_path(single_app, monkeypatch):
@@ -192,17 +167,11 @@ async def test_ready_503_timeout_path(single_app, monkeypatch):
     monkeypatch.setattr(app.state.redis, "ping", slow_ping)
 
     resp = await client.get("/ready")
-    assert resp.status_code == 503, (
-        f"/ready must return 503 on timeout; got {resp.status_code}"
-    )
+    assert resp.status_code == 503, f"/ready must return 503 on timeout; got {resp.status_code}"
     body = resp.json()
     redis_check = body.get("checks", {}).get("redis", {})
-    assert redis_check.get("ok") is False, (
-        f"redis check must be ok=False on timeout; got {redis_check!r}"
-    )
-    assert redis_check.get("error") == "timeout", (
-        f"redis check error must be 'timeout'; got {redis_check!r}"
-    )
+    assert redis_check.get("ok") is False, f"redis check must be ok=False on timeout; got {redis_check!r}"
+    assert redis_check.get("error") == "timeout", f"redis check error must be 'timeout'; got {redis_check!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -240,18 +209,16 @@ async def test_logging_json_in_production(monkeypatch):
         configure_logging()
 
         # Assert a handler was configured on the root logger
-        assert root_logger.handlers, (
-            "configure_logging() must add at least one handler to the root logger"
-        )
+        assert root_logger.handlers, "configure_logging() must add at least one handler to the root logger"
 
         formatter = root_logger.handlers[0].formatter
         assert isinstance(formatter, structlog.stdlib.ProcessorFormatter), (
-            f"Root handler formatter must be ProcessorFormatter in production; "
-            f"got {type(formatter).__name__!r}"
+            f"Root handler formatter must be ProcessorFormatter in production; got {type(formatter).__name__!r}"
         )
 
         # Assert JSON output: emit a log line and verify it parses as JSON with 'event'
         import io
+
         buf = io.StringIO()
         test_handler = logging.StreamHandler(buf)
         test_handler.setFormatter(formatter)
@@ -264,9 +231,7 @@ async def test_logging_json_in_production(monkeypatch):
             line = buf.getvalue().strip()
             assert line, "Expected a log line; got nothing"
             parsed = json.loads(line)
-            assert "event" in parsed, (
-                f"JSON log line must contain 'event' key; got keys: {list(parsed.keys())}"
-            )
+            assert "event" in parsed, f"JSON log line must contain 'event' key; got keys: {list(parsed.keys())}"
         finally:
             test_logger.removeHandler(test_handler)
     finally:
@@ -301,18 +266,16 @@ async def test_logging_console_in_dev(monkeypatch):
         configure_logging()
 
         # Assert a handler was configured
-        assert root_logger.handlers, (
-            "configure_logging() must add at least one handler to the root logger"
-        )
+        assert root_logger.handlers, "configure_logging() must add at least one handler to the root logger"
 
         formatter = root_logger.handlers[0].formatter
         assert isinstance(formatter, structlog.stdlib.ProcessorFormatter), (
-            f"Root handler formatter must be ProcessorFormatter in dev; "
-            f"got {type(formatter).__name__!r}"
+            f"Root handler formatter must be ProcessorFormatter in dev; got {type(formatter).__name__!r}"
         )
 
         # Assert dev path: output must NOT be valid JSON (ConsoleRenderer)
         import io
+
         buf = io.StringIO()
         test_handler = logging.StreamHandler(buf)
         test_handler.setFormatter(formatter)
@@ -326,9 +289,7 @@ async def test_logging_console_in_dev(monkeypatch):
             # ConsoleRenderer output is NOT valid JSON
             try:
                 json.loads(line)
-                raise AssertionError(
-                    f"Dev log line must NOT be valid JSON (ConsoleRenderer); got: {line!r}"
-                )
+                raise AssertionError(f"Dev log line must NOT be valid JSON (ConsoleRenderer); got: {line!r}")
             except json.JSONDecodeError:
                 pass  # Expected: ConsoleRenderer output is not JSON
         finally:
@@ -357,14 +318,12 @@ async def test_request_id_middleware(single_app):
     This test is RED until 07-01 adds the RequestIdMiddleware.
     """
     client, app = single_app
-    valid_pattern = re.compile(r'^[A-Za-z0-9._-]{1,128}$')
+    valid_pattern = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
     # (a) No inbound header → auto-generated
     resp_a = await client.get("/health")
     request_id_a = resp_a.headers.get("X-Request-ID")
-    assert request_id_a is not None, (
-        "Response must have X-Request-ID header when none was sent"
-    )
+    assert request_id_a is not None, "Response must have X-Request-ID header when none was sent"
     assert valid_pattern.match(request_id_a), (
         f"Auto-generated X-Request-ID must match valid charset regex; got {request_id_a!r}"
     )
@@ -381,9 +340,7 @@ async def test_request_id_middleware(single_app):
     invalid_inbound = "x" * 200  # 200 chars exceeds the 128-char limit
     resp_c = await client.get("/health", headers={"X-Request-ID": invalid_inbound})
     request_id_c = resp_c.headers.get("X-Request-ID")
-    assert request_id_c is not None, (
-        "Response must have X-Request-ID header even when inbound was invalid"
-    )
+    assert request_id_c is not None, "Response must have X-Request-ID header even when inbound was invalid"
     assert request_id_c != invalid_inbound, (
         f"Invalid inbound X-Request-ID must be rejected; got the same value back: {request_id_c!r}"
     )
@@ -417,18 +374,10 @@ def test_redact_sensitive_keys():
     }
     result = redact_sensitive_keys(None, "info", event_dict)
 
-    assert result["authorization"] == "[REDACTED]", (
-        f"'authorization' must be redacted; got {result['authorization']!r}"
-    )
-    assert result["password"] == "[REDACTED]", (
-        f"'password' must be redacted; got {result['password']!r}"
-    )
-    assert result["api_key"] == "[REDACTED]", (
-        f"'api_key' must be redacted; got {result['api_key']!r}"
-    )
-    assert result["user"] == "alice", (
-        f"Non-sensitive 'user' must be untouched; got {result['user']!r}"
-    )
+    assert result["authorization"] == "[REDACTED]", f"'authorization' must be redacted; got {result['authorization']!r}"
+    assert result["password"] == "[REDACTED]", f"'password' must be redacted; got {result['password']!r}"
+    assert result["api_key"] == "[REDACTED]", f"'api_key' must be redacted; got {result['api_key']!r}"
+    assert result["user"] == "alice", f"Non-sensitive 'user' must be untouched; got {result['user']!r}"
 
     # Empty dict must not raise
     empty_result = redact_sensitive_keys(None, "info", {})

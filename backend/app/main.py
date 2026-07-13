@@ -7,6 +7,7 @@ import uuid
 import uuid as _uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timezone
+from typing import Any
 
 import redis.asyncio as redis
 import structlog
@@ -16,21 +17,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from redis.exceptions import RedisError
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
-from app.db.session import async_session_factory
-from app.logging import configure_logging
-
 from app.assets.router import router as asset_router
 from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
+from app.auth.schemas import CurrentUser
 from app.config import settings
 from app.connectors.router import router as connector_router
 from app.cspm.router import router as cspm_router
 from app.db.session import get_db
+from app.logging import configure_logging
 from app.notifications.router import router as notifications_router
 from app.search import search_router
 from app.tenants.router import router as tenant_router
@@ -165,9 +166,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Lock the JSON API surface down to nothing, but skip the strict policy
         # for the debug-only interactive docs routes so Swagger UI / ReDoc render.
         if not (settings.debug and request.url.path in DOCS_PATHS):
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-            )
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         # Prevent caching of API responses
         if request.url.path.startswith("/api/") or request.url.path.startswith("/auth/"):
@@ -248,8 +247,8 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         clear_contextvars()
         inbound = request.headers.get("X-Request-ID", "")
-        if inbound and _REQUEST_ID_RE.match(inbound):
-            request_id = inbound            # honor sanitized inbound (len<=128, charset [A-Za-z0-9._-])
+        if inbound and _REQUEST_ID_RE.match(inbound):  # noqa: SIM108 — explicit if/else keeps the per-branch comments
+            request_id = inbound  # honor sanitized inbound (len<=128, charset [A-Za-z0-9._-])
         else:
             request_id = str(uuid.uuid4())  # invalid/oversized/missing -> mint UUID4
         bind_contextvars(request_id=request_id)
@@ -602,10 +601,10 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/certificates/upload")
     async def upload_certificate(
-        body: dict,
-        db=Depends(get_db),
-        user=Depends(get_current_user),
-    ):
+        body: dict[str, Any],
+        db: AsyncSession = Depends(get_db),
+        user: CurrentUser = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Upload a custom TLS certificate (PEM format)."""
         from app.auth.rbac import ROLE_HIERARCHY
 
@@ -631,10 +630,10 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/certificates/self-signed")
     async def generate_self_signed_cert(
-        body: dict,
-        db=Depends(get_db),
-        user=Depends(get_current_user),
-    ):
+        body: dict[str, Any],
+        db: AsyncSession = Depends(get_db),
+        user: CurrentUser = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Generate a self-signed TLS certificate."""
         from app.auth.rbac import ROLE_HIERARCHY
 

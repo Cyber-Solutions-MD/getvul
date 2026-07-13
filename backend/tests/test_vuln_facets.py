@@ -121,7 +121,9 @@ async def test_facets_contextual_to_other_filters(client, db_session, tenant_a):
 
 
 @pytest.mark.asyncio
-async def test_facets_respect_tenant_scope(client_factory, db_session, analyst_user, analyst_user_b, tenant_a, tenant_b):
+async def test_facets_respect_tenant_scope(
+    client_factory, db_session, analyst_user, analyst_user_b, tenant_a, tenant_b
+):
     """T-11-04 / ASVS V4 IDOR: tenant_a analyst gets ONLY tenant_a's counts.
 
     Seed CRITICAL in both tenants; assert tenant_a only sees its own.
@@ -170,12 +172,8 @@ async def test_facets_severity_source_status_all_three_groups(client, db_session
     """D-F-02: ?facets=severity,source,status returns all three count maps."""
     # Seed at least one row per (severity, source, status) so all groups
     # contain non-empty data.
-    db_session.add(
-        _seed_vuln(tenant_a, cve_id="CVE-3F-1", severity="CRITICAL", source="QUALYS", status="OPEN")
-    )
-    db_session.add(
-        _seed_vuln(tenant_a, cve_id="CVE-3F-2", severity="HIGH", source="CROWDSTRIKE", status="IN_PROGRESS")
-    )
+    db_session.add(_seed_vuln(tenant_a, cve_id="CVE-3F-1", severity="CRITICAL", source="QUALYS", status="OPEN"))
+    db_session.add(_seed_vuln(tenant_a, cve_id="CVE-3F-2", severity="HIGH", source="CROWDSTRIKE", status="IN_PROGRESS"))
     await db_session.commit()
 
     resp = await client.get("/api/v1/vulnerabilities?facets=severity,source,status")

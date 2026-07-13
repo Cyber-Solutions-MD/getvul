@@ -58,9 +58,7 @@ def _seed_ticket(tenant_id, *, vulnerability_id, external_ticket_url: str) -> Ti
 
 
 @pytest.mark.asyncio
-async def test_tickets_filter_by_asset_id_returns_matching_only(
-    client, db_session, tenant_a
-):
+async def test_tickets_filter_by_asset_id_returns_matching_only(client, db_session, tenant_a):
     """asset_id narrows the response to tickets whose vuln is on that asset."""
     a1 = _seed_asset(tenant_a, "host-a")
     a2 = _seed_asset(tenant_a, "host-b")
@@ -84,9 +82,7 @@ async def test_tickets_filter_by_asset_id_returns_matching_only(
 
 
 @pytest.mark.asyncio
-async def test_tickets_no_asset_id_returns_all_tenant_tickets(
-    client, db_session, tenant_a
-):
+async def test_tickets_no_asset_id_returns_all_tenant_tickets(client, db_session, tenant_a):
     """No asset_id → the full tenant list (regression guard for existing behaviour)."""
     a = _seed_asset(tenant_a, "host-x")
     db_session.add(a)
@@ -108,9 +104,7 @@ async def test_tickets_no_asset_id_returns_all_tenant_tickets(
 @pytest.mark.asyncio
 async def test_tickets_asset_id_unknown_returns_empty(client):
     """Unknown asset_id → empty page (no 500, no row leak)."""
-    r = await client.get(
-        "/api/v1/tickets?asset_id=00000000-0000-0000-0000-000000000000"
-    )
+    r = await client.get("/api/v1/tickets?asset_id=00000000-0000-0000-0000-000000000000")
     assert r.status_code == 200
     body = r.json()
     assert body["items"] == []
@@ -118,9 +112,7 @@ async def test_tickets_asset_id_unknown_returns_empty(client):
 
 
 @pytest.mark.asyncio
-async def test_tickets_asset_id_excludes_other_assets_in_same_tenant(
-    client, db_session, tenant_a
-):
+async def test_tickets_asset_id_excludes_other_assets_in_same_tenant(client, db_session, tenant_a):
     """Sanity check: tickets on sibling assets in the SAME tenant are excluded
     when asset_id is set. Guards against the subquery accidentally widening
     via a missing AND.

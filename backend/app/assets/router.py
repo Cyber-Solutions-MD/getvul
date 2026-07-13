@@ -134,7 +134,7 @@ async def list_assets(
     # into source, never composed from user input. The `os_family` query param is parsed
     # comma-separated (W4: multi-select chip UI in 12-06) and clamped against an allow-list;
     # anything outside {linux, windows, macos, other} is silently dropped.
-    OS_FAMILY_PATTERNS = {
+    OS_FAMILY_PATTERNS = {  # noqa: N806 — intentional constant-style local (allow-list lookup table)
         "linux": ["%linux%", "%ubuntu%", "%debian%", "%centos%", "%rhel%", "%fedora%"],
         "windows": ["%windows%"],
         "macos": ["%macos%", "%mac os%"],

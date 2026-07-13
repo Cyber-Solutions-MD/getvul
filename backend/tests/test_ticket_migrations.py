@@ -33,7 +33,6 @@ from app.assets.models import Asset
 from app.ticketing.models import Ticket, TicketComment, TicketWatcher
 from app.vulnerabilities.models import Vulnerability
 
-
 # ── Seed helpers ──────────────────────────────────────────────────────────────
 
 
@@ -101,9 +100,7 @@ async def test_ticket_sla_due_at_set_from_vuln(db_session, tenant_a):
     db_session.add(ticket)
     await db_session.flush()
 
-    result = await db_session.execute(
-        select(Ticket).where(Ticket.id == ticket.id)
-    )
+    result = await db_session.execute(select(Ticket).where(Ticket.id == ticket.id))
     fetched = result.scalar_one()
     assert fetched.sla_due_at is not None, "sla_due_at should be set"
     # Compare at second precision — DB may truncate sub-second.
@@ -116,9 +113,7 @@ async def test_ticket_sla_due_at_set_from_vuln(db_session, tenant_a):
 
 
 @pytest.mark.asyncio
-async def test_ticket_comment_insert_and_chronological_order(
-    db_session, tenant_a, analyst_user
-):
+async def test_ticket_comment_insert_and_chronological_order(db_session, tenant_a, analyst_user):
     """Migration 026 adds ticket_comments table with ix_ticket_comments_ticket_created.
 
     Inserts two comments for the same ticket and verifies:
@@ -155,27 +150,19 @@ async def test_ticket_comment_insert_and_chronological_order(
     await db_session.flush()
 
     result = await db_session.execute(
-        select(TicketComment)
-        .where(TicketComment.ticket_id == ticket.id)
-        .order_by(TicketComment.created_at.asc())
+        select(TicketComment).where(TicketComment.ticket_id == ticket.id).order_by(TicketComment.created_at.asc())
     )
     comments = result.scalars().all()
     assert len(comments) == 2, f"expected 2 comments, got {len(comments)}"
-    assert comments[0].body == "First comment", (
-        f"Expected 'First comment' first, got {comments[0].body!r}"
-    )
-    assert comments[1].body == "Second comment", (
-        f"Expected 'Second comment' second, got {comments[1].body!r}"
-    )
+    assert comments[0].body == "First comment", f"Expected 'First comment' first, got {comments[0].body!r}"
+    assert comments[1].body == "Second comment", f"Expected 'Second comment' second, got {comments[1].body!r}"
 
 
 # ── Test 3: TicketWatcher composite PK rejects duplicates ─────────────────────
 
 
 @pytest.mark.asyncio
-async def test_ticket_watcher_duplicate_rejected_by_pk(
-    db_session, tenant_a, analyst_user
-):
+async def test_ticket_watcher_duplicate_rejected_by_pk(db_session, tenant_a, analyst_user):
     """Migration 028 adds ticket_watchers with PK (ticket_id, user_id).
 
     A second INSERT of the same (ticket_id, user_id) pair must raise an

@@ -46,9 +46,7 @@ def _seed_asset(
 
 
 @pytest.mark.asyncio
-async def test_reassign_updates_assigned_user_and_writes_audit(
-    client, db_session, tenant_a
-):
+async def test_reassign_updates_assigned_user_and_writes_audit(client, db_session, tenant_a):
     """Happy path: PATCH-style POST updates the field AND writes an
     ``asset.owner_changed`` audit row (T-12-09 — mutation+audit are atomic).
     """
@@ -99,9 +97,7 @@ async def test_reassign_404_on_nonexistent_asset(client):
 
 
 @pytest.mark.asyncio
-async def test_reassign_cross_tenant_returns_404_not_403(
-    client, db_session, tenant_b
-):
+async def test_reassign_cross_tenant_returns_404_not_403(client, db_session, tenant_b):
     """T-12-20 mitigation — cross-tenant probe must return 404, not 403.
 
     The caller is the default `client` fixture (analyst_user in tenant_a).

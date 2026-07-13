@@ -76,9 +76,7 @@ async def test_snooze_default_1h(client, db_session, tenant_a):
 
     expected_lo = before + timedelta(hours=1) - timedelta(seconds=5)
     expected_hi = after + timedelta(hours=1) + timedelta(seconds=5)
-    assert expected_lo <= until <= expected_hi, (
-        f"Default until={until} outside [now+1h-5s, now+1h+5s]"
-    )
+    assert expected_lo <= until <= expected_hi, f"Default until={until} outside [now+1h-5s, now+1h+5s]"
 
 
 @pytest.mark.asyncio
@@ -105,9 +103,7 @@ async def test_snooze_bounded_30_days(client, db_session, tenant_a):
     await db_session.commit()
 
     far_future = (datetime.now(UTC) + timedelta(days=31)).isoformat()
-    resp = await client.post(
-        f"/api/v1/vulnerabilities/{v.id}/snooze", json={"until": far_future}
-    )
+    resp = await client.post(f"/api/v1/vulnerabilities/{v.id}/snooze", json={"until": far_future})
     assert resp.status_code == 400, resp.text
     assert "30 days" in resp.text
 
@@ -125,9 +121,7 @@ async def test_snooze_until_in_past_rejected(client, db_session, tenant_a):
 
 
 @pytest.mark.asyncio
-async def test_snooze_idor_blocked(
-    client_factory, db_session, analyst_user, analyst_user_b, tenant_a, tenant_b
-):
+async def test_snooze_idor_blocked(client_factory, db_session, analyst_user, analyst_user_b, tenant_a, tenant_b):
     """UX-02-01 / T-10-01 / ASVS V4/V8: analyst from tenant A POSTing against
     tenant B's vuln id receives 404 (NOT 403 — rows you can't see don't exist)."""
     # Create vuln owned by tenant B
@@ -165,9 +159,7 @@ async def test_snooze_emits_audit_event(client, db_session, analyst_user, tenant
 
 
 @pytest.mark.asyncio
-async def test_snooze_fails_closed_when_audit_write_fails(
-    client, db_session, monkeypatch, tenant_a
-):
+async def test_snooze_fails_closed_when_audit_write_fails(client, db_session, monkeypatch, tenant_a):
     """BL-04 / AUDIT-01 fail-closed: if the audit row cannot be written, the
     snooze MUST NOT commit. The previous behaviour was silent-success — the
     snooze landed without an audit trail, which is a compliance hazard.

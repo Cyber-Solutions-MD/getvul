@@ -88,22 +88,23 @@ class VulnerabilityFilter(BaseModel):
     exploit_available: bool | None = None
     cisa_kev: bool | None = None
     asset_id: uuid.UUID | None = None
-    search: str | None = Field(
-        None, max_length=200, description="Search CVE ID or product name"
-    )
+    search: str | None = Field(None, max_length=200, description="Search CVE ID or product name")
     age_days_min: int | None = Field(None, ge=0)
     age_days_max: int | None = Field(None, ge=0)
     # Phase 10 / D-T-01: 'triage' opts in to KEV → CVSS desc → SLA-due asc.
     # Phase 11 expands the axes — cve_id (lex), cvss_v3_score (numeric,
     # nulls last), sla_due_at (datetime, nulls last). Default (None)
     # preserves existing severity-case-then-last_seen ordering.
-    sort: Literal[
-        "triage",
-        "severity",
-        "cve_id",
-        "cvss_v3_score",
-        "sla_due_at",
-    ] | None = None
+    sort: (
+        Literal[
+            "triage",
+            "severity",
+            "cve_id",
+            "cvss_v3_score",
+            "sla_due_at",
+        ]
+        | None
+    ) = None
     # Phase 11 / T-11-01: sort direction. Defaults to "desc" so the existing
     # severity / triage sorts (which today are inherently desc) keep the same
     # shape when callers don't pass `order=`.

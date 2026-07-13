@@ -63,9 +63,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     allow_password_login: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     groups: Mapped[dict | None] = mapped_column(JSONB, default=list)
     password_history: Mapped[dict | None] = mapped_column(JSONB, default=list)  # List of previous hashes
-    must_change_password: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false"
-    )
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     department: Mapped[str | None] = mapped_column(String(200))
     job_title: Mapped[str | None] = mapped_column(String(200))
     idp_source: Mapped[str | None] = mapped_column(String(30))  # google, azure, humaans, local

@@ -62,9 +62,13 @@ jobs:
         # mypy exits 1 whenever any error exists, including baselined ones. Disable it
         # so the pipeline's exit code is mypy-baseline filter's: 0 when only baselined
         # errors remain, non-zero only on NEW errors. That is the actual gate.
+        # --allow-unsynced: don't fail on "fixed" (resolved) baseline entries. App
+        # deps are unpinned (>=), so CI's resolved library versions differ slightly
+        # from the baseline-generation env, leaving a few baselined errors that CI
+        # doesn't reproduce. Those are harmless; only NEW type errors should block.
         run: |
           set +o pipefail
-          mypy app/ | mypy-baseline filter
+          mypy app/ | mypy-baseline filter --allow-unsynced
       - name: Run migrations
         env:
           DATABASE_URL: postgresql+asyncpg://getvul:getvul@localhost:5432/getvul_test

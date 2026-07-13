@@ -132,9 +132,7 @@ class GitHubClient:
         on failure.
         """
         try:
-            resp = await self._client.get(
-                f"/repos/{self._owner}/{self._repo}/issues/{number}"
-            )
+            resp = await self._client.get(f"/repos/{self._owner}/{self._repo}/issues/{number}")
         except Exception as exc:
             logger.error("github_get_issue_error", error=str(exc))
             return None

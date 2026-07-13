@@ -25,13 +25,12 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from app.assets.models import Asset
 from app.audit import AuditLog
 from app.ticketing.models import Ticket, TicketWatcher
 from app.vulnerabilities.models import Vulnerability
-
 
 # ── Seed helpers ──────────────────────────────────────────────────────────────
 
@@ -99,9 +98,7 @@ async def _seed_group(db_session, tenant_id, *, user_id=None):
 
 
 @pytest.mark.asyncio
-async def test_post_watch_creates_row_and_idempotent(
-    db_session, tenant_a, analyst_user, client
-):
+async def test_post_watch_creates_row_and_idempotent(db_session, tenant_a, analyst_user, client):
     """POST /tickets/{id}/watch creates a watcher row (200); re-POST is a no-op (still 200)."""
     ticket, url = await _seed_group(db_session, tenant_a)
     await db_session.commit()
@@ -121,7 +118,9 @@ async def test_post_watch_creates_row_and_idempotent(
     # Only ONE watcher row must exist (PK constraint prevents duplicates)
     count = (
         await db_session.execute(
-            select(func.count()).select_from(TicketWatcher).where(
+            select(func.count())
+            .select_from(TicketWatcher)
+            .where(
                 TicketWatcher.ticket_id == ticket.id,
                 TicketWatcher.user_id == analyst_user.id,
             )
@@ -134,9 +133,7 @@ async def test_post_watch_creates_row_and_idempotent(
 
 
 @pytest.mark.asyncio
-async def test_delete_watch_removes_row_and_idempotent(
-    db_session, tenant_a, analyst_user, client
-):
+async def test_delete_watch_removes_row_and_idempotent(db_session, tenant_a, analyst_user, client):
     """DELETE /tickets/{id}/watch removes the watcher (200); re-DELETE is a no-op (200)."""
     ticket, url = await _seed_group(db_session, tenant_a)
     await db_session.commit()
@@ -169,23 +166,31 @@ async def test_watch_writes_audit(db_session, tenant_a, analyst_user, client):
     await client.delete(f"/api/v1/tickets/{ticket.id}/watch")
 
     watch_audits = (
-        await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action == "ticket.watch",
-                AuditLog.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "ticket.watch",
+                    AuditLog.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(watch_audits) >= 1, "Expected at least one ticket.watch audit row"
 
     unwatch_audits = (
-        await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action == "ticket.unwatch",
-                AuditLog.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "ticket.unwatch",
+                    AuditLog.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(unwatch_audits) >= 1, "Expected at least one ticket.unwatch audit row"
 
 
@@ -203,18 +208,14 @@ async def test_post_watch_cross_tenant_404(
     client_a = client_factory(analyst_user)
     async with client_a:
         response = await client_a.post(f"/api/v1/tickets/{ticket_b.id}/watch")
-    assert response.status_code == 404, (
-        f"Expected 404 for cross-tenant watch, got {response.status_code}"
-    )
+    assert response.status_code == 404, f"Expected 404 for cross-tenant watch, got {response.status_code}"
 
 
 # ── Test: GET /tickets/{id} detail ────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_ticket_detail_returns_required_fields(
-    db_session, tenant_a, analyst_user, client
-):
+async def test_get_ticket_detail_returns_required_fields(db_session, tenant_a, analyst_user, client):
     """GET /tickets/{id} returns logical ticket with required fields."""
     ticket, url = await _seed_group(db_session, tenant_a, user_id=analyst_user.id)
     await db_session.commit()
@@ -225,9 +226,17 @@ async def test_get_ticket_detail_returns_required_fields(
     data = response.json()
     # Required fields per plan spec (UX-05-04)
     required_keys = [
-        "id", "provider", "external_ticket_url", "external_status",
-        "blocked", "blocked_reason", "sla_due_at", "assignee",
-        "reporter", "linked_vulns", "watchers",
+        "id",
+        "provider",
+        "external_ticket_url",
+        "external_status",
+        "blocked",
+        "blocked_reason",
+        "sla_due_at",
+        "assignee",
+        "reporter",
+        "linked_vulns",
+        "watchers",
     ]
     for key in required_keys:
         assert key in data, f"Detail response missing key: {key!r}"
@@ -256,18 +265,14 @@ async def test_get_ticket_detail_cross_tenant_404(
     client_a = client_factory(analyst_user)
     async with client_a:
         response = await client_a.get(f"/api/v1/tickets/{ticket_b.id}")
-    assert response.status_code == 404, (
-        f"Expected 404 for cross-tenant detail, got {response.status_code}"
-    )
+    assert response.status_code == 404, f"Expected 404 for cross-tenant detail, got {response.status_code}"
 
 
 # ── Test: bulk-action block ────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_bulk_action_block_sets_group_blocked(
-    db_session, tenant_a, analyst_user, client
-):
+async def test_bulk_action_block_sets_group_blocked(db_session, tenant_a, analyst_user, client):
     """POST /tickets/bulk-action {action:'block', ...} sets blocked on all listed groups."""
     ticket1, url1 = await _seed_group(db_session, tenant_a)
     ticket2, url2 = await _seed_group(db_session, tenant_a)
@@ -285,13 +290,15 @@ async def test_bulk_action_block_sets_group_blocked(
 
     # Verify audit rows were created for both groups
     audit_rows = (
-        await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action == "ticket.blocked",
-                AuditLog.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "ticket.blocked",
+                    AuditLog.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
-    assert len(audit_rows) >= 2, (
-        f"Expected >= 2 ticket.blocked audit rows for 2 groups, got {len(audit_rows)}"
+        .scalars()
+        .all()
     )
+    assert len(audit_rows) >= 2, f"Expected >= 2 ticket.blocked audit rows for 2 groups, got {len(audit_rows)}"

@@ -33,9 +33,13 @@ MUST_CHANGE_PASSWORD_ALLOWLIST = frozenset(
 
 
 async def get_current_user(
-    request: Request = None,  # FastAPI injects Request positionally; default lets unit tests call directly
+    # FastAPI requires the bare `Request` annotation to inject the request object;
+    # `Request | None` is treated as a Pydantic field and raises FastAPIError at app
+    # build. The `= None` default (a direct-call test convenience) then trips mypy's
+    # [assignment] check — a genuine framework-pattern friction, so ignore it here.
+    request: Request = None,  # type: ignore[assignment]
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    db: AsyncSession = Depends(get_db),
 ) -> CurrentUser:
     """Extract and validate the current user from the JWT bearer token.
 

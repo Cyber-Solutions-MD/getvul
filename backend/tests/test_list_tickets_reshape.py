@@ -28,7 +28,6 @@ from app.ticketing.models import Ticket
 from app.ticketing.service import list_tickets, recompute_ticket_sla
 from app.vulnerabilities.models import Vulnerability
 
-
 # ── Seed helpers ──────────────────────────────────────────────────────────────
 
 
@@ -153,15 +152,12 @@ async def test_list_tickets_sla_due_at_is_group_min(db_session, tenant_a):
 
     assert item["sla_due_at"] is not None, "sla_due_at must not be None for a group with SLA"
     # Parse the ISO string and compare with sooner (the MIN)
-    from datetime import timezone
     group_sla = datetime.fromisoformat(item["sla_due_at"].replace("Z", "+00:00"))
     # Confirm it matches sooner (within 2s precision)
     assert abs((group_sla - sooner).total_seconds()) < 2, (
         f"Expected group sla_due_at ≈ sooner ({sooner}), got {group_sla}"
     )
-    assert (group_sla - later).total_seconds() < 0, (
-        "group sla_due_at should be BEFORE the later value"
-    )
+    assert (group_sla - later).total_seconds() < 0, "group sla_due_at should be BEFORE the later value"
 
 
 # ── Test 3: recompute_ticket_sla sets group rows to MIN(vuln.sla_due_at) ─────
@@ -200,13 +196,17 @@ async def test_recompute_ticket_sla_sets_group_min(db_session, tenant_a):
     await db_session.flush()
 
     rows = (
-        await db_session.execute(
-            select(Ticket).where(
-                Ticket.external_ticket_url == url,
-                Ticket.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(Ticket).where(
+                    Ticket.external_ticket_url == url,
+                    Ticket.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     assert len(rows) == 2, f"Expected 2 ticket rows, got {len(rows)}"
     for row in rows:
@@ -241,12 +241,6 @@ async def test_recompute_ticket_sla_null_when_no_vuln_sla(db_session, tenant_a):
     await recompute_ticket_sla(db_session, url, tenant_a)
     await db_session.flush()
 
-    row = (
-        await db_session.execute(
-            select(Ticket).where(Ticket.id == ticket.id)
-        )
-    ).scalar_one()
+    row = (await db_session.execute(select(Ticket).where(Ticket.id == ticket.id))).scalar_one()
 
-    assert row.sla_due_at is None, (
-        f"Expected sla_due_at=None after recompute with no-SLA vuln, got {row.sla_due_at}"
-    )
+    assert row.sla_due_at is None, f"Expected sla_due_at=None after recompute with no-SLA vuln, got {row.sla_due_at}"

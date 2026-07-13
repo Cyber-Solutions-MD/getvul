@@ -37,9 +37,7 @@ def _seed(tenant_id, source: str, cve_id: str) -> Vulnerability:
 def test_vuln_source_enum_members():
     assert VulnSource.QUALYS.value == "QUALYS"
     assert VulnSource.RAPID7.value == "RAPID7"
-    assert {m.value for m in VulnSource} == {
-        "CROWDSTRIKE", "NESSUS", "DEFENDER", "WIZ", "QUALYS", "RAPID7"
-    }
+    assert {m.value for m in VulnSource} == {"CROWDSTRIKE", "NESSUS", "DEFENDER", "WIZ", "QUALYS", "RAPID7"}
 
 
 @pytest.mark.asyncio
@@ -65,9 +63,7 @@ async def test_source_filter_rapid7(client, db_session, tenant_a):
 
 
 @pytest.mark.asyncio
-async def test_source_filter_tenant_scoped(
-    client_factory, db_session, analyst_user, tenant_a, tenant_b
-):
+async def test_source_filter_tenant_scoped(client_factory, db_session, analyst_user, tenant_a, tenant_b):
     """PROD-04-04 tenant isolation: tenant_b QUALYS rows must not surface for tenant_a."""
     db_session.add(_seed(tenant_a, "QUALYS", "CVE-TA-Q-001"))
     db_session.add(_seed(tenant_b, "QUALYS", "CVE-TB-Q-001"))

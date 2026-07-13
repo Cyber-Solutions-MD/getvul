@@ -54,17 +54,12 @@ async def unauth_client(redis_test_url, db_session):
     from app.main import create_app
 
     app = create_app()
-    async with LifespanManager(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://testserver"
-        ) as ac:
-            yield ac
+    async with LifespanManager(app), AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as ac:
+        yield ac
 
 
 @pytest.mark.asyncio
-async def test_post_tickets_endpoint_exists_returns_400_without_connector(
-    client, db_session, tenant_a
-):
+async def test_post_tickets_endpoint_exists_returns_400_without_connector(client, db_session, tenant_a):
     """D-P-04: POST /api/v1/tickets with a valid body but no ASANA connector
     configured returns 400 (not 404, not 500). This proves the endpoint is
     wired through require_analyst → body validation → _get_asana_client.
@@ -95,9 +90,7 @@ async def test_post_tickets_endpoint_exists_returns_400_without_connector(
 
 
 @pytest.mark.asyncio
-async def test_post_tickets_rejects_viewer_role_403(
-    client_factory, db_session, viewer_user, tenant_a
-):
+async def test_post_tickets_rejects_viewer_role_403(client_factory, db_session, viewer_user, tenant_a):
     """T-11-06: require_analyst rejects VIEWER → 403 before any body work.
 
     The seed vuln is a placeholder so the body passes schema validation; the

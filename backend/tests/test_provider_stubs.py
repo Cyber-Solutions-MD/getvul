@@ -16,11 +16,9 @@ import json
 
 import httpx
 import pytest
-import pytest_asyncio
 
 from app.ticketing.github_client import GitHubClient, GitHubIssue
 from app.ticketing.jira_client import JiraClient, JiraIssue
-
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 

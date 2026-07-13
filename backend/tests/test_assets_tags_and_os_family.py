@@ -124,9 +124,7 @@ async def test_detail_endpoint_returns_tags_and_sla_breach(client, db_session, t
         ("Windows 11", "linux", False),
     ],
 )
-async def test_os_family_filter_matches_prefix(
-    client, db_session, tenant_a, os_name, family, should_match
-):
+async def test_os_family_filter_matches_prefix(client, db_session, tenant_a, os_name, family, should_match):
     hostname = f"host-{family}-{uuid.uuid4().hex[:6]}"
     a = _seed_asset(tenant_a, hostname, os_name=os_name)
     db_session.add(a)
