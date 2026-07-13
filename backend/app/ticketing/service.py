@@ -715,11 +715,7 @@ async def list_tickets(
     # match). This is an EXISTS-style row filter, not a group-MAX filter.
     severity_vals = [s.strip().upper() for s in (severity or "").split(",") if s.strip()]
     if severity_vals:
-        sev_ticket_ids = (
-            select(Vulnerability.id)
-            .where(Vulnerability.severity.in_(severity_vals))
-            .scalar_subquery()
-        )
+        sev_ticket_ids = select(Vulnerability.id).where(Vulnerability.severity.in_(severity_vals)).scalar_subquery()
         base_filter.append(Ticket.vulnerability_id.in_(sev_ticket_ids))
 
     # WR-01: free-text search across the human ticket id and assignee.
@@ -727,9 +723,7 @@ async def list_tickets(
         like = f"%{search}%"
         from sqlalchemy import or_ as _or
 
-        base_filter.append(
-            _or(Ticket.external_ticket_id.ilike(like), Ticket.assignee.ilike(like))
-        )
+        base_filter.append(_or(Ticket.external_ticket_id.ilike(like), Ticket.assignee.ilike(like)))
 
     if asset_id:
         # T-12-21 mitigation — the Vulnerability subquery is unscoped, but
@@ -737,9 +731,7 @@ async def list_tickets(
         # so a cross-tenant probe can at most filter the caller's own tickets
         # by another tenant's vuln id. Since vulnerability_id is a 1:1 FK,
         # the intersection is empty by construction.
-        ticket_ids_for_asset = (
-            select(Vulnerability.id).where(Vulnerability.asset_id == asset_id).scalar_subquery()
-        )
+        ticket_ids_for_asset = select(Vulnerability.id).where(Vulnerability.asset_id == asset_id).scalar_subquery()
         base_filter.append(Ticket.vulnerability_id.in_(ticket_ids_for_asset))
 
     # WR-01: SLA tier filter operates on the group MIN(sla_due_at). Applied as a
@@ -793,9 +785,7 @@ async def list_tickets(
             .group_by(Ticket.external_ticket_url)
             .having(sla_having)
         )
-        total = (
-            await db.execute(select(func.count()).select_from(count_groups_q.subquery()))
-        ).scalar_one()
+        total = (await db.execute(select(func.count()).select_from(count_groups_q.subquery()))).scalar_one()
     else:
         count_sub = select(func.count(func.distinct(Ticket.external_ticket_url))).where(*base_filter)
         total = (await db.execute(count_sub)).scalar_one()

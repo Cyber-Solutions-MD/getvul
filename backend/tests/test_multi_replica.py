@@ -37,9 +37,7 @@ async def test_oidc_cross_replica(two_apps, flushed_redis):
     # Replica B (different process — simulated by a different app instance)
     # consumes the state. Token exchange will fail because the IdP is fake,
     # but the GETDEL must have removed the key.
-    callback_resp = await client_b.get(
-        f"/auth/callback/google?state={state}&code=fake"
-    )
+    callback_resp = await client_b.get(f"/auth/callback/google?state={state}&code=fake")
     assert callback_resp.status_code in (400, 401, 502, 503)
 
     # The state key MUST be gone (consumed atomically across replicas).
@@ -103,12 +101,8 @@ async def test_redis_outage_failure_modes(flushed_redis, app_factory, monkeypatc
     async with (
         LifespanManager(app_a) as mgr_a,
         LifespanManager(app_b) as mgr_b,
-        AsyncClient(
-            transport=ASGITransport(app=mgr_a.app), base_url="http://app-a"
-        ) as client_a,
-        AsyncClient(
-            transport=ASGITransport(app=mgr_b.app), base_url="http://app-b"
-        ) as client_b,
+        AsyncClient(transport=ASGITransport(app=mgr_a.app), base_url="http://app-a") as client_a,
+        AsyncClient(transport=ASGITransport(app=mgr_b.app), base_url="http://app-b") as client_b,
     ):
         # Sanity: both apps see the same Redis db.
         await app_a.state.redis.set("probe", "1")
@@ -134,26 +128,17 @@ async def test_redis_outage_failure_modes(flushed_redis, app_factory, monkeypatc
         # Limiter: fail OPEN with structured warning.
         with structlog.testing.capture_logs() as captured:
             resp = await client_a.get(TEST_API_ENDPOINT)
-        assert resp.status_code != 429, (
-            "limiter must fail open during Redis outage"
-        )
+        assert resp.status_code != 429, "limiter must fail open during Redis outage"
         limiter_events = [
-            e
-            for e in captured
-            if e.get("event") == "redis_unavailable"
-            and e.get("subsystem") == "rate_limiter"
+            e for e in captured if e.get("event") == "redis_unavailable" and e.get("subsystem") == "rate_limiter"
         ]
-        assert limiter_events, (
-            f"expected a rate_limiter redis_unavailable warning; got {captured}"
-        )
+        assert limiter_events, f"expected a rate_limiter redis_unavailable warning; got {captured}"
 
         # OIDC: fail CLOSED with 503.
         login_resp = await client_a.get("/auth/login/google")
         assert login_resp.status_code == 503
         assert login_resp.json()["detail"] == "Auth backend unavailable"
 
-        callback_resp = await client_b.get(
-            "/auth/callback/google?state=anything&code=fake"
-        )
+        callback_resp = await client_b.get("/auth/callback/google?state=anything&code=fake")
         assert callback_resp.status_code == 503
         assert callback_resp.json()["detail"] == "Auth backend unavailable"

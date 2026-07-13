@@ -26,7 +26,6 @@ from app.audit import AuditLog
 from app.ticketing.models import Ticket
 from app.vulnerabilities.models import Vulnerability
 
-
 # ── Seed helpers ──────────────────────────────────────────────────────────────
 
 
@@ -114,13 +113,17 @@ async def test_post_blocked_sets_all_group_rows(db_session, tenant_a, analyst_us
 
     # ALL rows in the group must be blocked
     rows = (
-        await db_session.execute(
-            select(Ticket).where(
-                Ticket.external_ticket_url == url,
-                Ticket.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(Ticket).where(
+                    Ticket.external_ticket_url == url,
+                    Ticket.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 2, f"Expected 2 rows in group, got {len(rows)}"
     for row in rows:
         await db_session.refresh(row)
@@ -131,13 +134,17 @@ async def test_post_blocked_sets_all_group_rows(db_session, tenant_a, analyst_us
 
     # Audit row ticket.blocked must exist
     audit_rows = (
-        await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action == "ticket.blocked",
-                AuditLog.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "ticket.blocked",
+                    AuditLog.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audit_rows) >= 1, "Expected at least one ticket.blocked audit row"
 
 
@@ -166,13 +173,17 @@ async def test_post_unblocked_clears_reason(db_session, tenant_a, analyst_user, 
 
     # Audit row ticket.unblocked must exist (query via a fresh execute — no object cache needed)
     audit_rows = (
-        await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action == "ticket.unblocked",
-                AuditLog.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "ticket.unblocked",
+                    AuditLog.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audit_rows) >= 1, "Expected at least one ticket.unblocked audit row"
 
 
@@ -180,9 +191,7 @@ async def test_post_unblocked_clears_reason(db_session, tenant_a, analyst_user, 
 
 
 @pytest.mark.asyncio
-async def test_post_blocked_whitespace_reason_coerced_to_none(
-    db_session, tenant_a, analyst_user, client
-):
+async def test_post_blocked_whitespace_reason_coerced_to_none(db_session, tenant_a, analyst_user, client):
     """Whitespace-only blocked_reason is coerced to None by the BlockedUpdate validator."""
     tickets, url = await _seed_group_multi(db_session, tenant_a, n_tickets=1)
     ticket = tickets[0]
@@ -219,6 +228,4 @@ async def test_post_blocked_cross_tenant_404(
             f"/api/v1/tickets/{ticket_b.id}/blocked",
             json={"blocked": True, "blocked_reason": "cross-tenant attack"},
         )
-    assert response.status_code == 404, (
-        f"Expected 404 for cross-tenant blocked, got {response.status_code}"
-    )
+    assert response.status_code == 404, f"Expected 404 for cross-tenant blocked, got {response.status_code}"

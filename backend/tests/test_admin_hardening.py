@@ -106,9 +106,7 @@ async def test_migration_column(db_session, tenant_a):
     db_session.add(u)
     await db_session.flush()
 
-    row = await db_session.execute(
-        select(User.must_change_password).where(User.id == u.id)
-    )
+    row = await db_session.execute(select(User.must_change_password).where(User.id == u.id))
     assert row.scalar_one() is False
 
 
@@ -123,12 +121,7 @@ async def test_seed_flag(db_session):
 
     await create_admin.create_admin()
 
-    result = await db_session.execute(
-        text(
-            "SELECT must_change_password FROM users "
-            "WHERE email = 'admin@getvul.local'"
-        )
-    )
+    result = await db_session.execute(text("SELECT must_change_password FROM users WHERE email = 'admin@getvul.local'"))
     assert result.scalar_one() is True
 
 
@@ -171,9 +164,7 @@ async def test_current_user_claim(db_session, tenant_a):
 
     from app.auth.dependencies import get_current_user
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -198,9 +189,7 @@ async def test_enforcement_blocks(app_factory, db_session, tenant_a):
     succeeds (or 401/422), so the 403 assertion fails (RED)."""
     from asgi_lifespan import LifespanManager
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -209,9 +198,8 @@ async def test_enforcement_blocks(app_factory, db_session, tenant_a):
         must_change_password=True,
     )
     app = app_factory()
-    async with LifespanManager(app):
-        async with _bearer_client(app, token) as ac:
-            resp = await ac.get(NON_ALLOWLIST_PATH)
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.get(NON_ALLOWLIST_PATH)
     assert resp.status_code == 403
     assert resp.json()["detail"]["reason"] == "password_change_required"
 
@@ -220,9 +208,7 @@ async def test_enforcement_allowlist_me(app_factory, db_session, tenant_a):
     """Flagged user hitting GET /auth/me → 200 (allowlist pass)."""
     from asgi_lifespan import LifespanManager
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -231,9 +217,8 @@ async def test_enforcement_allowlist_me(app_factory, db_session, tenant_a):
         must_change_password=True,
     )
     app = app_factory()
-    async with LifespanManager(app):
-        async with _bearer_client(app, token) as ac:
-            resp = await ac.get("/auth/me")
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.get("/auth/me")
     assert resp.status_code == 200
 
 
@@ -244,9 +229,7 @@ async def test_enforcement_allowlist_change(app_factory, db_session, tenant_a):
     allowlist-pass invariant that Wave 2 guarantees (RED until then)."""
     from asgi_lifespan import LifespanManager
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -255,15 +238,14 @@ async def test_enforcement_allowlist_change(app_factory, db_session, tenant_a):
         must_change_password=True,
     )
     app = app_factory()
-    async with LifespanManager(app):
-        async with _bearer_client(app, token) as ac:
-            resp = await ac.post(
-                "/auth/change-password",
-                json={
-                    "current_password": "Admin123!",
-                    "new_password": "NewPassw0rd!x",
-                },
-            )
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.post(
+            "/auth/change-password",
+            json={
+                "current_password": "Admin123!",
+                "new_password": "NewPassw0rd!x",
+            },
+        )
     assert resp.status_code != 403
 
 
@@ -274,9 +256,7 @@ async def test_unflagged_user_unblocked(app_factory, db_session, tenant_a):
     for unflagged users."""
     from asgi_lifespan import LifespanManager
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=False, role="VIEWER"
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=False, role="VIEWER")
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -285,9 +265,8 @@ async def test_unflagged_user_unblocked(app_factory, db_session, tenant_a):
         must_change_password=False,
     )
     app = app_factory()
-    async with LifespanManager(app):
-        async with _bearer_client(app, token) as ac:
-            resp = await ac.get(NON_ALLOWLIST_PATH)
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.get(NON_ALLOWLIST_PATH)
     assert resp.status_code != 403
 
 
@@ -299,9 +278,7 @@ async def test_rotation_clears_flag(app_factory, db_session, tenant_a):
     the DB flag (must_change_password becomes False)."""
     from asgi_lifespan import LifespanManager
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -310,20 +287,17 @@ async def test_rotation_clears_flag(app_factory, db_session, tenant_a):
         must_change_password=True,
     )
     app = app_factory()
-    async with LifespanManager(app):
-        async with _bearer_client(app, token) as ac:
-            resp = await ac.post(
-                "/auth/change-password",
-                json={
-                    "current_password": "Admin123!",
-                    "new_password": "NewPassw0rd!x",
-                },
-            )
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.post(
+            "/auth/change-password",
+            json={
+                "current_password": "Admin123!",
+                "new_password": "NewPassw0rd!x",
+            },
+        )
     assert resp.status_code == 200
 
-    row = await db_session.execute(
-        select(User.must_change_password).where(User.id == user.id)
-    )
+    row = await db_session.execute(select(User.must_change_password).where(User.id == user.id))
     assert row.scalar_one() is False
 
 
@@ -332,9 +306,7 @@ async def test_rotation_audit_event(app_factory, db_session, tenant_a):
     action == 'auth.first_login_rotation' for that user."""
     from asgi_lifespan import LifespanManager
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -343,22 +315,18 @@ async def test_rotation_audit_event(app_factory, db_session, tenant_a):
         must_change_password=True,
     )
     app = app_factory()
-    async with LifespanManager(app):
-        async with _bearer_client(app, token) as ac:
-            resp = await ac.post(
-                "/auth/change-password",
-                json={
-                    "current_password": "Admin123!",
-                    "new_password": "NewPassw0rd!x",
-                },
-            )
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.post(
+            "/auth/change-password",
+            json={
+                "current_password": "Admin123!",
+                "new_password": "NewPassw0rd!x",
+            },
+        )
     assert resp.status_code == 200
 
     count = await db_session.execute(
-        text(
-            "SELECT COUNT(*) FROM audit_logs "
-            "WHERE action = 'auth.first_login_rotation' AND user_id = :uid"
-        ),
+        text("SELECT COUNT(*) FROM audit_logs WHERE action = 'auth.first_login_rotation' AND user_id = :uid"),
         {"uid": str(user.id)},
     )
     assert count.scalar_one() == 1
@@ -369,9 +337,7 @@ async def test_rotation_fresh_tokens(app_factory, db_session, tenant_a):
     fresh access_token whose decoded must_change_password is False."""
     from asgi_lifespan import LifespanManager
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     token = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -380,15 +346,14 @@ async def test_rotation_fresh_tokens(app_factory, db_session, tenant_a):
         must_change_password=True,
     )
     app = app_factory()
-    async with LifespanManager(app):
-        async with _bearer_client(app, token) as ac:
-            resp = await ac.post(
-                "/auth/change-password",
-                json={
-                    "current_password": "Admin123!",
-                    "new_password": "NewPassw0rd!x",
-                },
-            )
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.post(
+            "/auth/change-password",
+            json={
+                "current_password": "Admin123!",
+                "new_password": "NewPassw0rd!x",
+            },
+        )
     assert resp.status_code == 200
     fresh = resp.json()["access_token"]
     assert decode_token(fresh).must_change_password is False
@@ -402,9 +367,7 @@ async def test_refresh_reads_current_flag(app_factory, db_session, tenant_a):
 
     from app.auth.jwt import create_refresh_token
 
-    user = await _seed_password_user(
-        db_session, tenant_a, must_change_password=True
-    )
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
     access = create_access_token(
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
@@ -429,12 +392,8 @@ async def test_refresh_reads_current_flag(app_factory, db_session, tenant_a):
             assert rot.status_code == 200
 
         # Refresh with no bearer flag interference — the endpoint is public.
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://testserver"
-        ) as public:
-            resp = await public.post(
-                "/auth/refresh", json={"refresh_token": refresh}
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as public:
+            resp = await public.post("/auth/refresh", json={"refresh_token": refresh})
     assert resp.status_code == 200
     new_access = resp.json()["access_token"]
     assert decode_token(new_access).must_change_password is False

@@ -18,15 +18,17 @@ Usage (from lifespan in main.py):
 import logging
 import re
 import sys
+from collections.abc import Callable
 
 import structlog
+from structlog.typing import EventDict, Processor, WrappedLogger
 
 from app.config import settings
 
 # D-17: Keys whose values must be scrubbed to "[REDACTED]" before any log
 # rendering.  The frozenset is intentionally immutable so processors can
 # iterate over it safely without risk of mutation.
-SENSITIVE_KEYS: frozenset = frozenset(
+SENSITIVE_KEYS: frozenset[str] = frozenset(
     {
         "authorization",
         "cookie",
@@ -39,7 +41,7 @@ SENSITIVE_KEYS: frozenset = frozenset(
 )
 
 
-def _is_sensitive(key) -> bool:
+def _is_sensitive(key: object) -> bool:
     """True if `key` names a sensitive value, matched case-insensitively (D-17).
 
     HTTP header keys arrive title-cased (`Authorization`, `Cookie`) via the
@@ -49,7 +51,7 @@ def _is_sensitive(key) -> bool:
     return isinstance(key, str) and key.lower() in SENSITIVE_KEYS
 
 
-def _redact_value(value):
+def _redact_value(value: object) -> object:
     """Recursively redact sensitive keys nested inside mappings/sequences.
 
     A leaked credential is just as sensitive one level down (e.g. a
@@ -57,16 +59,13 @@ def _redact_value(value):
     nested dicts and lists rather than only touching the top level.
     """
     if isinstance(value, dict):
-        return {
-            k: ("[REDACTED]" if _is_sensitive(k) else _redact_value(v))
-            for k, v in value.items()
-        }
+        return {k: ("[REDACTED]" if _is_sensitive(k) else _redact_value(v)) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return type(value)(_redact_value(v) for v in value)
     return value
 
 
-def redact_sensitive_keys(logger, method, event_dict):
+def redact_sensitive_keys(logger: WrappedLogger, method: str, event_dict: EventDict) -> EventDict:
     """Scrub known-sensitive keys from the structlog event dict before rendering.
 
     Structlog processor signature: (logger, method, event_dict) -> event_dict.
@@ -159,8 +158,8 @@ def configure_logging() -> None:
     #     processor sees the event dict.
     #   - redact_sensitive_keys LAST so it runs after all context enrichment
     #     and immediately before the renderer.
-    shared_processors = [
-        structlog.contextvars.merge_contextvars,        # injects request_id (D-13)
+    shared_processors: list[Processor] = [
+        structlog.contextvars.merge_contextvars,  # injects request_id (D-13)
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),
@@ -168,7 +167,7 @@ def configure_logging() -> None:
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
-        redact_sensitive_keys,                          # MUST be last before renderer (D-17)
+        redact_sensitive_keys,  # MUST be last before renderer (D-17)
     ]
 
     # Step 4: Choose renderer based on environment (D-11).
@@ -177,9 +176,10 @@ def configure_logging() -> None:
     # natively. orjson.dumps accepts `default` too, so forward it (rather than
     # dropping it, which would raise TypeError on any non-native type — WR-04).
     # orjson returns bytes; decode to str for ProcessorFormatter.
-    def _json_serializer(obj, default=None, **_kw):
+    def _json_serializer(obj: object, default: Callable[..., object] | None = None, **_kw: object) -> str:
         return orjson.dumps(obj, default=default).decode("utf-8")
 
+    renderer: Processor
     if settings.environment == "production":
         renderer = structlog.processors.JSONRenderer(serializer=_json_serializer)
     else:
@@ -219,7 +219,7 @@ def configure_logging() -> None:
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    root_logger.handlers = []       # remove any handler basicConfig may have added
+    root_logger.handlers = []  # remove any handler basicConfig may have added
     root_logger.addHandler(handler)
     root_logger.setLevel(min_level)
 

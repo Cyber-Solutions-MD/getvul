@@ -40,9 +40,7 @@ def _seed_suppressed_vuln(tenant_id) -> Vulnerability:
 
 
 @pytest.mark.asyncio
-async def test_unsnooze_requires_analyst(
-    client_factory, db_session, viewer_user, analyst_user, tenant_a
-):
+async def test_unsnooze_requires_analyst(client_factory, db_session, viewer_user, analyst_user, tenant_a):
     """UX-02-01 / ASVS V4: viewer 403; analyst 200."""
     v = _seed_suppressed_vuln(tenant_a)
     db_session.add(v)
@@ -74,9 +72,7 @@ async def test_unsnooze_resets_status_to_open(client, db_session, tenant_a):
 
 
 @pytest.mark.asyncio
-async def test_unsnooze_idor_blocked(
-    client_factory, db_session, analyst_user, analyst_user_b, tenant_a, tenant_b
-):
+async def test_unsnooze_idor_blocked(client_factory, db_session, analyst_user, analyst_user_b, tenant_a, tenant_b):
     """UX-02-01 / T-10-04b / ASVS V4/V8: cross-tenant id returns 404."""
     foreign = _seed_suppressed_vuln(tenant_b)
     db_session.add(foreign)

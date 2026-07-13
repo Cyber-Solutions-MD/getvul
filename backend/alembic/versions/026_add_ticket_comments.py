@@ -15,7 +15,8 @@ down_revision = "025_add_asset_tags"
 
 
 def upgrade() -> None:
-    op.create_table("ticket_comments",
+    op.create_table(
+        "ticket_comments",
         sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),

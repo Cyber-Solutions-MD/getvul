@@ -8,13 +8,14 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import case, distinct, func, select, update as sql_update
+from sqlalchemy import case, distinct, func, select
+from sqlalchemy import update as sql_update
 
 from app.assets.models import Asset
 from app.auth.rbac import require_analyst, require_viewer
 from app.auth.schemas import CurrentUser
 from app.dependencies import DBSession
-from app.pagination import PaginatedResponse, PaginationParams
+from app.pagination import PaginationParams
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
@@ -24,7 +25,6 @@ from app.vulnerabilities.schemas import (
     VulnerabilityListResponse,
     VulnerabilityResponse,
     VulnerabilityStatusUpdate,
-    VulnerabilitySummary,
 )
 from app.vulnerabilities.service import (
     bulk_update_status,
@@ -69,7 +69,8 @@ async def list_vulns(
         "cve_id",
         "cvss_v3_score",
         "sla_due_at",
-    ] | None = Query(
+    ]
+    | None = Query(
         None,
         description="Sort field: triage | severity | cve_id | cvss_v3_score | sla_due_at",
     ),
@@ -102,7 +103,7 @@ async def list_vulns(
     requested_facets: list[str] = []
     if facets:
         requested_facets = [f.strip() for f in facets.split(",") if f.strip()]
-        _ALLOWED = {"severity", "source", "status"}
+        _ALLOWED = {"severity", "source", "status"}  # noqa: N806 — intentional constant-style local
         bad = [f for f in requested_facets if f not in _ALLOWED]
         if bad:
             raise HTTPException(400, f"Unknown facet group(s): {','.join(bad)}")
@@ -228,7 +229,8 @@ async def sla_recalculate(
     # ticket SLA stale until the next ticket create/sync. Recompute every
     # affected ticket group now so the SLA pill reflects the new due dates
     # immediately. recompute_ticket_sla does NOT commit — we commit below.
-    from sqlalchemy import distinct, select as _select
+    from sqlalchemy import distinct
+    from sqlalchemy import select as _select
 
     from app.ticketing.models import Ticket
     from app.ticketing.service import recompute_ticket_sla
@@ -237,12 +239,10 @@ async def sla_recalculate(
     # MIN aggregate inside recompute_ticket_sla.
     await db.flush()
     ticket_urls = (
-        await db.execute(
-            _select(distinct(Ticket.external_ticket_url)).where(
-                Ticket.tenant_id == user.tenant_id
-            )
-        )
-    ).scalars().all()
+        (await db.execute(_select(distinct(Ticket.external_ticket_url)).where(Ticket.tenant_id == user.tenant_id)))
+        .scalars()
+        .all()
+    )
     for ticket_url in ticket_urls:
         await recompute_ticket_sla(db, ticket_url, user.tenant_id)
 

@@ -7,6 +7,7 @@ import asyncio
 import json
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import func, select
@@ -68,7 +69,7 @@ class RotationPreflightError(Exception):
 # ── Core rotation logic ──────────────────────────────────────────────────────
 
 
-async def verify_credentials(current_key: str) -> dict:
+async def verify_credentials(current_key: str) -> dict[str, Any]:
     """Read-only: decrypt every connector credential row with current_key.
 
     Returns:
@@ -84,9 +85,7 @@ async def verify_credentials(current_key: str) -> dict:
     failures: list[tuple[str, str, str]] = []
 
     async with async_session_factory() as db:
-        result = await db.execute(
-            select(ConnectorConfig).where(ConnectorConfig.credentials_secret_arn.isnot(None))
-        )
+        result = await db.execute(select(ConnectorConfig).where(ConnectorConfig.credentials_secret_arn.isnot(None)))
         connectors = result.scalars().all()
 
         f = _fernet_for(current_key)
@@ -129,7 +128,7 @@ async def rotate_credentials(
     new_key: str,
     dry_run: bool = False,
     audit: bool = True,
-) -> dict:
+) -> dict[str, Any]:
     """Re-encrypt every connector credential row from old_key to new_key.
 
     Single-transaction, abort-all-or-nothing:
@@ -153,6 +152,7 @@ async def rotate_credentials(
     """
     from app.audit import AuditLog
     from app.db.session import async_session_factory
+
     # audit_logs has FKs into users.id AND tenants.id (see app/audit.py). Both target
     # tables are owned by app/tenants/models.py. When rotate runs via the standalone CLI
     # (`python -m app.encryption`), those models are otherwise never imported, so persisting
@@ -169,9 +169,7 @@ async def rotate_credentials(
     async with async_session_factory() as db:
         try:
             # Load all rows with credentials in a single query
-            result = await db.execute(
-                select(ConnectorConfig).where(ConnectorConfig.credentials_secret_arn.isnot(None))
-            )
+            result = await db.execute(select(ConnectorConfig).where(ConnectorConfig.credentials_secret_arn.isnot(None)))
             connectors = result.scalars().all()
 
             # Count distinct tenants
@@ -235,8 +233,7 @@ async def rotate_credentials(
             for connector in connectors:
                 plains = decoded_maps[str(connector.id)]
                 new_map = {
-                    field: new_fernet.encrypt(plaintext.encode()).decode()
-                    for field, plaintext in plains.items()
+                    field: new_fernet.encrypt(plaintext.encode()).decode() for field, plaintext in plains.items()
                 }
                 connector.credentials_secret_arn = json.dumps(new_map)
 
@@ -403,9 +400,11 @@ async def _cmd_rotate(args: argparse.Namespace) -> None:
 
         # D-06: confirmation prompt
         if not args.yes:
-            confirm = input(
-                f"This will re-encrypt {n_rows} rows across {m_tenants} tenants. Continue? [y/N] "
-            ).strip().lower()
+            confirm = (
+                input(f"This will re-encrypt {n_rows} rows across {m_tenants} tenants. Continue? [y/N] ")
+                .strip()
+                .lower()
+            )
             if confirm != "y":
                 print("Rotation aborted.")
                 sys.exit(0)

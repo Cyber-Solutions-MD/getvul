@@ -12,7 +12,14 @@ from app.config import settings
 from app.cspm.models import Misconfiguration  # noqa: F401
 from app.db.base import Base
 from app.tenants.models import Tenant, User  # noqa: F401
-from app.ticketing.models import ConnectorConfig, SyncLog, Ticket, TicketComment, TicketRule, TicketWatcher  # noqa: F401
+from app.ticketing.models import (  # noqa: F401
+    ConnectorConfig,
+    SyncLog,
+    Ticket,
+    TicketComment,
+    TicketRule,
+    TicketWatcher,
+)
 from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation  # noqa: F401
 
 config = context.config

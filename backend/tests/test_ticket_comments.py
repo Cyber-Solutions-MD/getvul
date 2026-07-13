@@ -25,7 +25,6 @@ from app.audit import AuditLog
 from app.ticketing.models import Ticket, TicketComment
 from app.vulnerabilities.models import Vulnerability
 
-
 # ── Seed helpers ──────────────────────────────────────────────────────────────
 
 
@@ -103,22 +102,24 @@ async def test_post_comment_201_and_audit(db_session, tenant_a, analyst_user, cl
 
     # Comment must be persisted in DB
     comments = (
-        await db_session.execute(
-            select(TicketComment).where(TicketComment.ticket_id == ticket.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(TicketComment).where(TicketComment.ticket_id == ticket.id))).scalars().all()
+    )
     assert len(comments) == 1, f"Expected 1 comment in DB, found {len(comments)}"
     assert comments[0].body == "This is a test comment"
 
     # Audit row must be written for ticket.comment_added
     audit_rows = (
-        await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action == "ticket.comment_added",
-                AuditLog.tenant_id == tenant_a,
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "ticket.comment_added",
+                    AuditLog.tenant_id == tenant_a,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audit_rows) >= 1, "Expected at least one ticket.comment_added audit row"
 
 
@@ -153,12 +154,8 @@ async def test_get_comments_ascending_order(db_session, tenant_a, analyst_user, 
     items = response.json()
     assert isinstance(items, list), "Response must be a list"
     assert len(items) == 2, f"Expected 2 comments, got {len(items)}"
-    assert items[0]["body"] == "First comment", (
-        f"Expected 'First comment' first, got {items[0]['body']!r}"
-    )
-    assert items[1]["body"] == "Second comment", (
-        f"Expected 'Second comment' second, got {items[1]['body']!r}"
-    )
+    assert items[0]["body"] == "First comment", f"Expected 'First comment' first, got {items[0]['body']!r}"
+    assert items[1]["body"] == "Second comment", f"Expected 'Second comment' second, got {items[1]['body']!r}"
 
 
 # ── Test: POST blank body → 422 ───────────────────────────────────────────────
@@ -207,9 +204,7 @@ async def test_post_comment_extra_field_422(db_session, tenant_a, analyst_user, 
         f"/api/v1/tickets/{ticket.id}/comments",
         json={"body": "legit note", "is_admin": True},
     )
-    assert response.status_code == 422, (
-        f"Expected 422 rejecting extra field, got {response.status_code}"
-    )
+    assert response.status_code == 422, f"Expected 422 rejecting extra field, got {response.status_code}"
 
 
 # ── Test: cross-tenant {id} → 404 ─────────────────────────────────────────────
@@ -231,6 +226,4 @@ async def test_post_comment_cross_tenant_404(
             f"/api/v1/tickets/{ticket_b.id}/comments",
             json={"body": "Cross-tenant attack"},
         )
-    assert response.status_code == 404, (
-        f"Expected 404 for cross-tenant comment, got {response.status_code}"
-    )
+    assert response.status_code == 404, f"Expected 404 for cross-tenant comment, got {response.status_code}"

@@ -58,9 +58,7 @@ async def test_triage_sort_order(client, db_session, tenant_a):
     a = _seed_vuln(tenant_a, cisa_kev=True, cvss=7.0, sla_due_at=None, cve_id="CVE-T-A")
     b = _seed_vuln(tenant_a, cisa_kev=True, cvss=9.5, sla_due_at=None, cve_id="CVE-T-B")
     c = _seed_vuln(tenant_a, cisa_kev=False, cvss=9.8, sla_due_at=None, cve_id="CVE-T-C")
-    d = _seed_vuln(
-        tenant_a, cisa_kev=False, cvss=8.0, sla_due_at=now - timedelta(days=1), cve_id="CVE-T-D"
-    )
+    d = _seed_vuln(tenant_a, cisa_kev=False, cvss=8.0, sla_due_at=now - timedelta(days=1), cve_id="CVE-T-D")
     for v in (a, b, c, d):
         db_session.add(v)
     await db_session.commit()

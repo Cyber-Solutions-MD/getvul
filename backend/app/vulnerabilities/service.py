@@ -102,23 +102,17 @@ async def list_vulnerabilities(
         # in practice (NULL only on legacy rows that never had a CVE
         # assigned); nulls_last keeps those off the top regardless of order.
         col = Vulnerability.cve_id
-        data_q = data_q.order_by(
-            nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col))
-        )
+        data_q = data_q.order_by(nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col)))
     elif filters.sort == "cvss_v3_score":
         # Phase 11 / D-T-01: numeric. NULL scores must sort last in both
         # directions — a null score is "unknown", not "lowest".
         col = Vulnerability.cvss_v3_score
-        data_q = data_q.order_by(
-            nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col))
-        )
+        data_q = data_q.order_by(nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col)))
     elif filters.sort == "sla_due_at":
         # Phase 11 / D-T-01: datetime. NULL means "no SLA tracked" — same
         # nulls-last rule as CVSS.
         col = Vulnerability.sla_due_at
-        data_q = data_q.order_by(
-            nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col))
-        )
+        data_q = data_q.order_by(nulls_last(asc(col)) if filters.order == "asc" else nulls_last(desc(col)))
     elif filters.sort == "severity":
         # Phase 11 / D-T-01: explicit severity-rank branch lets ?order= flip
         # the direction. Rank ascends with severity (CRITICAL=4 → LOW=1) so
@@ -133,9 +127,7 @@ async def list_vulnerabilities(
             (Vulnerability.severity == "LOW", 1),
             else_=0,
         )
-        data_q = data_q.order_by(
-            asc(sev_rank) if filters.order == "asc" else desc(sev_rank)
-        )
+        data_q = data_q.order_by(asc(sev_rank) if filters.order == "asc" else desc(sev_rank))
     else:
         # Existing severity-case ordering — unchanged. Reached when
         # filters.sort is None (default path for legacy callers).
@@ -319,37 +311,31 @@ async def get_facets(
         # so the chip-bar can show "CRITICAL (5) HIGH (12)" even when the
         # user has CRITICAL selected.
         f_no_sev = filters.model_copy(update={"severity": None})
-        sev_q = (
-            _apply_filters(
-                select(Vulnerability.severity, func.count(Vulnerability.id)),
-                tenant_id,
-                f_no_sev,
-            ).group_by(Vulnerability.severity)
-        )
+        sev_q = _apply_filters(
+            select(Vulnerability.severity, func.count(Vulnerability.id)),
+            tenant_id,
+            f_no_sev,
+        ).group_by(Vulnerability.severity)
         sev_rows = (await db.execute(sev_q)).all()
         out.severity = {s: c for s, c in sev_rows}
 
     if "source" in groups:
         f_no_src = filters.model_copy(update={"source": None})
-        src_q = (
-            _apply_filters(
-                select(Vulnerability.source, func.count(Vulnerability.id)),
-                tenant_id,
-                f_no_src,
-            ).group_by(Vulnerability.source)
-        )
+        src_q = _apply_filters(
+            select(Vulnerability.source, func.count(Vulnerability.id)),
+            tenant_id,
+            f_no_src,
+        ).group_by(Vulnerability.source)
         src_rows = (await db.execute(src_q)).all()
         out.source = {s: c for s, c in src_rows}
 
     if "status" in groups:
         f_no_status = filters.model_copy(update={"status": None})
-        status_q = (
-            _apply_filters(
-                select(Vulnerability.status, func.count(Vulnerability.id)),
-                tenant_id,
-                f_no_status,
-            ).group_by(Vulnerability.status)
-        )
+        status_q = _apply_filters(
+            select(Vulnerability.status, func.count(Vulnerability.id)),
+            tenant_id,
+            f_no_status,
+        ).group_by(Vulnerability.status)
         status_rows = (await db.execute(status_q)).all()
         out.status = {s: c for s, c in status_rows}
 

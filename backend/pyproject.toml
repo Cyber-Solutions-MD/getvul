@@ -31,8 +31,9 @@ dev = [
     "pytest-cov>=6.0",
     "httpx>=0.27",
     "asgi-lifespan>=2.1",
-    "ruff>=0.8",
-    "mypy>=1.13",
+    "ruff==0.15.21",  # pinned: unpinned ruff auto-upgrades in CI and makes the lint/format gate non-deterministic
+    "mypy==2.1.0",    # pinned: the mypy-baseline is line/version-sensitive — drift silently breaks the type gate
+    "mypy-baseline==0.7.4",  # REQUIRED by ci.yml `mypy app/ | mypy-baseline filter`; was missing on main → step failed 127
     "factory-boy>=3.3",
 ]
 

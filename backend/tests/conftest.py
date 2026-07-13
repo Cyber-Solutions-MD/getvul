@@ -97,9 +97,10 @@ async def single_app(flushed_redis, app_factory):
     test_rate_limit.py.
     """
     app = app_factory()
-    async with LifespanManager(app) as mgr, AsyncClient(
-        transport=ASGITransport(app=mgr.app), base_url="http://testserver"
-    ) as client:
+    async with (
+        LifespanManager(app) as mgr,
+        AsyncClient(transport=ASGITransport(app=mgr.app), base_url="http://testserver") as client,
+    ):
         yield client, app
 
 
@@ -113,12 +114,10 @@ async def two_apps(flushed_redis, app_factory):
     app_a = app_factory()
     app_b = app_factory()
     async with (
-        LifespanManager(app_a) as mgr_a, LifespanManager(app_b) as mgr_b, AsyncClient(
-            transport=ASGITransport(app=mgr_a.app), base_url="http://app-a"
-        ) as client_a,
-        AsyncClient(
-            transport=ASGITransport(app=mgr_b.app), base_url="http://app-b"
-        ) as client_b,
+        LifespanManager(app_a) as mgr_a,
+        LifespanManager(app_b) as mgr_b,
+        AsyncClient(transport=ASGITransport(app=mgr_a.app), base_url="http://app-a") as client_a,
+        AsyncClient(transport=ASGITransport(app=mgr_b.app), base_url="http://app-b") as client_b,
     ):
         yield client_a, client_b
 
@@ -332,8 +331,13 @@ def _make_authed_client(app, user, registry: dict | None = None) -> AsyncClient:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(redis_test_url, db_session, analyst_user) -> AsyncIterator[AsyncClient]:
+async def client(flushed_redis, redis_test_url, db_session, analyst_user) -> AsyncIterator[AsyncClient]:
     """An authenticated httpx client wired as the analyst user in tenant A.
+
+    Depends on `flushed_redis` so the per-tenant rate-limit counter (Redis db=1)
+    is reset before each test. Without it, the shared analyst/tenant-A counter
+    accumulates across the whole suite and trips the 200-req/60s limit, cascading
+    429s into unrelated tests (WR: test-isolation).
 
     Default for Phase 10 behavioural tests; if a test needs a different
     role (e.g. viewer for RBAC checks) it should use `client_for(user)`
@@ -342,15 +346,17 @@ async def client(redis_test_url, db_session, analyst_user) -> AsyncIterator[Asyn
     from app.main import create_app
 
     app = create_app()
-    async with LifespanManager(app):
-        async with _make_authed_client(app, analyst_user) as ac:
-            yield ac
+    async with LifespanManager(app), _make_authed_client(app, analyst_user) as ac:
+        yield ac
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client_factory(redis_test_url, db_session) -> AsyncIterator:
+async def client_factory(flushed_redis, redis_test_url, db_session) -> AsyncIterator:
     """Return a callable `(user) -> AsyncClient` so a single test can
     switch identities (e.g. seed as analyst, attack as viewer).
+
+    Depends on `flushed_redis` (see `client`) to reset the rate-limit counter
+    per test and avoid cross-test 429 cascades.
     """
     from app.main import create_app
 

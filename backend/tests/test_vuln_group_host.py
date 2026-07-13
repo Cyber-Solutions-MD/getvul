@@ -127,11 +127,7 @@ async def test_group_host_pagination_on_host_rows_not_vuln_rows(client, db_sessi
     # `CVE-<2-digit-host>-<single-digit-vuln>` = max 11 chars.
     for h_idx, host in enumerate(hosts):
         for v in range(5):
-            db_session.add(
-                _seed_vuln_on_asset(
-                    tenant_a, host.id, cve_id=f"CVE-PG{h_idx:02d}{v}"
-                )
-            )
+            db_session.add(_seed_vuln_on_asset(tenant_a, host.id, cve_id=f"CVE-PG{h_idx:02d}{v}"))
     await db_session.commit()
 
     resp = await client.get("/api/v1/vulnerabilities?group=host&page=1&page_size=10")
@@ -194,9 +190,7 @@ async def test_group_host_respects_tenant_scope(
     items_a = resp_a.json().get("items", [])
     hostnames_a = [item.get("host") for item in items_a]
     assert "host-iso-A" in hostnames_a, f"tenant_a should see host-iso-A: {hostnames_a}"
-    assert "host-iso-B" not in hostnames_a, (
-        f"IDOR: tenant_a should NOT see tenant_b host-iso-B: {hostnames_a}"
-    )
+    assert "host-iso-B" not in hostnames_a, f"IDOR: tenant_a should NOT see tenant_b host-iso-B: {hostnames_a}"
 
 
 @pytest.mark.asyncio
