@@ -8,7 +8,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import case, distinct, func, select, update as sql_update
+from sqlalchemy import case, distinct, func, select
+from sqlalchemy import update as sql_update
 
 from app.assets.models import Asset
 from app.auth.rbac import require_analyst, require_viewer

@@ -84,9 +84,7 @@ class VulnerabilityFilter(BaseModel):
     exploit_available: bool | None = None
     cisa_kev: bool | None = None
     asset_id: uuid.UUID | None = None
-    search: str | None = Field(
-        None, max_length=200, description="Search CVE ID or product name"
-    )
+    search: str | None = Field(None, max_length=200, description="Search CVE ID or product name")
     age_days_min: int | None = Field(None, ge=0)
     age_days_max: int | None = Field(None, ge=0)
     # Phase 10 / D-T-01: 'triage' opts in to KEV → CVSS desc → SLA-due asc.

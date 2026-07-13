@@ -97,9 +97,10 @@ async def single_app(flushed_redis, app_factory):
     test_rate_limit.py.
     """
     app = app_factory()
-    async with LifespanManager(app) as mgr, AsyncClient(
-        transport=ASGITransport(app=mgr.app), base_url="http://testserver"
-    ) as client:
+    async with (
+        LifespanManager(app) as mgr,
+        AsyncClient(transport=ASGITransport(app=mgr.app), base_url="http://testserver") as client,
+    ):
         yield client, app
 
 
@@ -113,12 +114,10 @@ async def two_apps(flushed_redis, app_factory):
     app_a = app_factory()
     app_b = app_factory()
     async with (
-        LifespanManager(app_a) as mgr_a, LifespanManager(app_b) as mgr_b, AsyncClient(
-            transport=ASGITransport(app=mgr_a.app), base_url="http://app-a"
-        ) as client_a,
-        AsyncClient(
-            transport=ASGITransport(app=mgr_b.app), base_url="http://app-b"
-        ) as client_b,
+        LifespanManager(app_a) as mgr_a,
+        LifespanManager(app_b) as mgr_b,
+        AsyncClient(transport=ASGITransport(app=mgr_a.app), base_url="http://app-a") as client_a,
+        AsyncClient(transport=ASGITransport(app=mgr_b.app), base_url="http://app-b") as client_b,
     ):
         yield client_a, client_b
 
@@ -342,9 +341,8 @@ async def client(redis_test_url, db_session, analyst_user) -> AsyncIterator[Asyn
     from app.main import create_app
 
     app = create_app()
-    async with LifespanManager(app):
-        async with _make_authed_client(app, analyst_user) as ac:
-            yield ac
+    async with LifespanManager(app), _make_authed_client(app, analyst_user) as ac:
+        yield ac
 
 
 @pytest_asyncio.fixture(scope="function")

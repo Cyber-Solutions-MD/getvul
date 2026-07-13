@@ -11,9 +11,7 @@ from app.db.session import async_session_factory
 async def create_admin():
     async with async_session_factory() as db:
         # Check if any user with password exists (app user, not synced directory user)
-        result = await db.execute(
-            text("SELECT COUNT(*) FROM users WHERE password_hash IS NOT NULL")
-        )
+        result = await db.execute(text("SELECT COUNT(*) FROM users WHERE password_hash IS NOT NULL"))
         count = result.scalar()
         if count > 0:
             print("    App users already exist — skipping.")

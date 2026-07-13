@@ -60,9 +60,7 @@ async def test_top_vuln_picks_highest_cvss_open_critical(client, db_session, ten
 
     db_session.add(_seed_vuln(tenant_a, cvss=7.5, cve_id="CVE-LOW", asset_id=asset.id))
     db_session.add(
-        _seed_vuln(
-            tenant_a, cvss=9.8, cve_id="CVE-WIN", asset_id=asset.id, cisa_kev=True, exploit_available=True
-        )
+        _seed_vuln(tenant_a, cvss=9.8, cve_id="CVE-WIN", asset_id=asset.id, cisa_kev=True, exploit_available=True)
     )
     db_session.add(_seed_vuln(tenant_a, cvss=8.0, cve_id="CVE-MID", asset_id=asset.id))
     await db_session.commit()
