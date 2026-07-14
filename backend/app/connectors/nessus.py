@@ -283,7 +283,6 @@ def _normalize_vuln(
         vulnerability_name=plugin_name,
         cvss_v3_score=cvss3_score,
         severity=severity,
-        source="NESSUS",
         source_vuln_id=str(plugin_id),
         remediation_info=solution or None,
         hostname=hostname or None,
