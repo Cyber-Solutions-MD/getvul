@@ -108,11 +108,21 @@ async def lifespan(app: FastAPI):
 
         start_scheduler()
 
-    app.state.redis = redis.from_url(
-        settings.redis_url,
-        decode_responses=True,
-        socket_timeout=2.0,
-        socket_connect_timeout=2.0,
+    # BlockingConnectionPool (not the default pool): under a concurrent burst the
+    # default pool raises MaxConnectionsError once exhausted — a RedisError that
+    # makes the rate limiter fail OPEN, silently disabling the cap under exactly
+    # the load it exists for (PROD-01-02). A blocking pool queues briefly for a
+    # free connection instead, so the limiter enforces correctly under burst.
+    # Genuine Redis outages still fail fast (socket_connect_timeout) → fail open.
+    app.state.redis = redis.Redis(
+        connection_pool=redis.BlockingConnectionPool.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_timeout=2.0,
+            socket_connect_timeout=2.0,
+            max_connections=50,
+            timeout=5,
+        )
     )
 
     # Load syslog config from first tenant (if configured)
