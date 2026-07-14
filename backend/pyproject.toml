@@ -71,6 +71,12 @@ ignore = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Share ONE event loop across the whole session so the module-scoped async DB
+# engine (app.db.session.engine) and app Redis clients stay bound to a live loop
+# for every test. With per-function loops (the old default), test #1's loop
+# closes and later tests hit "RuntimeError: Event loop is closed" (WR-14).
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 
 [tool.mypy]
