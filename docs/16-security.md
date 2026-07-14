@@ -237,7 +237,7 @@ CEF:0|GetVul|VulnMgmt|1.0|auth.login|auth.login|5|suser=admin@company.com act=au
 ## Network Security
 - Nginx as the only public-facing service
 - Rate limiting at Nginx level (configurable per endpoint type)
-- Per-tenant application-level rate limiting (200 req/60s via Redis)
+- Per-tenant application-level rate limiting: Redis-backed sliding window (200 req/60s)
 - CORS restricted to configured origins
 - PostgreSQL and Redis in private Docker network (only accessible from backend)
 - H2C request smuggling protection in Nginx

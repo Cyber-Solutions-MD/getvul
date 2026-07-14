@@ -246,10 +246,10 @@ def test_doc_parity():
     code lands; Task 3's verify covers it explicitly. After Task 3 the full
     PROD-01-02 suite (all 6 tests) is green.
     """
+    # Docs were reorganised from doc/security.md → docs/16-security.md; assert the
+    # substring anywhere in the file rather than a brittle hardcoded line number.
     repo_root = Path(__file__).resolve().parents[2]
-    sec_doc = (repo_root / "doc" / "security.md").read_text()
-    # Line 20 in current file; we just need the substring anywhere on that line.
-    line_20 = sec_doc.splitlines()[19]
-    assert "Redis-backed sliding window" in line_20, (
-        f"doc/security.md:20 must say 'Redis-backed sliding window'; got: {line_20!r}"
+    sec_doc = (repo_root / "docs" / "16-security.md").read_text()
+    assert "Redis-backed sliding window" in sec_doc, (
+        "docs/16-security.md must describe rate limiting as a 'Redis-backed sliding window'"
     )
