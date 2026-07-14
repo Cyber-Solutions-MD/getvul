@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.assets.classification import classify_asset_from_data
+from app.assets.classification import classify_asset
 from app.assets.models import Asset
 from app.connectors.service import get_decrypted_credentials
 from app.ticketing.models import ConnectorConfig, SyncLog
@@ -110,7 +110,7 @@ def _enrich_asset(asset: Asset, device: dict) -> None:
         asset.seen_by_sources = sources
         flag_modified(asset, "seen_by_sources")
 
-    classify_asset_from_data(asset)
+    asset.device_category = classify_asset(asset)
 
 
 async def run_intune_sync(
