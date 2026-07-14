@@ -6,7 +6,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 ## Milestones
 
-- 🚧 **v1.0 Production Readiness** — Phases 1–8 (Phase 1 complete; Phases 2–8 RESUMED 2026-06-30 after v2.0 shipped — now the active milestone)
+- ✅ **v1.0 Production Readiness** — Phases 1–8 (all complete 2026-07-14)
 - ✅ **v2.0 UI/UX Redesign** — Phases 9–15 (SHIPPED 2026-06-30) — archived: [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 
 ## Phases
@@ -24,7 +24,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 5: Encryption Key Lifecycle** — Backup, rotation, and operator alerting for `ENCRYPTION_KEY` (complete 2026-07-08)
 - [x] **Phase 6: Default Admin Hardening** — Force password change on first login for the install.sh-created admin (complete 2026-07-09)
 - [x] **Phase 7: Health and Observability** — Split liveness/readiness, add JSON structured logs in prod (complete 2026-07-10)
-- [ ] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests
+- [x] **Phase 8: Test Coverage Floor** — At least one test per connector, plus rule-engine and SLA tests (complete 2026-07-14)
 **v2.0 UI/UX Redesign (SHIPPED 2026-06-30 — Phases 9–15):** full detail archived in [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md).
 
 - [x] **Phase 9: `/login` + Foundation** — Split-screen sunset login + token system + first primitive set
