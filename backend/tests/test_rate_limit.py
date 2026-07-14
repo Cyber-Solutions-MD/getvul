@@ -183,6 +183,15 @@ async def test_fail_open_on_redis_down(single_app, monkeypatch):
 
     monkeypatch.setattr(app.state.redis, "pipeline", boom_pipeline)
 
+    # Reset the module-level logger to a fresh proxy so capture_logs() can
+    # intercept it. configure_logging() sets cache_logger_on_first_use=True, so
+    # once app.main.logger is bound (by an earlier test in a full run) it ignores
+    # capture_logs' processor swap and nothing is captured. A fresh get_logger()
+    # proxy binds lazily to the LogCapture processor on first use in the context.
+    from app import main as _app_main
+
+    monkeypatch.setattr(_app_main, "logger", structlog.get_logger())
+
     with structlog.testing.capture_logs() as captured:
         resp = await client.get(TEST_ENDPOINT)
 

@@ -125,6 +125,13 @@ async def test_redis_outage_failure_modes(flushed_redis, app_factory, monkeypatc
         monkeypatch.setattr(app_b.state.redis, "set", boom_set)
         monkeypatch.setattr(app_b.state.redis, "getdel", boom_getdel)
 
+        # Reset the module-level logger to a fresh proxy so capture_logs() can
+        # intercept it (configure_logging sets cache_logger_on_first_use=True, so
+        # a logger bound by an earlier test ignores capture_logs' processor swap).
+        from app import main as _app_main
+
+        monkeypatch.setattr(_app_main, "logger", structlog.get_logger())
+
         # Limiter: fail OPEN with structured warning.
         with structlog.testing.capture_logs() as captured:
             resp = await client_a.get(TEST_API_ENDPOINT)
