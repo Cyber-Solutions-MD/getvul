@@ -328,7 +328,13 @@ def _make_authed_client(app, user, registry: dict | None = None) -> AsyncClient:
 
     app.dependency_overrides[get_current_user] = _override
 
-    transport = ASGITransport(app=app)
+    # raise_app_exceptions=False so an unhandled route exception surfaces as a
+    # 500 *response* (as it would in production via ServerErrorMiddleware) rather
+    # than propagating out of the client call. Fail-closed tests (e.g. audit
+    # write failure → no commit) assert on that error response; the default
+    # (True) re-raises and the test never sees the 500. No test wraps a client
+    # call in pytest.raises, so this is safe.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     return AsyncClient(
         transport=transport,
         base_url="http://testserver",
