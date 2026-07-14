@@ -52,10 +52,16 @@ from app.vulnerabilities import trends as _vulnerabilities_trends  # noqa: F401,
 @pytest_asyncio.fixture(scope="function")
 async def redis_test_url(monkeypatch) -> AsyncIterator[str]:
     monkeypatch.setenv("REDIS_URL", REDIS_TEST_URL)
-    # Force pydantic-settings re-read inside create_app() callers.
     from app import config as _config_module
 
-    monkeypatch.setattr(_config_module, "settings", _config_module.Settings())
+    # Mutate the EXISTING settings object in place — do NOT replace
+    # `_config_module.settings` with a new instance. Other modules (app.main,
+    # etc.) did `from app.config import settings` at import time and hold a
+    # reference to the original object; rebinding app.config.settings leaves
+    # those stale. If CI sets REDIS_URL=db=0, the app's rate limiter would keep
+    # using db=0 while tests flush db=1 → the rate-limit counter is never reset
+    # → 429 cascade. Mutating redis_url on the shared object fixes it everywhere.
+    monkeypatch.setattr(_config_module.settings, "redis_url", REDIS_TEST_URL)
     yield REDIS_TEST_URL
 
 
