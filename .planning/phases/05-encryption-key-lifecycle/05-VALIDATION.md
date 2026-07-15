@@ -1,8 +1,8 @@
 ---
 phase: 5
 slug: encryption-key-lifecycle
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-03
 ---
@@ -38,17 +38,17 @@ created: 2026-07-03
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 5-01-01 | 01 | 1 | PROD-05-02 | — | `_fernet_for(key)` builds Fernet from explicit key; invalid key raises `ValueError` | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_fernet_for -x` | ❌ W0 | ⬜ pending |
-| 5-01-02 | 01 | 1 | PROD-05-02 | T-5 (key material) | Rotate re-encrypts all rows in one txn; pre-flight decrypt-all bypasses silent `get_decrypted_credentials`; abort+rollback on any failure | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_rotate_all_rows -x` | ❌ W0 | ⬜ pending |
-| 5-01-03 | 01 | 1 | PROD-05-02 | — | Post-commit round-trip decrypt with NEW key verifies before commit | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_rotate_verifies -x` | ❌ W0 | ⬜ pending |
-| 5-01-04 | 01 | 1 | PROD-05-03 | — | `--dry-run` writes nothing, reports row/tenant count | unit/integration | `cd backend && pytest tests/test_encryption_rotation.py::test_dry_run_no_rows -x` | ❌ W0 | ⬜ pending |
-| 5-01-05 | 01 | 1 | PROD-05-03 | — | `verify` reports N OK / M failing, rotates nothing | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_verify_all_ok -x` | ❌ W0 | ⬜ pending |
-| 5-01-06 | 01 | 1 | PROD-05-03 | — | `generate-key` prints a valid Fernet key | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_generate_key -x` | ❌ W0 | ⬜ pending |
-| 5-01-07 | 01 | 1 | PROD-05-02 | — | Success emits `encryption.key_rotated` audit row (no key material), system CLI actor | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_audit_event -x` | ❌ W0 | ⬜ pending |
-| 5-01-08 | 01 | 1 | PROD-05-02 | — | SC#4: A→B rotate, decrypt-all OK, revert to A fails to decrypt | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_sc4_rotation_is_real -x` | ❌ W0 | ⬜ pending |
-| 5-02-01 | 02 | 1 | PROD-05-04 | T-5 (weak default key) | Startup with placeholder/unset/invalid encryption key: warn in dev, raise in prod | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_startup_check_encryption -x` | ❌ W0 | ⬜ pending |
-| 5-02-02 | 02 | 1 | PROD-05-04 | — | Startup with placeholder JWT secret: warn in dev, raise in prod | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_startup_check_jwt -x` | ❌ W0 | ⬜ pending |
-| 5-02-03 | 02 | 1 | PROD-05-01 | — | Runbook section present with RTO statement + concrete commands | doc check | `grep -q "Encryption Key Backup & Rotation" docs/16-security.md && grep -qi "RTO" docs/16-security.md && echo PASS` | ❌ W0 | ⬜ pending |
+| 5-01-01 | 01 | 1 | PROD-05-02 | — | `_fernet_for(key)` builds Fernet from explicit key; invalid key raises `ValueError` | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_fernet_for -x` | ✅ | ✅ green |
+| 5-01-02 | 01 | 1 | PROD-05-02 | T-5 (key material) | Rotate re-encrypts all rows in one txn; pre-flight decrypt-all bypasses silent `get_decrypted_credentials`; abort+rollback on any failure | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_rotate_all_rows -x` | ✅ | ✅ green |
+| 5-01-03 | 01 | 1 | PROD-05-02 | — | Post-commit round-trip decrypt with NEW key verifies before commit | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_rotate_verifies -x` | ✅ | ✅ green |
+| 5-01-04 | 01 | 1 | PROD-05-03 | — | `--dry-run` writes nothing, reports row/tenant count | unit/integration | `cd backend && pytest tests/test_encryption_rotation.py::test_dry_run_no_rows -x` | ✅ | ✅ green |
+| 5-01-05 | 01 | 1 | PROD-05-03 | — | `verify` reports N OK / M failing, rotates nothing | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_verify_all_ok -x` | ✅ | ✅ green |
+| 5-01-06 | 01 | 1 | PROD-05-03 | — | `generate-key` prints a valid Fernet key | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_generate_key -x` | ✅ | ✅ green |
+| 5-01-07 | 01 | 1 | PROD-05-02 | — | Success emits `encryption.key_rotated` audit row (no key material), system CLI actor | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_audit_event -x` | ✅ | ✅ green |
+| 5-01-08 | 01 | 1 | PROD-05-02 | — | SC#4: A→B rotate, decrypt-all OK, revert to A fails to decrypt | integration | `cd backend && pytest tests/test_encryption_rotation.py::test_sc4_rotation_is_real -x` | ✅ | ✅ green |
+| 5-02-01 | 02 | 1 | PROD-05-04 | T-5 (weak default key) | Startup with placeholder/unset/invalid encryption key: warn in dev, raise in prod | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_startup_check_encryption -x` | ✅ | ✅ green |
+| 5-02-02 | 02 | 1 | PROD-05-04 | — | Startup with placeholder JWT secret: warn in dev, raise in prod | unit | `cd backend && pytest tests/test_encryption_rotation.py::test_startup_check_jwt -x` | ✅ | ✅ green |
+| 5-02-03 | 02 | 1 | PROD-05-01 | — | Runbook section present with RTO statement + concrete commands | doc check | `grep -q "Encryption Key Backup & Rotation" docs/16-security.md && grep -qi "RTO" docs/16-security.md && echo PASS` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -83,3 +83,22 @@ created: 2026-07-03
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Validation Audit 2026-07-15 (post-BL-05 backend sweep)
+
+Reconciled against the shipped suite. Pre-execution statuses were `⬜ pending` / `❌ W0`; every
+automated row now maps to an existing, passing test (Backend CI green on main).
+
+| Metric | Count |
+|--------|-------|
+| Automated rows | 11 |
+| Covered (green) | 11 |
+| Gaps found | 0 |
+| New tests written | 0 |
+| Escalated to manual-only | 0 |
+
+Evidence: `test_encryption_rotation.py` — Fernet round-trip, rotate/verify/dry-run, generate-key,
+audit event (no key material), startup encryption+JWT checks (dev/prod), real-rotation SC-4 +
+docs/16-security.md backup/RTO section. **Nyquist-compliant.**

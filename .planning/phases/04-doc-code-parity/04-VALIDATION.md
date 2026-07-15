@@ -1,8 +1,8 @@
 ---
 phase: 4
 slug: doc-code-parity
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-02
 ---
@@ -38,11 +38,11 @@ created: 2026-07-02
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 04-01-* | 01 | 1 | PROD-04-01 | T-04-01 / T-04-02 | `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'` and `Cross-Origin-Opener-Policy: same-origin` present on all responses | unit/middleware | `pytest tests/test_security_headers.py -v` | ❌ W0 | ⬜ pending |
-| 04-02-* | 02 | 1 | PROD-04-03 | — | VulnSource enum contains QUALYS and RAPID7 | unit | `pytest tests/test_vuln_source_filter.py::test_vuln_source_enum_members -v` | ❌ W0 | ⬜ pending |
-| 04-02-* | 02 | 1 | PROD-04-04 | T-04-03 | `GET /api/v1/vulnerabilities?source=QUALYS` (and `RAPID7`) returns only matching rows, tenant-scoped | integration | `pytest tests/test_vuln_source_filter.py -v` | ❌ W0 | ⬜ pending |
-| 04-03-* | 03 | 1 | PROD-04-05 | — | `boto3` not importable; `aws_region` / `secrets_manager_prefix` absent from Settings | unit | `pytest tests/test_aws_removal.py -v` (or assertion in test_security_headers.py) | ❌ W0 | ⬜ pending |
-| 04-01-* | 01 | 1 | PROD-04-02 | — | README lists same 6 scanners as docs/01-overview.md | verify-only | `grep -c "CrowdStrike\|Nessus\|Defender\|Wiz\|Qualys\|Rapid7" README.md` | N/A | ⬜ pending |
+| 04-01-* | 01 | 1 | PROD-04-01 | T-04-01 / T-04-02 | `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'` and `Cross-Origin-Opener-Policy: same-origin` present on all responses | unit/middleware | `pytest tests/test_security_headers.py -v` | ✅ | ✅ green |
+| 04-02-* | 02 | 1 | PROD-04-03 | — | VulnSource enum contains QUALYS and RAPID7 | unit | `pytest tests/test_vuln_source_filter.py::test_vuln_source_enum_members -v` | ✅ | ✅ green |
+| 04-02-* | 02 | 1 | PROD-04-04 | T-04-03 | `GET /api/v1/vulnerabilities?source=QUALYS` (and `RAPID7`) returns only matching rows, tenant-scoped | integration | `pytest tests/test_vuln_source_filter.py -v` | ✅ | ✅ green |
+| 04-03-* | 03 | 1 | PROD-04-05 | — | `boto3` not importable; `aws_region` / `secrets_manager_prefix` absent from Settings | unit | `pytest tests/test_aws_removal.py -v` (or assertion in test_security_headers.py) | ✅ | ✅ green |
+| 04-01-* | 01 | 1 | PROD-04-02 | — | README lists same 6 scanners as docs/01-overview.md | verify-only | `grep -c "CrowdStrike\|Nessus\|Defender\|Wiz\|Qualys\|Rapid7" README.md` | N/A | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -77,3 +77,22 @@ created: 2026-07-02
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Validation Audit 2026-07-15 (post-BL-05 backend sweep)
+
+Reconciled against the shipped suite. Pre-execution statuses were `⬜ pending` / `❌ W0`; every
+automated row now maps to an existing, passing test (Backend CI green on main).
+
+| Metric | Count |
+|--------|-------|
+| Automated rows | 5 |
+| Covered (green) | 5 |
+| Gaps found | 0 |
+| New tests written | 0 |
+| Escalated to manual-only | 0 |
+
+Evidence: `test_security_headers.py` (CSP/COOP), `test_vuln_source_filter.py` (enum + source
+filter + tenant scope), `test_aws_removal.py` (boto3 unimportable + settings fields absent),
+README/overview 6-scanner parity grep. **Nyquist-compliant.**

@@ -1,8 +1,8 @@
 ---
 phase: 1
 slug: multi-replica-state
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-08
 ---
@@ -38,24 +38,24 @@ created: 2026-05-08
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 01-W0-01 | Wave 0 | 0 | PROD-01-01/02/03 | — | Test infra present | infra | `cd backend && test -f tests/conftest.py` | ❌ W0 | ⬜ pending |
-| 01-W0-02 | Wave 0 | 0 | PROD-01-03 | — | `asgi-lifespan` dev dep declared | infra | `grep "asgi-lifespan" backend/pyproject.toml` | ❌ W0 | ⬜ pending |
-| 01-W0-03 | Wave 0 | 0 | PROD-01-01/02 | — | `create_app()` factory exists | refactor | `grep "def create_app" backend/app/main.py` | ❌ W0 | ⬜ pending |
-| 01-01-01 | 01-01 | 1 | PROD-01-01 | T-OIDC-replay | OIDC state SET with TTL ≤ 600s, GETDEL atomic consume | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_set_with_ttl -x` | ❌ W0 | ⬜ pending |
-| 01-01-02 | 01-01 | 1 | PROD-01-01 | T-OIDC-replay | OIDC callback rejects reused state token | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_replay_rejected -x` | ❌ W0 | ⬜ pending |
-| 01-01-03 | 01-01 | 1 | PROD-01-01 | T-OIDC-mismatch | OIDC callback rejects mismatched provider | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_provider_mismatch -x` | ❌ W0 | ⬜ pending |
-| 01-01-04 | 01-01 | 1 | PROD-01-01 | T-OIDC-ttl | OIDC state expires after TTL (1 s in test) | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_ttl_expiry -x` | ❌ W0 | ⬜ pending |
-| 01-01-05 | 01-01 | 1 | PROD-01-01 | T-OIDC-redis-down | OIDC login returns 503 on Redis ConnectionError | failure-mode | `cd backend && pytest tests/test_oidc_state.py::test_login_503_on_redis_down -x` | ❌ W0 | ⬜ pending |
-| 01-02-01 | 01-02 | 1 | PROD-01-02 | T-RL-cap | Limiter allows N≤200 in window, 429 at 201 | unit | `cd backend && pytest tests/test_rate_limit.py::test_limit_enforced -x` | ❌ W0 | ⬜ pending |
-| 01-02-02 | 01-02 | 1 | PROD-01-02 | T-RL-window | Limiter prunes entries older than window | unit | `cd backend && pytest tests/test_rate_limit.py::test_window_slides -x` | ❌ W0 | ⬜ pending |
-| 01-02-03 | 01-02 | 1 | PROD-01-02 | T-RL-tenant | Limiter is per-tenant (A and B independent) | unit | `cd backend && pytest tests/test_rate_limit.py::test_per_tenant_isolation -x` | ❌ W0 | ⬜ pending |
-| 01-02-04 | 01-02 | 1 | PROD-01-02 | T-RL-redis-down | Limiter fails OPEN + emits warning log on Redis ConnectionError | failure-mode | `cd backend && pytest tests/test_rate_limit.py::test_fail_open_on_redis_down -x` | ❌ W0 | ⬜ pending |
-| 01-02-05 | 01-02 | 1 | PROD-01-02 | T-RL-zadd-race | 200 concurrent requests observe correct cap (sub-ms duplicate-member defense) | concurrency | `cd backend && pytest tests/test_rate_limit.py::test_concurrent_burst_respects_limit -x` | ❌ W0 | ⬜ pending |
-| 01-02-06 | 01-02 | 1 | PROD-01-02 | — | doc/security.md:20 wording matches code | docs | `cd backend && pytest tests/test_rate_limit.py::test_doc_parity -x` | ❌ W0 | ⬜ pending |
-| 01-03-01 | 01-03 | 2 | PROD-01-03 | T-replica-spoof | Cross-replica OIDC: state set on app A, consumed on app B | integration | `cd backend && pytest tests/test_multi_replica.py::test_oidc_cross_replica -x` | ❌ W0 | ⬜ pending |
-| 01-03-02 | 01-03 | 2 | PROD-01-03 | T-replica-replay | Cross-replica OIDC second consume fails (one-shot) | integration | `cd backend && pytest tests/test_multi_replica.py::test_oidc_one_shot -x` | ❌ W0 | ⬜ pending |
-| 01-03-03 | 01-03 | 2 | PROD-01-03 | T-replica-bypass | Cross-replica rate limit: 100 reqs A + 101 reqs B → 201st is 429 | integration | `cd backend && pytest tests/test_multi_replica.py::test_ratelimit_shared_budget -x` | ❌ W0 | ⬜ pending |
-| 01-03-04 | 01-03 | 2 | PROD-01-03 | T-redis-outage | Redis down mid-test: limiter allows + warns, OIDC returns 503 | integration | `cd backend && pytest tests/test_multi_replica.py::test_redis_outage_failure_modes -x` | ❌ W0 | ⬜ pending |
+| 01-W0-01 | Wave 0 | 0 | PROD-01-01/02/03 | — | Test infra present | infra | `cd backend && test -f tests/conftest.py` | ✅ | ✅ green |
+| 01-W0-02 | Wave 0 | 0 | PROD-01-03 | — | `asgi-lifespan` dev dep declared | infra | `grep "asgi-lifespan" backend/pyproject.toml` | ✅ | ✅ green |
+| 01-W0-03 | Wave 0 | 0 | PROD-01-01/02 | — | `create_app()` factory exists | refactor | `grep "def create_app" backend/app/main.py` | ✅ | ✅ green |
+| 01-01-01 | 01-01 | 1 | PROD-01-01 | T-OIDC-replay | OIDC state SET with TTL ≤ 600s, GETDEL atomic consume | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_set_with_ttl -x` | ✅ | ✅ green |
+| 01-01-02 | 01-01 | 1 | PROD-01-01 | T-OIDC-replay | OIDC callback rejects reused state token | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_replay_rejected -x` | ✅ | ✅ green |
+| 01-01-03 | 01-01 | 1 | PROD-01-01 | T-OIDC-mismatch | OIDC callback rejects mismatched provider | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_provider_mismatch -x` | ✅ | ✅ green |
+| 01-01-04 | 01-01 | 1 | PROD-01-01 | T-OIDC-ttl | OIDC state expires after TTL (1 s in test) | unit | `cd backend && pytest tests/test_oidc_state.py::test_state_ttl_expiry -x` | ✅ | ✅ green |
+| 01-01-05 | 01-01 | 1 | PROD-01-01 | T-OIDC-redis-down | OIDC login returns 503 on Redis ConnectionError | failure-mode | `cd backend && pytest tests/test_oidc_state.py::test_login_503_on_redis_down -x` | ✅ | ✅ green |
+| 01-02-01 | 01-02 | 1 | PROD-01-02 | T-RL-cap | Limiter allows N≤200 in window, 429 at 201 | unit | `cd backend && pytest tests/test_rate_limit.py::test_limit_enforced -x` | ✅ | ✅ green |
+| 01-02-02 | 01-02 | 1 | PROD-01-02 | T-RL-window | Limiter prunes entries older than window | unit | `cd backend && pytest tests/test_rate_limit.py::test_window_slides -x` | ✅ | ✅ green |
+| 01-02-03 | 01-02 | 1 | PROD-01-02 | T-RL-tenant | Limiter is per-tenant (A and B independent) | unit | `cd backend && pytest tests/test_rate_limit.py::test_per_tenant_isolation -x` | ✅ | ✅ green |
+| 01-02-04 | 01-02 | 1 | PROD-01-02 | T-RL-redis-down | Limiter fails OPEN + emits warning log on Redis ConnectionError | failure-mode | `cd backend && pytest tests/test_rate_limit.py::test_fail_open_on_redis_down -x` | ✅ | ✅ green |
+| 01-02-05 | 01-02 | 1 | PROD-01-02 | T-RL-zadd-race | 200 concurrent requests observe correct cap (sub-ms duplicate-member defense) | concurrency | `cd backend && pytest tests/test_rate_limit.py::test_concurrent_burst_respects_limit -x` | ✅ | ✅ green |
+| 01-02-06 | 01-02 | 1 | PROD-01-02 | — | doc/security.md:20 wording matches code | docs | `cd backend && pytest tests/test_rate_limit.py::test_doc_parity -x` | ✅ | ✅ green |
+| 01-03-01 | 01-03 | 2 | PROD-01-03 | T-replica-spoof | Cross-replica OIDC: state set on app A, consumed on app B | integration | `cd backend && pytest tests/test_multi_replica.py::test_oidc_cross_replica -x` | ✅ | ✅ green |
+| 01-03-02 | 01-03 | 2 | PROD-01-03 | T-replica-replay | Cross-replica OIDC second consume fails (one-shot) | integration | `cd backend && pytest tests/test_multi_replica.py::test_oidc_one_shot -x` | ✅ | ✅ green |
+| 01-03-03 | 01-03 | 2 | PROD-01-03 | T-replica-bypass | Cross-replica rate limit: 100 reqs A + 101 reqs B → 201st is 429 | integration | `cd backend && pytest tests/test_multi_replica.py::test_ratelimit_shared_budget -x` | ✅ | ✅ green |
+| 01-03-04 | 01-03 | 2 | PROD-01-03 | T-redis-outage | Redis down mid-test: limiter allows + warns, OIDC returns 503 | integration | `cd backend && pytest tests/test_multi_replica.py::test_redis_outage_failure_modes -x` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -91,3 +91,21 @@ created: 2026-05-08
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Validation Audit 2026-07-15 (post-BL-05 backend sweep)
+
+Reconciled against the shipped suite. Pre-execution statuses were `⬜ pending` with `❌ W0`
+file markers; every automated row now maps to an existing, passing test (Backend CI green on main).
+
+| Metric | Count |
+|--------|-------|
+| Automated rows | 19 |
+| Covered (green) | 19 |
+| Gaps found | 0 |
+| New tests written | 0 |
+| Escalated to manual-only | 0 |
+
+Evidence: `test_oidc_state.py` (5 tests), `test_rate_limit.py` (6), `test_multi_replica.py` (4),
+`conftest.py` fixtures + `create_app()` + `asgi-lifespan` all present. **Nyquist-compliant.**

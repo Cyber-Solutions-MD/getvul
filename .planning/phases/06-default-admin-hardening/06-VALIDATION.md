@@ -1,8 +1,8 @@
 ---
 phase: 6
 slug: default-admin-hardening
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-08
 ---
@@ -40,19 +40,19 @@ created: 2026-07-08
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| migration + column | 01 | 1 | PROD-06-01 | — | `users.must_change_password` boolean NOT NULL server_default false; migration up/down clean | integration | `pytest tests/test_admin_hardening.py::test_migration_column -x` | ❌ W0 | ⬜ pending |
-| seed flag | 01 | 1 | PROD-06-01 | — | seeded OWNER admin row has `must_change_password=True` | integration | `pytest tests/test_admin_hardening.py::test_seed_flag -x` | ❌ W0 | ⬜ pending |
-| JWT claim round-trip | 02 | 2 | PROD-06-02 | T-06-token-replay | access token from login carries `must_change_password`; decode restores it | unit | `pytest tests/test_admin_hardening.py::test_jwt_claim_round_trip -x` | ❌ W0 | ⬜ pending |
-| CurrentUser claim | 02 | 2 | PROD-06-02 | — | `get_current_user` returns `must_change_password=True` for flagged token | unit | `pytest tests/test_admin_hardening.py::test_current_user_claim -x` | ❌ W0 | ⬜ pending |
-| enforcement blocks | 02 | 2 | PROD-06-02 | T-06-allowlist-bypass | flagged user, non-allowlist path → 403 `{"reason":"password_change_required"}` | integration | `pytest tests/test_admin_hardening.py::test_enforcement_blocks -x` | ❌ W0 | ⬜ pending |
-| allowlist /me | 02 | 2 | PROD-06-02 | T-06-allowlist-bypass | flagged user → `/auth/me` returns 200 | integration | `pytest tests/test_admin_hardening.py::test_enforcement_allowlist_me -x` | ❌ W0 | ⬜ pending |
-| allowlist change-pw | 02 | 2 | PROD-06-02 | — | flagged user → `/auth/change-password` not blocked | integration | `pytest tests/test_admin_hardening.py::test_enforcement_allowlist_change -x` | ❌ W0 | ⬜ pending |
-| unflagged unblocked | 02 | 2 | PROD-06-02 | — | unflagged user: no 403 interference on any path | integration | `pytest tests/test_admin_hardening.py::test_unflagged_user_unblocked -x` | ❌ W0 | ⬜ pending |
-| rotation clears flag | 02 | 2 | PROD-06-04 | — | successful rotation sets `users.must_change_password=False` | integration | `pytest tests/test_admin_hardening.py::test_rotation_clears_flag -x` | ❌ W0 | ⬜ pending |
-| rotation audit event | 02 | 2 | PROD-06-04 | — | rotation emits `auth.first_login_rotation` audit row | integration | `pytest tests/test_admin_hardening.py::test_rotation_audit_event -x` | ❌ W0 | ⬜ pending |
-| rotation fresh tokens | 02 | 2 | PROD-06-04 | T-06-token-replay | tokens returned after rotation do NOT carry the flag | integration | `pytest tests/test_admin_hardening.py::test_rotation_fresh_tokens -x` | ❌ W0 | ⬜ pending |
-| refresh reads flag | 02 | 2 | PROD-06-04 | T-06-token-replay | `/auth/refresh` after rotation carries current DB flag state (false) | integration | `pytest tests/test_admin_hardening.py::test_refresh_reads_current_flag -x` | ❌ W0 | ⬜ pending |
-| FE redirect gate | 03 | 3 | PROD-06-03 | — | `useAuth` sees `must_change_password=true` → `router.replace('/change-password')`; form submit + error/success states | unit | `cd frontend && npm run test -- change-password` | ❌ W0 | ⬜ pending |
+| migration + column | 01 | 1 | PROD-06-01 | — | `users.must_change_password` boolean NOT NULL server_default false; migration up/down clean | integration | `pytest tests/test_admin_hardening.py::test_migration_column -x` | ✅ | ✅ green |
+| seed flag | 01 | 1 | PROD-06-01 | — | seeded OWNER admin row has `must_change_password=True` | integration | `pytest tests/test_admin_hardening.py::test_seed_flag -x` | ✅ | ✅ green |
+| JWT claim round-trip | 02 | 2 | PROD-06-02 | T-06-token-replay | access token from login carries `must_change_password`; decode restores it | unit | `pytest tests/test_admin_hardening.py::test_jwt_claim_round_trip -x` | ✅ | ✅ green |
+| CurrentUser claim | 02 | 2 | PROD-06-02 | — | `get_current_user` returns `must_change_password=True` for flagged token | unit | `pytest tests/test_admin_hardening.py::test_current_user_claim -x` | ✅ | ✅ green |
+| enforcement blocks | 02 | 2 | PROD-06-02 | T-06-allowlist-bypass | flagged user, non-allowlist path → 403 `{"reason":"password_change_required"}` | integration | `pytest tests/test_admin_hardening.py::test_enforcement_blocks -x` | ✅ | ✅ green |
+| allowlist /me | 02 | 2 | PROD-06-02 | T-06-allowlist-bypass | flagged user → `/auth/me` returns 200 | integration | `pytest tests/test_admin_hardening.py::test_enforcement_allowlist_me -x` | ✅ | ✅ green |
+| allowlist change-pw | 02 | 2 | PROD-06-02 | — | flagged user → `/auth/change-password` not blocked | integration | `pytest tests/test_admin_hardening.py::test_enforcement_allowlist_change -x` | ✅ | ✅ green |
+| unflagged unblocked | 02 | 2 | PROD-06-02 | — | unflagged user: no 403 interference on any path | integration | `pytest tests/test_admin_hardening.py::test_unflagged_user_unblocked -x` | ✅ | ✅ green |
+| rotation clears flag | 02 | 2 | PROD-06-04 | — | successful rotation sets `users.must_change_password=False` | integration | `pytest tests/test_admin_hardening.py::test_rotation_clears_flag -x` | ✅ | ✅ green |
+| rotation audit event | 02 | 2 | PROD-06-04 | — | rotation emits `auth.first_login_rotation` audit row | integration | `pytest tests/test_admin_hardening.py::test_rotation_audit_event -x` | ✅ | ✅ green |
+| rotation fresh tokens | 02 | 2 | PROD-06-04 | T-06-token-replay | tokens returned after rotation do NOT carry the flag | integration | `pytest tests/test_admin_hardening.py::test_rotation_fresh_tokens -x` | ✅ | ✅ green |
+| refresh reads flag | 02 | 2 | PROD-06-04 | T-06-token-replay | `/auth/refresh` after rotation carries current DB flag state (false) | integration | `pytest tests/test_admin_hardening.py::test_refresh_reads_current_flag -x` | ✅ | ✅ green |
+| FE redirect gate | 03 | 3 | PROD-06-03 | — | `useAuth` sees `must_change_password=true` → `router.replace('/change-password')`; form submit + error/success states | unit | `cd frontend && npm run test -- change-password` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -85,3 +85,22 @@ created: 2026-07-08
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Validation Audit 2026-07-15 (post-BL-05 backend sweep)
+
+Reconciled against the shipped suite. Pre-execution statuses were `⬜ pending` / `❌ W0`; every
+automated row now maps to an existing, passing test (Backend CI green on main).
+
+| Metric | Count |
+|--------|-------|
+| Automated rows | 13 |
+| Covered (green) | 13 |
+| Gaps found | 0 |
+| New tests written | 0 |
+| Escalated to manual-only | 0 |
+
+Evidence: `test_admin_hardening.py` (12 tests — migration/seed flag, JWT claim round-trip,
+enforcement + allowlist, rotation clears flag + audit + fresh tokens + refresh) +
+`change-password.test.tsx` (5 FE redirect-gate cases). **Nyquist-compliant.**

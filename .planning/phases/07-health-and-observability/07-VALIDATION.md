@@ -1,8 +1,8 @@
 ---
 phase: 7
 slug: health-and-observability
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-10
 ---
@@ -42,15 +42,15 @@ created: 2026-07-10
 
 | Requirement | Behavior | Threat Ref | Test Type | Automated Command | File Exists |
 |-------------|----------|------------|-----------|-------------------|-------------|
-| PROD-07-01 | `GET /health` returns 200 + verbatim body regardless of DB/Redis state | — | unit | `pytest tests/test_health_observability.py::test_health_always_200 -x` | ❌ W0 |
-| PROD-07-02 | `GET /ready` 200 + per-dep body when DB+Redis healthy | — | integration | `pytest tests/test_health_observability.py::test_ready_200_both_up -x` | ❌ W0 |
-| PROD-07-02 | `GET /ready` 503 when Postgres down (mocked) | — | unit | `pytest tests/test_health_observability.py::test_ready_503_postgres_down -x` | ❌ W0 |
-| PROD-07-02 | `GET /ready` 503 when Redis down (mocked) | — | unit | `pytest tests/test_health_observability.py::test_ready_503_redis_down -x` | ❌ W0 |
-| PROD-07-02 | `/ready` timeout path → `ok:false, error:"timeout"`, overall 503 | T-ready-dos | unit | `pytest tests/test_health_observability.py::test_ready_503_timeout_path -x` | ❌ W0 |
-| PROD-07-04 | JSON renderer selected when `ENVIRONMENT=production` | — | unit | `pytest tests/test_health_observability.py::test_logging_json_in_production -x` | ❌ W0 |
-| PROD-07-04 | ConsoleRenderer selected in dev | — | unit | `pytest tests/test_health_observability.py::test_logging_console_in_dev -x` | ❌ W0 |
-| PROD-07-04 (D-13/14) | `X-Request-ID` echoed; valid inbound honored; invalid → UUID4 | T-reqid-inject | unit | `pytest tests/test_health_observability.py::test_request_id_middleware -x` | ❌ W0 |
-| PROD-07-04 (D-17) | Redaction processor scrubs sensitive keys → `[REDACTED]` | T-log-leak | unit | `pytest tests/test_health_observability.py::test_redact_sensitive_keys -x` | ❌ W0 |
+| PROD-07-01 | `GET /health` returns 200 + verbatim body regardless of DB/Redis state | — | unit | `pytest tests/test_health_observability.py::test_health_always_200 -x` | ✅ |
+| PROD-07-02 | `GET /ready` 200 + per-dep body when DB+Redis healthy | — | integration | `pytest tests/test_health_observability.py::test_ready_200_both_up -x` | ✅ |
+| PROD-07-02 | `GET /ready` 503 when Postgres down (mocked) | — | unit | `pytest tests/test_health_observability.py::test_ready_503_postgres_down -x` | ✅ |
+| PROD-07-02 | `GET /ready` 503 when Redis down (mocked) | — | unit | `pytest tests/test_health_observability.py::test_ready_503_redis_down -x` | ✅ |
+| PROD-07-02 | `/ready` timeout path → `ok:false, error:"timeout"`, overall 503 | T-ready-dos | unit | `pytest tests/test_health_observability.py::test_ready_503_timeout_path -x` | ✅ |
+| PROD-07-04 | JSON renderer selected when `ENVIRONMENT=production` | — | unit | `pytest tests/test_health_observability.py::test_logging_json_in_production -x` | ✅ |
+| PROD-07-04 | ConsoleRenderer selected in dev | — | unit | `pytest tests/test_health_observability.py::test_logging_console_in_dev -x` | ✅ |
+| PROD-07-04 (D-13/14) | `X-Request-ID` echoed; valid inbound honored; invalid → UUID4 | T-reqid-inject | unit | `pytest tests/test_health_observability.py::test_request_id_middleware -x` | ✅ |
+| PROD-07-04 (D-17) | Redaction processor scrubs sensitive keys → `[REDACTED]` | T-log-leak | unit | `pytest tests/test_health_observability.py::test_redact_sensitive_keys -x` | ✅ |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -85,3 +85,23 @@ Mock strategy (from RESEARCH.md): reuse the `single_app` fixture from `conftest.
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Validation Audit 2026-07-15 (post-BL-05 backend sweep)
+
+Reconciled against the shipped suite. Pre-execution File-Exists markers were `❌ W0`; every
+automated row now maps to an existing, passing test (Backend CI green on main). Security audit
+(07-SECURITY.md) reports 11/11 threats closed.
+
+| Metric | Count |
+|--------|-------|
+| Automated rows | 9 |
+| Covered (green) | 9 |
+| Gaps found | 0 |
+| New tests written | 0 |
+| Escalated to manual-only | 3 (nginx upstream routing, docker-compose /ready healthcheck, operator runbook) |
+
+Evidence: `test_health_observability.py` — /health always 200, /ready 200/503 (pg/redis/timeout),
+JSON-vs-console logging, request-id middleware, sensitive-key redaction (+ nested/case regression).
+**Nyquist-compliant** (3 infra/prose items are legitimately manual).
