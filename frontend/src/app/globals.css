@@ -4,7 +4,7 @@
 
 @import '../styles/sunset.css';
 
-/* Light-theme architecture only — visual polish deferred per D-06. */
+/* Light-theme visual completion (Phase 16, UX-D-03-01..05). */
 :root[data-theme="light"] {
   --color-bg:            #FAF7F2;
   --color-bg-darker:     #F2EDE5;
@@ -16,8 +16,46 @@
   --color-border-strong: #D4C9B5;
   --color-text:          #1A1430;
   --color-text-muted:    #5C5474;
-  --color-text-faint:    #8A8298;
   --color-text-inverse:  #F0E8FF;
+
+  /* Phase 16 light-mode visual completion (UX-D-03-01..04). These tokens fall
+     through to dark-tuned sunset.css values that fail WCAG 2.1 AA on the warm-cream
+     light surfaces; overridden here to darker same-hue variants confirmed by the
+     light-theme axe sweep. Reconciled into the design-system skill in Plan 16-02
+     (BL-04 mirror for light mode). */
+
+  /* Severity — darker same-hue variants for AA on cream (UX-D-03-03) */
+  --color-severity-critical: #DC2626;  /* red-600    */
+  --color-severity-high:     #EA580C;  /* orange-600 */
+  --color-severity-medium:   #B45309;  /* amber-700 — yellow needs deep amber for 4.5:1 on cream */
+  --color-severity-low:      #7C3AED;  /* violet-600 */
+  --color-severity-info:     #2563EB;  /* blue-600   */
+
+  /* Semantic states (UX-D-03-02) */
+  --color-danger:  #DC2626;
+  --color-success: #15803D;  /* green-700 */
+  --color-warning: #B45309;
+
+  /* Shadows — lightened from dark-surface black-alpha values (UX-D-03-01) */
+  --shadow-card:     0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Glows — softer on light surfaces so accent halos don't become ink blobs (UX-D-03-01) */
+  --glow-pink:       0 0 16px rgba(236, 72, 153, 0.20);
+  --glow-violet:     0 0 16px rgba(167, 139, 250, 0.20);
+  --glow-amber:      0 0 16px rgba(245, 158, 11, 0.15);
+  --glow-cta:        0 4px 16px rgba(236, 72, 153, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.04) inset;
+  --glow-card-inner: 0 0 0 1px rgba(0, 0, 0, 0.04) inset;
+
+  /* On-soft text for light surfaces (UX-D-03-04) — the dark BL-04 shades
+     (#C4B5FD / #F472B6) fail on the pale light -soft fills; use dark same-hue. */
+  --color-violet-on-soft: #5B21B6;  /* violet-800 */
+  --color-pink-on-soft:   #9D174D;  /* pink-800   */
+  --color-amber-on-soft:  #92400E;  /* amber-800  */
+
+  /* text-faint darkened for AA on cream (UX-D-03-04): #8A8298 is ~3.8:1 on bg. */
+  --color-text-faint: #6B6480;  /* same hue/sat, darker value */
+
   color-scheme: light;
 }
 
