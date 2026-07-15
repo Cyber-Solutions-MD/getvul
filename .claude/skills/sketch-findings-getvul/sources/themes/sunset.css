@@ -135,3 +135,42 @@ body {
 button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
 input { font: inherit; }
 a { color: inherit; text-decoration: none; }
+
+/* ─── Light-mode overrides (Phase 16, UX-D-03) ───
+   The :root block above is the dark theme. Under data-theme="light" these tokens
+   diverge to darker same-hue variants that clear WCAG 2.1 AA on the warm-cream light
+   surfaces (bg #FAF7F2 / surface #FFFFFF). Values axe-confirmed in 16-01-SUMMARY.md;
+   the live overrides live in frontend/src/app/globals.css (this vendored copy is not
+   consumed at runtime). BL-04 pattern, mirrored for light mode. */
+:root[data-theme="light"] {
+  /* ─── Severity (darker same-hue for 4.5:1 on #FAF7F2 cream) ─── */
+  --color-severity-critical: #DC2626;  /* was dark #F87171 — red-600, ~5.5:1 on cream */
+  --color-severity-high:     #EA580C;  /* was dark #FB923C — orange-600, ~4.7:1 */
+  --color-severity-medium:   #B45309;  /* was dark #FBBF24 — amber-700 (not amber-600 — yellow family needs deeper for 4.5:1) */
+  --color-severity-low:      #7C3AED;  /* was dark #A78BFA — violet-600, ~6.0:1 */
+  --color-severity-info:     #2563EB;  /* was dark #60A5FA — blue-600, ~5.1:1 */
+
+  /* ─── Semantic state (darker same-hue for AA on cream) ─── */
+  --color-danger:   #DC2626;  /* was dark #F87171 — matches severity-critical */
+  --color-success:  #15803D;  /* was dark #4ADE80 — green-700, ~5.8:1 on cream */
+  --color-warning:  #B45309;  /* was dark #FBBF24 — matches severity-medium */
+
+  /* ─── Shadows (softer on light cream surfaces) ─── */
+  --shadow-card:     0 2px 8px rgba(0, 0, 0, 0.08);   /* was dark 0 8px 24px rgba(0,0,0,0.4) */
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);  /* was dark 0 20px 60px rgba(0,0,0,0.5) */
+
+  /* ─── Glows (reduced opacity on light surfaces) ─── */
+  --glow-pink:       0 0 16px rgba(236, 72, 153, 0.20);  /* was dark 0 0 32px rgba(236,72,153,0.45) */
+  --glow-violet:     0 0 16px rgba(167, 139, 250, 0.20);  /* was dark 0 0 32px rgba(167,139,250,0.45) */
+  --glow-amber:      0 0 16px rgba(245, 158, 11, 0.15);   /* was dark 0 0 32px rgba(245,158,11,0.4) */
+  --glow-cta:        0 4px 16px rgba(236, 72, 153, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.04) inset;  /* was dark with white inset highlight */
+  --glow-card-inner: 0 0 0 1px rgba(0, 0, 0, 0.04) inset;  /* was dark rgba(255,255,255,0.04) inset */
+
+  /* ─── On-soft text (AA-safe text on pale light soft fills) ─── */
+  --color-violet-on-soft: #5B21B6;  /* was dark #C4B5FD — violet-800, ~7.5:1 on #EDE9FE */
+  --color-pink-on-soft:   #9D174D;  /* was dark #F472B6 — pink-800, ~6.0:1 on #F9D9EC */
+  --color-amber-on-soft:  #92400E;  /* was dark #F59E0B — amber-800, ~5.5:1 on #FDF3D8 */
+
+  /* ─── Text ─── */
+  --color-text-faint: #6B6480;  /* was dark #8B84A8 — ~3.8:1 → ~4.8:1 on #FAF7F2 cream */
+}

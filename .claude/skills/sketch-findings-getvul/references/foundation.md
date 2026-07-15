@@ -22,7 +22,7 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
 /* Text */
 --color-text:          #F0E8FF;  /* warm white */
 --color-text-muted:    #B8AECE;
---color-text-faint:    #8B84A8;  /* AA-lifted; was #6B6488 (failed 4.5:1 on dark) */
+--color-text-faint:    #8B84A8;  /* AA-lifted; was #6B6488 (failed 4.5:1 on dark) — light: #6B6480 (~4.8:1 on #FAF7F2 cream) */
 --color-text-inverse:  #0E0B1A;
 
 /* Sunset accents */
@@ -31,7 +31,8 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
 --color-amber:         #F59E0B;  /* amber */
 /* + matching -soft variants at 18% alpha */
 /* + matching -on-soft text shades (AA-safe text on a -soft fill):
-   pink-on-soft #F472B6, violet-on-soft #C4B5FD, amber-on-soft #F59E0B.
+   pink-on-soft #F472B6, violet-on-soft #C4B5FD, amber-on-soft #F59E0B. (dark theme)
+   Light-mode on-soft: pink-on-soft #9D174D, violet-on-soft #5B21B6, amber-on-soft #92400E.
    See visual-language.md "Text on -soft fills". */
 
 /* The signature gradient */
@@ -41,21 +42,23 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
                        radial-gradient(at 50% 80%, rgba(245, 158, 11, 0.3) 0%, transparent 55%);
 
 /* Semantic states */
---color-danger:    #F87171;
---color-success:   #4ADE80;
---color-warning:   #FBBF24;
+--color-danger:    #F87171;  /* light: #DC2626 (red-600, matches severity-critical) */
+--color-success:   #4ADE80;  /* light: #15803D (green-700, ~5.8:1 on cream) */
+--color-warning:   #FBBF24;  /* light: #B45309 (amber-700, matches severity-medium) */
 --color-info:      #60A5FA;
 ```
 
 ### Severity colors (locked — used in every list/badge/glyph)
 
 ```css
---color-severity-critical: #F87171;  /* red */
---color-severity-high:     #FB923C;  /* orange */
---color-severity-medium:   #FBBF24;  /* yellow */
---color-severity-low:      #A78BFA;  /* lavender */
---color-severity-info:     #60A5FA;  /* blue */
+--color-severity-critical: #F87171;  /* red    — light: #DC2626 (red-600,    ~5.5:1 on #FAF7F2) */
+--color-severity-high:     #FB923C;  /* orange — light: #EA580C (orange-600, ~4.7:1 on #FAF7F2) */
+--color-severity-medium:   #FBBF24;  /* yellow — light: #B45309 (amber-700, not amber-600 — yellow family needs deeper for 4.5:1) */
+--color-severity-low:      #A78BFA;  /* lavender— light: #7C3AED (violet-600, ~6.0:1 on #FAF7F2) */
+--color-severity-info:     #60A5FA;  /* blue   — light: #2563EB (blue-600,   ~5.1:1 on #FAF7F2) */
 ```
+
+**Light-mode note:** All 5 severity tokens are overridden under `data-theme="light"` to darker same-hue variants that clear WCAG 2.1 AA (4.5:1) on the warm-cream `#FAF7F2` background. The three-axis encoding (color + glyph + text) keeps severity levels distinct even where hue shifts for contrast. Values axe-confirmed in 16-01-SUMMARY.md.
 
 ## Typography
 
@@ -122,13 +125,18 @@ Rounded but not exaggerated. Cards 14px, buttons/inputs 10px.
 Borders > shadows for normal chrome. Glow reserved for sunset-gradient elements (CTA, brand mark, active nav strip).
 
 ```css
---shadow-card:        0 8px 24px rgba(0, 0, 0, 0.4);
---shadow-elevated:    0 20px 60px rgba(0, 0, 0, 0.5);
---glow-pink:          0 0 32px rgba(236, 72, 153, 0.45);
---glow-violet:        0 0 32px rgba(167, 139, 250, 0.45);
+--shadow-card:        0 8px 24px rgba(0, 0, 0, 0.4);    /* light: 0 2px 8px rgba(0, 0, 0, 0.08) */
+--shadow-elevated:    0 20px 60px rgba(0, 0, 0, 0.5);   /* light: 0 8px 24px rgba(0, 0, 0, 0.12) */
+--glow-pink:          0 0 32px rgba(236, 72, 153, 0.45); /* light: 0 0 16px rgba(236, 72, 153, 0.20) */
+--glow-violet:        0 0 32px rgba(167, 139, 250, 0.45); /* light: 0 0 16px rgba(167, 139, 250, 0.20) */
+--glow-amber:         0 0 32px rgba(245, 158, 11, 0.4);  /* light: 0 0 16px rgba(245, 158, 11, 0.15) */
 --glow-cta:           0 8px 32px rgba(236, 72, 153, 0.35),
                       0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+                      /* light: 0 4px 16px rgba(236, 72, 153, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.04) inset */
+--glow-card-inner:    0 0 0 1px rgba(255, 255, 255, 0.04) inset; /* light: 0 0 0 1px rgba(0, 0, 0, 0.04) inset */
 ```
+
+**Light-mode note:** Under `data-theme="light"`, all shadow and glow tokens are reduced in depth/opacity to suit the warm-cream `#FAF7F2` surface. The shadow-card / shadow-elevated use lighter rgba values; all glows halve their blur radius and reduce opacity. Values axe-confirmed in 16-01-SUMMARY.md.
 
 ## Motion
 

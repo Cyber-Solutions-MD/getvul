@@ -14,6 +14,20 @@ The shared vocabulary of small visual elements that recur on every screen.
 | Low | `#A78BFA` lavender | `○` | `--color-severity-low` |
 | Info | `#60A5FA` blue | `□` | `--color-severity-info` |
 
+### Light-mode severity colors (Phase 16, UX-D-03)
+
+Under `data-theme="light"`, all severity tokens shift to darker same-hue variants that clear WCAG 2.1 AA (4.5:1) on the warm-cream `#FAF7F2` background. The **three-axis encoding** (color + Unicode glyph + text label) keeps each severity level visually distinct even where the hue is forced darker — colorblind users and grayscale screenshots remain unambiguous.
+
+| Level | Dark hex | Light hex | Light ratio on cream |
+|---|---|---|---|
+| Critical | `#F87171` | `#DC2626` (red-600) | ~5.5:1 |
+| High | `#FB923C` | `#EA580C` (orange-600) | ~4.7:1 |
+| Medium | `#FBBF24` | `#B45309` (amber-700, not amber-600 — yellow family needs deeper for 4.5:1) | ~5.3:1 |
+| Low | `#A78BFA` | `#7C3AED` (violet-600) | ~6.0:1 |
+| Info | `#60A5FA` | `#2563EB` (blue-600) | ~5.1:1 |
+
+Values axe-confirmed in 16-01-SUMMARY.md. The pill backgrounds (rgba at 12%) and border colors use the matching dark-mode raw hex — the production CSS overrides only the foreground token, so tinted fills adapt automatically via the cascade.
+
 ### Severity pill (default chrome for any severity reference)
 
 ```html
@@ -94,6 +108,16 @@ When a badge, pill, or chip sets **text** on an accent's `-soft` fill (18% alpha
 | `--color-amber-soft` | `--color-amber-on-soft` | `#F59E0B` (amber already clears AA) |
 
 The tinted-fill *border* and *dot* still use the base accent — only the text lifts. Applies to the "Open" status pill, OWNER/ADMIN role badges, and any future accent-on-soft badge. The `-soft` tokens on their own (backgrounds, focus rings, glows) are unaffected.
+
+**Light-mode variants** — Under `data-theme="light"`, the soft fills (18% alpha of the accent) produce a very pale background on the cream surface. The dark-theme `-on-soft` shades (`#C4B5FD`, `#F472B6`) are themselves too light to clear 4.5:1 on those pale fills. Use these deeper same-hue shades instead:
+
+| Fill | Text token (light) | Hex (light) | Contrast on fill |
+|---|---|---|---|
+| `--color-violet-soft` | `--color-violet-on-soft` | `#5B21B6` (violet-800) | ~7.5:1 on `#EDE9FE` |
+| `--color-pink-soft` | `--color-pink-on-soft` | `#9D174D` (pink-800) | ~6.0:1 on `#F9D9EC` |
+| `--color-amber-soft` | `--color-amber-on-soft` | `#92400E` (amber-800) | ~5.5:1 on `#FDF3D8` |
+
+The production CSS cascade handles both themes without JS: `var(--color-violet-on-soft)` resolves to the dark value (`#C4B5FD`) by default and to the light value (`#5B21B6`) when `data-theme="light"` is set. Always use `text-[var(--color-violet-on-soft)]` / `text-[var(--color-pink-on-soft)]` Tailwind JIT references — never hardcode the hex. Values axe-confirmed in 16-01-SUMMARY.md.
 
 ## SLA (3-tier time deltas)
 
