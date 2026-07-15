@@ -1,11 +1,11 @@
 ---
 phase: 9
 slug: login-foundation
-status: planned
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-12
-updated: 2026-05-12
+updated: 2026-07-15
 plans:
   - 09-01-PLAN.md  # Wave 0 — foundation (sunset.css, globals.css, tailwind, next/font, theme.tsx, vitest stack)
   - 09-02-PLAN.md  # Wave 1 — primitives (shadcn init + Button/Input/Form/DropdownMenu + SsoButton + GradientText + /dev/primitives)
@@ -52,29 +52,29 @@ plans:
 
 | Req / Criterion | Behavior | Plan / Task | Test Type | Automated Command | Status |
 |-----------------|----------|-------------|-----------|-------------------|--------|
-| UX-01-01 | `/login` renders split-screen at 1280px (mesh left, form right) | 09-05 Task 2 → 09-06 Task 2 | manual smoke + screenshot | `npm run dev` → `localhost:3000/login` at 1280px | ⬜ pending |
-| UX-01-01 (mobile) | `/login` collapses to vertical stack at 360px | 09-05 Task 2 → 09-06 Task 2 | manual smoke | DevTools device toolbar → iPhone SE 360px | ⬜ pending |
-| UX-01-02 | SSO buttons render above email form with divider; hidden on forgot/reset | 09-05 Task 3 | unit (DOM order + mode switch) | `vitest src/app/login/page.test.tsx --run` | ⬜ pending |
-| UX-01-03 | Gradient CTA shows loading text on submit | 09-02 Task 2 | unit (`loading` + `loadingText`) | `vitest src/components/ui/button.test.tsx --run` | ⬜ pending |
-| UX-01-04 | `forgot` / `reset` modes hide SSO row | 09-05 Task 3 | unit (mode switch) | `vitest src/app/login/page.test.tsx --run` | ⬜ pending |
-| UX-01-04 (font swap) | Inter + JetBrains Mono load with `display: swap` | 09-01 Task 2 → 09-06 Task 1 | manual + grep | `grep -E "display.*swap" frontend/.next/static/css/*.css` after `npm run build` | ⬜ pending |
-| UX-01-05 | Form-level errors use `bg-danger-soft` + `border-danger` | 09-05 Task 3 | unit (login.test) | `vitest src/app/login/page.test.tsx --run` — assert ErrorAlert classes | ⬜ pending |
-| UX-F-01 | Sunset CSS variables resolve and Inter+JetBrains Mono load via next/font | 09-01 Task 3 → 09-06 Task 1 | smoke (DOM check + grep) | `vitest src/__tests__/foundation.test.ts --run` + cold-paint manual | ⬜ pending |
-| UX-F-02 | `!important` count = 0 (modulo reduced-motion media block) | 09-01 Task 1 → 09-06 Task 1 | grep | TOTAL=`grep -c '!important' globals.css`; EXEMPT=`awk '/@media (prefers-reduced-motion/,/^}$/' globals.css \| grep -c '!important'`; test $((TOTAL-EXEMPT)) -eq 0 | ⬜ pending |
-| UX-F-02 (theme swap) | `data-theme="light"` flips body bg | 09-01 Task 3 | unit | `vitest src/__tests__/foundation.test.ts --run` — toggle attr, assert different `--color-bg` | ⬜ pending |
-| UX-F-03 | Shell renders sidebar + topbar | 09-04 Task 2 | unit | `vitest src/components/shell/app-shell.test.tsx --run` | ⬜ pending |
-| UX-F-03 (active nav) | Active nav matches `usePathname` exact/prefix per D-35 | 09-04 Task 2 | unit (mock usePathname) | `vitest src/components/shell/sidebar.test.tsx --run` | ⬜ pending |
-| UX-F-04 (Button) | All states + no axe violations | 09-02 Task 2 | unit + axe | `vitest src/components/ui/button.test.tsx --run` | ⬜ pending |
-| UX-F-04 (Input) | All states + password eye-toggle | 09-02 Task 2 | unit + axe | `vitest src/components/ui/input.test.tsx --run` | ⬜ pending |
-| UX-F-04 (SsoButton) | Both providers + a11y | 09-02 Task 2 | unit + axe | `vitest src/components/ui/sso-button.test.tsx --run` | ⬜ pending |
-| UX-F-04 (GradientText) | Gradient styles applied | 09-02 Task 2 | unit | `vitest src/components/ui/gradient-text.test.tsx --run` | ⬜ pending |
-| Phase 9 §5 (login flow) | Form submits and routes to `/dashboard` | 09-06 Task 2 | manual smoke | `npm run dev` + valid credentials | ⬜ pending |
-| Phase 9 §6 (shell) | `/dashboard` renders inside `(authed)` shell post-login | 09-06 Task 2 | manual smoke | login → land on `/dashboard`, observe sidebar | ⬜ pending |
-| `?next=` preservation | `/login?next=/dashboard/vulnerabilities` lands at target after login | 09-06 Task 2 | manual smoke | unauthed URL → log in → verify landing | ⬜ pending |
-| Open-redirect mitigation | `/login?next=//evil.com` lands at `/dashboard` (not evil.com) | 09-05 Task 3 → 09-06 Task 2 | unit + manual | `vitest src/app/login/page.test.tsx --run` — `sanitizeNext` cases | ⬜ pending |
-| autoComplete attrs (D-48) | login/forgot/reset use correct credential autoFill hints | 09-05 Task 3 | unit | `vitest src/app/login/page.test.tsx --run` — autocomplete assertions | ⬜ pending |
-| Anti-enumeration forgot copy (Pitfall 9) | Forgot-password always shows generic confirmation | 09-05 Task 3 | unit | `vitest src/app/login/page.test.tsx --run` — generic copy assertion | ⬜ pending |
-| Phase gate | Test + lint + build + tsc all green | 09-06 Task 1 | composite | `npm test -- --run && npm run lint && npm run build && npx tsc --noEmit` | ⬜ pending |
+| UX-01-01 | `/login` renders split-screen at 1280px (mesh left, form right) | 09-05 Task 2 → 09-06 Task 2 | manual smoke + screenshot | `npm run dev` → `localhost:3000/login` at 1280px | ✅ green |
+| UX-01-01 (mobile) | `/login` collapses to vertical stack at 360px | 09-05 Task 2 → 09-06 Task 2 | manual smoke | DevTools device toolbar → iPhone SE 360px | ✅ green |
+| UX-01-02 | SSO buttons render above email form with divider; hidden on forgot/reset | 09-05 Task 3 | unit (DOM order + mode switch) | `vitest src/app/login/page.test.tsx --run` | ✅ green |
+| UX-01-03 | Gradient CTA shows loading text on submit | 09-02 Task 2 | unit (`loading` + `loadingText`) | `vitest src/components/ui/button.test.tsx --run` | ✅ green |
+| UX-01-04 | `forgot` / `reset` modes hide SSO row | 09-05 Task 3 | unit (mode switch) | `vitest src/app/login/page.test.tsx --run` | ✅ green |
+| UX-01-04 (font swap) | Inter + JetBrains Mono load with `display: swap` | 09-01 Task 2 → 09-06 Task 1 | manual + grep | `grep -E "display.*swap" frontend/.next/static/css/*.css` after `npm run build` | ✅ green |
+| UX-01-05 | Form-level errors use `bg-danger-soft` + `border-danger` | 09-05 Task 3 | unit (login.test) | `vitest src/app/login/page.test.tsx --run` — assert ErrorAlert classes | ✅ green |
+| UX-F-01 | Sunset CSS variables resolve and Inter+JetBrains Mono load via next/font | 09-01 Task 3 → 09-06 Task 1 | smoke (DOM check + grep) | `vitest src/__tests__/foundation.test.ts --run` + cold-paint manual | ✅ green |
+| UX-F-02 | `!important` count = 0 (modulo reduced-motion media block) | 09-01 Task 1 → 09-06 Task 1 | grep | TOTAL=`grep -c '!important' globals.css`; EXEMPT=`awk '/@media (prefers-reduced-motion/,/^}$/' globals.css \| grep -c '!important'`; test $((TOTAL-EXEMPT)) -eq 0 | ✅ green |
+| UX-F-02 (theme swap) | `data-theme="light"` flips body bg | 09-01 Task 3 | unit | `vitest src/__tests__/foundation.test.ts --run` — toggle attr, assert different `--color-bg` | ✅ green |
+| UX-F-03 | Shell renders sidebar + topbar | 09-04 Task 2 | unit | `vitest src/components/shell/app-shell.test.tsx --run` | ✅ green |
+| UX-F-03 (active nav) | Active nav matches `usePathname` exact/prefix per D-35 | 09-04 Task 2 | unit (mock usePathname) | `vitest src/components/shell/sidebar.test.tsx --run` | ✅ green |
+| UX-F-04 (Button) | All states + no axe violations | 09-02 Task 2 | unit + axe | `vitest src/components/ui/button.test.tsx --run` | ✅ green |
+| UX-F-04 (Input) | All states + password eye-toggle | 09-02 Task 2 | unit + axe | `vitest src/components/ui/input.test.tsx --run` | ✅ green |
+| UX-F-04 (SsoButton) | Both providers + a11y | 09-02 Task 2 | unit + axe | `vitest src/components/ui/sso-button.test.tsx --run` | ✅ green |
+| UX-F-04 (GradientText) | Gradient styles applied | 09-02 Task 2 | unit | `vitest src/components/ui/gradient-text.test.tsx --run` | ✅ green |
+| Phase 9 §5 (login flow) | Form submits and routes to `/dashboard` | 09-06 Task 2 | manual smoke | `npm run dev` + valid credentials | ✅ green |
+| Phase 9 §6 (shell) | `/dashboard` renders inside `(authed)` shell post-login | 09-06 Task 2 | manual smoke | login → land on `/dashboard`, observe sidebar | ✅ green |
+| `?next=` preservation | `/login?next=/dashboard/vulnerabilities` lands at target after login | 09-06 Task 2 | manual smoke | unauthed URL → log in → verify landing | ✅ green |
+| Open-redirect mitigation | `/login?next=//evil.com` lands at `/dashboard` (not evil.com) | 09-05 Task 3 → 09-06 Task 2 | unit + manual | `vitest src/app/login/page.test.tsx --run` — `sanitizeNext` cases | ✅ green |
+| autoComplete attrs (D-48) | login/forgot/reset use correct credential autoFill hints | 09-05 Task 3 | unit | `vitest src/app/login/page.test.tsx --run` — autocomplete assertions | ✅ green |
+| Anti-enumeration forgot copy (Pitfall 9) | Forgot-password always shows generic confirmation | 09-05 Task 3 | unit | `vitest src/app/login/page.test.tsx --run` — generic copy assertion | ✅ green |
+| Phase gate | Test + lint + build + tsc all green | 09-06 Task 1 | composite | `npm test -- --run && npm run lint && npm run build && npx tsc --noEmit` | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -136,3 +136,23 @@ plans:
 | 09-06 | 5 | 2 | All — verification + sign-off |
 
 **Coverage check:** D-01..D-53 each appear in at least one plan task (no orphans). UX-01-01..05 + UX-F-01..04 each appear in at least one plan's `requirements` frontmatter (9/9 covered).
+
+---
+
+## Validation Audit 2026-07-15 (BL-05)
+
+Reconciled against the shipped test suite. All Per-Task Map statuses were `⬜ pending`
+(authored pre-execution, never flipped by a checker); every automated row now maps to a
+passing test and the manual-smoke rows were human-verified in `09-HUMAN-UAT.md` (all 12 PASS,
+2026-05-13).
+
+| Metric | Count |
+|--------|-------|
+| Automated rows | 23 |
+| Covered (green) | 23 |
+| Gaps found | 0 |
+| New tests written | 0 |
+| Escalated to manual-only | 0 (5 manual-smoke rows human-verified) |
+
+Evidence: `npx vitest run` 683/683 green · `next build` exit 0 · `tsc --noEmit` exit 0 ·
+`!important` count 0 outside reduced-motion · 0 v1 HSL utilities. **Nyquist-compliant.**
