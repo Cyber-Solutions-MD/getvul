@@ -2,7 +2,7 @@
 phase: 15
 plan: 06
 artifact: human-uat
-status: 2-of-3-automated-verified
+status: complete (3-of-3 verified; Item 1 human-confirmed 2026-07-15)
 ---
 
 # Phase 15 — Human UAT Checklist
@@ -31,10 +31,10 @@ may differ. The five severity glyphs (■ ▲ ◆ ○ □) must be distinguishab
 
 | | |
 |---|---|
-| **Result** | ⏳ PENDING HUMAN (real Safari.app on macOS) |
-| **Notes** | Automated coverage: the WebKit (Safari engine) smoke project asserts at least one severity glyph (■ ▲ ◆ ○ □) renders in the DOM and the page passes axe in WebKit. Real-DPR legibility at 14px still needs a human eye on Safari.app per D-02. |
-| **Tester** | (human) |
-| **Date** | (pending) |
+| **Result** | ✅ PASS (real Safari.app on macOS) |
+| **Notes** | All five severity glyphs (■ ▲ ◆ ○ □) confirmed visually distinct and legible at 14px in Safari.app on `/dashboard/vulnerabilities` + drill panel. Closes BL-06. Automated coverage (retained): the WebKit smoke project asserts a severity glyph renders in the DOM and the page passes axe in WebKit. |
+| **Tester** | Igor (human) |
+| **Date** | 2026-07-15 |
 
 ---
 
