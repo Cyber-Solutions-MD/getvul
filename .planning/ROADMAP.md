@@ -187,6 +187,56 @@ Phases 9–15 redesigned every authenticated screen against the Wiz-inspired sun
 
 **Full phase detail + accomplishments + decisions + tech-debt:** [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) · **Requirements:** [milestones/v2.0-REQUIREMENTS.md](milestones/v2.0-REQUIREMENTS.md) · **Audit:** [milestones/v2.0-MILESTONE-AUDIT.md](milestones/v2.0-MILESTONE-AUDIT.md)
 
+## 🚧 v2.2 Deferred UI Features — IN PROGRESS (opened 2026-07-15)
+
+Finishing the four features deferred out of v2.0. Every phase holds the phase-15 gate (axe WCAG 2.1 AA in both themes, reduced-motion, ≤250 KB First-Load JS/route) and the `sketch-findings-getvul` design contract. Locked: View Transitions API (motion) + @dnd-kit (kanban). Full detail: [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
+
+### Phase 16: Light-theme visual completion
+**Goal**: Every authenticated route is visually correct and WCAG 2.1 AA in light mode — not just architecturally themed.
+**Depends on**: Nothing (unblocks the axe-in-both-themes requirement for phases 17–19)
+**Requirements**: UX-D-03-01, UX-D-03-02, UX-D-03-03, UX-D-03-04, UX-D-03-05
+**Success Criteria** (what must be TRUE):
+  1. A per-route light-mode sweep shows no dark-only visual artifacts (borders/shadows/hover/disabled) on any of the ~15 routes
+  2. `e2e/a11y-routes.spec.ts` runs under `data-theme="light"` and reports 0 serious/critical axe violations on every route
+  3. Severity/status/SLA pills and glyphs are legible and distinct on light surfaces; muted/faint/disabled tokens pass AA (source-palette changes reconciled into the design system)
+  4. Zero First-Load-JS delta (CSS-only); the existing dark-mode gate stays green
+**Plans**: 2 plans (2 waves)
+- [ ] 16-01-PLAN.md — light-mode token overrides + component literal fixes + light-theme axe sweep (the joint UX-D-03-01..05 gate)
+- [ ] 16-02-PLAN.md — reconcile axe-confirmed light values into the design-system skill (BL-04 mirror) + enable the Theme: Light toggle
+
+### Phase 17: Page-transition motion
+**Goal**: Route changes within the app shell cross-fade smoothly, reduced-motion-safe, at zero bundle cost.
+**Depends on**: Phase 16 (both-themes axe baseline)
+**Requirements**: UX-D-06-01, UX-D-06-02, UX-D-06-03, UX-D-06-04, UX-D-06-05
+**Success Criteria** (what must be TRUE):
+  1. Navigating between authed routes shows a View-Transitions cross-fade via a single `(authed)/template.tsx`
+  2. Under `prefers-reduced-motion: reduce`, transitions are suppressed (animation-duration ≤0.02s) and `e2e/reduced-motion.spec.ts` stays green
+  3. A CSS fallback keeps navigation clean in non-supporting browsers (Firefox) — no jank or broken paint
+  4. DrillPanel Esc/clickaway close still works during/after a transition; no layout shift; no route over 250 KB
+**Plans**: TBD
+
+### Phase 18: Tickets kanban board
+**Goal**: Replace the board-view placeholder with a real, keyboard-accessible status kanban backed by a persisting mutation.
+**Depends on**: Phase 16
+**Requirements**: UX-D-01-01, UX-D-01-02, UX-D-01-03, UX-D-01-04, UX-D-01-05, UX-D-01-06
+**Success Criteria** (what must be TRUE):
+  1. The board renders four status columns populated from `useTickets`; the list/board URL toggle is preserved
+  2. Dragging a ticket to another column (pointer or keyboard, via @dnd-kit) persists its status with optimistic update and rolls back on error
+  3. Empty columns show the canonical empty-state; the status chip filter still applies
+  4. At <768px the board degrades cleanly without regressing the fixed bottom-nav; the route stays ≤250 KB and passes axe in both themes
+**Plans**: TBD
+
+### Phase 19: Add-connector wizard
+**Goal**: Replace the single-step connector form with a guided four-step wizard, reusing existing endpoints.
+**Depends on**: Phase 16
+**Requirements**: UX-D-02-01, UX-D-02-02, UX-D-02-03, UX-D-02-04, UX-D-02-05, UX-D-02-06
+**Success Criteria** (what must be TRUE):
+  1. Adding a connector runs provider pick → credentials → test → confirm, with step navigation gated on a successful connection test
+  2. The credentials step preserves the sentinel-passthrough (untouched secrets not resent); the confirm step shows required scopes before submit
+  3. The wizard reuses `POST /connectors/test` and `POST /connectors` (no new backend) and works in the ResponsiveDialog/vaul mobile pattern
+  4. The connectors route passes axe in both themes and stays ≤250 KB
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
