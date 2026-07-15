@@ -27,6 +27,7 @@
 import { Suspense, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams, useParams } from 'next/navigation';
 import { Breadcrumb, Crumb } from '@/components/ui/Breadcrumb';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { RiskCard } from '@/components/assets/risk-card';
 import { OwnerCard } from '@/components/assets/owner-card';
 import { IdentityMetadataRail } from '@/components/assets/identity-metadata-rail';
@@ -123,7 +124,7 @@ function AssetDetailInner() {
         <section className="space-y-6" aria-label="Asset details">
           <header className="space-y-2">
             <Breadcrumb>
-              <Crumb href="/assets">Assets</Crumb>
+              <Crumb href="/dashboard/assets">Assets</Crumb>
               <Crumb>{a.hostname ?? '—'}</Crumb>
             </Breadcrumb>
             <div className="flex flex-wrap items-baseline gap-3">
@@ -223,6 +224,7 @@ function AssetDetailInner() {
 }
 
 export default function AssetDetailPage() {
+  useDocumentTitle('Asset detail');
   return (
     <ErrorBoundary
       fallback={(err, reset) => (

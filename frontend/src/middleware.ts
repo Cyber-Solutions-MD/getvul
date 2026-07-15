@@ -13,7 +13,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // envelope) can't read localStorage. See research §Pattern 5.
 const LEGACY_MAP: Record<string, string> = {
   '/assets':          '/dashboard/assets',
-  '/integrations':    '/dashboard/integrations',
+  '/integrations':    '/dashboard/connectors',
   '/settings':        '/dashboard/settings',
   '/tickets':         '/dashboard/tickets',
   '/vulnerabilities': '/dashboard/vulnerabilities',

@@ -30,6 +30,7 @@ import {
 } from '@/lib/queries/use-connectors-admin';
 import type { ConnectorConfigResponse } from '@/lib/queries/use-connectors-admin';
 import { SkeletonTable, EmptyState, PartialFailureBanner } from '@/components/states';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { ConnectorCard } from '@/components/connectors/connector-card';
@@ -400,6 +401,7 @@ function ConnectorsPageInner() {
 // useSearchParams() (D-CONN-07 deep-link read) requires a Suspense boundary so the
 // page shell can statically prerender (Next.js missing-suspense-with-csr-bailout).
 export default function ConnectorsPage() {
+  useDocumentTitle('Connectors');
   return (
     <Suspense
       fallback={

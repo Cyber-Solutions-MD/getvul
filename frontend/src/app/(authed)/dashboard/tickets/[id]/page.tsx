@@ -193,7 +193,7 @@ function TicketDetailInner() {
           <EmptyState.Title>Ticket not found</EmptyState.Title>
           <EmptyState.Body>
             This ticket doesn&apos;t exist or you don&apos;t have access to it.{' '}
-            <Link href="/tickets" className="text-violet hover:underline">
+            <Link href="/dashboard/tickets" className="text-violet hover:underline">
               Back to tickets
             </Link>
           </EmptyState.Body>
@@ -240,7 +240,7 @@ function TicketDetailInner() {
         {/* Header: Breadcrumb + H1 + status pills */}
         <header className="space-y-2">
           <Breadcrumb>
-            <Crumb href="/tickets">Tickets</Crumb>
+            <Crumb href="/dashboard/tickets">Tickets</Crumb>
             <Crumb>{t.title}</Crumb>
           </Breadcrumb>
 

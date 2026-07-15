@@ -100,7 +100,7 @@ function AssetsPageInner() {
   const q = useAssets({ filters, page: pageNum, sort: 'risk_score', order });
 
   const onRowOpen = useCallback(
-    (id: string) => router.push(`/assets/${id}`),
+    (id: string) => router.push(`/dashboard/assets/${id}`),
     [router],
   );
 

@@ -35,6 +35,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { SettingsSidebarShell, type Category } from '@/components/settings/settings-sidebar-shell';
 import { ProfilePane } from '@/components/settings/profile-pane';
 import { WorkspacePane } from '@/components/settings/workspace-pane';
@@ -59,6 +60,7 @@ const CATEGORY_ALLOW_LIST = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  useDocumentTitle('Settings');
   // URL-driven category (clamped via allow-list — T-14-20).
   const [activeCategory, setActiveCategory] = useUrlState<Category>(
     'category',

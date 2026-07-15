@@ -15,6 +15,7 @@
 import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useUrlState } from '@/hooks/use-url-state';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useUrlStateList } from '@/hooks/use-url-state-list';
 import { cn } from '@/lib/utils';
 import { ChipBar } from '@/components/ui/ChipBar';
@@ -412,6 +413,7 @@ function UsersPageInner() {
 // Next 15 statically prerenders client pages; useSearchParams triggers a CSR
 // bailout that must be wrapped in Suspense.
 export default function UsersPage() {
+  useDocumentTitle('Users');
   return (
     <Suspense fallback={null}>
       <UsersPageInner />

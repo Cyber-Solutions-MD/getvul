@@ -185,7 +185,7 @@ describe('/tickets/[id] page', () => {
 
     // Asset card cross-link to /assets/a1
     const assetLink = screen.getByRole('link', { name: /view asset/i });
-    expect(assetLink).toHaveAttribute('href', '/assets/a1');
+    expect(assetLink).toHaveAttribute('href', '/dashboard/assets/a1');
   });
 
   it('Test 3: CommentInput onSubmit calls useAddComment; Watch button calls useTicketWatch; BlockedToggle reuses useMarkBlocked', () => {
