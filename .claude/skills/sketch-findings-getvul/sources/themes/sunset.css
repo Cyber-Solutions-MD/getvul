@@ -17,7 +17,7 @@
   /* ─── Text ─── */
   --color-text:         #F0E8FF;  /* warm white */
   --color-text-muted:   #B8AECE;
-  --color-text-faint:   #6B6488;
+  --color-text-faint:   #8B84A8;  /* AA-lifted (was #6B6488, ~2.9–3.6:1 fail) */
   --color-text-inverse: #0E0B1A;
 
   /* ─── Sunset accents ─── */
@@ -27,6 +27,14 @@
   --color-violet-soft:  rgba(167, 139, 250, 0.18);
   --color-amber:        #F59E0B;  /* amber */
   --color-amber-soft:   rgba(245, 158, 11, 0.18);
+
+  /* AA-safe text color when set ON the matching -soft fill (18% alpha).
+     The base accent fails WCAG AA (4.5:1) as small text on its own soft
+     fill; these brighter same-hue shades clear it. See visual-language.md
+     "Text on -soft fills". */
+  --color-pink-on-soft:   #F472B6;  /* pink-400   — text on --color-pink-soft   */
+  --color-violet-on-soft: #C4B5FD;  /* violet-300 — text on --color-violet-soft */
+  --color-amber-on-soft:  #F59E0B;  /* amber already clears AA on its soft fill */
 
   /* ─── The sunset gradient ─── */
   --gradient-sunset:    linear-gradient(135deg, #EC4899 0%, #A78BFA 50%, #F59E0B 100%);
