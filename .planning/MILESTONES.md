@@ -40,5 +40,6 @@ Closed the non-blocking tech debt carried in [BACKLOG.md](BACKLOG.md) from the v
 - **BL-02** — pointed the dead `/integrations` middleware redirect at `/dashboard/connectors`. *(PR #22)*
 - **BL-03** — descriptive `useDocumentTitle` on assets-detail, cspm, connectors, users, settings. *(PR #22)*
 - **BL-04** — reconciled the dark-theme contrast overrides (text-faint AA lift + accent-on-soft text tokens + "Text on -soft fills" rule) into the `sketch-findings-getvul` source of truth (sunset.css / foundation.md / visual-language.md).
+- **BL-05** — closed Nyquist validation on phases 9/10/11/14/15: reconciled every VALIDATION.md against the shipped suite, wrote the one genuinely-missing test (Phase 11 `/dev/primitives` route gate), and flipped all five to `nyquist_compliant: true`.
 
-Deferred v2.0 features (Tickets kanban board UX-D-01, full connector wizard UX-D-02, light-theme polish UX-D-03, page transitions UX-D-06), per-phase Nyquist validation (BL-05), and the Safari glyph human check (BL-06) remain separately scoped.
+Deferred v2.0 features (Tickets kanban board UX-D-01, full connector wizard UX-D-02, light-theme polish UX-D-03, page transitions UX-D-06) and the Safari glyph human check (BL-06) remain separately scoped.
