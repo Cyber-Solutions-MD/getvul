@@ -105,6 +105,6 @@ describe('/assets page', () => {
   it('clicking a row pushes to /assets/{id}', () => {
     renderWithClient(<AssetsPage />);
     fireEvent.click(within(screen.getByRole('table')).getByText('prod-db-01'));
-    expect(push).toHaveBeenCalledWith('/assets/a1');
+    expect(push).toHaveBeenCalledWith('/dashboard/assets/a1');
   });
 });

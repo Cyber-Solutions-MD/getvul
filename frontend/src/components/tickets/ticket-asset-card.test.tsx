@@ -20,7 +20,7 @@ describe('TicketAssetCard', () => {
     expect(screen.getByText('prod-db-01.internal')).toBeInTheDocument();
     // Link points to /assets/{assetId}
     const link = screen.getByRole('link', { name: /view asset/i });
-    expect(link).toHaveAttribute('href', '/assets/asset-uuid-123');
+    expect(link).toHaveAttribute('href', '/dashboard/assets/asset-uuid-123');
   });
 
   it('Test 2: when assetId is null renders "Multiple hosts" and no single link', () => {

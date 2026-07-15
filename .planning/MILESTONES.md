@@ -25,6 +25,14 @@ Rebuilt every authenticated screen against the Wiz-inspired sunset-palette desig
 
 ---
 
-## v1.0 Production Readiness — 🚧 PARTIAL (Phase 1 shipped 2026-05-09; Phases 2–8 deferred)
+## v1.0 Production Readiness — ✅ SHIPPED (Phase 1 2026-05-09; Phases 2–8 2026-06-30 → 2026-07-14)
 
-Phase 1 (Multi-Replica State) moved OIDC state + the rate limiter from in-process dicts to Redis (PROD-01). Phases 2–8 (CI gating, update-path reconciliation, doc/code parity, encryption-key lifecycle, default-admin hardening, health/observability, test-coverage floor) were parked while v2.0 took precedence and remain the candidate for a future **v1.1** milestone. Detail in `.planning/ROADMAP.md` (v1.0 section) and `REQUIREMENTS.md`.
+All 8 phases complete. Phase 1 (Multi-Replica State) moved OIDC state + the rate limiter to Redis (PROD-01). Phases 2–8 followed: CI gating (triggers on, masks removed, gate enforcing), update-path reconciliation, doc/code parity (CSP/COOP headers, VulnSource enum), encryption-key lifecycle, default-admin hardening, health/observability (split liveness/readiness, JSON logs), and the test-coverage floor (one+ test per connector + rule engine + SLA; full backend suite 271 green).
+
+**Late hardening (2026-07-13/14):** restored the backend CI gate end-to-end — pinned ruff/mypy, fixed the async test-harness (session-scoped event loop) + rate-limit test isolation, and fixed 4+ real bugs surfaced along the way (change-password redirect loop, tenant-settings 500, rate-limiter fail-open-under-burst, Nessus + Intune connector crashes). Also patched frontend dependency vulns (13 → 2, all high resolved). Detail in `.planning/ROADMAP.md` (v1.0 section) and `REQUIREMENTS.md`.
+
+---
+
+## v2.1 Polish & Tech Debt — 🚧 IN PROGRESS (opened 2026-07-14)
+
+Closing the non-blocking tech debt carried in [BACKLOG.md](BACKLOG.md) from the v2.0 audit — canonical-route navigation (BL-01), dead middleware redirect (BL-02), descriptive page titles (BL-03), dark-theme contrast reconciliation (BL-04). Deferred v2.0 features (Tickets kanban board UX-D-01, full connector wizard UX-D-02) and per-phase Nyquist validation (BL-05) remain separately scoped.

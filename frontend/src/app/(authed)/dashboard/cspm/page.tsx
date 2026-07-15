@@ -18,6 +18,7 @@ import { Suspense, useCallback, useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Lightbulb } from 'lucide-react';
 import { ChipBar, type ChipAxis } from '@/components/ui/ChipBar';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { DrillPanel } from '@/components/vulnerabilities/drill-panel';
 import { DrillPanelMobile } from '@/components/vulnerabilities/drill-panel-mobile';
 import { FindingCard } from '@/components/cspm/finding-card';
@@ -312,6 +313,7 @@ function CspmPageInner() {
 }
 
 export default function CspmPage() {
+  useDocumentTitle('CSPM findings');
   return (
     <Suspense>
       <CspmPageInner />
