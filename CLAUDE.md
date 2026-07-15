@@ -6,8 +6,12 @@ GetVul is a vulnerability triage platform: a vuln-triage analyst opens one dashb
 
 ## Active work
 
-- **v1.0 Production Readiness** — backend hardening milestone. 1 of 8 phases complete (Multi-Replica State). See `.planning/ROADMAP.md`.
-- **v2.0 UI/UX Redesign** — frontend redesign milestone. Sketches complete (6 sketches, 43 design decisions). Milestone planning pending.
+- **v2.2 Deferred UI Features** — 🚧 IN PROGRESS (opened 2026-07-15). Phases 16–19: light-theme completion, page transitions (View Transitions API), Tickets kanban (@dnd-kit), add-connector wizard. See `.planning/milestones/v2.2-ROADMAP.md`. Next: `/gsd-plan-phase 16`.
+- **v1.0 Production Readiness** — ✅ SHIPPED (Phases 1–8, 2026-07-14). Backend hardening.
+- **v2.0 UI/UX Redesign** — ✅ SHIPPED (Phases 9–15, 2026-06-30). Every authed screen on the sunset design system.
+- **v2.1 Polish & Tech Debt** — ✅ SHIPPED (BL-01..05, 2026-07-15). Backlog cleanup; all phase VALIDATION.md now Nyquist-compliant.
+
+See `.planning/ROADMAP.md` + `.planning/MILESTONES.md` for full history.
 
 ## Skills
 

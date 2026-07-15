@@ -42,4 +42,19 @@ Closed the non-blocking tech debt carried in [BACKLOG.md](BACKLOG.md) from the v
 - **BL-04** — reconciled the dark-theme contrast overrides (text-faint AA lift + accent-on-soft text tokens + "Text on -soft fills" rule) into the `sketch-findings-getvul` source of truth (sunset.css / foundation.md / visual-language.md).
 - **BL-05** — closed Nyquist validation on phases 9/10/11/14/15: reconciled every VALIDATION.md against the shipped suite, wrote the one genuinely-missing test (Phase 11 `/dev/primitives` route gate), and flipped all five to `nyquist_compliant: true`.
 
-Deferred v2.0 features (Tickets kanban board UX-D-01, full connector wizard UX-D-02, light-theme polish UX-D-03, page transitions UX-D-06) and the Safari glyph human check (BL-06) remain separately scoped.
+Deferred v2.0 features (Tickets kanban board UX-D-01, full connector wizard UX-D-02, light-theme polish UX-D-03, page transitions UX-D-06) were promoted into **v2.2** (below). The Safari glyph human check (BL-06) remains separately scoped (needs a Mac).
+
+## v2.2 Deferred UI Features — 🚧 IN PROGRESS (opened 2026-07-15)
+
+Finishing the four features deferred out of v2.0 as net-new work. Phases 16–19; full detail in
+[milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md), requirements in
+[milestones/v2.2-REQUIREMENTS.md](milestones/v2.2-REQUIREMENTS.md).
+
+- **Phase 16 — Light-theme visual completion** (UX-D-03): per-route light-mode QA + axe AA in both themes.
+- **Phase 17 — Page-transition motion** (UX-D-06): View Transitions API cross-fade, reduced-motion-safe (0 KB).
+- **Phase 18 — Tickets kanban board** (UX-D-01): @dnd-kit status columns replacing the placeholder.
+- **Phase 19 — Add-connector wizard** (UX-D-02): 4-step provider → credentials → test → confirm.
+
+Locked: View Transitions API (motion) + @dnd-kit (board). Every phase holds the phase-15 gate
+(axe AA both themes, reduced-motion, ≤250 KB/route). Sequence 16 → 17 → 18 → 19 (16 gates the
+both-themes axe requirement; 17 and 18 can run in parallel after it). Next: `/gsd-plan-phase 16`.
