@@ -1,8 +1,8 @@
 ---
 phase: 3
 slug: update-path-reconciliation
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-01
 ---
@@ -80,3 +80,22 @@ grep/lint on files that already exist.
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Validation Audit 2026-07-15 (post-BL-05 backend sweep)
+
+Reconciled against the codebase. All four grep/lint checks re-run and pass; the map has no
+status column (grep/lint smoke checks, not pytest).
+
+| Metric | Count |
+|--------|-------|
+| Automated rows | 4 |
+| Covered (green) | 4 |
+| Gaps found | 0 |
+| New tests written | 0 |
+| Escalated to manual-only | 1 (SC#4 live-VM rollback dry-run — needs real GCE infra) |
+
+Evidence: `getvul-update` absent from install.sh/startup.sh · `auto-update.sh` git-rm'd ·
+cd.yml has no `reset --hard origin/main`, uses tag-pinned `checkout --force` · rollback runbook
++ migration caveat present in docs/13-deployment.md. **Nyquist-compliant.**
