@@ -56,25 +56,15 @@ export function UserChip() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        {/* Theme radio per D-38. Light is disabled until D-06 / UX-D-03 ships
-            light-mode overrides for severity / accent / danger tokens. WR-03. */}
+        {/* Theme radio per D-38. Both dark and light themes shipped in Phase 16
+            (UX-D-03) — all severity, accent, danger, and glow tokens pass the
+            axe WCAG 2.1 AA gate on both surfaces. */}
         <DropdownMenuRadioGroup
           value={theme}
           onValueChange={(v) => setTheme(v as 'dark' | 'light')}
         >
           <DropdownMenuRadioItem value="dark">{'Theme: Dark'}</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem
-            value="light"
-            disabled
-            aria-description="Light theme is not ready yet — only surface tokens swap; severity, accent, and danger colors stay dark-tuned."
-          >
-            <span className="flex w-full items-center justify-between gap-3">
-              <span>{'Theme: Light'}</span>
-              <span className="text-[10px] uppercase tracking-wide text-text-faint">
-                {'In progress'}
-              </span>
-            </span>
-          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="light">{'Theme: Light'}</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
 
         <DropdownMenuSeparator />
