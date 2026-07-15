@@ -83,6 +83,18 @@ Used on tickets, deliberately distinct from severity colors so the eye separates
 
 The `<span class="dot">` is a 6×6 solid-current-color circle. Each pill has its own tinted background + bordered chrome (same shape as severity pills).
 
+### Text on -soft fills (AA — locked)
+
+When a badge, pill, or chip sets **text** on an accent's `-soft` fill (18% alpha), the base accent as the text color fails WCAG AA (4.5:1) at small sizes — measured `text-violet` on `violet-soft` = 4.35:1, `text-pink` on `pink-soft` = 4.0:1. Use the **`-on-soft`** shade for the text instead (same hue, brighter):
+
+| Fill | Text token | Hex |
+|---|---|---|
+| `--color-violet-soft` | `--color-violet-on-soft` | `#C4B5FD` (violet-300) |
+| `--color-pink-soft` | `--color-pink-on-soft` | `#F472B6` (pink-400) |
+| `--color-amber-soft` | `--color-amber-on-soft` | `#F59E0B` (amber already clears AA) |
+
+The tinted-fill *border* and *dot* still use the base accent — only the text lifts. Applies to the "Open" status pill, OWNER/ADMIN role badges, and any future accent-on-soft badge. The `-soft` tokens on their own (backgrounds, focus rings, glows) are unaffected.
+
 ## SLA (3-tier time deltas)
 
 Always right-aligned. Mono font. Color-coded.

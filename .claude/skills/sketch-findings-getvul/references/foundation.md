@@ -22,7 +22,7 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
 /* Text */
 --color-text:          #F0E8FF;  /* warm white */
 --color-text-muted:    #B8AECE;
---color-text-faint:    #6B6488;
+--color-text-faint:    #8B84A8;  /* AA-lifted; was #6B6488 (failed 4.5:1 on dark) */
 --color-text-inverse:  #0E0B1A;
 
 /* Sunset accents */
@@ -30,6 +30,9 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
 --color-violet:        #A78BFA;  /* lavender */
 --color-amber:         #F59E0B;  /* amber */
 /* + matching -soft variants at 18% alpha */
+/* + matching -on-soft text shades (AA-safe text on a -soft fill):
+   pink-on-soft #F472B6, violet-on-soft #C4B5FD, amber-on-soft #F59E0B.
+   See visual-language.md "Text on -soft fills". */
 
 /* The signature gradient */
 --gradient-sunset:     linear-gradient(135deg, #EC4899 0%, #A78BFA 50%, #F59E0B 100%);

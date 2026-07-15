@@ -28,8 +28,9 @@
      dark surfaces at small sizes — caught by the per-route axe gate. #8B84A8 is
      the minimal same-hue lift that clears 4.5:1 on every dark surface
      (bg/bg-darker/surface/surface-2) while staying dimmer than text-muted.
-     DESIGN-SYSTEM GAP — reconcile into sketch-findings-getvul foundation.md;
-     sunset.css is vendored and must not be edited directly. */
+     Reconciled into the design-system source (BL-04): sketch-findings-getvul
+     sunset.css + foundation.md now carry #8B84A8. This override mirrors that
+     and can be retired when the vendored copy of sunset.css is re-synced. */
   --color-text-faint: #8B84A8;
 }
 
