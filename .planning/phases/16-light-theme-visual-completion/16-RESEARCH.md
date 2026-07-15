@@ -709,7 +709,9 @@ change). No backend tests, no Python environment, no database migrations.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+RESOLVED during planning — none blocks execution: (Q1) run axe in light mode and investigate any violation beyond expected token failures; (Q2) `/login` gradient-mesh legibility is a human-UAT item, out of authed-route axe scope; (Q3) the `severity-medium` starting hex is axe-tunable — the sweep is the authoritative instrument.
 
 1. **Are there any routes that load `prefers-color-scheme` media queries directly?**
    - What we know: No `@media (prefers-color-scheme)` found in globals.css or component CSS.
