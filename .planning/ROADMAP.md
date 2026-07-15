@@ -8,6 +8,8 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 - ✅ **v1.0 Production Readiness** — Phases 1–8 (all complete 2026-07-14)
 - ✅ **v2.0 UI/UX Redesign** — Phases 9–15 (SHIPPED 2026-06-30) — archived: [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
+- ✅ **v2.1 Polish & Tech Debt** — BL-01..05 (SHIPPED 2026-07-15; no new phases — backlog cleanup) — see [MILESTONES.md](MILESTONES.md)
+- 🚧 **v2.2 Deferred UI Features** — Phases 16–19 (opened 2026-07-15) — [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md)
 
 ## Phases
 
@@ -34,6 +36,13 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 13: `/tickets` List + Detail** — Reuses list + detail patterns; adds provider gradient marks, status pills, watcher stacks
 - [x] **Phase 14: Remaining Screens** — CSPM, connectors, users, settings (sidebar-of-categories) against established primitives
 - [x] **Phase 15: Mobile + a11y + Perf Quality Gate** — 360/390/768/1280 viewport audit, bottom-nav, Lighthouse ≥ 90, axe pass per route, cross-browser, reduce-motion — closed the milestone
+
+**v2.2 Deferred UI Features (opened 2026-07-15 — Phases 16–19):** full detail in [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
+
+- [ ] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03)
+- [ ] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06)
+- [ ] **Phase 18: Tickets kanban board** — @dnd-kit status columns replacing the placeholder (UX-D-01)
+- [ ] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02)
 
 ## Phase Details
 

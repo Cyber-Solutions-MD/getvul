@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Production Readiness
-status: "Phase 07 shipped — PR #14 (UAT fixes)"
-last_updated: "2026-07-13T07:57:41.116Z"
+milestone: v2.2
+milestone_name: Deferred UI Features
+status: "v2.2 opened 2026-07-15 — Phase 16 not started"
+last_updated: "2026-07-15T00:00:00.000Z"
 progress:
-  total_phases: 8
-  completed_phases: 7
-  total_plans: 21
-  completed_plans: 21
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,15 +20,17 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 07 — health-and-observability (Phase 06 complete)
+**Current focus:** v2.2 Deferred UI Features — Phase 16 (light-theme visual completion), not started
 
 ## Current Position
 
-Phase: 8
+Phase: 16 (v2.2 — not started)
 Plan: Not started
 | Field | Value |
 |-------|-------|
-| Active milestone | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–6 done; Phases 7–8 remaining) |
+| Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
+| History (v1.0, retained) | Rows below describe the v1.0 Phase 6/7 era and are kept as accumulated context. |
+| Active milestone (v1.0, archived) | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–6 done; Phases 7–8 remaining) |
 | Last completed phase | 6 — Default Admin Hardening ✓ (2026-07-09) — forced first-login password rotation for the install.sh admin. Migration 029 adds `users.must_change_password` (NOT NULL, server_default false); `create_admin.py` seeds it true on the OWNER admin; JWT carries the claim through to `CurrentUser`; `get_current_user` 403-gates all non-allowlist routes (`password_change_required`) while flagged; `/auth/change-password` clears the flag, emits `auth.first_login_rotation`, returns fresh flag-free tokens, and rejects reusing `Admin123!`; frontend `/change-password` page (Phase 9 primitives + sunset tokens) + `auth.tsx` redirect gate. Verifier 5/5 must-haves. PROD-06-01..04 Complete. |
 | Last action | 2026-07-09 — Phase 6 executed via `/gsd-execute-phase 6` (4 plans, 3 waves, worktree parallel; Wave 1 06-00/06-01 in parallel). Both Wave-1 agents hit the known stale-base hazard and self-recovered via the branch-check reset; 06-00/06-01 both authored `test_admin_hardening.py` (add/add merge conflict resolved in favor of owner 06-00). Verifier first pass found SC#4 blocker (WR-01: `/auth/login` UserInfo omitted `must_change_password`, so the SPA redirect gate never fired on the primary login path — only after a hard reload via `/auth/me`). Fixed inline (commit db20589): added the field to `UserInfo` schema + populated in `issue_tokens()`, plus backend + frontend regression tests. Re-verify 5/5 passed. |
 | Next action | Phase 7 (Health and Observability). `/gsd-discuss-phase 7` → `/gsd-plan-phase 7` → `/gsd-execute-phase 7`. |
