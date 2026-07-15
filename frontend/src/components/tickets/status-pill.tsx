@@ -30,7 +30,10 @@ const STATUS_MAP: Record<string, StatusConfig> = {
     // Lift to the brighter same-hue shade (violet-300) = canonical
     // --color-violet-on-soft, documented in the design system (BL-04):
     // visual-language.md "Text on -soft fills".
-    classes: 'border-violet/40 bg-violet-soft text-[#C4B5FD]',
+    // Phase-16 (UX-D-03-04): replaced text-[#C4B5FD] JIT literal with
+    // var(--color-violet-on-soft) so the light-mode override in globals.css
+    // takes effect (dark: #C4B5FD via BL-04; light: #5B21B6 via Phase-16).
+    classes: 'border-violet/40 bg-violet-soft text-[var(--color-violet-on-soft)]',
     label: 'Open',
   },
   in_progress: {

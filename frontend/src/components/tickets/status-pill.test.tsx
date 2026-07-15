@@ -9,8 +9,9 @@ describe('StatusPill', () => {
     expect(pill).toBeDefined();
     expect(pill.className).toContain('border-violet/40');
     expect(pill.className).toContain('bg-violet-soft');
-    // Phase-15 a11y: open-status text lifted to violet-300 (#C4B5FD) for AA contrast
-    expect(pill.className).toContain('text-[#C4B5FD]');
+    // Phase-15 a11y: open-status text lifted to --color-violet-on-soft for AA contrast
+    // Phase-16: var() ref so light-mode override (#5B21B6) and dark BL-04 (#C4B5FD) both resolve
+    expect(pill.className).toContain('text-[var(--color-violet-on-soft)]');
     // Leading dot span
     const dot = pill.querySelector('span.size-1\\.5');
     expect(dot).toBeDefined();
@@ -44,8 +45,8 @@ describe('StatusPill', () => {
     const { container } = render(<StatusPill externalStatus="open" blocked={true} />);
     const pills = container.querySelectorAll('[data-status]');
     expect(pills.length).toBe(2);
-    // First pill: provider status (open = violet, a11y-lifted to violet-300)
-    expect(pills[0].className).toContain('text-[#C4B5FD]');
+    // First pill: provider status (open = violet, resolves via --color-violet-on-soft)
+    expect(pills[0].className).toContain('text-[var(--color-violet-on-soft)]');
     // Second pill: blocked (severity-critical)
     expect(pills[1].className).toContain('text-severity-critical');
     expect(pills[1].textContent).toContain('Blocked');
