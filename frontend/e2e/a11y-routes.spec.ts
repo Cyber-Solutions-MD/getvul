@@ -71,6 +71,69 @@ test.describe('WCAG 2.1 AA axe sweep — all routes (blocking)', () => {
   });
 });
 
+// --- UX-D-03-05 — Blocking WCAG 2.1 AA sweep under data-theme="light" ---
+// The FOUC bootstrap in layout.tsx reads localStorage('getvul_theme') FIRST, so
+// pre-seeding 'light' via addInitScript forces data-theme="light" before paint.
+// Defensive: re-assert after goto and force-set if the bootstrap didn't take (Pitfall 2).
+test.describe('WCAG 2.1 AA axe sweep — light theme (blocking)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('getvul_theme', 'light');
+      } catch {
+        /* storage unavailable — force-set after goto below */
+      }
+    });
+  });
+
+  test('sweeps all routes for critical/serious violations in light mode', async ({
+    page,
+    makeAxeBuilder,
+  }) => {
+    const detailRoutes = await discoverDetailRoutes(page);
+    if (detailRoutes.length === 0) {
+      console.warn('[a11y-routes] no detail routes discovered — sweeping static routes only (light)');
+    }
+    const routes: string[] = [...STATIC_ROUTES, ...detailRoutes];
+
+    for (const route of routes) {
+      await page.goto(route);
+      await waitForNav(page, 1280);
+
+      // Defensive: confirm the bootstrap actually applied light; force if not.
+      const actualTheme = await page.locator('html').getAttribute('data-theme');
+      if (actualTheme !== 'light') {
+        await page.evaluate(() => {
+          document.documentElement.setAttribute('data-theme', 'light');
+        });
+        await page.waitForTimeout(50); // allow the CSS cascade to repaint
+      }
+
+      const results = await makeAxeBuilder().analyze();
+      const blocking = results.violations.filter(
+        (v) => v.impact === 'critical' || v.impact === 'serious',
+      );
+
+      if (blocking.length > 0) {
+        console.error(
+          `[a11y-routes] BLOCKING violations (light) on ${route}:\n` +
+            blocking
+              .map(
+                (v) =>
+                  `  [${v.impact}] ${v.id}: ${v.description} — ${v.nodes.length} node(s)`,
+              )
+              .join('\n'),
+        );
+      }
+
+      expect(
+        blocking,
+        `Zero critical/serious axe violations (light) on ${route}`,
+      ).toHaveLength(0);
+    }
+  });
+});
+
 // --- UX-07-02 — Mobile bottom-nav presence + More-sheet opens at 360px ---
 test.describe('Bottom-nav visibility + More-sheet at 360px', () => {
   test.use({ viewport: { width: 360, height: 812 } });
