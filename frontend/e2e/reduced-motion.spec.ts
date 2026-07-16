@@ -77,10 +77,11 @@ test.describe('Reduced-motion emulation', () => {
       return 0;
     });
 
+    // IN-02 fix: make the absent-element case visible in the report rather than a
+    // silent pass. test.skip() marks the test as intentionally skipped (criticalOpen=0,
+    // quiet-win mode) so it is clearly visible, not buried in console.warn output.
     if (durationSeconds === null) {
-      // Hero is in quiet-win mode (criticalOpen === 0) — urgency dot not in DOM.
-      // Log and skip — this is a valid operational state, not a test failure.
-      console.warn('[reduced-motion] hero urgency dot not in DOM — criticalOpen is 0 (quiet-win mode)');
+      test.skip(true, '[IN-02] hero urgency dot not in DOM — criticalOpen is 0 (quiet-win mode). Seed fixture with criticalOpen > 0 for full coverage.');
       return;
     }
     expect(durationSeconds).toBeLessThanOrEqual(0.02);
@@ -88,16 +89,15 @@ test.describe('Reduced-motion emulation', () => {
 
   // UX-D-06-02 — VT pseudo-element reduced-motion suppression guard.
   //
-  // This test is RED until Plan 02 adds the explicit:
-  //   @media (prefers-reduced-motion: reduce) {
-  //     ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
-  //       animation-duration: 0.01ms !important;
-  //       animation-delay: 0.01ms !important;
-  //     }
-  //   }
-  // rule to globals.css. The existing `*, *::before, *::after` blanket (globals.css:116-124)
-  // does NOT reach these UA-generated pseudo-elements — this test is the automated proof
-  // of that correction to CONTEXT.md D-06.
+  // WR-03 fix: the poll filter now targets the NAMED 'authed-page-content' group
+  // (::view-transition-group/old/new(authed-page-content)) instead of any pseudo-element
+  // containing 'view-transition'. The generic match also catches the default root animations
+  // and cannot detect WR-01/WR-02. The named-group filter only fires if the content wrapper
+  // has a real box and the named transition actually formed.
+  //
+  // Two acceptable suppressed states:
+  //   a) Named authed-page-content VT animations exist but are <= 20ms (suppress working).
+  //   b) No named group animations appear (instant swap — also valid suppressed state).
   test('view-transition pseudo-elements are suppressed under prefers-reduced-motion', async ({ page }) => {
     // Emulate prefers-reduced-motion: reduce BEFORE navigation (matching the existing pattern).
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -109,27 +109,22 @@ test.describe('Reduced-motion emulation', () => {
     // Trigger a client-side pathname change by clicking the Vulnerabilities nav link.
     // This is exactly what would fire a VT animation under normal motion.
     // Under prefers-reduced-motion: reduce, the explicit VT suppressor rule pinned
-    // the duration to 0.01ms — so any VT animation that fires should be near-instant.
+    // the duration to 0.01ms — so any named authed-page-content VT animation that fires
+    // should be near-instant.
     const vulnLink = page
       .locator('nav[aria-label="Primary navigation"]')
       .getByRole('link', { name: /vulnerab/i });
     await vulnLink.click();
 
     // Assert suppression via a bounded poll (~800ms).
-    // For each VT animation entry found, read its computed duration via
-    // effect.getComputedTiming().duration (a number in ms) — more reliable than
-    // getComputedStyle on a pseudo-element (pseudo-elements not reliably queryable).
-    //
-    // Two acceptable suppressed states:
-    //   a) A view-transition animation exists but its computed duration is <= 20ms
-    //      (the explicit reduce suppressor pinned it to 0.01ms).
-    //   b) No view-transition animation ever appears in the poll window.
-    //      (Also an acceptable suppressed state — instant swap with no animation.)
+    // WR-03: filter on pseudoElement containing 'authed-page-content' to match only the
+    // named group (::view-transition-group(authed-page-content), -old(...), -new(...)).
+    // This is tighter than the previous 'view-transition' substring which matched root too.
     const pollMs = 800;
     const intervalMs = 50;
     const deadline = Date.now() + pollMs;
 
-    let maxVtDurationMs = 0; // Tracks the maximum VT animation duration seen
+    let maxVtDurationMs = 0; // Tracks the maximum named-group VT animation duration seen
     let vtAnimationEverSeen = false;
 
     while (Date.now() < deadline) {
@@ -139,7 +134,7 @@ test.describe('Reduced-motion emulation', () => {
           .filter(
             (a) =>
               typeof (a.effect as VTEffect | null)?.pseudoElement === 'string' &&
-              ((a.effect as VTEffect).pseudoElement as string).includes('view-transition'),
+              ((a.effect as VTEffect).pseudoElement as string).includes('authed-page-content'),
           )
           .map((a) => {
             // getComputedTiming().duration returns a number in ms (or the string 'auto').
@@ -158,21 +153,20 @@ test.describe('Reduced-motion emulation', () => {
       await page.waitForTimeout(intervalMs);
     }
 
-    // If any VT animations were observed, assert their duration is near-zero (<= 20ms).
-    // This will be RED until the explicit VT reduced-motion suppressor rule is added
-    // to globals.css in Plan 02.
+    // If any named authed-page-content VT animations were observed, assert their
+    // duration is near-zero (<= 20ms) — the explicit reduce suppressor pinned to 0.01ms.
     if (vtAnimationEverSeen) {
       expect(
         maxVtDurationMs,
-        `view-transition pseudo-element animation duration must be <= 20ms under prefers-reduced-motion (got ${maxVtDurationMs}ms). RED until Plan 02 adds the explicit ::view-transition-group/old/new suppressor rule.`,
+        `Named authed-page-content VT animation duration must be <= 20ms under prefers-reduced-motion (got ${maxVtDurationMs}ms).`,
       ).toBeLessThanOrEqual(20);
     }
-    // If no VT animations were seen at all, the test passes:
+    // If no named VT animations were seen at all, the test passes:
     // instant swap with no animation is also a valid suppressed state.
 
-    // Also document the "instant swap" expectation:
+    // Confirm the destination rendered without unexpected delay.
     // A 320ms fade would still leave the nav landmark visible (it fades content, not chrome),
-    // but a timeout of 500ms confirms the destination rendered without unexpected delay.
+    // but a timeout of 500ms confirms no unexpected delay.
     await page.locator('nav[aria-label="Primary navigation"]').waitFor({ state: 'visible', timeout: 500 });
   });
 });

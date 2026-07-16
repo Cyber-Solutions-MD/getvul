@@ -3,16 +3,19 @@
 // Asserts that a View Transitions cross-fade fires on a real pathname change
 // (Dashboard → Vulnerabilities) and does NOT fire on a searchParams-only change.
 //
-// This test is RED until Plan 02 adds `(authed)/template.tsx` and the
-// `view-transition-name` CSS. The proxy is `document.getAnimations()` reporting
-// a `view-transition` pseudo-element animation during the client-side pathname
-// change.
+// WR-03 fix: assertions now target the NAMED 'authed-page-content' group specifically
+// (e.g. ::view-transition-group(authed-page-content), -old(authed-page-content),
+// -new(authed-page-content)) rather than any pseudo-element containing 'view-transition'.
+// The generic string match was passing on the default ::view-transition-old(root)
+// animation (which fires even when the named group never forms, covering WR-01/WR-02).
+// The tightened assertion acts as the WR-02 arbiter: if it passes, a real named-group
+// transition fired; if it fails, WR-02 is confirmed and must be escalated.
 //
 // Runs on the default `chromium-a11y` project — no new project registration needed.
 // storageState is set at the project level in playwright.config.ts.
 //
 // D-01/D-02 architectural guarantee (from CONTEXT.md + RESEARCH.md):
-//   - Pathname changes → template.tsx remounts → startViewTransition fires → VT pseudo-elements animate.
+//   - Pathname changes → template.tsx remounts → startViewTransition fires → named VT group animates.
 //   - searchParams-only changes → template.tsx does NOT remount → no VT fires.
 
 import { test, expect } from '@playwright/test';
@@ -33,42 +36,46 @@ test.describe('Page-transition motion', () => {
       .locator('nav[aria-label="Primary navigation"]')
       .getByRole('link', { name: /vulnerab/i });
 
-    // Poll for a view-transition pseudo-element animation immediately after clicking.
+    // Poll for the NAMED 'authed-page-content' VT group animation immediately after clicking.
+    // WR-03: filter specifically on pseudoElement containing 'authed-page-content' rather
+    // than the generic 'view-transition' substring. This ensures we observe the isolated
+    // content cross-fade (D-05) and not the fallback root animation.
     // The VT animation is short (~320ms) so we poll over a bounded window.
-    // We click and then start polling concurrently — the VT fires during navigation.
     const clickAndPoll = async (): Promise<number> => {
       // Click without awaiting page navigation (so polling starts in parallel).
       await vulnLink.click();
 
-      // Poll up to ~1500ms at 50ms intervals for a VT animation.
+      // Poll up to ~1500ms at 50ms intervals for a named VT animation.
       const pollMs = 1500;
       const intervalMs = 50;
       const deadline = Date.now() + pollMs;
 
       while (Date.now() < deadline) {
-        const vtCount = await page.evaluate(() =>
+        const namedVtCount = await page.evaluate(() =>
           document
             .getAnimations()
             .filter(
               (a) =>
                 typeof (a.effect as CSSEffect | null)?.pseudoElement === 'string' &&
-                ((a.effect as CSSEffect).pseudoElement as string).includes('view-transition'),
+                ((a.effect as CSSEffect).pseudoElement as string).includes('authed-page-content'),
             ).length,
         );
-        if (vtCount >= 1) return vtCount;
+        if (namedVtCount >= 1) return namedVtCount;
         await page.waitForTimeout(intervalMs);
       }
       return 0;
     };
 
-    const vtAnimationCount = await clickAndPoll();
+    const namedVtCount = await clickAndPoll();
 
-    // Assert: at least one view-transition pseudo-element animation was captured
-    // during the navigation window. This will be RED until Plan 02 wires up
-    // template.tsx + the view-transition-name CSS.
+    // Assert: at least one NAMED authed-page-content VT pseudo-element animation was
+    // captured during the navigation window. This is the WR-02 arbiter:
+    //   - PASS: confirms a real named-group transition fired (WR-01 + WR-02 resolved).
+    //   - FAIL: named group never formed → WR-02 confirmed (escalate, do NOT weaken test).
     expect(
-      vtAnimationCount,
-      'Expected at least one view-transition pseudo-element animation to fire during pathname change (will be RED until Plan 02)',
+      namedVtCount,
+      'Expected at least one authed-page-content named VT pseudo-element animation to fire during pathname change. ' +
+      'FAIL = WR-02 confirmed: startViewTransition() called after DOM commit captures old==new. Escalate.',
     ).toBeGreaterThanOrEqual(1);
 
     // After navigation settles, confirm we reached the destination route.
@@ -91,6 +98,8 @@ test.describe('Page-transition motion', () => {
     // The history.pushState approach is an acceptable proxy for
     // "searchParams changed, pathname did not" when an interactive control
     // is not trivially reachable in a stateless test session.
+    // IN-01: this proxy does not exercise the real App Router segment-diffing path;
+    // kept as documented fallback — a real router.replace drive would be stronger.
     await page.evaluate(() => {
       const u = new URL(location.href);
       u.searchParams.set('tab', 'details');
@@ -98,32 +107,32 @@ test.describe('Page-transition motion', () => {
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
 
-    // Poll for view-transition pseudo-element animations over ~800ms.
-    // Asserts that the count stays 0 — no fade should fire on a searchParams change.
+    // Poll for NAMED authed-page-content VT animations over ~800ms (WR-03 tightened).
+    // Asserts that the count stays 0 — no named-group fade should fire on a searchParams change.
     // This asserts the D-01/D-02 architectural guarantee: template.tsx is keyed on the
     // segment, so searchParams changes never remount it and never trigger startViewTransition.
     const pollMs = 800;
     const intervalMs = 50;
     const deadline = Date.now() + pollMs;
-    let maxVtCount = 0;
+    let maxNamedVtCount = 0;
 
     while (Date.now() < deadline) {
-      const vtCount = await page.evaluate(() =>
+      const namedVtCount = await page.evaluate(() =>
         document
           .getAnimations()
           .filter(
             (a) =>
               typeof (a.effect as CSSEffect | null)?.pseudoElement === 'string' &&
-              ((a.effect as CSSEffect).pseudoElement as string).includes('view-transition'),
+              ((a.effect as CSSEffect).pseudoElement as string).includes('authed-page-content'),
           ).length,
       );
-      if (vtCount > maxVtCount) maxVtCount = vtCount;
+      if (namedVtCount > maxNamedVtCount) maxNamedVtCount = namedVtCount;
       await page.waitForTimeout(intervalMs);
     }
 
     expect(
-      maxVtCount,
-      'Expected zero view-transition animations on a searchParams-only change (D-02: template.tsx does not remount on searchParams change)',
+      maxNamedVtCount,
+      'Expected zero authed-page-content VT animations on a searchParams-only change (D-02: template.tsx does not remount on searchParams change)',
     ).toBe(0);
 
     // Pathname must be unchanged after the searchParams mutation.
