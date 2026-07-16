@@ -105,6 +105,18 @@ The FIRST run (before WR-03 fix) failed the light block on `/dashboard/connector
   plan's own dark-no-op correctness; fixed and committed as `48ffbdb`. Files added beyond the plan's
   `files_modified`: `frontend/src/components/states/empty-state.tsx`,
   `frontend/src/components/states/empty-state.test.tsx`.
+- **WR-04 (added, verifier-surfaced):** the first phase-goal re-verification (`gaps_found` 3/4)
+  flagged that base `--color-violet/pink/amber` are not overridden in light, so ~15 more base
+  `text-{accent}`-on-soft-fill sites fail AA on cream — sites the axe sweep never reaches because
+  they sit behind role/tab/status states not present in seed data (workspace-pane role badges,
+  activity-feed, cspm/connector status pills + selection states, okta source-pill, chip bar,
+  pagination active page, ticket/asset timelines, KEV badges). At the user's direction ("migrate all
+  now"), applied the uniform WR-02 pattern to all of them and updated 3 unit tests that locked the
+  old class strings. Committed as `6bf88d8`. Full unit suite 685/685; tsc clean; both axe describe
+  blocks re-run green after the migration. NOTE: base accent text on *plain* (non-soft) backgrounds
+  is a distinct, un-migrated class (e.g. `saml-pane.tsx` selected labels, `partial-failure-banner.tsx`
+  icon) — the verifier did not flag these and the on-soft token is not the right fix for them; left
+  for adjudication by the re-verification / a follow-up.
 
 ## Requirements closed
 - UX-D-03-02 (`--color-info` light override; on-fill text lifted to on-soft) ✓
