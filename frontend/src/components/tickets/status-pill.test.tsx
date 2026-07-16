@@ -32,7 +32,10 @@ describe('StatusPill', () => {
     const pill = container.querySelector('[data-status]') as HTMLElement;
     expect(pill.className).toContain('border-amber/40');
     expect(pill.className).toContain('bg-amber/10');
-    expect(pill.className).toContain('text-amber');
+    // Phase-16 (WR-02): text-amber migrated to --color-amber-on-soft so the
+    // light-mode override (#92400E, ~5.5:1 on amber-soft) resolves correctly.
+    // Dark mode is byte-identical: dark --color-amber-on-soft = #F59E0B = old text-amber.
+    expect(pill.className).toContain('text-[var(--color-amber-on-soft)]');
   });
 
   it('case-insensitive mapping: COMPLETED resolves to completed pill', () => {

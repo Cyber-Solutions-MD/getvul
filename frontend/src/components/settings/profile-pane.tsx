@@ -50,16 +50,19 @@ function roleBadgeClass(role: string): string {
   // Phase-15 a11y (UX-07-03): OWNER/ADMIN role-badge text fails WCAG AA on the
   // accent-soft fill in dark mode (pink 4.0:1, violet 4.4:1). Lift to the
   // brighter same-hue shade (pink-400 / violet-300) to clear 4.5:1 while keeping
-  // the colored-pill identity. Amber/Viewer already pass. These are the
-  // canonical --color-{pink,violet}-on-soft shades documented in the design
-  // system (BL-04): visual-language.md "Text on -soft fills".
+  // the colored-pill identity. These are the canonical --color-{pink,violet}-on-soft
+  // shades documented in the design system (BL-04): visual-language.md "Text on -soft fills".
   // Phase-16 (UX-D-03-04): replaced JIT hex literals (#F472B6 / #C4B5FD) with
   // CSS variable references so the light-mode overrides in globals.css take effect
   // (dark: pink-400/violet-300 via BL-04; light: pink-800/violet-800 via Phase-16).
+  // Phase-16 (WR-02): ANALYST also migrated from base text-amber (#F59E0B, ~1.9:1 on
+  // amber-soft fill in light) to --color-amber-on-soft so the #92400E light override
+  // resolves. Dark mode is byte-identical (dark --color-amber-on-soft = #F59E0B).
+  // Completes the on-soft migration alongside OWNER/ADMIN.
   const map: Record<string, string> = {
     OWNER: 'bg-pink-soft text-[var(--color-pink-on-soft)]',
     ADMIN: 'bg-violet-soft text-[var(--color-violet-on-soft)]',
-    ANALYST: 'bg-amber-soft text-amber',
+    ANALYST: 'bg-amber-soft text-[var(--color-amber-on-soft)]',
     VIEWER: 'bg-surface-2 text-text-muted',
   };
   return map[role] ?? 'bg-surface-2 text-text-muted';

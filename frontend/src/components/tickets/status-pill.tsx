@@ -37,11 +37,16 @@ const STATUS_MAP: Record<string, StatusConfig> = {
     label: 'Open',
   },
   in_progress: {
-    classes: 'border-amber/40 bg-amber/10 text-amber',
+    // Phase-16 (UX-D-03-04 / WR-02): text-amber (base #F59E0B) fails AA on amber-soft fill
+    // in light mode (~1.9:1 on cream). Lift to --color-amber-on-soft so the globals.css
+    // light override (#92400E, ~5.5:1) takes effect. Dark mode is a byte-identical no-op:
+    // dark --color-amber-on-soft = #F59E0B = old text-amber value. Mirrors the Open pill
+    // treatment (--color-violet-on-soft). Border/fill unchanged — only text lifts.
+    classes: 'border-amber/40 bg-amber/10 text-[var(--color-amber-on-soft)]',
     label: 'In progress',
   },
   'in progress': {
-    classes: 'border-amber/40 bg-amber/10 text-amber',
+    classes: 'border-amber/40 bg-amber/10 text-[var(--color-amber-on-soft)]',
     label: 'In progress',
   },
   completed: {
