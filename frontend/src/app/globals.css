@@ -170,3 +170,43 @@ html { scrollbar-color: var(--color-border-strong) var(--color-bg); }
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* ─── Phase 17: Page-transition motion (UX-D-06) ───────────────────────────── */
+
+/* view-transition-name assignment: gives the content wrapper a named VT element
+   so the browser isolates the content region from the root snapshot.
+   Sidebar + topbar (owned by layout.tsx) are excluded — only page content fades (D-05). */
+.authed-page-content {
+  view-transition-name: authed-page-content;
+}
+
+/* Content cross-fade: override the UA default (250ms) with --motion-slow (320ms, D-04)
+   and pure opacity (D-03 — UA default is already opacity, no animation-name override). */
+::view-transition-old(authed-page-content),
+::view-transition-new(authed-page-content) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-standard);
+}
+
+/* CRITICAL (corrects CONTEXT.md D-06): the *,*::before,*::after blanket at lines 116-124
+   does NOT reach these UA-generated pseudo-elements. Explicit suppression required so
+   transitions honor prefers-reduced-motion (UX-D-06-02). */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+  }
+}
+
+/* Firefox / no-VT fallback (D-06/UX-D-06-03): template.tsx sets data-no-vt when
+   document.startViewTransition is unavailable. Pure opacity fade-in; the D-12 blanket
+   catches this keyframe under reduce automatically (regular element, not a VT pseudo). */
+@keyframes page-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+[data-no-vt].authed-page-content {
+  animation: page-fade-in 320ms var(--ease-standard) both;
+}
