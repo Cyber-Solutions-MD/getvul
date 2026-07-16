@@ -391,22 +391,25 @@ if (!document.startViewTransition) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three questions were resolved during planning (Phase 17 plans 17-01/17-02). Each
+> carries its resolution below. No open unknowns remain that block execution.
 
 1. **useLayoutEffect vs. useEffect timing with startViewTransition**
    - What we know: `useLayoutEffect` fires before paint; `useEffect` fires after paint. The VT API captures the old state at `startViewTransition` call time, then runs the update callback (if provided), then captures the new state.
    - What's unclear: When called with NO update callback in a template.tsx remount, does `startViewTransition()` called in `useLayoutEffect` (which fires after React commits) correctly animate from the PREVIOUS page snapshot (captured by the browser before React committed the new DOM)?
-   - Recommendation: Implement with `useLayoutEffect`, do a manual visual smoke test immediately (navigate Dashboard → Vulnerabilities), confirm the fade is visible. If not working, try the router-wrapping approach (intercept Link navigation to call `startViewTransition` before the route change — though this requires changes outside `template.tsx`).
+   - **RESOLVED:** `useLayoutEffect` chosen (Plan 02 Task 2). This is the highest-risk ASSUMED item — mitigated by the blocking manual smoke-test checkpoint (Plan 02 Task 4: navigate Dashboard → Vulnerabilities and visually confirm the fade before proceeding). If it fails, the router-wrapping fallback is the documented escalation.
 
 2. **Blanket prefers-reduced-motion vs. explicit VT rule — redundancy or conflict?**
    - What we know: The explicit rule is needed. The blanket rule is already present. Both use `!important`.
    - What's unclear: Specificity resolution when both match the same pseudo-element (if the blanket does reach them).
-   - Recommendation: Add the explicit rule regardless. Two `!important` declarations with the same value = no conflict; the more specific selector (the explicit VT rule) wins.
+   - **RESOLVED:** Both rules present (Plan 02 Task 1 adds the explicit `::view-transition-*(*)` rule; the D-12 `*` blanket stays). Same `!important` value ⇒ no conflict; the explicit VT rule is the one that actually reaches the UA pseudo-elements the blanket cannot.
 
 3. **CSS `@supports` vs. JS feature-detection for Firefox fallback**
    - What we know: `@supports (view-transition-name: none)` is a CSS-only detection path that avoids the `data-no-vt` attribute and hydration risk.
    - What's unclear: Whether all browsers that support `view-transition-name` also support `document.startViewTransition` (they should).
-   - Recommendation: Use `@supports` in CSS as the primary detection for the fallback keyframe. This is cleaner and avoids hydration concerns. The `template.tsx` JS detection then only gates the `startViewTransition` call, not the CSS.
+   - **RESOLVED:** JS feature-detection + `data-no-vt` attribute chosen (Plan 02 Task 2) for the `startViewTransition` gate; the `@supports` CSS alternative is noted as available but not needed. The fallback keyframe is caught by the D-12 reduced-motion blanket, so hydration risk is bounded.
 
 ---
 
