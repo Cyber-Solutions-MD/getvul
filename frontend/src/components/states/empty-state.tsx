@@ -59,8 +59,12 @@ const EmptyStateSuggestion = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEl
     <div
       ref={ref}
       data-empty-suggestion=""
+      // Phase-16 (WR-03, axe-surfaced): text-violet (base #A78BFA) on bg-violet-soft is
+      // 2.31:1 on cream (< AA 4.5). Lift to the on-soft token: dark resolves to
+      // #C4B5FD (violet-300), light to #5B21B6 (violet-800) via the globals.css
+      // overrides. Mirrors the status-pill Open pill and the WR-02 amber migration.
       className={cn(
-        'mt-6 inline-flex items-start gap-2 rounded-md bg-violet-soft p-3 text-left text-sm text-violet',
+        'mt-6 inline-flex items-start gap-2 rounded-md bg-violet-soft p-3 text-left text-sm text-[var(--color-violet-on-soft)]',
         className
       )}
       {...props}

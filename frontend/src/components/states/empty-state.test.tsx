@@ -58,7 +58,7 @@ describe('<EmptyState> (D-S-02 — compound component primitive + D-S-07 ARIA)',
     expect(hasFlex).toBe(true);
   });
 
-  it('<EmptyState.Suggestion> renders violet-accented hint chrome (bg-violet-soft + text-violet)', () => {
+  it('<EmptyState.Suggestion> renders violet-accented hint chrome (bg-violet-soft + text-[var(--color-violet-on-soft)])', () => {
     const { container } = render(
       <EmptyState>
         <EmptyState.Suggestion>
@@ -69,7 +69,9 @@ describe('<EmptyState> (D-S-02 — compound component primitive + D-S-07 ARIA)',
     const suggestion = container.querySelector('[data-empty-suggestion]');
     expect(suggestion).not.toBeNull();
     expect((suggestion as HTMLElement).className).toMatch(/bg-violet-soft/);
-    expect((suggestion as HTMLElement).className).toMatch(/text-violet/);
+    // Phase-16 (WR-03): text lifted from base text-violet (2.31:1 on cream) to the
+    // on-soft token so it clears AA in light while staying accent-correct in dark.
+    expect((suggestion as HTMLElement).className).toContain('text-[var(--color-violet-on-soft)]');
   });
 
   it('compound composition — all 5 sub-pieces produce a single accessible structure', () => {

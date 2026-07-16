@@ -71,6 +71,19 @@
      sunset.css + foundation.md now carry #8B84A8. This override mirrors that
      and can be retired when the vendored copy of sunset.css is re-synced. */
   --color-text-faint: #8B84A8;
+
+  /* Phase-16 (WR-03, axe-surfaced). The on-soft text tokens are defined in the
+     light block above and in the design-system skill's dark :root (BL-04), but the
+     app's vendored sunset.css predates them — so in DARK they were undefined and
+     every text-[var(--color-*-on-soft)] consumer (status-pill open + in_progress,
+     profile-pane ADMIN + ANALYST, EmptyState.Suggestion) silently fell back to
+     inherited text instead of its intended accent. Mirror the skill's authoritative
+     dark values so dark resolves correctly. Amber = #F59E0B is byte-identical to the
+     old text-amber, so the WR-02 amber migration is now a true dark no-op as
+     documented. Retire when the vendored sunset.css is re-synced to carry these. */
+  --color-violet-on-soft: #C4B5FD;  /* violet-300 — text on --color-violet-soft */
+  --color-pink-on-soft:   #F472B6;  /* pink-400   — text on --color-pink-soft   */
+  --color-amber-on-soft:  #F59E0B;  /* = old text-amber value → dark no-op (WR-02) */
 }
 
 /* Phase-15 a11y (UX-07-03 / WCAG 2.4.11 Focus Not Obscured): at phone widths the
