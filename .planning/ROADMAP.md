@@ -39,7 +39,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 **v2.2 Deferred UI Features (opened 2026-07-15 — Phases 16–19):** full detail in [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
 
-- [x] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03) (executed 2026-07-15; verification gaps_found 2/4 SC — see 16-VERIFICATION.md) (completed 2026-07-16)
+- [x] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03) (executed 2026-07-15; gap-closure 16-03 + WR-04 systemic on-soft migration 2026-07-16; verification passed 4/4 SC, live axe sweep green in both themes — see 16-VERIFICATION.md) (completed 2026-07-16)
 - [ ] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06)
 - [ ] **Phase 18: Tickets kanban board** — @dnd-kit status columns replacing the placeholder (UX-D-01)
 - [ ] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02)
