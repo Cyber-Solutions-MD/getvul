@@ -200,9 +200,10 @@ Finishing the four features deferred out of v2.0. Every phase holds the phase-15
   2. `e2e/a11y-routes.spec.ts` runs under `data-theme="light"` and reports 0 serious/critical axe violations on every route
   3. Severity/status/SLA pills and glyphs are legible and distinct on light surfaces; muted/faint/disabled tokens pass AA (source-palette changes reconciled into the design system)
   4. Zero First-Load-JS delta (CSS-only); the existing dark-mode gate stays green
-**Plans**: 2 plans (2 waves)
+**Plans**: 3 plans (2 waves + 1 gap-closure)
 - [x] 16-01-PLAN.md — light-mode token overrides + component literal fixes + light-theme axe sweep (the joint UX-D-03-01..05 gate)
 - [x] 16-02-PLAN.md — reconcile axe-confirmed light values into the design-system skill (BL-04 mirror) + enable the Theme: Light toggle
+- [ ] 16-03-PLAN.md — gap closure: --color-info light override (WR-01) + amber-on-soft migration (WR-02) + executed light+dark axe sweep evidence (SC#2)
 
 ### Phase 17: Page-transition motion
 **Goal**: Route changes within the app shell cross-fade smoothly, reduced-motion-safe, at zero bundle cost.
