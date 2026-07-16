@@ -214,7 +214,11 @@ Finishing the four features deferred out of v2.0. Every phase holds the phase-15
   2. Under `prefers-reduced-motion: reduce`, transitions are suppressed (animation-duration ≤0.02s) and `e2e/reduced-motion.spec.ts` stays green
   3. A CSS fallback keeps navigation clean in non-supporting browsers (Firefox) — no jank or broken paint
   4. DrillPanel Esc/clickaway close still works during/after a transition; no layout shift; no route over 250 KB
-**Plans**: TBD
+**Plans**: 2 plans (Wave 0 tests-first + Wave 1 implementation)
+
+Plans:
+- [ ] 17-01-PLAN.md — Wave 0 tests-first: NEW e2e/page-transitions.spec.ts (UX-D-06-01) + EXTEND e2e/reduced-motion.spec.ts with VT-pseudo-element suppression (UX-D-06-02); both RED
+- [ ] 17-02-PLAN.md — Wave 1: globals.css VT cross-fade + explicit reduced-motion suppressor (corrects D-06) + Firefox fallback, (authed)/template.tsx pathname-keyed trigger, RED→GREEN + 250 KB budget, human-verify checkpoint (UX-D-06-01..05)
 
 ### Phase 18: Tickets kanban board
 **Goal**: Replace the board-view placeholder with a real, keyboard-accessible status kanban backed by a persisting mutation.
