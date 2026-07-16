@@ -1,5 +1,5 @@
 'use client';
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
@@ -15,10 +15,16 @@ import type { ReactNode } from 'react';
 // searchParams-only changes (DrillPanel ?drill=, tabs, list/board toggle) do NOT remount
 // template.tsx — guaranteed by Next.js spec. No special handling needed (D-02/UX-D-06-04).
 //
-// The wrapper div gets className="authed-page-content contents":
+// The wrapper div gets className="authed-page-content" (block element, no display:contents):
 //   - "authed-page-content": receives view-transition-name from globals.css, isolating
 //     the content snapshot from the root (sidebar+topbar stay static, D-05).
-//   - "contents": display:contents — transparent to flex/grid layout so no route shifts (A2).
+//   - WR-01 fix: display:contents was removed. An element with display:contents generates
+//     no principal box — the browser has nothing to capture for the named VT group, causing
+//     a silent fallback to the root snapshot (whole viewport incl. sidebar/topbar fades,
+//     violating D-05). Removing `contents` gives the wrapper a real block box.
+//     Layout-safety confirmed: the parent <main> in AppShell (app-shell.tsx:37) is a plain
+//     block container with no flex/grid parent on the content slot, so a block-level child
+//     here introduces no layout shift.
 //
 // view-transition-name is applied via the CSS class (globals.css), NOT inline style — avoids
 // the inline-style hydration concern (A3).
@@ -33,12 +39,20 @@ let isFirstMount = true;
 export default function AuthedTemplate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
+  // IN-03 fix: gate the no-VT fallback (data-no-vt) behind non-first-mount so that
+  // Firefox/no-VT browsers do NOT get a fade-in on the initial page paint (D-07/D-08).
+  // State initializes to false on both server and first client render; the effect sets
+  // it to true after the first mount so subsequent navigations activate the fallback CSS.
+  const [pastFirstMount, setPastFirstMount] = useState(false);
+
   useLayoutEffect(() => {
     // D-07/D-08: no fade on first paint / hard refresh / app entry.
     // isFirstMount (module-level) is true on the first load; subsequent navigation-driven
     // remounts find it false and proceed to startViewTransition.
     if (isFirstMount) {
       isFirstMount = false;
+      // Mark as past first mount so the no-VT CSS fallback activates on next navigation.
+      setPastFirstMount(true);
       return;
     }
     // D-06/UX-D-06-03: browsers without VT fall back to the CSS keyframe (data-no-vt).
@@ -50,13 +64,15 @@ export default function AuthedTemplate({ children }: { children: ReactNode }) {
     // so this effect runs fresh each pathname change.
   }, [pathname]);
 
-  // Feature-detect for the CSS fallback. Determined once on the client; used as a
-  // data attribute below (client-only guard avoids the hydration mismatch, Assumption A3).
+  // Feature-detect for the CSS fallback. Only activated after the first mount (pastFirstMount)
+  // so the initial page paint never fades on no-VT browsers (IN-03 / D-07/D-08).
   const noVt =
-    typeof document !== 'undefined' && !('startViewTransition' in document);
+    pastFirstMount &&
+    typeof document !== 'undefined' &&
+    !('startViewTransition' in document);
 
   return (
-    <div className="authed-page-content contents" {...(noVt ? { 'data-no-vt': '' } : {})}>
+    <div className="authed-page-content" {...(noVt ? { 'data-no-vt': '' } : {})}>
       {children}
     </div>
   );
