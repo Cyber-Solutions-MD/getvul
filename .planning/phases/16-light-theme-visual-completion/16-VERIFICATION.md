@@ -1,8 +1,9 @@
 ---
 phase: 16-light-theme-visual-completion
 verified: 2026-07-16T14:00:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
+human_verification_result: "approved by user 2026-07-16 — per-route light-mode visual sweep passed (see 16-HUMAN-UAT.md)"
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
@@ -143,9 +144,9 @@ No blocking gaps remain. All 4 must-have truths are now verified:
 
 2. **WR-04 complete** — all ~15 base accent-text-on-soft-fill sites enumerated in the previous gap have been migrated to `text-[var(--color-{accent}-on-soft)]`. Direct file reads confirm all 5 previously-failing artifacts: workspace-pane.tsx, activity-feed.tsx, cspm-status-pill.tsx, sync-status-pill.tsx, vuln-table.tsx. source-pill.tsx (okta) also confirmed migrated.
 
-3. **Residual informational items** — partial-failure-banner.tsx and saml-pane.tsx retain base accent text on tinted fills in conditional/error states the axe sweep cannot exercise in seed data. These are the same class of defect, but they were not enumerated in the WR-04 gap scope, they are not reachable by the defined sweep, and the phase goal is anchored on the axe sweep gate. They are informational follow-up candidates, not phase blockers.
+3. **Residual items — CLOSED (WR-04b, commit `1f851eb`).** partial-failure-banner.tsx (amber icon on bg-amber-soft) and saml-pane.tsx (selected-provider label on bg-violet/10 + SSO warning on bg-amber/5) were migrated to the on-soft tokens after this verification flagged them. `frontend/src` is now free of base `text-{accent}` on any same-hue soft/tinted fill (grep clean).
 
-The sole remaining item for phase closure is human visual confirmation (Truth 1 / UX-D-03-01) — that no dark-only visual artifacts appear on light surfaces in a real browser.
+Human visual confirmation (Truth 1 / UX-D-03-01) was **approved by the user on 2026-07-16** — no dark-only visual artifacts on light surfaces. Phase closed: status `passed`.
 
 ---
 
