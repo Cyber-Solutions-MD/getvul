@@ -35,6 +35,7 @@
   --color-danger:  #DC2626;
   --color-success: #15803D;  /* green-700 */
   --color-warning: #B45309;
+  --color-info:    #2563EB;  /* blue-600 — was dark #60A5FA (blue-400, ~2.5:1 on cream); mirrors --color-severity-info (WR-01) */
 
   /* Shadows — lightened from dark-surface black-alpha values (UX-D-03-01) */
   --shadow-card:     0 2px 8px rgba(0, 0, 0, 0.08);

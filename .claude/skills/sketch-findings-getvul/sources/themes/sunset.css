@@ -154,6 +154,7 @@ a { color: inherit; text-decoration: none; }
   --color-danger:   #DC2626;  /* was dark #F87171 — matches severity-critical */
   --color-success:  #15803D;  /* was dark #4ADE80 — green-700, ~5.8:1 on cream */
   --color-warning:  #B45309;  /* was dark #FBBF24 — matches severity-medium */
+  --color-info:     #2563EB;  /* was dark #60A5FA — blue-600, ~5.1:1 on cream; mirrors severity-info (WR-01) */
 
   /* ─── Shadows (softer on light cream surfaces) ─── */
   --shadow-card:     0 2px 8px rgba(0, 0, 0, 0.08);   /* was dark 0 8px 24px rgba(0,0,0,0.4) */

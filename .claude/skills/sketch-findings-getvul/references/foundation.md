@@ -45,7 +45,7 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
 --color-danger:    #F87171;  /* light: #DC2626 (red-600, matches severity-critical) */
 --color-success:   #4ADE80;  /* light: #15803D (green-700, ~5.8:1 on cream) */
 --color-warning:   #FBBF24;  /* light: #B45309 (amber-700, matches severity-medium) */
---color-info:      #60A5FA;
+--color-info:      #60A5FA;  /* light: #2563EB (blue-600, ~5.1:1 on cream — consumed by SourcePill text-info) */
 ```
 
 ### Severity colors (locked — used in every list/badge/glyph)
