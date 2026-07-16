@@ -165,7 +165,7 @@ export function SamlPane({
                 ].join(' ')}
               >
                 <p
-                  className={`text-sm font-medium ${isSelected ? 'text-violet' : 'text-text'}`}
+                  className={`text-sm font-medium ${isSelected ? 'text-[var(--color-violet-on-soft)]' : 'text-text'}`}
                 >
                   {p.label}
                 </p>
@@ -190,7 +190,7 @@ export function SamlPane({
             (i.e. dirty change to LOCAL from GOOGLE/AZURE) — mirrors D-SET-07 */}
         {isLocalProvider && isDirty && settings?.idp_provider !== 'LOCAL' && (
           <div className="mb-3 rounded-md border border-amber/30 bg-amber/5 px-4 py-3">
-            <p className="text-sm text-amber">
+            <p className="text-sm text-[var(--color-amber-on-soft)]">
               Switching to local sign-in turns SSO enforcement off.
             </p>
           </div>

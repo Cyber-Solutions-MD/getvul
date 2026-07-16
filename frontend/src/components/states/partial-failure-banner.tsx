@@ -68,7 +68,7 @@ function PartialFailureBannerView({
       data-failed-keys={rows.length}
       data-failed-sources={source ?? ''}
     >
-      <span className="mt-0.5 text-amber" aria-hidden="true">
+      <span className="mt-0.5 text-[var(--color-amber-on-soft)]" aria-hidden="true">
         <AlertTriangle size={18} />
       </span>
       <div className="min-w-0 flex-1">
