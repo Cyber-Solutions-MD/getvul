@@ -1,5 +1,5 @@
 'use client';
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
@@ -22,15 +22,23 @@ import type { ReactNode } from 'react';
 //
 // view-transition-name is applied via the CSS class (globals.css), NOT inline style — avoids
 // the inline-style hydration concern (A3).
+//
+// D-07/D-08 first-mount guard: template.tsx remounts on EVERY pathname change, so a
+// useRef(true) guard would reset every navigation (each remount gets a fresh ref). A
+// module-level boolean correctly survives React remounts but resets on hard refresh /
+// full page reload — exactly what D-07/D-08 require (no fade on first paint/entry).
+// Named isFirstMount to match the plan's D-07/D-08 guard contract.
+let isFirstMount = true;
 
 export default function AuthedTemplate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isFirstMount = useRef(true);
 
   useLayoutEffect(() => {
     // D-07/D-08: no fade on first paint / hard refresh / app entry.
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
+    // isFirstMount (module-level) is true on the first load; subsequent navigation-driven
+    // remounts find it false and proceed to startViewTransition.
+    if (isFirstMount) {
+      isFirstMount = false;
       return;
     }
     // D-06/UX-D-06-03: browsers without VT fall back to the CSS keyframe (data-no-vt).
