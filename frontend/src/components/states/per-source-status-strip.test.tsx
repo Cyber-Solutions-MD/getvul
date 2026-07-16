@@ -85,7 +85,8 @@ describe('<PerSourceStatusStrip> (D-V-02 + D-S-07 aria-live)', () => {
       c.textContent?.includes('AWS_INSPECTOR')
     ) as HTMLElement;
     expect(aws.className).toMatch(/bg-pink-soft/);
-    expect(aws.className).toMatch(/text-pink/);
+    // Phase-16 (WR-04): pink text lifted to the on-soft token for AA on cream.
+    expect(aws.className).toContain('text-[var(--color-pink-on-soft)]');
 
     // RAPID7 = null → neutral surface-2
     const rapid7 = Array.from(chips).find((c) =>

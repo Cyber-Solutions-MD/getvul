@@ -78,7 +78,7 @@ export default function Pagination({
               className={cn(
                 PAGE_BTN_BASE,
                 pageNum === page
-                  ? "border-pink bg-pink-soft text-pink"
+                  ? "border-pink bg-pink-soft text-[var(--color-pink-on-soft)]"
                   : "border-border-subtle bg-surface text-text-muted hover:bg-surface-2 hover:text-text"
               )}
             >

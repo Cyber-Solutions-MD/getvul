@@ -25,8 +25,8 @@ export type CspmStatusPillProps = {
 };
 
 const STATUS_CLASSES: Record<string, string> = {
-  OPEN:           'border-violet/40 bg-violet/10 text-violet',
-  IN_PROGRESS:    'border-amber/40 bg-amber/10 text-amber',
+  OPEN:           'border-violet/40 bg-violet/10 text-[var(--color-violet-on-soft)]',
+  IN_PROGRESS:    'border-amber/40 bg-amber/10 text-[var(--color-amber-on-soft)]',
   REMEDIATED:     'border-severity-low/40 bg-severity-low/10 text-severity-low',
   SUPPRESSED:     'border-border-subtle bg-surface-2 text-text-muted',
   FALSE_POSITIVE: 'border-border-subtle bg-surface-2 text-text-muted italic',

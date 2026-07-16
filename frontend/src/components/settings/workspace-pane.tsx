@@ -63,10 +63,13 @@ type ConfirmState = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function rolePillClass(role: string): string {
+  // Phase-16 (WR-04): base accent text on -soft fills fails AA on cream (light);
+  // lift to the on-soft tokens (dark values are the intended accent, light darken
+  // to *-800). Mirrors profile-pane roleBadgeClass and the WR-02 amber migration.
   const map: Record<string, string> = {
-    OWNER: 'bg-pink-soft text-pink',
-    ADMIN: 'bg-violet-soft text-violet',
-    ANALYST: 'bg-amber-soft text-amber',
+    OWNER: 'bg-pink-soft text-[var(--color-pink-on-soft)]',
+    ADMIN: 'bg-violet-soft text-[var(--color-violet-on-soft)]',
+    ANALYST: 'bg-amber-soft text-[var(--color-amber-on-soft)]',
     VIEWER: 'bg-surface-2 text-text-muted',
   };
   return map[role] ?? 'bg-surface-2 text-text-muted';

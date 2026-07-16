@@ -44,17 +44,20 @@ const CATEGORY_META: Record<
   ActivityCategory,
   { Icon: LucideIcon; tintClass: string }
 > = {
+  // Phase-16 (WR-04): base accent text on -soft fills fails AA on cream (light);
+  // lift to the on-soft tokens. Dark unchanged (violet/pink shift to the intended
+  // *-on-soft accent, amber is a no-op). success stays — it is AA-overridden in light.
   new_critical_vuln: {
     Icon: ShieldAlert,
-    tintClass: 'bg-pink-soft text-pink',
+    tintClass: 'bg-pink-soft text-[var(--color-pink-on-soft)]',
   },
   sla_breach: {
     Icon: Clock,
-    tintClass: 'bg-amber-soft text-amber',
+    tintClass: 'bg-amber-soft text-[var(--color-amber-on-soft)]',
   },
   sync_failure: {
     Icon: WifiOff,
-    tintClass: 'bg-violet-soft text-violet',
+    tintClass: 'bg-violet-soft text-[var(--color-violet-on-soft)]',
   },
   risk_change: {
     Icon: TrendingDown,

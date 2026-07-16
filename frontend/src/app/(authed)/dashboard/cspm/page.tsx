@@ -205,7 +205,7 @@ function CspmPageInner() {
                 className={cn(
                   'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
                   cloudProvider === cp
-                    ? 'border-violet bg-violet/10 text-violet'
+                    ? 'border-violet bg-violet/10 text-[var(--color-violet-on-soft)]'
                     : 'border-border-subtle bg-surface text-text-muted hover:bg-surface-2 hover:text-text',
                 )}
               >

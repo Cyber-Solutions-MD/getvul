@@ -26,11 +26,12 @@ describe('SyncStatusPill', () => {
     expect(pill.className).toContain('text-severity-critical');
   });
 
-  it('Test 3: status="syncing" renders label "Syncing" with text-amber and animated dot', () => {
+  it('Test 3: status="syncing" renders label "Syncing" with amber-on-soft text and animated dot', () => {
     const { container } = render(<SyncStatusPill status="syncing" />);
     expect(screen.getByText('Syncing')).toBeInTheDocument();
     const pill = container.firstChild as HTMLElement;
-    expect(pill.className).toContain('text-amber');
+    // Phase-16 (WR-04): amber text lifted to the on-soft token for AA on cream.
+    expect(pill.className).toContain('text-[var(--color-amber-on-soft)]');
     // The leading dot should have motion-safe:animate-pulse
     const dot = pill.querySelector('span');
     expect(dot, 'leading dot span should exist').not.toBeNull();

@@ -5,7 +5,7 @@
  * Maps idp_source to sunset token classes (D-USR-01):
  *   google  → text-info / border-info/40 / bg-info/10
  *   azure   → text-info / border-info/40 / bg-info/10
- *   okta    → text-violet / border-violet/40 / bg-violet-soft
+ *   okta    → text-[var(--color-violet-on-soft)] / border-violet/40 / bg-violet-soft (WR-04: AA on cream)
  *   humaans → text-info / border-info/40 / bg-info/10  (cyan analog via --color-info)
  *   local   → text-text-faint / border-border-subtle / bg-surface-2
  *
@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 const SOURCE_CLASSES: Record<string, string> = {
   google:  'text-info border-info/40 bg-info/10',
   azure:   'text-info border-info/40 bg-info/10',
-  okta:    'text-violet border-violet/40 bg-violet-soft',
+  okta:    'text-[var(--color-violet-on-soft)] border-violet/40 bg-violet-soft',
   humaans: 'text-info border-info/40 bg-info/10',
   local:   'text-text-faint border-border-subtle bg-surface-2',
 };

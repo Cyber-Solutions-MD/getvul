@@ -29,7 +29,7 @@ const PROVIDER_GRADIENT: Record<string, string> = {
 // this row, completed tickets fell through to the muted fallback tone instead
 // of the resolved green.
 const STATUS_TONE: Record<string, string> = {
-  OPEN: 'border-violet/40 bg-violet-soft text-violet',
+  OPEN: 'border-violet/40 bg-violet-soft text-[var(--color-violet-on-soft)]',
   IN_PROGRESS: 'border-severity-high/40 bg-severity-high/10 text-severity-high',
   RESOLVED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',
   CLOSED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',

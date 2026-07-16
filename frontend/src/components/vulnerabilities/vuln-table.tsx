@@ -300,7 +300,7 @@ export function VulnTable({
                   {row.exploit_available && (
                     <span
                       aria-label="exploit available"
-                      className="rounded-md bg-amber-soft px-1.5 py-0.5 text-[10px] font-medium text-amber"
+                      className="rounded-md bg-amber-soft px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-amber-on-soft)]"
                     >
                       ⚡
                     </span>
@@ -391,7 +391,7 @@ export function VulnTable({
               {row.exploit_available && (
                 <span
                   aria-label="exploit available"
-                  className={cn('shrink-0 rounded-md bg-amber-soft px-1.5 py-0.5 text-[10px] font-medium text-amber', !row.cisa_kev && 'ml-auto')}
+                  className={cn('shrink-0 rounded-md bg-amber-soft px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-amber-on-soft)]', !row.cisa_kev && 'ml-auto')}
                 >
                   ⚡
                 </span>

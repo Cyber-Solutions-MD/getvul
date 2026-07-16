@@ -26,10 +26,11 @@ describe('SourcePill', () => {
     expect(pill?.className).toContain('text-info');
   });
 
-  it('applies violet token classes for okta', () => {
+  it('applies violet-on-soft token classes for okta', () => {
     const { container } = render(<SourcePill source="okta" />);
     const pill = container.querySelector('[data-source-pill="okta"]');
-    expect(pill?.className).toContain('text-violet');
+    // Phase-16 (WR-04): okta violet text lifted to the on-soft token for AA on cream.
+    expect(pill?.className).toContain('text-[var(--color-violet-on-soft)]');
   });
 
   it('applies info token classes for azure (same as google)', () => {

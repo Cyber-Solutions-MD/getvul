@@ -91,7 +91,7 @@ function CommentRow({ entry }: { entry: Extract<TimelineEntry, { kind: 'comment'
     <li className="flex gap-3">
       {/* Timeline dot — violet per interaction-patterns.md (comments) */}
       <div className="relative flex flex-col items-center">
-        <div className="flex size-7 items-center justify-center rounded-full border-2 border-violet/40 bg-violet-soft text-violet z-10">
+        <div className="flex size-7 items-center justify-center rounded-full border-2 border-violet/40 bg-violet-soft text-[var(--color-violet-on-soft)] z-10">
           <Avatar
             name={entry.author ?? undefined}
             size={20}

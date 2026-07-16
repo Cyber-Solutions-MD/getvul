@@ -259,7 +259,7 @@ export function ConnectorForm({
                 className={cn(
                   'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
                   syncInterval === m
-                    ? 'border-violet/60 bg-violet/10 text-violet'
+                    ? 'border-violet/60 bg-violet/10 text-[var(--color-violet-on-soft)]'
                     : 'border-border-subtle bg-surface text-text-muted hover:border-border hover:text-text',
                 )}
               >

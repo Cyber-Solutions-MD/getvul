@@ -75,7 +75,7 @@ export function CspmBulkBar({
           type="button"
           onClick={() => onBulkAction('OPEN')}
           disabled={isPending}
-          className="rounded-md border border-violet/30 bg-violet/10 px-3 py-1.5 text-sm font-medium text-violet hover:bg-violet/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-violet/30 bg-violet/10 px-3 py-1.5 text-sm font-medium text-[var(--color-violet-on-soft)] hover:bg-violet/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet disabled:cursor-not-allowed disabled:opacity-50"
         >
           Reopen
         </button>

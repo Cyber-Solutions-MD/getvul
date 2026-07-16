@@ -40,7 +40,7 @@ const STATUS_CONFIG: Record<NonNullable<SyncStatus> | '__never', StateConfig> = 
   },
   syncing: {
     label: 'Syncing',
-    pillClass: 'border-amber/40 bg-amber/10 text-amber',
+    pillClass: 'border-amber/40 bg-amber/10 text-[var(--color-amber-on-soft)]',
     dotClass: 'size-1.5 rounded-full bg-current motion-safe:animate-pulse',
   },
   __never: {

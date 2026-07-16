@@ -192,7 +192,7 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
               </span>
             )}
             {v.exploit_available && (
-              <span className="rounded-md bg-amber-soft px-2 py-0.5 text-amber">
+              <span className="rounded-md bg-amber-soft px-2 py-0.5 text-[var(--color-amber-on-soft)]">
                 ⚡ exploit available
               </span>
             )}

@@ -33,7 +33,7 @@ function statusClass(status: ConnectorRow['last_sync_status']): string {
     case 'failed':
       return 'bg-danger-soft text-danger';
     case 'syncing':
-      return 'bg-pink-soft text-pink';
+      return 'bg-pink-soft text-[var(--color-pink-on-soft)]';
     default:
       return 'bg-surface-2 text-text-muted';
   }

@@ -289,7 +289,7 @@ export function ChipBar({
             type="button"
             onClick={applySavedFilter}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-full border border-violet bg-violet-soft px-3 py-1 text-xs font-medium text-violet',
+              'inline-flex items-center gap-1.5 rounded-full border border-violet bg-violet-soft px-3 py-1 text-xs font-medium text-[var(--color-violet-on-soft)]',
               'focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
             )}
             data-saved-filter-pill
