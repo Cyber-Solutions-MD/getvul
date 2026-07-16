@@ -39,7 +39,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 **v2.2 Deferred UI Features (opened 2026-07-15 — Phases 16–19):** full detail in [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
 
-- [ ] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03)
+- [ ] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03) (executed 2026-07-15; verification gaps_found 2/4 SC — see 16-VERIFICATION.md)
 - [ ] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06)
 - [ ] **Phase 18: Tickets kanban board** — @dnd-kit status columns replacing the placeholder (UX-D-01)
 - [ ] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02)
@@ -201,8 +201,8 @@ Finishing the four features deferred out of v2.0. Every phase holds the phase-15
   3. Severity/status/SLA pills and glyphs are legible and distinct on light surfaces; muted/faint/disabled tokens pass AA (source-palette changes reconciled into the design system)
   4. Zero First-Load-JS delta (CSS-only); the existing dark-mode gate stays green
 **Plans**: 2 plans (2 waves)
-- [ ] 16-01-PLAN.md — light-mode token overrides + component literal fixes + light-theme axe sweep (the joint UX-D-03-01..05 gate)
-- [ ] 16-02-PLAN.md — reconcile axe-confirmed light values into the design-system skill (BL-04 mirror) + enable the Theme: Light toggle
+- [x] 16-01-PLAN.md — light-mode token overrides + component literal fixes + light-theme axe sweep (the joint UX-D-03-01..05 gate)
+- [x] 16-02-PLAN.md — reconcile axe-confirmed light values into the design-system skill (BL-04 mirror) + enable the Theme: Light toggle
 
 ### Phase 17: Page-transition motion
 **Goal**: Route changes within the app shell cross-fade smoothly, reduced-motion-safe, at zero bundle cost.
