@@ -40,7 +40,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 **v2.2 Deferred UI Features (opened 2026-07-15 — Phases 16–19):** full detail in [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
 
 - [x] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03) (executed 2026-07-15; gap-closure 16-03 + WR-04 systemic on-soft migration 2026-07-16; verification passed 4/4 SC, live axe sweep green in both themes — see 16-VERIFICATION.md) (completed 2026-07-16)
-- [ ] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06)
+- [x] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06) (completed 2026-07-16)
 - [ ] **Phase 18: Tickets kanban board** — @dnd-kit status columns replacing the placeholder (UX-D-01)
 - [ ] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02)
 
@@ -217,8 +217,8 @@ Finishing the four features deferred out of v2.0. Every phase holds the phase-15
 **Plans**: 2 plans (Wave 0 tests-first + Wave 1 implementation)
 
 Plans:
-- [ ] 17-01-PLAN.md — Wave 0 tests-first: NEW e2e/page-transitions.spec.ts (UX-D-06-01) + EXTEND e2e/reduced-motion.spec.ts with VT-pseudo-element suppression (UX-D-06-02); both RED
-- [ ] 17-02-PLAN.md — Wave 1: globals.css VT cross-fade + explicit reduced-motion suppressor (corrects D-06) + Firefox fallback, (authed)/template.tsx pathname-keyed trigger, RED→GREEN + 250 KB budget, human-verify checkpoint (UX-D-06-01..05)
+- [x] 17-01-PLAN.md — Wave 0 tests-first: NEW e2e/page-transitions.spec.ts (UX-D-06-01) + EXTEND e2e/reduced-motion.spec.ts with VT-pseudo-element suppression (UX-D-06-02); both RED
+- [x] 17-02-PLAN.md — Wave 1: globals.css VT cross-fade + explicit reduced-motion suppressor (corrects D-06) + Firefox fallback, (authed)/template.tsx pathname-keyed trigger, RED→GREEN + 250 KB budget, human-verify checkpoint (UX-D-06-01..05)
 
 ### Phase 18: Tickets kanban board
 **Goal**: Replace the board-view placeholder with a real, keyboard-accessible status kanban backed by a persisting mutation.

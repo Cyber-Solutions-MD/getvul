@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
-status: Ready to plan
-last_updated: "2026-07-16T08:47:39.246Z"
+status: Phase 17 complete (human-UAT pending) — ready to plan Phase 18
+last_updated: "2026-07-17T00:00:00.000Z"
 progress:
   total_phases: 12
-  completed_phases: 8
-  total_plans: 24
-  completed_plans: 24
+  completed_phases: 9
+  total_plans: 26
+  completed_plans: 26
   percent: 100
 ---
 
@@ -20,12 +20,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 16 — light-theme-visual-completion
+**Current focus:** Phase 18 — tickets-kanban-board (next to plan)
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
+Phase: 17 (page-transition-motion) — COMPLETE (both plans + code review + review-fix; e2e gate green). Human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
+Next: Phase 18 (tickets-kanban-board) — `/gsd-plan-phase 18`
+Plan: —
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
