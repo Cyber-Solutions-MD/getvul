@@ -29,10 +29,10 @@ Requirement IDs anchor to the originating backlog items (UX-D-01/02/03/06) expan
 
 - [x] **UX-D-01-01**: The board view renders four status columns (Open / In progress / Completed / Blocked) populated from `useTickets`, replacing the "coming soon" placeholder.
 - [x] **UX-D-01-02**: A ticket can be moved between columns by pointer drag (**@dnd-kit**), persisting the new status via a mutation with optimistic update + rollback on error.
-- [ ] **UX-D-01-03**: The board is fully keyboard-operable — a ticket's status can be changed without a pointer (@dnd-kit keyboard sensor).
-- [ ] **UX-D-01-04**: Empty columns render the canonical empty-state pattern; the existing status chip filter still applies to the board.
-- [ ] **UX-D-01-05**: At <768px the board degrades to a non-broken layout (horizontal scroll or column switcher) without regressing the fixed bottom-nav focus behavior.
-- [ ] **UX-D-01-06**: The list/board URL toggle is preserved; the board route stays ≤250 KB and passes axe in both themes.
+- [x] **UX-D-01-03**: The board is fully keyboard-operable — a ticket's status can be changed without a pointer (@dnd-kit keyboard sensor).
+- [x] **UX-D-01-04**: Empty columns render the canonical empty-state pattern; the existing status chip filter still applies to the board.
+- [x] **UX-D-01-05**: At <768px the board degrades to a non-broken layout (horizontal scroll or column switcher) without regressing the fixed bottom-nav focus behavior.
+- [x] **UX-D-01-06**: The list/board URL toggle is preserved; the board route stays ≤250 KB and passes axe in both themes.
 
 ## Phase 19 — Add-connector wizard (from UX-D-02)
 

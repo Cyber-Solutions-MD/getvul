@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features — IN PROGRESS
 status: Ready to execute
-last_updated: "2026-07-17T13:38:38.851Z"
+last_updated: "2026-07-17T13:47:53.482Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
-  percent: 80
+  completed_plans: 9
+  percent: 90
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -27,7 +27,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 Phase: 18 (tickets-kanban-board) — EXECUTING
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
-Plan: 4 of 5
+Plan: 5 of 5
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
@@ -128,3 +128,5 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 18]: 18-02: severity-glyph.ts extracted as single-source SEVERITY_GLYPH/SEVERITY_CLASS consumed by tickets-table.tsx and kanban-card.tsx
 - [Phase 18]: 18-02: kanban-card.tsx calls useDraggable unconditionally even for overlay clone (react-hooks/rules-of-hooks) — overlay branch skips attaching ref/listeners, not the hook call
 - [Phase 18]: 18-02: kanban-column.tsx drops aria-disabled on role=region (unsupported ARIA prop for that role); opacity-40 dim cue alone satisfies D-DRAG-03
+- [Phase 18]: 18-03: board is pure projection of bucketTickets(rows), no local ticket-row state; onDragEnd gates only read-only->Blocked (via reason prompt) and Blocked->read-only (immediate unblock)
+- [Phase 18]: 18-03: KanbanReasonPrompt renders in a fixed top-centered overlay (not anchored to drop position); board lazily imported via next/dynamic({ssr:false}) keeping @dnd-kit off First-Load JS (/dashboard/tickets confirmed 167 kB)
