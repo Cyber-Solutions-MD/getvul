@@ -87,6 +87,69 @@ test.describe('Reduced-motion emulation', () => {
     expect(durationSeconds).toBeLessThanOrEqual(0.02);
   });
 
+  // UX-D-01-06 (Pitfall 2) — Board DragOverlay drop-tween suppression guard.
+  //
+  // @dnd-kit's DragOverlay drop animation uses the Web Animations API
+  // (element.animate()), which the globals.css CSS blanket does NOT touch. The board
+  // must explicitly gate `dropAnimation={reduced ? null : undefined}` on <DragOverlay>
+  // (usePrefersReducedMotion()) for this to hold. RED now — the board doesn't exist yet
+  // (Wave 2, 18-03, must wire the gate for this to turn GREEN).
+  test('board drag drop animation is suppressed under prefers-reduced-motion', async ({ page }) => {
+    // Emulate prefers-reduced-motion: reduce BEFORE navigation.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    await page.goto('/dashboard/tickets?view=board');
+    await page.locator('nav[aria-label="Primary navigation"]').waitFor({ state: 'visible', timeout: 10_000 });
+
+    const cards = page.locator('[data-ticket-id]');
+    const cardCount = await cards.count();
+    if (cardCount === 0) {
+      test.skip(true, '[board] no seeded tickets — cannot exercise drag-drop tween suppression');
+      return;
+    }
+
+    const sourceCard = cards.first();
+    const sourceBox = await sourceCard.boundingBox();
+    if (!sourceBox) {
+      test.skip(true, '[board] source card has no bounding box');
+      return;
+    }
+
+    // A no-op read-only→read-only drop still triggers the DragOverlay drop tween.
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 15, sourceBox.y + sourceBox.height / 2 + 15, {
+      steps: 5,
+    });
+    await page.mouse.up();
+
+    // Poll ~500ms for any in-flight animation attributable to the drag overlay.
+    const pollMs = 500;
+    const intervalMs = 50;
+    const deadline = Date.now() + pollMs;
+    let maxDurationMs = 0;
+
+    while (Date.now() < deadline) {
+      const durations = await page.evaluate(() =>
+        document.getAnimations().map((a) => {
+          const timing = a.effect?.getComputedTiming?.();
+          const d = timing?.duration;
+          return typeof d === 'number' ? d : 0;
+        }),
+      );
+      const maxThisTick = durations.length > 0 ? Math.max(...durations) : 0;
+      if (maxThisTick > maxDurationMs) maxDurationMs = maxThisTick;
+      await page.waitForTimeout(intervalMs);
+    }
+
+    // No in-flight animation attributable to the drag overlay should run longer than 20ms
+    // — the board must pass dropAnimation={reduced ? null : undefined}.
+    expect(
+      maxDurationMs,
+      `Board drag-drop animation duration must be <= 20ms under prefers-reduced-motion (got ${maxDurationMs}ms).`,
+    ).toBeLessThanOrEqual(20);
+  });
+
   // UX-D-06-02 — VT pseudo-element reduced-motion suppression guard.
   //
   // WR-03 fix: the poll filter now targets the NAMED 'authed-page-content' group
