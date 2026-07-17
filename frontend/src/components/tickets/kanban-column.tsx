@@ -66,7 +66,6 @@ export function KanbanColumn({
       data-column={columnKey}
       role="region"
       aria-label={label}
-      aria-disabled={isDragActive && !isValidTarget}
       className={cn(
         'snap-start shrink-0 basis-[85vw] md:basis-0 md:flex-1 flex flex-col rounded-lg',
         isDragActive && !isValidTarget && 'opacity-40',

@@ -71,6 +71,11 @@ function CardBody({ ticket }: { ticket: TicketSummary }) {
 }
 
 export function KanbanCard({ ticket, onOpen, overlay = false }: KanbanCardProps) {
+  // useDraggable is called unconditionally (react-hooks/rules-of-hooks) even
+  // when `overlay` is true — the overlay clone simply doesn't attach the
+  // returned ref/attributes/listeners, so it stays a non-interactive clone.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: ticket.id });
+
   if (overlay) {
     return (
       <div
@@ -85,7 +90,16 @@ export function KanbanCard({ ticket, onOpen, overlay = false }: KanbanCardProps)
     );
   }
 
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: ticket.id });
+  // Enter opens the drill (keyboard equivalent of click — mirrors
+  // tickets-table.tsx's row onKeyDown). Also forwards to dnd-kit's own
+  // onKeyDown so keyboard-drag activation (wired by the DndContext sensors
+  // in 18-03) keeps working.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    listeners?.onKeyDown?.(e);
+    if (e.key === 'Enter') {
+      onOpen(ticket);
+    }
+  };
 
   return (
     <div
@@ -93,6 +107,7 @@ export function KanbanCard({ ticket, onOpen, overlay = false }: KanbanCardProps)
       data-ticket-id={ticket.id}
       {...attributes}
       {...listeners}
+      onKeyDown={handleKeyDown}
       onClick={() => onOpen(ticket)}
       className={cn(
         'cursor-grab rounded-lg border border-border-subtle bg-surface p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
