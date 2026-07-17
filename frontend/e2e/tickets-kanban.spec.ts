@@ -1,0 +1,216 @@
+// UX-D-01-01..05 — Tickets kanban board e2e spec (Phase 18).
+//
+// NOTE: This spec is authored BEFORE the board exists (Wave 0). Every test here is
+// EXPECTED to be RED until Wave 2 (18-03) replaces the `view==='board'` placeholder
+// with the real <TicketsKanbanBoard>. Do NOT force these green in this plan — see
+// 18-01-PLAN.md objective.
+//
+// Test titles below are pinned EXACTLY as referenced by 18-VALIDATION.md's
+// `-g` grep filters. Do not rename without updating the validation doc.
+//
+// Board DOM contract these tests assert against (Wave 2 must honor):
+//   - Route: /dashboard/tickets?view=board
+//   - Column labels: "Open", "In progress", "Completed", "Blocked"
+//     (queried via data-column attribute + header text)
+//   - Each column header shows a live count badge
+//   - Each card carries data-ticket-id={ticket.id} and shows the mono external_ticket_id
+//   - Empty column renders the canonical EmptyState (role="status")
+
+import { test, expect } from '@playwright/test';
+import { MOBILE_NAV, waitForNav } from './routes';
+
+const COLUMN_LABELS = ['Open', 'In progress', 'Completed', 'Blocked'] as const;
+
+test.describe('Tickets kanban board', () => {
+  test('renders four columns', async ({ page }) => {
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 1280);
+
+    // Guard against an empty dataset — skip with a visible reason rather than a silent pass.
+    const anyCard = page.locator('[data-ticket-id]').first();
+    const hasCards = await anyCard.count();
+    if (hasCards === 0) {
+      test.skip(true, 'no seeded tickets — cannot assert board column contents');
+      return;
+    }
+
+    // Assert all four column labels are visible.
+    for (const label of COLUMN_LABELS) {
+      await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
+    }
+
+    // Board toggle still shows Board pressed.
+    const boardToggle = page.getByRole('button', { name: 'Board', exact: true });
+    await expect(boardToggle).toHaveAttribute('aria-pressed', 'true');
+
+    // Switching to ?view=list still renders the table (toggle preserved — UX-D-01-01).
+    await page.goto('/dashboard/tickets?view=list');
+    await waitForNav(page, 1280);
+    await expect(page.getByRole('table')).toBeVisible();
+  });
+
+  test('drag into Blocked persists', async ({ page }) => {
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 1280);
+
+    const cards = page.locator('[data-ticket-id]');
+    const cardCount = await cards.count();
+    if (cardCount === 0) {
+      test.skip(true, 'no seeded tickets — cannot assert drag-and-drop');
+      return;
+    }
+
+    // Locate the first card that is NOT already in the Blocked column.
+    const sourceCard = cards.first();
+    const sourceBox = await sourceCard.boundingBox();
+    if (!sourceBox) {
+      test.skip(true, 'source card has no bounding box');
+      return;
+    }
+
+    const blockedColumn = page.locator('[data-column="blocked"]');
+    const blockedBox = await blockedColumn.boundingBox();
+    if (!blockedBox) {
+      test.skip(true, 'Blocked column has no bounding box');
+      return;
+    }
+
+    // Perform the pointer drag: down on the card, move >=8px, over Blocked, up.
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 20, sourceBox.y + sourceBox.height / 2 + 20);
+    await page.mouse.move(blockedBox.x + blockedBox.width / 2, blockedBox.y + blockedBox.height / 2, {
+      steps: 10,
+    });
+    await page.mouse.up();
+
+    // Reason popover appears — click Save (no reason entered, optional).
+    const saveButton = page.getByRole('button', { name: /save/i });
+    await saveButton.waitFor({ state: 'visible', timeout: 5_000 });
+    await saveButton.click();
+
+    // Assert the card now appears under the Blocked column.
+    await expect(blockedColumn.locator('[data-ticket-id]').first()).toBeVisible();
+
+    // --- Rollback assertion ---
+    // Install a 500 interceptor BEFORE the next drag, then repeat, expecting the card
+    // to snap back to its origin column after the failed mutation.
+    await page.route('**/api/v1/tickets/*/blocked', (route) =>
+      route.fulfill({ status: 500, body: '{}' }),
+    );
+
+    const nonBlockedColumn = page.locator('[data-column="open"]');
+    const nonBlockedCard = nonBlockedColumn.locator('[data-ticket-id]').first();
+    const nonBlockedCount = await nonBlockedCard.count();
+    if (nonBlockedCount === 0) {
+      test.skip(true, 'no non-Blocked cards remain to exercise rollback');
+      return;
+    }
+    const rollbackSourceBox = await nonBlockedCard.boundingBox();
+    if (!rollbackSourceBox) {
+      test.skip(true, 'rollback source card has no bounding box');
+      return;
+    }
+
+    await page.mouse.move(
+      rollbackSourceBox.x + rollbackSourceBox.width / 2,
+      rollbackSourceBox.y + rollbackSourceBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      rollbackSourceBox.x + rollbackSourceBox.width / 2 + 20,
+      rollbackSourceBox.y + rollbackSourceBox.height / 2 + 20,
+    );
+    await page.mouse.move(blockedBox.x + blockedBox.width / 2, blockedBox.y + blockedBox.height / 2, {
+      steps: 10,
+    });
+    await page.mouse.up();
+
+    const rollbackSave = page.getByRole('button', { name: /save/i });
+    await rollbackSave.waitFor({ state: 'visible', timeout: 5_000 });
+    await rollbackSave.click();
+
+    // The mutation fails (500) — assert the card snaps back to Open (origin column).
+    await expect(nonBlockedColumn.locator('[data-ticket-id]').first()).toBeVisible({ timeout: 5_000 });
+  });
+
+  test('keyboard drag', async ({ page }) => {
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 1280);
+
+    const cards = page.locator('[data-ticket-id]');
+    const cardCount = await cards.count();
+    if (cardCount === 0) {
+      test.skip(true, 'no seeded tickets — cannot assert keyboard drag');
+      return;
+    }
+
+    const firstCard = cards.first();
+    const ticketId = await firstCard.getAttribute('data-ticket-id');
+    await firstCard.focus();
+
+    // Space grabs the focused card.
+    await page.keyboard.press('Space');
+    // Arrow right until over Blocked — bounded loop to avoid infinite retry.
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('ArrowRight');
+    }
+    // Space drops.
+    await page.keyboard.press('Space');
+
+    // Save in the reason prompt.
+    const saveButton = page.getByRole('button', { name: /save/i });
+    await saveButton.waitFor({ state: 'visible', timeout: 5_000 });
+    await saveButton.click();
+
+    // Assert the card lands in Blocked.
+    const blockedColumn = page.locator('[data-column="blocked"]');
+    await expect(blockedColumn.locator(`[data-ticket-id="${ticketId}"]`)).toBeVisible({
+      timeout: 5_000,
+    });
+  });
+
+  test('empty column', async ({ page }) => {
+    await page.goto('/dashboard/tickets?view=board&status=open');
+    await waitForNav(page, 1280);
+
+    const openColumn = page.locator('[data-column="open"]');
+    const openCards = openColumn.locator('[data-ticket-id]');
+    const openCount = await openCards.count();
+    if (openCount === 0) {
+      test.skip(true, 'no Open tickets seeded — cannot assert narrowed-column contrast');
+      return;
+    }
+
+    // Open holds cards.
+    await expect(openCards.first()).toBeVisible();
+
+    // In progress / Completed / Blocked columns each render an EmptyState (role="status").
+    for (const columnKey of ['in_progress', 'completed', 'blocked']) {
+      const column = page.locator(`[data-column="${columnKey}"]`);
+      await expect(column.getByRole('status').first()).toBeVisible();
+    }
+  });
+
+  test('board mobile bottom-nav', async ({ page }) => {
+    // Set the viewport to 360px BEFORE navigation.
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 360);
+
+    // The fixed mobile bottom-nav must be visible while the board is rendered.
+    const mobileNav = page.locator(MOBILE_NAV);
+    await expect(mobileNav).toBeVisible();
+
+    // Focus its first link/button and assert focus lands inside the nav.
+    const firstNavItem = mobileNav.locator('a, button').first();
+    await firstNavItem.focus();
+    const focusInsideNav = await page.evaluate((sel) => {
+      return document.activeElement?.closest(sel) !== null;
+    }, MOBILE_NAV);
+    expect(focusInsideNav).toBe(true);
+
+    // Assert the nav is not aria-hidden.
+    await expect(mobileNav).not.toHaveAttribute('aria-hidden', 'true');
+  });
+});
