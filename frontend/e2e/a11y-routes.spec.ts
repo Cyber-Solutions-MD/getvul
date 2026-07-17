@@ -134,6 +134,91 @@ test.describe('WCAG 2.1 AA axe sweep — light theme (blocking)', () => {
   });
 });
 
+// --- UX-D-01-06 — Tickets kanban board axe sweep (both themes, blocking) ---
+// The board (Wave 2, 18-03) replaces the view==='board' placeholder. Until then this
+// sweep is RED-by-construction (placeholder copy has no board DOM to violate, but the
+// route+theme wiring is proven now so Wave 2 only has to make the board itself clean).
+// Mid-drag overlay axe coverage lives in tickets-kanban.spec.ts (drag tests) — a static
+// per-route sweep like this one cannot hold a drag mid-flight across a page.goto reload.
+test.describe('WCAG 2.1 AA axe sweep — tickets board view (blocking)', () => {
+  test('sweeps /dashboard/tickets?view=board for critical/serious violations (dark)', async ({
+    page,
+    makeAxeBuilder,
+  }) => {
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 1280);
+
+    const cardCount = await page.locator('[data-ticket-id]').count();
+    if (cardCount === 0) {
+      test.skip(true, 'no seeded tickets — board axe sweep needs at least one card to be meaningful');
+      return;
+    }
+
+    const results = await makeAxeBuilder().analyze();
+    const blocking = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+
+    if (blocking.length > 0) {
+      console.error(
+        `[a11y-routes] BLOCKING violations on /dashboard/tickets?view=board (dark):\n` +
+          blocking
+            .map((v) => `  [${v.impact}] ${v.id}: ${v.description} — ${v.nodes.length} node(s)`)
+            .join('\n'),
+      );
+    }
+
+    expect(blocking, 'Zero critical/serious axe violations on the board view (dark)').toHaveLength(0);
+  });
+
+  test('sweeps /dashboard/tickets?view=board for critical/serious violations (light)', async ({
+    page,
+    makeAxeBuilder,
+  }) => {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('getvul_theme', 'light');
+      } catch {
+        /* storage unavailable — force-set after goto below */
+      }
+    });
+
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 1280);
+
+    // Defensive: confirm the bootstrap actually applied light; force if not.
+    const actualTheme = await page.locator('html').getAttribute('data-theme');
+    if (actualTheme !== 'light') {
+      await page.evaluate(() => {
+        document.documentElement.setAttribute('data-theme', 'light');
+      });
+      await page.waitForTimeout(50);
+    }
+
+    const cardCount = await page.locator('[data-ticket-id]').count();
+    if (cardCount === 0) {
+      test.skip(true, 'no seeded tickets — board axe sweep needs at least one card to be meaningful');
+      return;
+    }
+
+    const results = await makeAxeBuilder().analyze();
+    const blocking = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+
+    if (blocking.length > 0) {
+      console.error(
+        `[a11y-routes] BLOCKING violations on /dashboard/tickets?view=board (light):\n` +
+          blocking
+            .map((v) => `  [${v.impact}] ${v.id}: ${v.description} — ${v.nodes.length} node(s)`)
+            .join('\n'),
+      );
+    }
+
+    expect(blocking, 'Zero critical/serious axe violations on the board view (light)').toHaveLength(0);
+  });
+});
+
 // --- UX-07-02 — Mobile bottom-nav presence + More-sheet opens at 360px ---
 test.describe('Bottom-nav visibility + More-sheet at 360px', () => {
   test.use({ viewport: { width: 360, height: 812 } });
