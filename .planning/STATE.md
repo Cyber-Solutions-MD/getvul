@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.2
-milestone_name: Deferred UI Features
+milestone_name: Deferred UI Features — IN PROGRESS
 status: Ready to execute
-last_updated: "2026-07-17T13:04:15.095Z"
+last_updated: "2026-07-17T13:19:50.169Z"
 progress:
   total_phases: 12
   completed_phases: 9
   total_plans: 31
-  completed_plans: 26
-  percent: 84
+  completed_plans: 27
+  percent: 87
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,14 +20,14 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 18 — tickets-kanban-board (context gathered; ready to plan)
+**Current focus:** Phase 18 — tickets-kanban-board
 
 ## Current Position
 
-Phase: 18 (tickets-kanban-board) — CONTEXT GATHERED (18-CONTEXT.md). Discussion locked: Blocked-only drop target (reuses /blocked + useMarkBlocked); all 4 columns always shown (Open→IP→Completed→Blocked) w/ count badges; blocked card lives in Blocked column; per-column EmptyState; mobile <768px horizontal-scroll + long-press drag; compact card opens DrillPanel. @dnd-kit locked (add w/ --legacy-peer-deps). No backend changes.
+Phase: 18 (tickets-kanban-board) — EXECUTING
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
-Plan: —
+Plan: 2 of 5
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
@@ -121,3 +121,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ---
 *Last updated: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC). Full quality gate green on the production build (Playwright 28 passed, bundle 15/15, Lighthouse ≥90). v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15). 676 unit tests + lint green.*
+
+- [Phase 18]: 18-00: --legacy-peer-deps required for @dnd-kit/core install (pre-existing lucide-react/React19 peer conflict blocks any plain npm install)
+- [Phase 18]: 18-00: useMarkBlocked onMutate/onError switched from exact setQueryData(['tickets']) to fuzzy setQueriesData/getQueriesData({queryKey:['tickets','list']}) — fixes Pitfall 1 latent list-cache no-op and unblocks board optimistic reprojection
