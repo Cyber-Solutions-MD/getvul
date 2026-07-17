@@ -23,24 +23,7 @@ import { VulnCount } from './vuln-count';
 import { cn } from '@/lib/utils';
 import type { TicketSummary } from '@/lib/queries/use-tickets';
 import type { TicketProvider } from './types';
-
-// Severity glyph map from visual-language.md
-const SEVERITY_GLYPH: Record<string, string> = {
-  critical: '■',
-  high: '▲',
-  medium: '◆',
-  low: '○',
-  info: '□',
-};
-
-// Severity tint classes from sunset tokens
-const SEVERITY_CLASS: Record<string, string> = {
-  critical: 'text-severity-critical',
-  high: 'text-severity-high',
-  medium: 'text-severity-medium',
-  low: 'text-severity-low',
-  info: 'text-severity-info',
-};
+import { SEVERITY_GLYPH, SEVERITY_CLASS } from './severity-glyph';
 
 function isTicketProvider(value: string | null): value is TicketProvider {
   return value === 'jira' || value === 'asana' || value === 'github';
