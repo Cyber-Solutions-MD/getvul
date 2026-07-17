@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features — IN PROGRESS
 status: Ready to execute
-last_updated: "2026-07-17T13:19:50.169Z"
+last_updated: "2026-07-17T13:27:58.141Z"
 progress:
-  total_phases: 12
-  completed_phases: 9
-  total_plans: 31
-  completed_plans: 27
-  percent: 87
+  total_phases: 4
+  completed_phases: 2
+  total_plans: 10
+  completed_plans: 7
+  percent: 70
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -27,7 +27,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 Phase: 18 (tickets-kanban-board) — EXECUTING
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
-Plan: 2 of 5
+Plan: 3 of 5
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
@@ -124,3 +124,4 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 - [Phase 18]: 18-00: --legacy-peer-deps required for @dnd-kit/core install (pre-existing lucide-react/React19 peer conflict blocks any plain npm install)
 - [Phase 18]: 18-00: useMarkBlocked onMutate/onError switched from exact setQueryData(['tickets']) to fuzzy setQueriesData/getQueriesData({queryKey:['tickets','list']}) — fixes Pitfall 1 latent list-cache no-op and unblocks board optimistic reprojection
+- [Phase 18]: 18-01: Board DOM contract pinned (data-column + data-ticket-id) via RED e2e spec; KanbanReasonPromptProps (ticketLabel/onSave/onCancel) pinned via RED unit spec mirroring blocked-toggle.tsx
