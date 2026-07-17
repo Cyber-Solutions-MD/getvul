@@ -12,7 +12,9 @@
  *   else → TicketsTable + Pagination
  *
  * List/Board segmented toggle (D-L-03) persists in ?view URL param.
- * Board branch renders placeholder copy — no table (UX-05-06).
+ * Board branch renders TicketsKanbanBoard (Phase 18, UX-D-01-01..06),
+ * lazily imported via next/dynamic({ssr:false}) to keep @dnd-kit out of
+ * this route's First-Load JS.
  * Drill via DrillPanel(idKey="ticket") + DrillPanelMobile (D-D-02).
  * Bulk bar wired to TicketBulkBar selection (D-S-03).
  *
@@ -23,6 +25,7 @@
  */
 import { Suspense, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { TicketsChipBar } from '@/components/tickets/tickets-chip-bar';
 import { TicketsTable } from '@/components/tickets/tickets-table';
@@ -73,9 +76,12 @@ const SKELETON_COLUMNS: SkeletonColumn[] = [
   { kind: 'mono', width: 60 },   // SLA
 ];
 
-// Board view placeholder copy (D-L-03 — verbatim from plan spec).
-const BOARD_PLACEHOLDER =
-  'Board view coming in a future update — for now, use the List view with the Status chip filter to organize work by status.';
+// UX-D-01-06: lazy-load the board so @dnd-kit stays out of this route's
+// First-Load JS (Pitfall 5) — the route must stay <=250 KB.
+const TicketsKanbanBoard = dynamic(
+  () => import('./tickets-kanban-board').then((m) => m.TicketsKanbanBoard),
+  { ssr: false, loading: () => <SkeletonTable columns={SKELETON_COLUMNS} rows={6} /> },
+);
 
 function isAsanaNotConfigured(error: Error | null): boolean {
   if (!error) return false;
@@ -243,11 +249,14 @@ function TicketsPageInner() {
 
       <TicketsChipBar />
 
-      {/* Board view — placeholder copy (D-L-03, UX-05-06) */}
+      {/* Board view — real kanban (D-L-03, UX-D-01-01..06) */}
       {view === 'board' ? (
-        <div className="mx-auto max-w-xl rounded-lg border border-border-subtle bg-surface p-10 text-center">
-          <p className="text-text-muted">{BOARD_PLACEHOLDER}</p>
-        </div>
+        <TicketsKanbanBoard
+          rows={items}
+          isLoading={isLoading}
+          error={q.error as Error | null}
+          onOpen={onRowClick}
+        />
       ) : (
         <>
           {/* WR-13: state branches are mutually exclusive.
