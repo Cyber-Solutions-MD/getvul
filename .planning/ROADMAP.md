@@ -41,7 +41,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 - [x] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03) (executed 2026-07-15; gap-closure 16-03 + WR-04 systemic on-soft migration 2026-07-16; verification passed 4/4 SC, live axe sweep green in both themes — see 16-VERIFICATION.md) (completed 2026-07-16)
 - [x] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06) (completed 2026-07-16)
-- [ ] **Phase 18: Tickets kanban board** — @dnd-kit status columns replacing the placeholder (UX-D-01)
+- [x] **Phase 18: Tickets kanban board** — @dnd-kit status columns replacing the placeholder (UX-D-01) (completed 2026-07-17)
 - [ ] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02)
 
 ## Phase Details
@@ -236,7 +236,7 @@ Plans:
 - [x] 18-01-PLAN.md — Wave 0: RED test scaffolds (NEW e2e/tickets-kanban.spec.ts + kanban-reason-prompt.test.tsx; EXTEND a11y-routes both-themes + reduced-motion to board view)
 - [x] 18-02-PLAN.md — Wave 1: kanban leaf components (shared severity-glyph module, draggable KanbanCard, droppable KanbanColumn, KanbanReasonPrompt)
 - [x] 18-03-PLAN.md — Wave 2: DndContext board container (sensors, onDragEnd block/unblock gating, DragOverlay reduced-motion, a11y announcements, mobile scroll-snap) + page.tsx next/dynamic wiring
-- [ ] 18-04-PLAN.md — Wave 3: full gate run w/ pasted evidence (bundle 250KB + axe both themes + board e2e + reduced-motion) + human-verify touch/DrillPanel checkpoint
+- [x] 18-04-PLAN.md — Wave 3: full gate run w/ pasted evidence (bundle 250KB + axe both themes + board e2e + reduced-motion) + human-verify touch/DrillPanel checkpoint
 
 ### Phase 19: Add-connector wizard
 **Goal**: Replace the single-step connector form with a guided four-step wizard, reusing existing endpoints.

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features — IN PROGRESS
-status: Ready to execute
-last_updated: "2026-07-17T13:47:53.482Z"
+status: Phase complete — ready for verification
+last_updated: "2026-07-17T14:52:40.802Z"
 progress:
-  total_phases: 4
-  completed_phases: 2
-  total_plans: 10
-  completed_plans: 9
-  percent: 90
+  total_phases: 12
+  completed_phases: 10
+  total_plans: 31
+  completed_plans: 31
+  percent: 100
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -130,3 +130,5 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 18]: 18-02: kanban-column.tsx drops aria-disabled on role=region (unsupported ARIA prop for that role); opacity-40 dim cue alone satisfies D-DRAG-03
 - [Phase 18]: 18-03: board is pure projection of bucketTickets(rows), no local ticket-row state; onDragEnd gates only read-only->Blocked (via reason prompt) and Blocked->read-only (immediate unblock)
 - [Phase 18]: 18-03: KanbanReasonPrompt renders in a fixed top-centered overlay (not anchored to drop position); board lazily imported via next/dynamic({ssr:false}) keeping @dnd-kit off First-Load JS (/dashboard/tickets confirmed 167 kB)
+- [Phase 18]: Keyboard coordinateGetter tracks column index via useRef, not context.over (avoids collision-detection lag under rapid keypresses)
+- [Phase 18]: 18-04 gate evidence fixed 3 live e2e-spec race conditions (networkidle wait, Save-click settle wait, post-mutation reflow settle wait) rather than only documenting them, since they blocked producing genuine gate evidence
