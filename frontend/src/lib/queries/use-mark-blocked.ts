@@ -2,18 +2,28 @@
 /**
  * useMarkBlocked — optimistic mutation hook for toggling the blocked state on a ticket.
  *
- * Contract (13-07-PLAN Task 1):
+ * Contract (13-07-PLAN Task 1, patched 18-00 Task 3 — Pitfall 1):
  *   - POST /api/v1/tickets/{id}/blocked with body { blocked, blocked_reason }
- *   - onMutate: cancel byId + all, snapshot, optimistically flip blocked/blockedReason
- *   - onError: rollback snapshot + error toast
+ *   - onMutate: cancel byId + every ['tickets','list',*] query, snapshot both,
+ *     optimistically flip blocked/blocked_reason in each
+ *   - onError: rollback the byId snapshot + every captured list snapshot + error toast
  *   - onSuccess: invalidate tickets.byId(id) + tickets.all + predicate-invalidate
  *     any ['assets', *, 'remediations'] that may embed ticket state (Pattern 4)
+ *
+ * Pitfall 1 (18-RESEARCH.md): list data lives under the FUZZY key
+ * ['tickets','list',{filters,page,view}] — one query per filter/page/view
+ * permutation — not the exact ['tickets'] prefix. `setQueryData`/`getQueryData`
+ * use EXACT key matching, so patching `queryKeys.tickets.all` was a no-op
+ * against real list caches. Fixed here via `setQueriesData`/`getQueriesData`
+ * with `{ queryKey: ['tickets','list'] }`, which matches every cached list
+ * query (list view AND the kanban board — both are pure projections of the
+ * same cache) regardless of its filter/page/view permutation.
  *
  * Threat model:
  *   T-13-23 (mass assignment): ONLY {blocked, blocked_reason} are sent — never
  *   spread arbitrary form data into the body. Backend Pydantic model rejects extras.
  */
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 import { queryKeys } from './keys';
@@ -29,7 +39,12 @@ type MarkBlockedResponse = {
   blocked_reason: string | null;
 };
 
-type SnapshotCtx = { snapshot: unknown };
+type SnapshotCtx = {
+  snapshot: {
+    byId: unknown;
+    listSnapshots: Array<[QueryKey, unknown]>;
+  };
+};
 
 export function useMarkBlocked() {
   const qc = useQueryClient();
@@ -46,16 +61,18 @@ export function useMarkBlocked() {
 
     onMutate: async ({ id, blocked, blocked_reason }) => {
       const byIdKey = queryKeys.tickets.byId(id);
-      const allKey = queryKeys.tickets.all;
+      const listPrefix = { queryKey: ['tickets', 'list'] as const };
 
-      // Cancel any in-flight queries for this ticket to prevent race conditions.
+      // Cancel any in-flight queries for this ticket (byId) and every cached
+      // tickets list query (fuzzy — list view + kanban board share this cache)
+      // to prevent race conditions with the optimistic patch below.
       await qc.cancelQueries({ queryKey: byIdKey });
-      await qc.cancelQueries({ queryKey: allKey });
+      await qc.cancelQueries(listPrefix);
 
-      // Snapshot both the detail cache and the list cache for rollback.
+      // Snapshot the detail cache and EVERY cached list query for rollback.
       const snapshot = {
         byId: qc.getQueryData(byIdKey),
-        all: qc.getQueryData(allKey),
+        listSnapshots: qc.getQueriesData<{ items?: unknown[] }>(listPrefix),
       };
 
       // Optimistically flip the blocked state in the detail cache.
@@ -68,9 +85,12 @@ export function useMarkBlocked() {
         };
       });
 
-      // Optimistically update the list cache if it exists.
-      // Pattern 4: also patch the list so the table row updates immediately.
-      qc.setQueryData(allKey, (prev: unknown) => {
+      // Optimistically flip the blocked state in EVERY cached tickets list
+      // query (fuzzy match — Pitfall 1 fix). `setQueryData` (exact) missed
+      // the real ['tickets','list',{filters,page,view}] key shape; the board
+      // (a pure projection of this same cache) needs this to reproject
+      // optimistically too.
+      qc.setQueriesData(listPrefix, (prev: unknown) => {
         if (!prev || typeof prev !== 'object') return prev;
         const typed = prev as { items?: unknown[] };
         if (!typed.items) return prev;
@@ -81,8 +101,6 @@ export function useMarkBlocked() {
             const ticket = item as Record<string, unknown>;
             if (ticket.id !== id) return item;
             // WR-07: snake_case to match TicketSummary/TicketDetail (CR-04).
-            // Previously this wrote camelCase blockedReason which never matched
-            // the snake_case key the UI reads.
             return { ...ticket, blocked, blocked_reason };
           }),
         };
@@ -91,18 +109,15 @@ export function useMarkBlocked() {
       return { snapshot };
     },
 
-    onError: (_err, _vars, ctx) => {
+    onError: (_err, vars, ctx) => {
       // Roll back to the snapshot so the UI shows the previous state.
       if (ctx) {
-        const { snapshot } = ctx as { snapshot: { byId: unknown; all: unknown } };
+        const { snapshot } = ctx;
         if (snapshot.byId !== undefined) {
-          qc.setQueryData(
-            queryKeys.tickets.byId((_vars as MarkBlockedVars).id),
-            snapshot.byId
-          );
+          qc.setQueryData(queryKeys.tickets.byId(vars.id), snapshot.byId);
         }
-        if (snapshot.all !== undefined) {
-          qc.setQueryData(queryKeys.tickets.all, snapshot.all);
+        for (const [key, data] of snapshot.listSnapshots) {
+          qc.setQueryData(key, data);
         }
       }
       toast({ variant: 'error', message: 'Could not update blocked status. Try again.' });
