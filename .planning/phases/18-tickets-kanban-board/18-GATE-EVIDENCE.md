@@ -383,6 +383,32 @@ suite (701/701) both stayed green with no regressions.
 | Lint | `npx eslint` (touched files) | PASS — 0 errors/warnings |
 
 **The automated gate is GREEN, with real evidence, against a production build.**
-Task 2 (human-verify checkpoint: touch long-press-drag vs swipe-scroll, DrillPanel
-during/after a drag, on device emulation) is the remaining, explicitly
-non-automatable step.
+
+---
+
+## Task 2 — Human-verify checkpoint (device emulation)
+
+**Environment provided:** prod build served at `http://localhost:3000`, backend +
+Postgres + Redis healthy in Docker Compose, 5 real tickets seeded and reset to a
+clean state (KAN-1/2/3 Open, KAN-4 In progress, KAN-5 Completed, none Blocked)
+immediately before the checkpoint so the human had material to drag.
+
+**Verification items and result:** the human ran the device-emulation checks
+against the environment above and reported **"pass all"** — every item in the
+checkpoint's `<how-to-verify>` list was confirmed working correctly:
+
+- Touch **long-press-drag** starts a drag (vs a **quick swipe**, which scrolls the
+  board horizontally instead of picking up a card) — swipe-vs-drag disambiguation
+  (D-DRAG-05 / UX-D-01-05) confirmed correct on device emulation.
+- Dropping a card into Blocked opens the reason prompt; **Save** persists the move
+  (card lands in Blocked).
+- The fixed bottom-nav (mobile navigation) stays **visible and tappable** at the
+  bottom throughout, unobstructed by the board.
+- **DrillPanel** Esc/clickaway behaves cleanly both **during** and **after** a
+  drag — no stuck state, no layout shift, no double-open.
+
+**Resolution: APPROVED.** Both manual-only success criteria this plan exists to
+close — UX-D-01-05 (touch drag/swipe disambiguation) and the DrillPanel-during-drag
+interaction (Pitfall 3 / D-CARD-02) — are human-verified against the real device
+emulation environment, in addition to the fully automated evidence in Sections 1-6
+above.
