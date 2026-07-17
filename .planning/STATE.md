@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
-status: Phase 17 complete (human-UAT pending) — ready to plan Phase 18
+status: Phase 18 context gathered — ready to plan
 last_updated: "2026-07-17T00:00:00.000Z"
 progress:
   total_phases: 12
@@ -20,12 +20,13 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 18 — tickets-kanban-board (next to plan)
+**Current focus:** Phase 18 — tickets-kanban-board (context gathered; ready to plan)
 
 ## Current Position
 
-Phase: 17 (page-transition-motion) — COMPLETE (both plans + code review + review-fix; e2e gate green). Human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
-Next: Phase 18 (tickets-kanban-board) — `/gsd-plan-phase 18`
+Phase: 18 (tickets-kanban-board) — CONTEXT GATHERED (18-CONTEXT.md). Discussion locked: Blocked-only drop target (reuses /blocked + useMarkBlocked); all 4 columns always shown (Open→IP→Completed→Blocked) w/ count badges; blocked card lives in Blocked column; per-column EmptyState; mobile <768px horizontal-scroll + long-press drag; compact card opens DrillPanel. @dnd-kit locked (add w/ --legacy-peer-deps). No backend changes.
+Next: `/gsd-plan-phase 18`
+Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
 Plan: —
 | Field | Value |
 |-------|-------|
