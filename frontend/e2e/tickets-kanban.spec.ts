@@ -25,6 +25,12 @@ test.describe('Tickets kanban board', () => {
   test('renders four columns', async ({ page }) => {
     await page.goto('/dashboard/tickets?view=board');
     await waitForNav(page, 1280);
+    // 18-04 gate fix: the board is a next/dynamic({ssr:false}) lazy import — waitForNav
+    // resolves as soon as the persistent shell mounts, before the board chunk downloads
+    // and the ticket-list query resolves. Without this wait, the immediate .count() below
+    // races the fetch and false-skips even when tickets ARE seeded (reproduced live: 0
+    // cards at t=0, 5 cards by t=200ms). Wait for network to settle before reading DOM.
+    await page.waitForLoadState('networkidle');
 
     // Guard against an empty dataset — skip with a visible reason rather than a silent pass.
     const anyCard = page.locator('[data-ticket-id]').first();
@@ -52,6 +58,8 @@ test.describe('Tickets kanban board', () => {
   test('drag into Blocked persists', async ({ page }) => {
     await page.goto('/dashboard/tickets?view=board');
     await waitForNav(page, 1280);
+    // 18-04 gate fix — see 'renders four columns' comment (dynamic-import + fetch race).
+    await page.waitForLoadState('networkidle');
 
     const cards = page.locator('[data-ticket-id]');
     const cardCount = await cards.count();
@@ -87,10 +95,21 @@ test.describe('Tickets kanban board', () => {
     // Reason popover appears — click Save (no reason entered, optional).
     const saveButton = page.getByRole('button', { name: /save/i });
     await saveButton.waitFor({ state: 'visible', timeout: 5_000 });
+    // 18-04 gate fix: clicking in the same tick the popover becomes visible is flaky —
+    // the deferred (setTimeout(...,0), Pitfall 6) autofocus commit needs one settle beat
+    // before a click reliably reaches the onClick handler (reproduced live: click()
+    // returns with no error but onSave never fires without this wait).
+    await page.waitForTimeout(200);
     await saveButton.click();
 
     // Assert the card now appears under the Blocked column.
     await expect(blockedColumn.locator('[data-ticket-id]').first()).toBeVisible();
+    // 18-04 gate fix: the successful mutation above re-buckets the columns (the moved
+    // card leaves Open, remaining Open cards reflow upward). Grabbing the next
+    // boundingBox() in the same tick can race that reflow and land the next drag's
+    // mousedown between cards instead of on one (reproduced live — the drag silently
+    // never activates and the Save button never appears). Let the reflow settle first.
+    await page.waitForTimeout(300);
 
     // --- Rollback assertion ---
     // Install a 500 interceptor BEFORE the next drag, then repeat, expecting the card
@@ -128,6 +147,8 @@ test.describe('Tickets kanban board', () => {
 
     const rollbackSave = page.getByRole('button', { name: /save/i });
     await rollbackSave.waitFor({ state: 'visible', timeout: 5_000 });
+    // 18-04 gate fix — see the first Save click above (deferred-autofocus settle beat).
+    await page.waitForTimeout(200);
     await rollbackSave.click();
 
     // The mutation fails (500) — assert the card snaps back to Open (origin column).
@@ -137,6 +158,8 @@ test.describe('Tickets kanban board', () => {
   test('keyboard drag', async ({ page }) => {
     await page.goto('/dashboard/tickets?view=board');
     await waitForNav(page, 1280);
+    // 18-04 gate fix — see 'renders four columns' comment (dynamic-import + fetch race).
+    await page.waitForLoadState('networkidle');
 
     const cards = page.locator('[data-ticket-id]');
     const cardCount = await cards.count();
@@ -173,6 +196,8 @@ test.describe('Tickets kanban board', () => {
   test('empty column', async ({ page }) => {
     await page.goto('/dashboard/tickets?view=board&status=open');
     await waitForNav(page, 1280);
+    // 18-04 gate fix — see 'renders four columns' comment (dynamic-import + fetch race).
+    await page.waitForLoadState('networkidle');
 
     const openColumn = page.locator('[data-column="open"]');
     const openCards = openColumn.locator('[data-ticket-id]');

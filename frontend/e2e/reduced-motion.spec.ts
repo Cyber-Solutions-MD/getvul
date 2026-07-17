@@ -100,6 +100,10 @@ test.describe('Reduced-motion emulation', () => {
 
     await page.goto('/dashboard/tickets?view=board');
     await page.locator('nav[aria-label="Primary navigation"]').waitFor({ state: 'visible', timeout: 10_000 });
+    // 18-04 gate fix: the board is a next/dynamic({ssr:false}) lazy import — the nav-visible
+    // wait resolves before the board chunk downloads and the ticket-list query resolves,
+    // false-skipping this test even when tickets ARE seeded. Wait for network idle first.
+    await page.waitForLoadState('networkidle');
 
     const cards = page.locator('[data-ticket-id]');
     const cardCount = await cards.count();

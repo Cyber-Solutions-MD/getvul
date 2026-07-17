@@ -147,6 +147,10 @@ test.describe('WCAG 2.1 AA axe sweep — tickets board view (blocking)', () => {
   }) => {
     await page.goto('/dashboard/tickets?view=board');
     await waitForNav(page, 1280);
+    // 18-04 gate fix: the board is a next/dynamic({ssr:false}) lazy import — waitForNav
+    // resolves before the board chunk downloads and the ticket-list query resolves,
+    // false-skipping this sweep even when tickets ARE seeded. Wait for network idle first.
+    await page.waitForLoadState('networkidle');
 
     const cardCount = await page.locator('[data-ticket-id]').count();
     if (cardCount === 0) {
@@ -194,6 +198,9 @@ test.describe('WCAG 2.1 AA axe sweep — tickets board view (blocking)', () => {
       });
       await page.waitForTimeout(50);
     }
+
+    // 18-04 gate fix — see the dark-theme sweep above (dynamic-import + fetch race).
+    await page.waitForLoadState('networkidle');
 
     const cardCount = await page.locator('[data-ticket-id]').count();
     if (cardCount === 0) {

@@ -30,7 +30,7 @@
  *
  * No inline hex — all colors via Tailwind sunset tokens.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type MutableRefObject } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -42,6 +42,7 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type KeyboardCoordinateGetter,
 } from '@dnd-kit/core';
 import { KanbanCard } from '@/components/tickets/kanban-card';
 import { KanbanColumn } from '@/components/tickets/kanban-column';
@@ -55,6 +56,50 @@ import type { TicketSummary } from '@/lib/queries/use-tickets';
 // D-DRAG-01/03: only Blocked is an interactive drop target; the other 3
 // lanes are read-only groupings mirroring `external_status`.
 const READ_ONLY_LANES = new Set<ColumnKey>(['open', 'in_progress', 'completed']);
+
+// 18-04 gate fix (RESEARCH Open Question 1 fallback, flagged as an open item
+// in 18-03-SUMMARY.md): the default KeyboardSensor coordinateGetter moves the
+// drag position by a flat 25px per arrow-key press, which cannot cross a
+// ~300-400px-wide column in the 6 ArrowRight presses the e2e keyboard-drag
+// spec allows (reproduced live: 6 presses moved the card 0px). The board
+// needs a COLUMN-SNAPPING getter, not a pixel-incremental one.
+//
+// `columnIndexRef` (not `context.over`) tracks the current column: `over` is
+// only recomputed once collision detection re-runs against the PREVIOUS
+// keypress's coordinates, so on rapid back-to-back presses (no inter-press
+// render/collision-detection settle time — exactly how a real user or an
+// e2e spec fires ArrowRight in a tight loop) `over` lags by a press and the
+// getter would otherwise re-derive the same "next" index every time,
+// stalling one column short of Blocked (reproduced live). A ref-based
+// counter advances deterministically on every keypress regardless of
+// collision-detection timing; `handleDragStart` resets it to 0 (Open) so
+// each new drag starts from the picked-up card's actual column.
+function makeKanbanColumnCoordinateGetter(
+  columnIndexRef: MutableRefObject<number>,
+): KeyboardCoordinateGetter {
+  return (event, { currentCoordinates, context }) => {
+    const { code } = event;
+    if (code !== 'ArrowRight' && code !== 'ArrowLeft') {
+      return undefined;
+    }
+    event.preventDefault();
+
+    const direction = code === 'ArrowRight' ? 1 : -1;
+    columnIndexRef.current = Math.min(
+      Math.max(columnIndexRef.current + direction, 0),
+      COLUMN_ORDER.length - 1,
+    );
+    const nextColumnId = COLUMN_ORDER[columnIndexRef.current];
+
+    const rect = context.droppableContainers.get(nextColumnId)?.rect.current;
+    if (!rect) return undefined;
+
+    return {
+      x: rect.left + rect.width / 2,
+      y: currentCoordinates.y,
+    };
+  };
+}
 
 export type TicketsKanbanBoardProps = {
   rows: TicketSummary[];
@@ -97,14 +142,24 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen }: TicketsKa
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingBlock, setPendingBlock] = useState<{ ticketId: string } | null>(null);
 
+  // 18-04 gate fix: backs the column-snapping keyboard coordinateGetter (see
+  // makeKanbanColumnCoordinateGetter comment above) — reset in handleDragStart
+  // to the card's actual starting column so Left/Right stay correctly
+  // anchored regardless of which lane the drag began in.
+  const columnIndexRef = useRef(0);
+  const keyboardCoordinateGetter = useMemo(
+    () => makeKanbanColumnCoordinateGetter(columnIndexRef),
+    [],
+  );
+
   const sensors = useSensors(
     // D-CARD-02: <8px movement = click (opens DrillPanel); >=8px = drag.
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     // D-DRAG-05: ~200ms long-press starts drag; a quick swipe scrolls instead.
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
-    // D-DRAG-04: default coordinateGetter + closestCorners collision detection
-    // is the primary keyboard path (RESEARCH Open Question 1, resolved).
-    useSensor(KeyboardSensor),
+    // D-DRAG-04: column-snapping coordinateGetter + closestCorners collision
+    // detection (RESEARCH Open Question 1 fallback — see comment above).
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinateGetter }),
   );
 
   const activeCard = activeId ? (rowsById.get(activeId) ?? null) : null;
@@ -116,7 +171,10 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen }: TicketsKa
   }
 
   function handleDragStart(e: DragStartEvent) {
-    setActiveId(String(e.active.id));
+    const id = String(e.active.id);
+    setActiveId(id);
+    const startColumn = COLUMN_ORDER.find((key) => cols[key].some((t) => t.id === id));
+    columnIndexRef.current = startColumn ? COLUMN_ORDER.indexOf(startColumn) : 0;
   }
 
   function handleDragCancel() {
