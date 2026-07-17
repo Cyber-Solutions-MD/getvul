@@ -422,17 +422,19 @@ Not a rename/refactor/migration phase — greenfield board feature over existing
 | A3 | ~12–15 KB gzipped First-Load contribution of @dnd-kit/core; route stays ≤250 KB | Standard Stack | Low — mitigated by `next/dynamic` lazy-load (excluded from First-Load JS entirely). MUST be confirmed by `next build` + `check-bundle-all.mjs` |
 | A4 | Closing the DrillPanel when a drag starts while it's open is acceptable UX | Pitfall 3 | Low — behavioral; confirm in human/e2e verification; if not, gate the clickaway during active drag |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Keyboard target reachability for Blocked**
    - What we know: `KeyboardSensor` + `closestCorners` moves the drag by arrow keys; collision picks the nearest droppable.
    - What's unclear: whether the default 25px nudge reliably lands on the Blocked column across viewport widths without a custom `coordinateGetter`.
    - Recommendation: implement with the default first; the UX-D-01-03 e2e keyboard-drag test is the gate. If it fails, add a `coordinateGetter` that snaps to the next column's droppable rect.
+   - RESOLVED: default `KeyboardSensor` coordinateGetter + `closestCorners` is the primary keyboard path threaded into 18-03, with a documented `coordinateGetter` column-snap fallback wired behind the UX-D-01-03 e2e keyboard-drag gate if Blocked proves unreachable.
 
 2. **Does dragging a Blocked card need a target-lane highlight, or just "any read-only lane unblocks"?**
    - What we know: D-DRAG-03 says a Blocked-origin card dropped on any read-only lane unblocks.
    - What's unclear: whether the unblocked card should visibly preview its destination column (its `external_status` home) during hover.
    - Recommendation: keep it simple — highlight all 3 read-only lanes as valid during a Blocked-card drag; on unblock, `bucketTickets` re-homes it to its `external_status` column automatically. Refine only if UAT flags confusion.
+   - RESOLVED: highlight all 3 read-only lanes as valid during a Blocked-card drag (no per-destination preview); decision carried into 18-02 KanbanColumn `isValidTarget`/dim logic and 18-03 onDragEnd wiring.
 
 ## Environment Availability
 

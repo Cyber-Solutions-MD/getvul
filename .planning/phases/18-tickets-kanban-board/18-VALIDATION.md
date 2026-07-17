@@ -46,12 +46,14 @@ created: 2026-07-17
 | UX-D-01-02 | reason whitespace→null coercion; Cancel = no mutation | unit | `npx vitest run src/components/tickets/kanban-reason-prompt.test.tsx` | ❌ W0 | ⬜ pending |
 | UX-D-01-03 | keyboard grab/move/drop changes status (Space+arrows+Space) | e2e | `npx playwright test e2e/tickets-kanban.spec.ts -g "keyboard drag"` | ❌ W0 | ⬜ pending |
 | UX-D-01-04 | empty column shows canonical EmptyState; status chip narrows columns | e2e | `npx playwright test e2e/tickets-kanban.spec.ts -g "empty column"` | ❌ W0 | ⬜ pending |
-| UX-D-01-05 | <768px horizontal scroll; bottom-nav still visible/focusable at 360px | e2e | `npx playwright test e2e/a11y-routes.spec.ts -g "Bottom-nav"` + new board-mobile case | ⚠️ partial | ⬜ pending |
+| UX-D-01-05 | <768px board view: fixed bottom-nav still visible AND focusable at 360px (non-regression on `?view=board`) | e2e | `npx playwright test e2e/tickets-kanban.spec.ts -g "board mobile bottom-nav"` | ❌ W0 | ⬜ pending |
 | UX-D-01-06 | route ≤250 KB First Load JS | build gate | `cd frontend && npm run perf:budget` | ✅ `scripts/check-bundle-all.mjs` | ⬜ pending |
 | UX-D-01-06 | axe WCAG 2.1 AA green on `/dashboard/tickets` BOTH themes (incl. mid-drag overlay) | e2e | `npx playwright test e2e/a11y-routes.spec.ts` | ✅ (extend to board view) | ⬜ pending |
 | UX-D-01-06 | reduced-motion: DragOverlay drop animation suppressed (Pitfall 2) | e2e | `npx playwright test e2e/reduced-motion.spec.ts` | ✅ (extend w/ board drop) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+*Note on UX-D-01-05: the existing `a11y-routes.spec.ts` `-g "Bottom-nav"` sweep runs at 360px over `STATIC_ROUTES`, which only exercises the LIST view of `/dashboard/tickets`. The board-layout non-regression at <768px is now guarded by the dedicated `board mobile bottom-nav` case in `tickets-kanban.spec.ts` (authored RED in 18-01, turns GREEN when the board renders in Wave 2) — no longer manual-only.*
 
 ---
 
@@ -60,7 +62,7 @@ created: 2026-07-17
 - [ ] `frontend/src/components/tickets/bucket-tickets.ts` + `bucket-tickets.test.ts` — pure bucketing (UX-D-01-01): Blocked-wins, `in_progress`/`in progress` alias, unknown/null→Open, `COLUMN_ORDER`.
 - [ ] `frontend/src/lib/queries/use-mark-blocked.test.ts` — assert `onMutate` `setQueriesData` flips the `['tickets','list',*]` caches and `onError` restores (Pitfall 1 regression guard). Create if absent; extend if present.
 - [ ] `frontend/src/components/tickets/kanban-reason-prompt.test.tsx` — Save with reason, Cancel = no mutation, whitespace→null (UX-D-01-02, mirror `blocked-toggle.tsx`).
-- [ ] `frontend/e2e/tickets-kanban.spec.ts` — NEW: four columns render, pointer drag→Blocked persists (optimistic + rollback on injected error), keyboard drag, empty-column EmptyState, status-chip narrowing, board+overlay axe.
+- [ ] `frontend/e2e/tickets-kanban.spec.ts` — NEW: four columns render, pointer drag→Blocked persists (optimistic + rollback on injected error), keyboard drag, empty-column EmptyState, status-chip narrowing, board+overlay axe, board-view 360px bottom-nav non-regression.
 - [ ] EXTEND `frontend/e2e/a11y-routes.spec.ts` — sweep `/dashboard/tickets?view=board` (+ mid-drag) in both themes.
 - [ ] EXTEND `frontend/e2e/reduced-motion.spec.ts` — assert no drop tween under `reducedMotion: 'reduce'`.
 - [ ] Framework install: `cd frontend && npm install @dnd-kit/core@6.3.1` (no `--legacy-peer-deps` needed; Vitest/Playwright already present).
@@ -75,7 +77,7 @@ created: 2026-07-17
 |----------|-------------|------------|-------------------|
 | Touch long-press-drag vs swipe-scroll disambiguation on a real phone | UX-D-01-05 | TouchSensor press-delay behavior is hard to assert reliably in headless Playwright | On a touch device / device-emulation: quick swipe scrolls the board horizontally; ~200ms press-and-hold on a card initiates drag |
 
-*All other phase behaviors have automated verification.*
+*All other phase behaviors have automated verification. The board-view fixed-bottom-nav non-regression (UX-D-01-05 layout) is now automated via the `board mobile bottom-nav` e2e case — only the touch-gesture disambiguation above remains manual.*
 
 ---
 
@@ -89,3 +91,4 @@ created: 2026-07-17
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+</content>
