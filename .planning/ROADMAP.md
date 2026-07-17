@@ -229,7 +229,14 @@ Plans:
   2. Dragging a ticket to another column (pointer or keyboard, via @dnd-kit) persists its status with optimistic update and rolls back on error
   3. Empty columns show the canonical empty-state; the status chip filter still applies
   4. At <768px the board degrades cleanly without regressing the fixed bottom-nav; the route stays ≤250 KB and passes axe in both themes
-**Plans**: TBD
+**Plans**: 5 plans (Waves 0-3)
+
+Plans:
+- [ ] 18-00-PLAN.md — Wave 0: install @dnd-kit/core + pure bucketTickets() (+tests) + useMarkBlocked optimistic list-cache-key fix (Pitfall 1) +guard
+- [ ] 18-01-PLAN.md — Wave 0: RED test scaffolds (NEW e2e/tickets-kanban.spec.ts + kanban-reason-prompt.test.tsx; EXTEND a11y-routes both-themes + reduced-motion to board view)
+- [ ] 18-02-PLAN.md — Wave 1: kanban leaf components (shared severity-glyph module, draggable KanbanCard, droppable KanbanColumn, KanbanReasonPrompt)
+- [ ] 18-03-PLAN.md — Wave 2: DndContext board container (sensors, onDragEnd block/unblock gating, DragOverlay reduced-motion, a11y announcements, mobile scroll-snap) + page.tsx next/dynamic wiring
+- [ ] 18-04-PLAN.md — Wave 3: full gate run w/ pasted evidence (bundle 250KB + axe both themes + board e2e + reduced-motion) + human-verify touch/DrillPanel checkpoint
 
 ### Phase 19: Add-connector wizard
 **Goal**: Replace the single-step connector form with a guided four-step wizard, reusing existing endpoints.
