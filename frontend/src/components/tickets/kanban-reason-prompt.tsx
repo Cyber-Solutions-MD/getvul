@@ -34,24 +34,42 @@ export function KanbanReasonPrompt({ ticketLabel, onSave, onCancel }: KanbanReas
     return () => clearTimeout(t);
   }, []);
 
+  // WR-05: Escape-to-cancel via a document-level listener so it works
+  // regardless of which child (the input or either button) holds focus — the
+  // handler previously lived on the <input>, so Escape did nothing once focus
+  // moved to Save/Cancel. A document listener also keeps the popover's
+  // non-interactive container free of keyboard handlers (jsx-a11y).
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   const handleSave = () => {
     onSave(reason.trim() || null);
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  // Enter-to-save lives on the input.
+  const handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleSave();
     }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    }
   };
 
   return (
+    // WR-05: this is an inline popover, not a modal dialog — it has no
+    // aria-modal, no focus trap, and no backdrop, so declaring role="dialog"
+    // misled assistive tech. Use role="group" with an accessible name to label
+    // the input+buttons cluster honestly; Escape-to-cancel is handled via a
+    // document-level listener above.
     <div
-      role="dialog"
+      role="group"
       aria-label={`Blocked reason for ${ticketLabel}`}
       className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface p-3"
     >
@@ -60,7 +78,7 @@ export function KanbanReasonPrompt({ ticketLabel, onSave, onCancel }: KanbanReas
         type="text"
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        onKeyDown={handleKeyDown}
+        onKeyDown={handleInputKeyDown}
         placeholder={microcopy.blockedPrompt}
         maxLength={MAX_REASON}
         className="min-w-0 flex-1 rounded-lg border border-border-subtle bg-surface-2 px-3 py-1.5 text-sm text-text placeholder:text-text-faint focus:border-violet focus:outline-none focus-visible:ring-2 focus-visible:ring-violet"
