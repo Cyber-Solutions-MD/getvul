@@ -270,13 +270,27 @@ function TicketsPageInner() {
         </EmptyState>
       ) : view === 'board' ? (
         /* Board view — real kanban (D-L-03, UX-D-01-01..06) */
-        <TicketsKanbanBoard
-          rows={items}
-          isLoading={isLoading}
-          error={q.error as Error | null}
-          onOpen={onRowClick}
-          onRetry={() => q.refetch()}
-        />
+        <>
+          <TicketsKanbanBoard
+            rows={items}
+            isLoading={isLoading}
+            error={q.error as Error | null}
+            onOpen={onRowClick}
+            onRetry={() => q.refetch()}
+          />
+          {/* WR-01: the board buckets only the current page. Surface the same
+              Pagination control the list uses so tickets beyond page 1 (e.g. a
+              Blocked ticket on page 2) are reachable and can be dragged. */}
+          {(q.data?.pages ?? 1) > 1 && (
+            <Pagination
+              page={pageNum}
+              totalPages={q.data?.pages ?? 1}
+              total={q.data?.total ?? 0}
+              pageSize={q.data?.page_size ?? 25}
+              onPageChange={handlePageChange}
+            />
+          )}
+        </>
       ) : (
         <>
           {/* WR-13: state branches are mutually exclusive.
