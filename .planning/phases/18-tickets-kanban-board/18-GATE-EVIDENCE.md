@@ -412,3 +412,292 @@ close — UX-D-01-05 (touch drag/swipe disambiguation) and the DrillPanel-during
 interaction (Pitfall 3 / D-CARD-02) — are human-verified against the real device
 emulation environment, in addition to the fully automated evidence in Sections 1-6
 above.
+
+---
+
+## Post-review-fix gate re-run (2026-07-18)
+
+Six code-review fixes landed on `main` **after** the evidence above was captured:
+`eee55de` (CR-01), `6c25f73` (WR-02), `23921d0` (WR-04), `34592aa` (WR-03),
+`7faa111` (WR-01), `b8ff253` (WR-05) — see `18-REVIEW-FIX.md`. Per that report,
+the fixer explicitly did **not** run the Playwright e2e/axe/perf gate ("needs a
+prod build + running server"), only `tsc`, `eslint`, and the scoped
+`vitest run src/components/tickets/` (69/69). This section re-runs the FULL
+automated gate from Sections 1–5 above, fresh, against a clean `npm run build`
+on top of all 6 fixes, to close that gap. Same reproducibility method as the
+original run (docker compose `postgres`+`redis`+`backend`, prod `next build` +
+`next start` on `:3000`, real output pasted verbatim, nothing fabricated).
+
+### Environment for this re-run
+
+- `docker compose up -d postgres redis backend` — all 3 healthy (confirmed via
+  `docker compose ps`).
+- The tenant's seeded kanban data from the original gate run had persisted in the
+  `getvul_pgdata` docker volume across the intervening sessions (volume was never
+  removed) — verified via `SELECT external_ticket_id, external_status, blocked,
+  resolved_at IS NOT NULL FROM tickets` before running anything: KAN-1/2 (resolved,
+  Open-filter-excluded), KAN-3 (genuinely Open), KAN-4 (in_progress, resolved),
+  KAN-5 (completed, resolved), **none Blocked** — the exact same deterministic
+  starting state documented in the original evidence's "Data seeding" note. No
+  reseed was necessary; the same 5 real tickets (KAN-1..5) were used.
+- `admin@getvul.local` confirmed present (`must_change_password=false`) and login
+  verified end-to-end via a direct `curl -X POST http://localhost:8000/auth/login`
+  with `Origin: http://localhost:3000` → `200 OK` with
+  `access-control-allow-origin: http://localhost:3000` echoed back.
+- Fresh `npm run build` (not reusing any prior `.next`), then `npm run start --
+  --port 3000`. Confirmed no stale `next-server`/`next start` processes were
+  running beforehand (`pgrep -fl "next-server|next start"` → none).
+
+### 1. Bundle budget — `npm run perf:budget`
+
+```
+> getvul-frontend@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.20
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 2.4s
+   Linting and checking validity of types ...
+
+./src/app/(authed)/dashboard/users/page.tsx
+154:9  Warning: The 'items' logical expression could make the dependencies of useCallback Hook (at line 175) change on every render. Move it inside the useCallback callback. Alternatively, wrap the initialization of 'items' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+
+./src/app/change-password/page.tsx
+136:23  Warning: The autoFocus prop should not be used, as it can reduce usability and accessibility for users.  jsx-a11y/no-autofocus
+
+./src/app/login/page.tsx
+313:19  Warning: The autoFocus prop should not be used, as it can reduce usability and accessibility for users.  jsx-a11y/no-autofocus
+420:19  Warning: The autoFocus prop should not be used, as it can reduce usability and accessibility for users.  jsx-a11y/no-autofocus
+534:19  Warning: The autoFocus prop should not be used, as it can reduce usability and accessibility for users.  jsx-a11y/no-autofocus
+
+./src/lib/auth.tsx
+109:6  Warning: React Hook useEffect has a missing dependency: 'refreshToken'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/7) ...
+   Generating static pages (1/7)
+   Generating static pages (3/7)
+   Generating static pages (5/7)
+ ✓ Generating static pages (7/7)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                      124 B         102 kB
+├ ○ /_not-found                            998 B         103 kB
+├ ○ /change-password                     1.37 kB         143 kB
+├ ƒ /dashboard                           9.73 kB         138 kB
+├ ƒ /dashboard/assets                     5.1 kB         130 kB
+├ ƒ /dashboard/assets/[id]                9.7 kB         161 kB
+├ ƒ /dashboard/connectors                11.3 kB         153 kB
+├ ƒ /dashboard/cspm                      9.42 kB         157 kB
+├ ƒ /dashboard/settings                  14.5 kB         156 kB
+├ ƒ /dashboard/tickets                   6.96 kB         167 kB
+├ ƒ /dashboard/tickets/[id]              9.71 kB         138 kB
+├ ƒ /dashboard/tickets/rules             3.72 kB         126 kB
+├ ƒ /dashboard/users                     6.63 kB         129 kB
+├ ƒ /dashboard/vulnerabilities           7.06 kB         158 kB
+├ ○ /dev/primitives                        124 B         102 kB
+└ ○ /login                               4.01 kB         146 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/255-41622e0825f37f6a.js         46 kB
+  ├ chunks/4bd1b696-409494caf8c83275.js  54.2 kB
+  └ other shared chunks (total)          2.08 kB
+
+
+ƒ Middleware                               34 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+```
+
+```
+> getvul-frontend@0.1.0 perf:budget
+> node scripts/check-bundle-all.mjs
+
+PASS  /  102.0 kB
+PASS  /_not-found  103.0 kB
+PASS  /change-password  143.0 kB
+PASS  /dashboard  138.0 kB
+PASS  /dashboard/assets  130.0 kB
+PASS  /dashboard/assets/[id]  161.0 kB
+PASS  /dashboard/connectors  153.0 kB
+PASS  /dashboard/cspm  157.0 kB
+PASS  /dashboard/settings  156.0 kB
+PASS  /dashboard/tickets  167.0 kB
+PASS  /dashboard/tickets/[id]  138.0 kB
+PASS  /dashboard/tickets/rules  126.0 kB
+PASS  /dashboard/users  129.0 kB
+PASS  /dashboard/vulnerabilities  158.0 kB
+PASS  /dev/primitives  102.0 kB
+PASS  /login  146.0 kB
+
+Routes checked: 16
+Largest route:  /dashboard/tickets  167.0 kB
+Budget:         250 kB gzipped per route (First Load JS)
+
+check-bundle-all: OK — all 16 routes within 250 kB budget.
+```
+
+**Verdict: PASS.** `/dashboard/tickets` First Load JS = **167.0 kB** (6.96 kB route
+size vs. 6.88 kB in the original run — the WR-01 pagination render and WR-04
+`onRetry` prop are a few bytes of new JSX/props on an already-lazy-loaded board,
+not a new dependency), unchanged First Load JS total, still well under the 250 KB
+budget. No new dependency was added by any of the 6 fixes.
+
+---
+
+### 2. Board e2e — `npx playwright test e2e/tickets-kanban.spec.ts`
+
+```
+Running 6 tests using 1 worker
+
+  ✓  1 [setup] › e2e/auth/setup.ts:18:6 › authenticate (669ms)
+  ✓  2 [chromium-a11y] › e2e/tickets-kanban.spec.ts:25:7 › Tickets kanban board › renders four columns (873ms)
+  ✓  3 [chromium-a11y] › e2e/tickets-kanban.spec.ts:58:7 › Tickets kanban board › drag into Blocked persists (1.8s)
+  ✓  4 [chromium-a11y] › e2e/tickets-kanban.spec.ts:158:7 › Tickets kanban board › keyboard drag (863ms)
+  ✓  5 [chromium-a11y] › e2e/tickets-kanban.spec.ts:196:7 › Tickets kanban board › empty column (770ms)
+  ✓  6 [chromium-a11y] › e2e/tickets-kanban.spec.ts:220:7 › Tickets kanban board › board mobile bottom-nav (266ms)
+
+  6 passed (6.3s)
+```
+
+**Verdict: PASS.** 6/6 real (non-skipped) tests green, including the drag-into-Blocked
+persist/rollback flow (exercises `KanbanReasonPrompt`, now `role="group"` per WR-05)
+and the keyboard drag reaching the Blocked column (CR-01's `defaultPrevented` guard
+in `kanban-card.tsx` sits on the Space-key path this spec drives — unaffected, still
+green; the spec still does not press Enter, so CR-01's specific Enter-vs-drag
+interaction remains the one item this automated suite cannot assert — see "Residual
+gap" below, unchanged from the fix report's own caveat).
+
+---
+
+### 3. Axe sweep, both themes — `npx playwright test e2e/a11y-routes.spec.ts -g "tickets board view"`
+
+```
+Running 3 tests using 1 worker
+
+  ✓  1 [setup] › e2e/auth/setup.ts:18:6 › authenticate (503ms)
+  ✓  2 [chromium-a11y] › e2e/a11y-routes.spec.ts:144:7 › WCAG 2.1 AA axe sweep — tickets board view (blocking) › sweeps /dashboard/tickets?view=board for critical/serious violations (dark) (1.2s)
+  ✓  3 [chromium-a11y] › e2e/a11y-routes.spec.ts:178:7 › WCAG 2.1 AA axe sweep — tickets board view (blocking) › sweeps /dashboard/tickets?view=board for critical/serious violations (light) (1.2s)
+
+  3 passed (3.8s)
+```
+
+**Verdict: PASS.** Zero critical/serious axe violations in both dark and light on
+`/dashboard/tickets?view=board`, with all 6 fixes in place — this is the direct
+regression check for **WR-01** (new `Pagination` control rendered in the board
+branch) and **WR-05** (`role="dialog"` → `role="group"` on `KanbanReasonPrompt`,
+which changes its accessible semantics): neither introduced a critical/serious
+violation. The 5-ticket seed fits on a single page so the pagination control did
+not actually render during this sweep (`q.data.pages > 1` gate) — its presence on
+a route with >1 page is not exercised by this seed; the sweep confirms the board's
+baseline a11y tree stayed clean with the fixes merged, not that the paginated
+state itself is axe-clean (documented as a residual gap below, consistent with
+WR-01's own fix note about being a partial mitigation).
+
+---
+
+### 4. Reduced motion — `npx playwright test e2e/reduced-motion.spec.ts -g "board drag drop animation"`
+
+```
+Running 2 tests using 1 worker
+
+  ✓  1 [setup] › e2e/auth/setup.ts:18:6 › authenticate (511ms)
+  ✓  2 [chromium-a11y] › e2e/reduced-motion.spec.ts:97:7 › Reduced-motion emulation › board drag drop animation is suppressed under prefers-reduced-motion (1.4s)
+
+  2 passed (2.8s)
+```
+
+**Verdict: PASS.** Drop-tween suppression under `prefers-reduced-motion: reduce`
+unaffected by the 6 fixes (none touch `tickets-kanban-board.tsx`'s
+`dropAnimation` prop; WR-02's `announcements.onDragEnd` rewrite is a separate
+code path).
+
+---
+
+### 5. Unit suite (scoped) — `npx vitest run src/components/tickets/`
+
+```
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.6 /Users/chemencedji/Desktop/getvul/frontend
+
+
+ Test Files  13 passed (13)
+      Tests  69 passed (69)
+   Start at  13:30:56
+   Duration  1.62s (transform 736ms, setup 2.91s, import 968ms, tests 736ms, environment 5.89s)
+```
+
+**Verdict: PASS.** 69/69 — matches the count `18-REVIEW-FIX.md` reported
+immediately after the fixes (this re-run confirms it still holds on a fresh
+install/build, not just at fix-time).
+
+---
+
+### Bonus static checks (not one of the 5 required dimensions, run for parity with the original evidence's Section 6)
+
+```
+$ npx tsc --noEmit -p tsconfig.json
+(no output — 0 errors)
+
+$ npx eslint "src/app/(authed)/dashboard/tickets/tickets-kanban-board.tsx" \
+    "src/app/(authed)/dashboard/tickets/page.tsx" \
+    src/components/tickets/kanban-card.tsx \
+    src/components/tickets/kanban-reason-prompt.tsx \
+    e2e/tickets-kanban.spec.ts e2e/a11y-routes.spec.ts e2e/reduced-motion.spec.ts
+(no output — 0 errors, 0 warnings)
+```
+
+**Verdict: PASS.** Zero type errors, zero lint errors/warnings across all files
+touched by the 6 review fixes plus the e2e specs.
+
+### Residual gap (not a gate failure — carried over from `18-REVIEW-FIX.md`)
+
+Per the fix report's own human-verification notes, two of the six fixes have a
+behavioral surface the automated suite still cannot assert, and this re-run does
+not change that:
+
+- **CR-01** (Enter-vs-drag on a kanban card): `tickets-kanban.spec.ts`'s keyboard
+  drag test uses **Space**, not **Enter**, so it never exercises the
+  `if (e.defaultPrevented) return;` branch the fix added. This gate re-run
+  confirms nothing *regressed*, but does not newly cover CR-01's actual behavior.
+- **WR-02** (gated screen-reader announcement wording): the axe sweep asserts
+  *no violations*, not *announcement text*; the "returned to its column" wording
+  for gated no-op drops is still unasserted by any automated check in this repo.
+
+Neither blocks this gate (both were already flagged as requiring human
+verification in the fix report, not as automated-gate requirements) — carried
+forward here so the gap isn't lost between the fix report and this re-run.
+
+### Post-review-fix gate summary
+
+| Check | Command | Result |
+|---|---|---|
+| Bundle budget | `npm run perf:budget` | PASS — `/dashboard/tickets` 167.0 kB ≤ 250 kB (unchanged) |
+| Board e2e (6 tests) | `npx playwright test e2e/tickets-kanban.spec.ts` | PASS — 6/6 green |
+| Axe sweep, dark | `npx playwright test e2e/a11y-routes.spec.ts -g "tickets board view"` (dark) | PASS — 0 critical/serious |
+| Axe sweep, light | same, light theme | PASS — 0 critical/serious |
+| Reduced motion | `npx playwright test e2e/reduced-motion.spec.ts -g "board drag drop animation"` | PASS — drop-tween suppressed |
+| Unit (scoped) | `npx vitest run src/components/tickets/` | PASS — 69/69 |
+| Types (bonus) | `npx tsc --noEmit` | PASS — 0 errors |
+| Lint (bonus) | `npx eslint` (touched files) | PASS — 0 errors/warnings |
+
+**The automated gate is GREEN on a fresh production build with all 6 code-review
+fixes (`eee55de`, `6c25f73`, `23921d0`, `34592aa`, `7faa111`, `b8ff253`) merged.**
+No product source was modified during this re-run — every gate passed as-is.
+
+### Environment teardown (this re-run)
+
+- `pkill -f "next start"` + `pkill -f "next-server"` — confirmed via `pgrep -fl`
+  that no next processes remained afterward.
+- `docker compose down` — stopped and removed `postgres`, `redis`, `backend`
+  (the 3 services this re-run started) plus `nginx`/`frontend` containers that
+  were present-but-stopped from a prior session; the `getvul_pgdata` volume was
+  **not** removed (no `-v` flag), so the KAN-1..5 seed data used by this re-run
+  is preserved for any future gate run.
+
