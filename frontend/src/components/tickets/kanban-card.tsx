@@ -96,6 +96,11 @@ export function KanbanCard({ ticket, onOpen, overlay = false }: KanbanCardProps)
   // in 18-03) keeps working.
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     listeners?.onKeyDown?.(e);
+    // CR-01: dnd-kit's KeyboardSensor treats Enter as a drag start/drop/cancel
+    // activator and calls preventDefault() when it consumes the key. If it did,
+    // don't ALSO open the drill — that would begin a keyboard drag and open the
+    // focus-trapping DrillPanel simultaneously (and re-fire on the drop press).
+    if (e.defaultPrevented) return;
     if (e.key === 'Enter') {
       onOpen(ticket);
     }
