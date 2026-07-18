@@ -256,6 +256,7 @@ function TicketsPageInner() {
           isLoading={isLoading}
           error={q.error as Error | null}
           onOpen={onRowClick}
+          onRetry={() => q.refetch()}
         />
       ) : (
         <>

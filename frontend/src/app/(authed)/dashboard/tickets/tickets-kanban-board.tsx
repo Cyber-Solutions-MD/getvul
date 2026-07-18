@@ -106,6 +106,8 @@ export type TicketsKanbanBoardProps = {
   isLoading: boolean;
   error: Error | null;
   onOpen: (ticket: TicketSummary) => void;
+  /** WR-04: retry a transient board fetch failure (wired to q.refetch()). */
+  onRetry?: () => void;
 };
 
 function BoardSkeletonColumn({ columnKey }: { columnKey: ColumnKey }) {
@@ -130,7 +132,7 @@ function BoardSkeletonColumn({ columnKey }: { columnKey: ColumnKey }) {
   );
 }
 
-export function TicketsKanbanBoard({ rows, isLoading, error, onOpen }: TicketsKanbanBoardProps) {
+export function TicketsKanbanBoard({ rows, isLoading, error, onOpen, onRetry }: TicketsKanbanBoardProps) {
   const reduced = usePrefersReducedMotion();
   const markBlocked = useMarkBlocked();
 
@@ -259,6 +261,7 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen }: TicketsKa
     return (
       <PartialFailureBanner
         errors={[{ code: 'http_error', requestId: String(error.message) || 'unknown' }]}
+        onRetry={onRetry}
       />
     );
   }
