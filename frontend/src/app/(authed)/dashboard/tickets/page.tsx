@@ -249,8 +249,27 @@ function TicketsPageInner() {
 
       <TicketsChipBar />
 
-      {/* Board view — real kanban (D-L-03, UX-D-01-01..06) */}
-      {view === 'board' ? (
+      {/* WR-03: asana_not_configured is an EXPECTED "connector unconfigured"
+          signal, not a transient failure — route it to the connector deep-link
+          EmptyState (D-S-02) BEFORE the list/board switch so both views get the
+          same remediation CTA instead of an opaque error banner. */}
+      {asanaUnconfigured ? (
+        <EmptyState>
+          <EmptyState.Title>Set up a ticket connector</EmptyState.Title>
+          <EmptyState.Body>
+            Connect Jira, Asana, or GitHub to start tracking remediation tickets.
+          </EmptyState.Body>
+          <EmptyState.Actions>
+            <Link
+              href="/dashboard/connectors"
+              className="inline-flex items-center gap-1.5 rounded-md bg-gradient-sunset px-4 py-2 text-sm font-medium text-text-inverse shadow-glow-cta hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+            >
+              Set up connectors →
+            </Link>
+          </EmptyState.Actions>
+        </EmptyState>
+      ) : view === 'board' ? (
+        /* Board view — real kanban (D-L-03, UX-D-01-01..06) */
         <TicketsKanbanBoard
           rows={items}
           isLoading={isLoading}
@@ -261,26 +280,10 @@ function TicketsPageInner() {
       ) : (
         <>
           {/* WR-13: state branches are mutually exclusive.
-              Special case: asana_not_configured error → show connector empty state (D-S-02),
-              not the generic error banner — the error is an expected "unconfigured" signal,
-              not a transient failure. Other errors → PartialFailureBanner.
+              (asana_not_configured is handled above, before this switch — WR-03.)
+              Other errors → PartialFailureBanner.
               isLoading → skeleton. items.length === 0 → EmptyState. else → table. */}
-          {asanaUnconfigured ? (
-            <EmptyState>
-              <EmptyState.Title>Set up a ticket connector</EmptyState.Title>
-              <EmptyState.Body>
-                Connect Jira, Asana, or GitHub to start tracking remediation tickets.
-              </EmptyState.Body>
-              <EmptyState.Actions>
-                <Link
-                  href="/dashboard/connectors"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-gradient-sunset px-4 py-2 text-sm font-medium text-text-inverse shadow-glow-cta hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
-                >
-                  Set up connectors →
-                </Link>
-              </EmptyState.Actions>
-            </EmptyState>
-          ) : q.error ? (
+          {q.error ? (
             <PartialFailureBanner
               errors={[
                 {
