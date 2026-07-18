@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.2
-milestone_name: Deferred UI Features — IN PROGRESS
-status: Phase complete — ready for verification
-last_updated: "2026-07-17T14:52:40.802Z"
+milestone_name: Deferred UI Features
+status: Ready to plan
+last_updated: "2026-07-18T10:46:51.798Z"
 progress:
   total_phases: 12
   completed_phases: 10
@@ -24,10 +24,10 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 ## Current Position
 
-Phase: 18 (tickets-kanban-board) — EXECUTING
+Phase: 19
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
-Plan: 5 of 5
+Plan: Not started
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
