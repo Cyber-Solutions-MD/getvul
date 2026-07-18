@@ -228,10 +228,24 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen }: TicketsKa
     }: {
       active: { id: string | number };
       over: { id: string | number } | null;
-    }) =>
-      over
-        ? `Dropped ticket ${labelFor(active.id)} on the ${colLabel(over.id)} column.`
-        : `Ticket ${labelFor(active.id)} was dropped.`,
+    }) => {
+      // WR-02: mirror handleDragEnd's gating so we only announce a committed
+      // move for the two valid transitions (read-only→Blocked, Blocked→read-only).
+      // Every other drop is a gated no-op that snaps back — announcing a
+      // "Dropped on {column}" success for those contradicts the visual snap-back.
+      const card = rowsById.get(String(active.id));
+      const overKey = over?.id as ColumnKey | undefined;
+      const committed = !!(
+        over &&
+        card &&
+        overKey &&
+        ((!card.blocked && overKey === 'blocked') ||
+          (card.blocked && READ_ONLY_LANES.has(overKey)))
+      );
+      return committed
+        ? `Moved ticket ${labelFor(active.id)} to the ${colLabel(over!.id)} column.`
+        : `Ticket ${labelFor(active.id)} returned to its column.`;
+    },
     onDragCancel: ({ active }: { active: { id: string | number } }) =>
       `Cancelled dragging ticket ${labelFor(active.id)}.`,
   };
