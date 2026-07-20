@@ -367,14 +367,16 @@ if (!open) return null;
 
 **If this table is empty:** N/A — see entries above; none are compliance/retention/security-critical, all are UI-mechanics decisions with bounded blast radius.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `GET /connectors/types` be enriched to carry `required`/`label`/`type` per field, or is the "assume all required" proxy (Pitfall 1, option 1) acceptable for this phase?**
+   - **RESOLVED:** Keep `ConnectorTypeInfo.fields: string[]` (option 1, no backend change) — see 19-00-PLAN.md "PLANNER DECISION" (context block). Secret detection uses the existing `isSecretField()` name heuristic; all 38 fields are `required: True`, so all-non-empty is a safe gating proxy.
    - What we know: Zero current connector types have an optional field; the wire contract change would be additive/non-breaking.
    - What's unclear: Whether "no new backend" (UX-D-02-05) is meant to also cover incidental enrichment of `GET /types` (not one of the two explicitly named endpoints), or whether it's a hard freeze on all backend files touched by this phase.
    - Recommendation: Default to option 1 (no backend change) unless the planner/user explicitly wants the richer per-field metadata surfaced now (e.g., to also improve today's client-side `isSecretField()` heuristic, which currently pattern-matches field *names* — `secret`, `key`, `password`, `token` — rather than using the backend's authoritative `type: "password"`). Flag this in the plan's assumptions rather than deciding silently.
 
 2. **Should the confirm step re-validate staleness defensively (Pitfall 4), even though the step-3 gate should prevent reaching it with stale credentials in the normal flow?**
+   - **RESOLVED:** Single step-3 gate is the sole enforcement point (no defensive confirm-boundary re-check) — proven by 19-00-PLAN.md Task 2 Test E (the Pitfall-4 Back/Next bounce unit test). `canAdvance` on the test step requires `testPassed` (success AND not stale).
    - What we know: D-05/D-07/D-08 together should make it structurally impossible to reach confirm with `isTestStale === true` if gating is implemented correctly at step 3.
    - What's unclear: Whether a defensive re-check at the confirm/submit boundary is worth the extra code path versus trusting the step-3 gate as the single source of truth.
    - Recommendation: Rely on the step-3 gate as the single enforcement point (simpler, one less place to get wrong) but add the exact bounce-scenario unit test from Pitfall 4 to prove the gate actually holds under Back/Next churn.

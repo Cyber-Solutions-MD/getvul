@@ -47,7 +47,8 @@ created: 2026-07-20
 | 19-02-01 | 02 | 1 | UX-D-02-04, UX-D-02-05 | T-19-01 / T-19-02 | Scopes shown pre-submit; creds never rendered | unit | `npm test -- confirm-step --run` | ❌ W0 → | ⬜ pending |
 | 19-02-02 | 02 | 1 | UX-D-02-04 | T-19-04 | Color-only; edit/sentinel path unchanged | unit | `npm test -- connector-form --run` | ✅ existing | ⬜ pending |
 | 19-03-01 | 03 | 2 | UX-D-02-01, UX-D-02-02, UX-D-02-06 | T-19-01 | Next gated by real click-guard (not aria alone) | unit+a11y | `npm test -- add-connector-wizard --run` | ❌ W0 → | ⬜ pending |
-| 19-03-02 | 03 | 2 | UX-D-02-01, UX-D-02-06 | T-19-05 | Edit path (D-11) + admin gating unchanged | static+lint | `npx tsc --noEmit` + `npm run lint` | ✅ existing | ⬜ pending |
+| 19-03-02 | 03 | 2 | UX-D-02-06 | T-19-06 | Backdrop-click no-op when `dismissOnBackdropClick={false}` (default true — 5 ConfirmModal sites unregressed); Esc/X still close (D-13) | unit | `npm test -- src/components/ui/responsive-dialog --run` | ✅ existing (edits) | ⬜ pending |
+| 19-03-03 | 03 | 2 | UX-D-02-01, UX-D-02-06 | T-19-05 | Edit path (D-11) + admin gating unchanged | static+lint | `npx tsc --noEmit` + `npm run lint` | ✅ existing | ⬜ pending |
 | 19-04-01 | 04 | 3 | UX-D-02-06 | T-19-06 | Open-dialog axe clean, both themes | e2e | `npm run build && npm run test:e2e -- connector-wizard-a11y` | ❌ W0 (creates) | ⬜ pending |
 | 19-04-02 | 04 | 3 | UX-D-02-06 | T-19-06 | ≤250 KB + axe both themes evidence | build+e2e | `npm run perf:budget && npm run test:e2e -- a11y-routes connector-wizard-a11y` | ✅ existing scripts | ⬜ pending |
 | 19-04-03 | 04 | 3 | UX-D-02-06 | T-19-01 | Manual: D-08 invalidation, focus, reduced-motion, vaul, D-11/D-13 | manual | checkpoint:human-verify | — | ⬜ pending |
