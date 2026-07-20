@@ -87,3 +87,28 @@ export const FORM_COPY = {
   enabledLabel: 'Enabled',
   credentialSentinel: '••••••',
 } as const;
+
+// ——— Add-connector wizard copy (Phase 19, UI-SPEC "Copywriting Contract") ———
+// New copy lives here, never inlined in wizard components.
+
+export const WIZARD_COPY = {
+  // stepper step labels (index 0 = Provider, shown complete)
+  stepLabels: ['Provider', 'Credentials', 'Test', 'Confirm'] as const,
+  // dialog heading builder — provider already picked on the grid (D-01)
+  dialogHeading: (providerName: string) => `Add connector · ${providerName}`,
+  nextLabel: 'Next',
+  backLabel: 'Back',
+  // step 2 has nowhere to go "back" inside the modal → left button is Cancel
+  cancelLabel: 'Cancel',
+  addLabel: 'Add connector', // step 4 primary gradient CTA
+  testLabel: 'Test connection', // idle
+  testingLabel: 'Testing…', // pending (names what loads, not "Loading…")
+  testGateHint: 'Test the connection to continue.',
+  retestHint: 'Credentials changed — re-test to continue.', // D-08 verbatim
+  confirmSectionProvider: 'Provider',
+  confirmSectionConnection: 'Connection',
+  confirmSectionAccess: 'Required access',
+  confirmSectionSync: 'Sync interval',
+  confirmConnectionOk: '✓ Connection verified',
+  noScopes: 'No special scopes required.', // when permissions[] is empty
+} as const;
