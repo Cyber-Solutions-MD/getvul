@@ -67,7 +67,7 @@ export function CredentialsStep({
         id={headingId}
         className="mb-4 text-base font-semibold text-text"
       >
-        Credentials
+        Connector credentials
       </h3>
 
       <div className="space-y-4">
