@@ -247,7 +247,14 @@ Plans:
   2. The credentials step preserves the sentinel-passthrough (untouched secrets not resent); the confirm step shows required scopes before submit
   3. The wizard reuses `POST /connectors/test` and `POST /connectors` (no new backend) and works in the ResponsiveDialog/vaul mobile pattern
   4. The connectors route passes axe in both themes and stays ≤250 KB
-**Plans**: TBD
+**Plans**: 5 plans (Waves 0–3)
+
+Plans:
+- [ ] 19-00-PLAN.md — Wave 0: WIZARD_COPY microcopy + useWizardState gating state machine (TDD, incl. Pitfall-4 bounce) + RED test scaffolds
+- [ ] 19-01-PLAN.md — Wave 1: leaf components — display-only WizardStepper, CredentialsStep, TestStep (green success reconciliation, no auto-fire)
+- [ ] 19-02-PLAN.md — Wave 1: ConfirmStep (required scopes + Add-connector CTA) + edit-form success-color reconciliation
+- [ ] 19-03-PLAN.md — Wave 2: AddConnectorWizard container (gated Back/Next, focus mgmt, live-region hints) + page.tsx add→wizard / edit→form wiring
+- [ ] 19-04-PLAN.md — Wave 3: open-wizard axe sweep (both themes) e2e + full gate evidence (≤250 KB) + human-verify checkpoint
 
 ## Progress
 
