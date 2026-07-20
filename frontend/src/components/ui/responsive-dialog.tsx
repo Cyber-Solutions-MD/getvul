@@ -25,6 +25,11 @@ interface ResponsiveDialogProps {
   ariaLabel?: string;
   /** aria-labelledby id — points to a heading element inside children. */
   ariaLabelledBy?: string;
+  /**
+   * Desktop backdrop-click dismisses the dialog. Default true (ConfirmModal
+   * parity). Pass false for a D-13 no-op backdrop — X and Esc still close.
+   */
+  dismissOnBackdropClick?: boolean;
   children: React.ReactNode;
 }
 
@@ -33,6 +38,7 @@ export function ResponsiveDialog({
   onOpenChange,
   ariaLabel,
   ariaLabelledBy,
+  dismissOnBackdropClick = true,
   children,
 }: ResponsiveDialogProps) {
   // SSR-safe: returns false on server / first client render → desktop branch
@@ -46,7 +52,9 @@ export function ResponsiveDialog({
 
   // ── Mobile branch: vaul bottom sheet ──────────────────────────────────────
   // vaul handles: Esc-to-close, focus trap, overlay dismissal, gesture drag.
-  // Custom trapTabKey is NOT needed here.
+  // Custom trapTabKey is NOT needed here. `dismissOnBackdropClick` is a
+  // desktop-only concern (see the branch below) — vaul's own swipe/overlay
+  // dismissal on mobile is out of this prop's scope.
   if (isMobile) {
     return (
       <Drawer.Root open={open} onOpenChange={onOpenChange} direction="bottom">
@@ -73,11 +81,15 @@ export function ResponsiveDialog({
   // Preserves the existing shell that all 5 ConfirmModal call sites rely on.
   // role="dialog" is on the inner div so jsdom test assertions continue to
   // pass (useMediaQuery returns false on first render → desktop always in jsdom).
-  // Backdrop click triggers onOpenChange(false) — same as original ConfirmModal.
+  // Backdrop-click dismisses by default (ConfirmModal parity — those 5 call
+  // sites never pass `dismissOnBackdropClick`, so nothing changes for them).
+  // When the caller passes `dismissOnBackdropClick={false}` (the connectors
+  // add/edit dialog, D-13), a backdrop click is a true no-op — only the X
+  // button and Esc close it. Esc always closes regardless of this prop.
   // The caller (ConfirmModal) retains its own Esc + trapTabKey effects so the
   // desktop focus-trap contract is not regressed.
   return (
-    // Backdrop: click-on-backdrop or Esc dismisses the dialog (keyboard parity).
+    // Backdrop: click-on-backdrop (when enabled) or Esc dismisses the dialog.
     // role="presentation" removes landmark semantics from the overlay layer so
     // assistive technology only announces the inner role="dialog".
     // onClick guard (e.target === e.currentTarget) prevents close when the user
@@ -85,7 +97,7 @@ export function ResponsiveDialog({
     <div
       role="presentation"
       className="fixed inset-0 z-[9000] flex items-center justify-center bg-surface/80 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onOpenChange(false); }}
+      onClick={(e) => { if (dismissOnBackdropClick && e.target === e.currentTarget) onOpenChange(false); }}
       onKeyDown={(e) => { if (e.key === 'Escape') onOpenChange(false); }}
     >
       <div
