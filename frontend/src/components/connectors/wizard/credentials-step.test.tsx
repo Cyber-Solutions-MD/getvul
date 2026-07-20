@@ -16,15 +16,36 @@ import { CredentialsStep } from './credentials-step';
 
 const FIELDS = ['api_token', 'domain'];
 
+// 19-03 convergence note: the shipped CredentialsStep (19-01) requires
+// `syncInterval`/`onSyncIntervalChange` (it owns the sync-interval chip
+// selector) — the original 19-00 RED scaffold predates that prop contract
+// and omitted them. Reconciled here to the real required props; the
+// assertions themselves (field count, secret-field password+Eye toggle,
+// onFieldChange wiring, values-prop reflection) are unchanged.
+function renderStep(
+  props: Partial<Parameters<typeof CredentialsStep>[0]> = {},
+) {
+  return render(
+    <CredentialsStep
+      fields={FIELDS}
+      values={{}}
+      onFieldChange={vi.fn()}
+      syncInterval={15}
+      onSyncIntervalChange={vi.fn()}
+      {...props}
+    />,
+  );
+}
+
 describe('CredentialsStep (19-00 RED scaffold, UX-D-02-03)', () => {
   it('renders one input per field', () => {
-    render(<CredentialsStep fields={FIELDS} values={{}} onFieldChange={vi.fn()} />);
+    renderStep();
     const inputs = document.querySelectorAll('input[type="text"], input[type="password"]');
     expect(inputs.length).toBe(FIELDS.length);
   });
 
   it('renders a secret-named field (api_token) as type="password" with an Eye toggle', () => {
-    render(<CredentialsStep fields={FIELDS} values={{}} onFieldChange={vi.fn()} />);
+    renderStep();
     const secretInput = document.querySelector('input[name="api_token"]');
     expect(secretInput).not.toBeNull();
     expect((secretInput as HTMLInputElement).type).toBe('password');
@@ -35,7 +56,7 @@ describe('CredentialsStep (19-00 RED scaffold, UX-D-02-03)', () => {
 
   it('typing into a field calls onFieldChange with the field name and new value', () => {
     const onFieldChange = vi.fn();
-    render(<CredentialsStep fields={FIELDS} values={{}} onFieldChange={onFieldChange} />);
+    renderStep({ onFieldChange });
     const domainInput = document.querySelector('input[name="domain"]') as HTMLInputElement;
     fireEvent.change(domainInput, { target: { value: 'example.com' } });
     expect(onFieldChange).toHaveBeenCalledWith('domain', 'example.com');
@@ -43,7 +64,7 @@ describe('CredentialsStep (19-00 RED scaffold, UX-D-02-03)', () => {
 
   it('reflects the values prop into rendered inputs (single source of truth for buildCredentials)', () => {
     const values = { api_token: 'tok', domain: '  ' };
-    render(<CredentialsStep fields={FIELDS} values={values} onFieldChange={vi.fn()} />);
+    renderStep({ values });
     const domainInput = document.querySelector('input[name="domain"]') as HTMLInputElement;
     expect(domainInput.value).toBe('  ');
     // Whitespace-only values must never be treated as "filled" downstream (D-12) —

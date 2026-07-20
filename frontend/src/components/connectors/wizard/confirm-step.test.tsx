@@ -6,6 +6,13 @@
  *
  * Mirrors the `vi.mock('@/lib/queries/use-connectors-admin', ...)` pattern
  * from connector-form.test.tsx.
+ *
+ * 19-03 convergence note: the shipped ConfirmStep (19-02, `ConfirmStepProps`)
+ * requires `onSuccess: () => void` — it owns the submit CTA and calls
+ * `onSuccess()` on a successful create. The original 19-00 RED scaffold
+ * predates that prop and omitted it; reconciled below to the real required
+ * prop. The assertions themselves (scope+purpose render, empty-permissions
+ * copy, submit call shape) are unchanged.
  */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -31,6 +38,7 @@ describe('ConfirmStep (19-00 RED scaffold, UX-D-02-04)', () => {
         permissions={[{ scope: 'Scans', access: 'Read', purpose: 'List scan results' }]}
         syncInterval={15}
         credentials={{ api_token: 'tok' }}
+        onSuccess={vi.fn()}
       />,
     );
     expect(screen.getByText('Scans')).toBeInTheDocument();
@@ -45,6 +53,7 @@ describe('ConfirmStep (19-00 RED scaffold, UX-D-02-04)', () => {
         permissions={[]}
         syncInterval={15}
         credentials={{ api_token: 'tok' }}
+        onSuccess={vi.fn()}
       />,
     );
     expect(screen.getByText('No special scopes required.')).toBeInTheDocument();
@@ -58,6 +67,7 @@ describe('ConfirmStep (19-00 RED scaffold, UX-D-02-04)', () => {
         permissions={[]}
         syncInterval={30}
         credentials={{ api_token: 'tok' }}
+        onSuccess={vi.fn()}
       />,
     );
     const addBtn = screen.getByRole('button', { name: /add connector/i });
