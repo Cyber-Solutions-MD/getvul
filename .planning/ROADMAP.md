@@ -42,7 +42,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03) (executed 2026-07-15; gap-closure 16-03 + WR-04 systemic on-soft migration 2026-07-16; verification passed 4/4 SC, live axe sweep green in both themes — see 16-VERIFICATION.md) (completed 2026-07-16)
 - [x] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06) (completed 2026-07-16)
 - [x] **Phase 18: Tickets kanban board** — @dnd-kit status columns replacing the placeholder (UX-D-01) (completed 2026-07-17)
-- [ ] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02)
+- [x] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02) (completed 2026-07-20)
 
 ## Phase Details
 
@@ -254,7 +254,7 @@ Plans:
 - [x] 19-01-PLAN.md — Wave 1: leaf components — display-only WizardStepper, CredentialsStep, TestStep (green success reconciliation, no auto-fire)
 - [x] 19-02-PLAN.md — Wave 1: ConfirmStep (required scopes + Add-connector CTA) + edit-form success-color reconciliation
 - [x] 19-03-PLAN.md — Wave 2: AddConnectorWizard container (gated Back/Next, focus mgmt, live-region hints) + page.tsx add→wizard / edit→form wiring
-- [ ] 19-04-PLAN.md — Wave 3: open-wizard axe sweep (both themes) e2e + full gate evidence (≤250 KB) + human-verify checkpoint
+- [x] 19-04-PLAN.md — Wave 3: open-wizard axe sweep (both themes) e2e + full gate evidence (≤250 KB) + human-verify checkpoint
 
 ## Progress
 
