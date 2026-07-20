@@ -5,7 +5,9 @@
  * Test 2: While loading, SkeletonTable renders.
  * Test 3: A category with zero connectors renders EmptyState with "Add connector" CTA.
  * Test 4: On query error, PartialFailureBanner renders.
- * Test 5: Visiting ?provider=asana pre-opens ConnectorForm in add mode for ASANA.
+ * Test 5: Visiting ?provider=asana pre-opens the add-connector wizard for ASANA
+ *   (Phase 19: add mode now renders AddConnectorWizard, not the single-step
+ *   ConnectorForm — D-11 keeps ConnectorForm for edit mode only).
  */
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -187,16 +189,15 @@ describe('ConnectorsPage', () => {
     expect(screen.getByTestId('partial-failure-banner')).toBeTruthy();
   });
 
-  it('Test 5: ?provider=asana pre-opens ConnectorForm in add mode for ASANA', () => {
+  it('Test 5: ?provider=asana pre-opens the add-connector wizard for ASANA', () => {
     mockSearchParams.set('provider', 'asana');
     mockUseConnectorsList.mockReturnValue(successState);
     render(<ConnectorsPage />, { wrapper: makeWrapper() });
 
-    // The form should be open — look for "Save connector" button or the form container
-    expect(
-      screen.getByRole('button', { name: /save connector/i }) ||
-      document.querySelector('[data-connector-form]'),
-    ).toBeTruthy();
+    // The wizard should be open in add mode, provider-scoped heading + the
+    // credentials step visible first (ASANA's sole field is "api_token").
+    expect(screen.getByText(/Add connector · Asana/i)).toBeInTheDocument();
+    expect(document.querySelector('input[name="api_token"]')).not.toBeNull();
 
     // Cleanup
     mockSearchParams.delete('provider');

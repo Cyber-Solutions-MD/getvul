@@ -35,11 +35,13 @@ import ConfirmModal from '@/components/ui/ConfirmModal';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { ConnectorCard } from '@/components/connectors/connector-card';
 import { ConnectorForm } from '@/components/connectors/connector-form';
+import { AddConnectorWizard } from '@/components/connectors/wizard/add-connector-wizard';
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   CATEGORY_EMPTY,
   deleteConfirmMessage,
+  WIZARD_COPY,
 } from '@/components/connectors/microcopy';
 import type { ConnectorCategory } from '@/components/connectors/microcopy';
 import { queryKeys } from '@/lib/queries/keys';
@@ -303,6 +305,7 @@ function ConnectorsPageInner() {
                   {catTypes.length > 0 && (
                     <button
                       type="button"
+                      data-add-connector={catTypes[0].type}
                       onClick={() => openAddForm(catTypes[0].type)}
                       style={{ background: 'var(--gradient-sunset)' }}
                       className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-[var(--glow-cta)] hover:-translate-y-px transition-all"
@@ -337,6 +340,7 @@ function ConnectorsPageInner() {
                     <button
                       key={t.type}
                       type="button"
+                      data-add-connector={t.type}
                       onClick={() => openAddForm(t.type)}
                       className="flex min-h-[100px] items-center justify-center rounded-lg border border-dashed border-border-subtle bg-surface p-4 text-sm text-text-muted transition-colors hover:border-border hover:text-text"
                     >
@@ -352,35 +356,59 @@ function ConnectorsPageInner() {
       {/* Add/Edit form — D-07 (Phase 15-03): ResponsiveDialog renders as a vaul
           bottom sheet on mobile and a centered dialog on desktop. The form title
           h2 carries id={formTitleId} inside children so aria-labelledby resolves.
-          Note: backdrop-click is disabled in desktop ResponsiveDialog branch via
-          onOpenChange — we call closeForm, not a state-clearing dismiss, so in-
-          progress credential data is never silently discarded. */}
+          D-13: dismissOnBackdropClick={false} makes backdrop-click a true no-op
+          for this dialog — X and Esc route through onOpenChange → closeForm and
+          close immediately. Wizard/form state is dialog-scoped and intentionally
+          resets on close/reopen (D-02) — there is no discard-warning modal. */}
       <ResponsiveDialog
         open={formState.open}
         onOpenChange={(o) => { if (!o) closeForm(); }}
         ariaLabelledBy={formTitleId}
+        dismissOnBackdropClick={false}
       >
         <div className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 id={formTitleId} className="text-lg font-semibold text-text">
-              {formState.mode === 'add' ? 'Add connector' : 'Edit connector'}
-            </h2>
-            <button
-              type="button"
-              onClick={closeForm}
-              aria-label="Close"
-              className="rounded-md p-1 text-text-faint transition-colors hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
-            >
-              <X size={18} />
-            </button>
-          </div>
-          <ConnectorForm
-            mode={formState.mode}
-            connectorType={formState.connectorType}
-            existing={formState.existing}
-            fields={formState.fields}
-            onClose={closeForm}
-          />
+          {(() => {
+            const providerTypeInfo = typesQuery.data?.find(
+              (t) => t.type === formState.connectorType,
+            );
+            const providerName = providerTypeInfo?.name ?? formState.connectorType;
+            return (
+              <>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 id={formTitleId} className="text-lg font-semibold text-text">
+                    {formState.mode === 'add'
+                      ? WIZARD_COPY.dialogHeading(providerName)
+                      : 'Edit connector'}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={closeForm}
+                    aria-label="Close"
+                    className="rounded-md p-1 text-text-faint transition-colors hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                {formState.mode === 'add' ? (
+                  <AddConnectorWizard
+                    connectorType={formState.connectorType}
+                    providerName={providerName}
+                    fields={formState.fields}
+                    permissions={providerTypeInfo?.permissions ?? []}
+                    onClose={closeForm}
+                  />
+                ) : (
+                  <ConnectorForm
+                    mode="edit"
+                    connectorType={formState.connectorType}
+                    existing={formState.existing}
+                    fields={formState.fields}
+                    onClose={closeForm}
+                  />
+                )}
+              </>
+            );
+          })()}
         </div>
       </ResponsiveDialog>
 
