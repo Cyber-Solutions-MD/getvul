@@ -1,10 +1,11 @@
 ---
 phase: 19
 slug: add-connector-wizard
-status: draft
+status: approved
 shadcn_initialized: true
 preset: "new-york / radix / cssVariables (baseColor zinc, overridden by sunset tokens)"
 created: 2026-07-20
+reviewed_at: 2026-07-20
 ---
 
 # Phase 19 — Add-connector wizard · UI Design Contract
