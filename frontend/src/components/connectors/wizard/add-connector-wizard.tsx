@@ -77,15 +77,20 @@ export function AddConnectorWizard({
   }, [w.state.step]);
 
   // Hint live region (UX-D-02-02 announce-why / D-08 re-test invalidation).
-  // retestHint takes priority once past the credentials step; testGateHint
-  // only applies on the test step before any test has run.
+  // On the credentials step the gate is "fill every field"; past it,
+  // retestHint takes priority (D-08) and testGateHint applies on the test
+  // step before any test has run. WR-02: without the credentials branch the
+  // aria-describedby target resolved to an empty paragraph, so a screen-reader
+  // user on a dimmed step-2 Next heard no reason the gate was closed.
   let hintText = '';
-  if (w.state.step !== 'credentials') {
-    if (w.isTestStale) {
-      hintText = WIZARD_COPY.retestHint;
-    } else if (w.state.step === 'test' && w.state.testResult === null && !w.canAdvance) {
-      hintText = WIZARD_COPY.testGateHint;
+  if (w.state.step === 'credentials') {
+    if (!w.canAdvance) {
+      hintText = WIZARD_COPY.credentialsGateHint;
     }
+  } else if (w.isTestStale) {
+    hintText = WIZARD_COPY.retestHint;
+  } else if (w.state.step === 'test' && w.state.testResult === null && !w.canAdvance) {
+    hintText = WIZARD_COPY.testGateHint;
   }
 
   function handleNextClick() {

@@ -103,6 +103,7 @@ export const WIZARD_COPY = {
   addLabel: 'Add connector', // step 4 primary gradient CTA
   testLabel: 'Test connection', // idle
   testingLabel: 'Testing…', // pending (names what loads, not "Loading…")
+  credentialsGateHint: 'Fill every field to continue.', // UX-D-02-02 announce-why (credentials step)
   testGateHint: 'Test the connection to continue.',
   retestHint: 'Credentials changed — re-test to continue.', // D-08 verbatim
   confirmSectionProvider: 'Provider',

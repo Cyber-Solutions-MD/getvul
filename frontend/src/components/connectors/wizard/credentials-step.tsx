@@ -89,6 +89,9 @@ export function CredentialsStep({
                   id={`field-${field}`}
                   name={field}
                   type={inputType}
+                  // WR-02: every connector field is mandatory (all-non-empty
+                  // gate); signal that to assistive tech.
+                  aria-required="true"
                   value={values[field] ?? ''}
                   onChange={(e) => onFieldChange(field, e.target.value)}
                   placeholder="Paste API token"
