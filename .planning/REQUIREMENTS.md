@@ -36,12 +36,12 @@ Requirement IDs anchor to the originating backlog items (UX-D-01/02/03/06) expan
 
 ## Phase 19 — Add-connector wizard (from UX-D-02)
 
-- [ ] **UX-D-02-01**: Adding a connector runs a four-step wizard: provider pick → credentials → test connection → confirm.
-- [ ] **UX-D-02-02**: Step navigation is gated — the user cannot advance past the test step until the connection test succeeds.
-- [ ] **UX-D-02-03**: The credentials step reuses the existing sentinel-passthrough (edit mode preserves untouched secrets; only touched fields are sent).
-- [ ] **UX-D-02-04**: The confirm step shows the connector's required OAuth scopes/permissions before final submit.
-- [ ] **UX-D-02-05**: The wizard reuses existing endpoints (`POST /connectors/test`, `POST /connectors`) — no new backend.
-- [ ] **UX-D-02-06**: The wizard works in the ResponsiveDialog/vaul mobile pattern; passes axe in both themes; the connectors route stays ≤250 KB.
+- [x] **UX-D-02-01**: Adding a connector runs a four-step wizard: provider pick → credentials → test connection → confirm.
+- [x] **UX-D-02-02**: Step navigation is gated — the user cannot advance past the test step until the connection test succeeds.
+- [x] **UX-D-02-03**: The credentials step reuses the existing sentinel-passthrough (edit mode preserves untouched secrets; only touched fields are sent).
+- [x] **UX-D-02-04**: The confirm step shows the connector's required OAuth scopes/permissions before final submit.
+- [x] **UX-D-02-05**: The wizard reuses existing endpoints (`POST /connectors/test`, `POST /connectors`) — no new backend.
+- [x] **UX-D-02-06**: The wizard works in the ResponsiveDialog/vaul mobile pattern; passes axe in both themes; the connectors route stays ≤250 KB.
 
 ## Out of scope (this milestone)
 - v1.1 backend hardening (unrelated line).
