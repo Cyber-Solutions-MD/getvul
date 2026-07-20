@@ -276,7 +276,8 @@ export function ConnectorForm({
           className={cn(
             'flex items-start gap-2 rounded-md border p-3 text-sm',
             testResult.success
-              ? 'border-severity-low/30 bg-severity-low/10 text-severity-low'
+              ? // reconciled lavender→green success token (Phase 19, UI-SPEC §Color / RESEARCH Pitfall 2)
+                'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]'
               : 'border-severity-critical/30 bg-severity-critical/10 text-severity-critical',
           )}
         >
