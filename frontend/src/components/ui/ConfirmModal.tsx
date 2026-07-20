@@ -10,7 +10,6 @@
  *   components/tickets/ticket-bulk-bar.tsx, components/vulnerabilities/drill-content.tsx
  */
 import { useEffect, useRef } from "react";
-import { getFocusable, trapTabKey } from "./focus-trap";
 import { ResponsiveDialog } from "./responsive-dialog";
 import { useMediaQuery } from "@/hooks/use-media-query";
 
@@ -36,7 +35,6 @@ export default function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   // SSR-safe: false on server / first render → desktop path (same as ResponsiveDialog).
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -50,26 +48,10 @@ export default function ConfirmModal({
     }
   }, [open, isMobile]);
 
-  // WR-04: Escape to dismiss (belt-and-suspenders — vaul also handles Esc on mobile).
-  // Desktop Tab trap — keeps focus inside the dialog while on desktop.
-  // On mobile the Tab trap is dropped: vaul's dialog primitive manages focus
-  // natively and the Drawer.Content is the focus scope.
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        onCancel();
-        return;
-      }
-      // Desktop-only Tab trap — panelRef resolves to the inner div on desktop;
-      // on mobile panelRef may be null if the children render inside the Drawer.
-      if (e.key === "Tab" && panelRef.current && !isMobile) {
-        trapTabKey(e, getFocusable(panelRef.current));
-      }
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, onCancel, isMobile]);
+  // WR-01: the desktop Esc handler + Tab focus-trap now live in ResponsiveDialog
+  // itself (document-level), so ConfirmModal no longer wires its own — keeping
+  // both would double-handle Esc (calling onCancel twice) and double-run the
+  // Tab trap on the same modal. On mobile vaul owns focus + Esc as before.
 
   // Sunset token mapping — Phase 14 restyle (Pitfall 2, D-CONN-06).
   // No raw palette utilities (gray-*, indigo-*, red-600, yellow-*).
@@ -88,11 +70,10 @@ export default function ConfirmModal({
       }}
       ariaLabel={title}
     >
-      {/* This inner wrapper is referenced by panelRef for the desktop focus trap.
-          On mobile the children render inside Drawer.Content which is vaul's
-          focus scope — panelRef is still attached but trapTabKey is skipped
-          (isMobile guard above). */}
-      <div ref={panelRef}>
+      {/* Content wrapper. Focus containment (desktop Tab trap) is handled by
+          ResponsiveDialog's panelRef around this subtree; on mobile vaul's
+          Drawer.Content is the focus scope. */}
+      <div>
         {/* Mobile: add top padding for the drag handle + comfortable reading */}
         <div className="px-2 pt-4 pb-2 min-[768px]:p-0">
           <h3 className="text-lg font-semibold text-text">{title}</h3>

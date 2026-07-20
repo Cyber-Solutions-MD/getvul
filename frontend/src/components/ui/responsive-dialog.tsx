@@ -14,9 +14,10 @@
  * (Mirrors drill-panel-mobile.tsx precedent, commit 7a789cd.)
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Drawer } from 'vaul';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { getFocusable, trapTabKey } from './focus-trap';
 
 interface ResponsiveDialogProps {
   open: boolean;
@@ -45,6 +46,30 @@ export function ResponsiveDialog({
   // renders on first hydration, avoiding hydration mismatch. After mount, the
   // effect in useMediaQuery updates to the real breakpoint value.
   const isMobile = useMediaQuery('(max-width: 767px)');
+
+  // WR-01: desktop focus management is owned HERE, not delegated to the caller.
+  // Previously only ConfirmModal supplied its own Tab trap + Esc, so callers
+  // that render ResponsiveDialog directly (the connectors add/edit wizard)
+  // inherited no trap: Tab walked focus onto the page behind the overlay, and
+  // the only Esc handler lived on the backdrop's onKeyDown — so once focus left
+  // the dialog, Esc stopped closing it. Both are now handled at the document
+  // level so every desktop caller gets a compliant modal (WCAG 2.4.3 / 2.1.2).
+  // Mobile is untouched: vaul manages focus + Esc natively in its own branch.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || isMobile) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onOpenChange(false);
+        return;
+      }
+      if (e.key === 'Tab' && panelRef.current) {
+        trapTabKey(e, getFocusable(panelRef.current));
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, isMobile, onOpenChange]);
 
   // Guard — no lingering portal chrome when closed.
   // Matches the drill-panel-mobile.tsx `if (!open) return null` pattern.
@@ -85,11 +110,11 @@ export function ResponsiveDialog({
   // sites never pass `dismissOnBackdropClick`, so nothing changes for them).
   // When the caller passes `dismissOnBackdropClick={false}` (the connectors
   // add/edit dialog, D-13), a backdrop click is a true no-op — only the X
-  // button and Esc close it. Esc always closes regardless of this prop.
-  // The caller (ConfirmModal) retains its own Esc + trapTabKey effects so the
-  // desktop focus-trap contract is not regressed.
+  // button and Esc close it. Esc always closes regardless of this prop and is
+  // handled by the document-level listener above (WR-01) so it survives focus
+  // leaving the overlay. The Tab trap (also above) keeps focus inside panelRef.
   return (
-    // Backdrop: click-on-backdrop (when enabled) or Esc dismisses the dialog.
+    // Backdrop: click-on-backdrop (when enabled) dismisses the dialog.
     // role="presentation" removes landmark semantics from the overlay layer so
     // assistive technology only announces the inner role="dialog".
     // onClick guard (e.target === e.currentTarget) prevents close when the user
@@ -98,9 +123,9 @@ export function ResponsiveDialog({
       role="presentation"
       className="fixed inset-0 z-[9000] flex items-center justify-center bg-surface/80 backdrop-blur-sm"
       onClick={(e) => { if (dismissOnBackdropClick && e.target === e.currentTarget) onOpenChange(false); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onOpenChange(false); }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
