@@ -68,6 +68,15 @@ describe('useWizardState (19-00)', () => {
     expect(result.current.canAdvance).toBe(true);
   });
 
+  it('Test B2 (WR-03): canAdvance on credentials step is false when fields is empty (vacuous-every gate hole)', () => {
+    const { result } = renderHook(() => useWizardState([]));
+    // With no fields, `[].every()` would be vacuously true — the gate must
+    // stay closed so a wizard mounted before useConnectorTypes() resolves
+    // cannot advance / submit empty credentials.
+    expect(result.current.state.step).toBe('credentials');
+    expect(result.current.canAdvance).toBe(false);
+  });
+
   it('Test C: canAdvance on test step is false until a successful test result; stays false after a failure', () => {
     const { result } = renderHook(() => useWizardState(FIELDS));
     act(() => {

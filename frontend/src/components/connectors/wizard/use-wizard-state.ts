@@ -54,7 +54,11 @@ function initialState(): WizardState {
 function canAdvanceFrom(state: WizardState, fields: string[]): boolean {
   switch (state.step) {
     case 'credentials':
-      return fields.every((f) => (state.values[f] ?? '').trim() !== '');
+      // WR-03: `[].every()` is vacuously true, so require at least one field
+      // before the gate can open — otherwise a wizard mounted before
+      // useConnectorTypes() resolves (fields === []) would enable Next with
+      // zero inputs rendered and let the user advance / submit empty creds.
+      return fields.length > 0 && fields.every((f) => (state.values[f] ?? '').trim() !== '');
     case 'test':
       return state.testResult?.success === true && !state.credentialsChangedSinceTest;
     case 'confirm':
