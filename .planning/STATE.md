@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
-status: Ready to plan
-last_updated: "2026-07-18T10:46:51.798Z"
+status: Executing Phase 19
+last_updated: "2026-07-20T08:49:51.530Z"
 progress:
   total_phases: 12
   completed_phases: 10
-  total_plans: 31
+  total_plans: 36
   completed_plans: 31
-  percent: 100
+  percent: 86
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,14 +20,14 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 18 — tickets-kanban-board
+**Current focus:** Phase 19 — add-connector-wizard
 
 ## Current Position
 
-Phase: 19
+Phase: 19 (add-connector-wizard) — EXECUTING
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
-Plan: Not started
+Plan: 1 of 5
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
