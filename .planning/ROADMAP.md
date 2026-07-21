@@ -280,7 +280,11 @@ Plans:
   1. `e2e/page-transitions.spec.ts` exercises the *real* DrillPanel-open-during-navigation scenario (searchParams-only `router.replace` vs. pathname change), replacing the synthetic `PopStateEvent` proxy (IN-01) — confirms no VT×DrillPanel race and no layout shift
   2. `17-HUMAN-UAT.md` exists and records the perceptual checkpoint (cross-fade feel, chrome stillness, Firefox CSS-fallback) as closed; STATE.md no longer marks it OUTSTANDING
   3. `17-VERIFICATION.md` exists from a goal-backward verify pass confirming UX-D-06-01..05 delivered
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 21-01-PLAN.md — e2e hardening: real router-driven no-fade + DrillPanel-during-nav fade + Esc close-race/layout-shift + Firefox CSS-fallback assertion (with firefox-transitions project so it provably runs)
+- [ ] 21-02-PLAN.md — doc closure: guided perceptual human-UAT → 17-HUMAN-UAT.md (resolved) + clear STATE.md OUTSTANDING flag + goal-backward 17-VERIFICATION.md (UX-D-06-01..05)
 
 ### Phase 22: Kanban + wizard test-coverage hardening
 **Goal**: The two audit warnings on already-satisfied requirements are closed — the kanban's keyboard/announcement fixes and the wizard's later steps gain real test coverage.
