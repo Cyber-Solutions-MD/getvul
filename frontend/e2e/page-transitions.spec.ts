@@ -379,6 +379,14 @@ test('Firefox transition path is suppressed under prefers-reduced-motion (UX-D-0
 
   await page.locator('nav[aria-label="Primary navigation"]').getByRole('link', { name: /vulnerab/i }).click();
 
+  // WR-01: prove the Firefox navigation actually happened BEFORE accepting a
+  // "no named animation observed" outcome as a valid (reduced-motion) suppressed state.
+  // Without this liveness guard the suppressed-state pass and a broken-nav pass (link
+  // never fired, route errored, hydration failure) are indistinguishable — both leave
+  // everSeen === false and the assertion block below never runs. This guard makes the
+  // instant-swap pass reachable ONLY after a real client-side route change landed.
+  await expect(page).toHaveURL(/\/dashboard\/vulnerabilities/);
+
   if (supportsNativeVt) {
     // Mirror reduced-motion.spec.ts's UX-D-06-02 contract on this Firefox build: either
     // no named VT animation appears at all (instant-swap suppressed state — what this
