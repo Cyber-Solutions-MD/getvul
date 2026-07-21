@@ -31,7 +31,7 @@ export type AssetsTableProps = {
 // text-text-faint (no `text-text-subtle` token exists in tailwind.config.ts).
 const BAND_TINT: Record<string, string> = {
   critical: 'text-severity-critical',
-  high: 'text-severity-high',
+  high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',
   unavailable: 'text-text-faint',

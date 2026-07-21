@@ -49,7 +49,7 @@ const TIER_CONFIG: Record<SlaTier, TierConfig> = {
   },
   soon: {
     classes:
-      'border-severity-high/30 bg-severity-high/10 text-severity-high',
+      'border-severity-high/30 bg-severity-high/10 text-[var(--color-severity-high-on-soft)]',
     label: (due) => {
       if (!due) return 'Soon';
       const diffMs = due.getTime() - Date.now();

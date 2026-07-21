@@ -73,7 +73,7 @@ const SKELETON_COLUMNS: SkeletonColumn[] = [
 // ---------------------------------------------------------------------------
 const SEVERITY_GLYPH: Record<string, { glyph: string; className: string }> = {
   critical: { glyph: '■', className: 'text-severity-critical' },
-  high:     { glyph: '▲', className: 'text-severity-high' },
+  high:     { glyph: '▲', className: 'text-[var(--color-severity-high-on-soft)]' },
   medium:   { glyph: '◆', className: 'text-severity-medium' },
   low:      { glyph: '○', className: 'text-severity-low' },
 };

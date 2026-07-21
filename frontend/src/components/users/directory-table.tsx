@@ -30,7 +30,7 @@ export type DirectoryTableProps = {
 
 function riskTokens(score: number): string {
   if (score >= 80) return 'text-severity-critical border-severity-critical/30 bg-severity-critical/10';
-  if (score >= 50) return 'text-severity-high border-severity-high/30 bg-severity-high/10';
+  if (score >= 50) return 'text-[var(--color-severity-high-on-soft)] border-severity-high/30 bg-severity-high/10';
   if (score >= 20) return 'text-severity-medium border-severity-medium/30 bg-severity-medium/10';
   return 'text-severity-low border-severity-low/30 bg-severity-low/10';
 }

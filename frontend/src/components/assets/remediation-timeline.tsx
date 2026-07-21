@@ -30,7 +30,7 @@ const PROVIDER_GRADIENT: Record<string, string> = {
 // of the resolved green.
 const STATUS_TONE: Record<string, string> = {
   OPEN: 'border-violet/40 bg-violet-soft text-[var(--color-violet-on-soft)]',
-  IN_PROGRESS: 'border-severity-high/40 bg-severity-high/10 text-severity-high',
+  IN_PROGRESS: 'border-severity-high/40 bg-severity-high/10 text-[var(--color-severity-high-on-soft)]',
   RESOLVED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',
   CLOSED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',
   COMPLETED: 'border-severity-low/40 bg-severity-low/10 text-severity-low',

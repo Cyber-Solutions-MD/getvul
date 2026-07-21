@@ -118,7 +118,7 @@ export function SeverityTooltip({
           Critical: {get('critical')}
         </li>
         <li>
-          <span className="text-severity-high" aria-hidden="true">
+          <span className="text-[var(--color-severity-high-on-soft)]" aria-hidden="true">
             {SEVERITY_GLYPHS.high}
           </span>{' '}
           High: {get('high')}

@@ -39,7 +39,7 @@ const BAND_LABEL: Record<RiskBand, string> = {
 // text-text-faint substitutes for the plan's text-text-subtle (token not in tailwind.config.ts).
 const BAND_TINT: Record<RiskBand, string> = {
   critical: 'text-severity-critical',
-  high: 'text-severity-high',
+  high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',
   unavailable: 'text-text-faint',

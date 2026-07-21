@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 
 const SEV_GLYPH: Record<string, { glyph: string; tint: string }> = {
   CRITICAL: { glyph: '■', tint: 'text-severity-critical' },
-  HIGH: { glyph: '▲', tint: 'text-severity-high' },
+  HIGH: { glyph: '▲', tint: 'text-[var(--color-severity-high-on-soft)]' },
   MEDIUM: { glyph: '◆', tint: 'text-severity-medium' },
   LOW: { glyph: '○', tint: 'text-severity-low' },
   INFO: { glyph: '□', tint: 'text-severity-info' },

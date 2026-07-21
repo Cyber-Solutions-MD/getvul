@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 
 const GLYPHS = [
   { key: 'critical', glyph: '■', tint: 'text-severity-critical', label: 'Critical' },
-  { key: 'high', glyph: '▲', tint: 'text-severity-high', label: 'High' },
+  { key: 'high', glyph: '▲', tint: 'text-[var(--color-severity-high-on-soft)]', label: 'High' },
   { key: 'medium', glyph: '◆', tint: 'text-severity-medium', label: 'Medium' },
   { key: 'low', glyph: '○', tint: 'text-severity-low', label: 'Low' },
   { key: 'info', glyph: '□', tint: 'text-severity-info', label: 'Info' },

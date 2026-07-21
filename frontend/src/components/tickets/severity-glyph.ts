@@ -20,7 +20,7 @@ export const SEVERITY_GLYPH: Record<string, string> = {
 // Severity tint classes from sunset tokens
 export const SEVERITY_CLASS: Record<string, string> = {
   critical: 'text-severity-critical',
-  high: 'text-severity-high',
+  high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',
   info: 'text-severity-info',

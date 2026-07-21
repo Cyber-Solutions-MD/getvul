@@ -61,7 +61,7 @@ export function RiskCard({ asset }: { asset: AssetDetail }) {
           testId="risk-row-sla"
           count={asset.sla_breach ?? 0}
           label="SLA breach"
-          tintClass="text-severity-high"
+          tintClass="text-[var(--color-severity-high-on-soft)]"
         />
         <BreakdownRow
           testId="risk-row-kev"

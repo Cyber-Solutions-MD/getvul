@@ -1,7 +1,7 @@
 /**
  * VulnCount — T·C·H vulnerability count cell.
  *
- * D-L-02: total text-text, critical text-severity-critical, high text-severity-high.
+ * D-L-02: total text-text, critical text-severity-critical, high text-[var(--color-severity-high-on-soft)].
  * Zeros are explicit (shown, not hidden). Edge cases:
  *   total === 0 → em dash "—" (no breakdown)
  *   total > 99  → "99+" (cap)
@@ -34,7 +34,7 @@ export function VulnCount({ total, critical, high, className }: VulnCountProps) 
     <span className={cn('inline-flex items-baseline gap-0.5 font-mono', className)}>
       <span className="text-text">{displayTotal}</span>
       <span className="text-severity-critical">·{critical}</span>
-      <span className="text-severity-high">·{high}</span>
+      <span className="text-[var(--color-severity-high-on-soft)]">·{high}</span>
     </span>
   );
 }

@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 const GLYPHS = { CRITICAL: '■', HIGH: '▲', MEDIUM: '◆', LOW: '○' } as const;
 const GLYPH_COLOR = {
   CRITICAL: 'text-severity-critical',
-  HIGH: 'text-severity-high',
+  HIGH: 'text-[var(--color-severity-high-on-soft)]',
   MEDIUM: 'text-severity-medium',
   LOW: 'text-severity-low',
 } as const;

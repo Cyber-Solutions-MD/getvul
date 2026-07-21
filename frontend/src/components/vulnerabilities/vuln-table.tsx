@@ -62,7 +62,7 @@ const GLYPH: Record<SeverityLower, string> = {
 
 const GLYPH_COLOR: Record<SeverityLower, string> = {
   critical: 'text-severity-critical',
-  high: 'text-severity-high',
+  high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',
   info: 'text-severity-info',
@@ -101,7 +101,7 @@ function slaBand(iso: string | null): { label: string; tone: string } {
       tone: 'text-severity-critical',
     };
   if (hours < 24)
-    return { label: `${Math.round(hours)}h left`, tone: 'text-severity-high' };
+    return { label: `${Math.round(hours)}h left`, tone: 'text-[var(--color-severity-high-on-soft)]' };
   return {
     label: `${Math.round(hours / 24)}d left`,
     tone: 'text-success',
