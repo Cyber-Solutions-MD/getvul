@@ -72,7 +72,7 @@ const SKELETON_COLUMNS: SkeletonColumn[] = [
 // Severity glyph map (visual-language.md — no raw hex; colors via tokens)
 // ---------------------------------------------------------------------------
 const SEVERITY_GLYPH: Record<string, { glyph: string; className: string }> = {
-  critical: { glyph: '■', className: 'text-severity-critical' },
+  critical: { glyph: '■', className: 'text-[var(--color-severity-critical-on-soft)]' },
   high:     { glyph: '▲', className: 'text-[var(--color-severity-high-on-soft)]' },
   medium:   { glyph: '◆', className: 'text-severity-medium' },
   low:      { glyph: '○', className: 'text-severity-low' },

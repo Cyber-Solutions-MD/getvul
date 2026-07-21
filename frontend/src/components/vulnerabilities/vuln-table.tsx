@@ -61,7 +61,7 @@ const GLYPH: Record<SeverityLower, string> = {
 };
 
 const GLYPH_COLOR: Record<SeverityLower, string> = {
-  critical: 'text-severity-critical',
+  critical: 'text-[var(--color-severity-critical-on-soft)]',
   high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',
@@ -98,7 +98,7 @@ function slaBand(iso: string | null): { label: string; tone: string } {
   if (hours < 0)
     return {
       label: `−${Math.abs(Math.round(hours))}h SLA`,
-      tone: 'text-severity-critical',
+      tone: 'text-[var(--color-severity-critical-on-soft)]',
     };
   if (hours < 24)
     return { label: `${Math.round(hours)}h left`, tone: 'text-[var(--color-severity-high-on-soft)]' };
@@ -292,7 +292,7 @@ export function VulnTable({
                   {row.cisa_kev && (
                     <span
                       aria-label="CISA KEV"
-                      className="rounded-md border border-severity-critical bg-pink-soft px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-severity-critical"
+                      className="rounded-md border border-severity-critical bg-pink-soft px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-[var(--color-severity-critical-on-soft)]"
                     >
                       ★ KEV
                     </span>
@@ -383,7 +383,7 @@ export function VulnTable({
               {row.cisa_kev && (
                 <span
                   aria-label="CISA KEV"
-                  className="ml-auto shrink-0 rounded-md border border-severity-critical bg-pink-soft px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-severity-critical"
+                  className="ml-auto shrink-0 rounded-md border border-severity-critical bg-pink-soft px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-[var(--color-severity-critical-on-soft)]"
                 >
                   ★ KEV
                 </span>

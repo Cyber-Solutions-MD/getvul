@@ -29,7 +29,7 @@ const COLUMN_ACCENT: Record<ColumnKey, string> = {
   open: 'text-[var(--color-violet-on-soft)] border-violet/40 bg-violet-soft',
   in_progress: 'text-[var(--color-amber-on-soft)] border-amber/40 bg-amber/10',
   completed: 'text-success border-success/40 bg-success/10',
-  blocked: 'text-severity-critical border-severity-critical/40 bg-severity-critical/10',
+  blocked: 'text-[var(--color-severity-critical-on-soft)] border-severity-critical/40 bg-severity-critical/10',
 };
 
 // Peer-voice empty copy per column (copy-voice.md).

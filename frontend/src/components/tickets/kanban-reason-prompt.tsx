@@ -87,7 +87,7 @@ export function KanbanReasonPrompt({ ticketLabel, onSave, onCancel }: KanbanReas
       <button
         type="button"
         onClick={handleSave}
-        className="rounded-lg bg-severity-critical/10 px-3 py-1.5 text-xs font-medium text-severity-critical hover:bg-severity-critical/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+        className="rounded-lg bg-severity-critical/10 px-3 py-1.5 text-xs font-medium text-[var(--color-severity-critical-on-soft)] hover:bg-severity-critical/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet"
       >
         {microcopy.blockedSave}
       </button>

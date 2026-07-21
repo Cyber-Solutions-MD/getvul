@@ -134,7 +134,7 @@ export function ConnectorCard({
             type="button"
             onClick={() => onDelete(connector.id)}
             aria-label="Delete connector"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border-subtle px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:border-severity-critical/40 hover:text-severity-critical"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border-subtle px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:border-severity-critical/40 hover:text-[var(--color-severity-critical-on-soft)]"
           >
             <Trash2 size={12} aria-hidden />
             Delete

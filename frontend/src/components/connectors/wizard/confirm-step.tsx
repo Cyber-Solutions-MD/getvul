@@ -136,7 +136,7 @@ export function ConfirmStep({
       {formError && (
         <div
           role="alert"
-          className="rounded-md border border-severity-critical/30 bg-severity-critical/10 p-3 text-sm text-severity-critical"
+          className="rounded-md border border-severity-critical/30 bg-severity-critical/10 p-3 text-sm text-[var(--color-severity-critical-on-soft)]"
         >
           {formError}
         </div>

@@ -57,7 +57,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
 
 const BLOCKED_CONFIG: StatusConfig = {
   classes:
-    'border-severity-critical/40 bg-severity-critical/10 text-severity-critical',
+    'border-severity-critical/40 bg-severity-critical/10 text-[var(--color-severity-critical-on-soft)]',
   label: 'Blocked',
 };
 

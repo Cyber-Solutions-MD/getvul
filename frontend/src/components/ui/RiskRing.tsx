@@ -38,7 +38,7 @@ const BAND_LABEL: Record<RiskBand, string> = {
 // D-R-01: band → center text tint. Stroke is ALWAYS sunset gradient.
 // text-text-faint substitutes for the plan's text-text-subtle (token not in tailwind.config.ts).
 const BAND_TINT: Record<RiskBand, string> = {
-  critical: 'text-severity-critical',
+  critical: 'text-[var(--color-severity-critical-on-soft)]',
   high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',

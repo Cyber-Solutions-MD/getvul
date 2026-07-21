@@ -15,7 +15,7 @@ const SEVERITY_GLYPH: Record<Severity, string> = {
   critical: '■', high: '▲', medium: '◆', low: '○', info: '□',
 };
 const SEVERITY_GLYPH_COLOR: Record<Severity, string> = {
-  critical: 'text-severity-critical',
+  critical: 'text-[var(--color-severity-critical-on-soft)]',
   high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',

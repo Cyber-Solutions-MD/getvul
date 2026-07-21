@@ -112,7 +112,7 @@ export function SeverityTooltip({
       <p className="font-mono text-sm text-text">{total} open</p>
       <ul className="mt-1 space-y-0.5 font-mono text-xs">
         <li>
-          <span className="text-severity-critical" aria-hidden="true">
+          <span className="text-[var(--color-severity-critical-on-soft)]" aria-hidden="true">
             {SEVERITY_GLYPHS.critical}
           </span>{' '}
           Critical: {get('critical')}

@@ -55,7 +55,7 @@ export function RiskCard({ asset }: { asset: AssetDetail }) {
           testId="risk-row-critical"
           count={counts?.critical ?? 0}
           label="Critical"
-          tintClass="text-severity-critical"
+          tintClass="text-[var(--color-severity-critical-on-soft)]"
         />
         <BreakdownRow
           testId="risk-row-sla"

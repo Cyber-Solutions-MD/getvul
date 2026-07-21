@@ -141,7 +141,7 @@ export function ReassignCombobox({ assetId, initialEmail, onDone }: ReassignComb
       {mutation.error && (
         <div
           role="alert"
-          className="rounded-md border border-severity-critical bg-surface px-3 py-2 text-xs text-severity-critical"
+          className="rounded-md border border-severity-critical bg-surface px-3 py-2 text-xs text-[var(--color-severity-critical-on-soft)]"
         >
           {(mutation.error as Error).message || 'Reassign failed'}
         </div>

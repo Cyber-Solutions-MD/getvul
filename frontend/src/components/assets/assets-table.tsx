@@ -30,7 +30,7 @@ export type AssetsTableProps = {
 // itself; the table only tints the numeric cell. `unavailable` falls back to
 // text-text-faint (no `text-text-subtle` token exists in tailwind.config.ts).
 const BAND_TINT: Record<string, string> = {
-  critical: 'text-severity-critical',
+  critical: 'text-[var(--color-severity-critical-on-soft)]',
   high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',

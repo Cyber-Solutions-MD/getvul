@@ -12,7 +12,7 @@ import type { VulnerabilitySummary } from '@/lib/queries/use-vulnerabilities';
 import { cn } from '@/lib/utils';
 
 const SEV_GLYPH: Record<string, { glyph: string; tint: string }> = {
-  CRITICAL: { glyph: '■', tint: 'text-severity-critical' },
+  CRITICAL: { glyph: '■', tint: 'text-[var(--color-severity-critical-on-soft)]' },
   HIGH: { glyph: '▲', tint: 'text-[var(--color-severity-high-on-soft)]' },
   MEDIUM: { glyph: '◆', tint: 'text-severity-medium' },
   LOW: { glyph: '○', tint: 'text-severity-low' },
@@ -98,7 +98,7 @@ export function AssetVulnsList({ rows, onRowOpen }: AssetVulnsListProps) {
               {r.cvss_v3_score ?? '—'}
             </span>
             {r.cisa_kev && (
-              <span role="cell" className="rounded border border-severity-critical/40 px-1.5 py-0.5 font-mono text-[10px] uppercase text-severity-critical">
+              <span role="cell" className="rounded border border-severity-critical/40 px-1.5 py-0.5 font-mono text-[10px] uppercase text-[var(--color-severity-critical-on-soft)]">
                 KEV
               </span>
             )}

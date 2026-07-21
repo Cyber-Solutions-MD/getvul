@@ -96,7 +96,7 @@ export function TestStep({
             role="alert"
             className={cn(
               'flex items-start gap-2 rounded-md border p-3 text-sm',
-              'border-severity-critical/30 bg-severity-critical/10 text-severity-critical',
+              'border-severity-critical/30 bg-severity-critical/10 text-[var(--color-severity-critical-on-soft)]',
             )}
           >
             <XCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />

@@ -66,7 +66,7 @@ const SEVERITY_GLYPH: Record<LinkedVuln['severity'], string> = {
 };
 
 const SEVERITY_CLASS: Record<LinkedVuln['severity'], string> = {
-  critical: 'text-severity-critical',
+  critical: 'text-[var(--color-severity-critical-on-soft)]',
   high: 'text-[var(--color-severity-high-on-soft)]',
   medium: 'text-severity-medium',
   low: 'text-severity-low',

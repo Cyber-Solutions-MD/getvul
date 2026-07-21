@@ -37,7 +37,7 @@ interface TierConfig {
 const TIER_CONFIG: Record<SlaTier, TierConfig> = {
   overdue: {
     classes:
-      'border-severity-critical/30 bg-severity-critical/10 text-severity-critical',
+      'border-severity-critical/30 bg-severity-critical/10 text-[var(--color-severity-critical-on-soft)]',
     label: (due) => {
       if (!due) return 'Overdue';
       const diffMs = Date.now() - due.getTime();

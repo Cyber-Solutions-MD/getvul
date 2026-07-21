@@ -35,7 +35,7 @@ const STATUS_CONFIG: Record<NonNullable<SyncStatus> | '__never', StateConfig> = 
   },
   failed: {
     label: 'Failed',
-    pillClass: 'border-severity-critical/40 bg-severity-critical/10 text-severity-critical',
+    pillClass: 'border-severity-critical/40 bg-severity-critical/10 text-[var(--color-severity-critical-on-soft)]',
     dotClass: 'size-1.5 rounded-full bg-current',
   },
   syncing: {

@@ -103,7 +103,7 @@ export function TicketBulkBar({
             type="button"
             onClick={openBlock}
             disabled={isPending}
-            className="rounded-md border border-severity-critical/30 bg-severity-critical/10 px-3 py-1.5 text-sm font-medium text-severity-critical hover:bg-severity-critical/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-severity-critical/30 bg-severity-critical/10 px-3 py-1.5 text-sm font-medium text-[var(--color-severity-critical-on-soft)] hover:bg-severity-critical/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet disabled:cursor-not-allowed disabled:opacity-50"
           >
             Mark blocked
           </button>
@@ -211,7 +211,7 @@ export function TicketBulkBar({
               <button
                 type="button"
                 onClick={confirmBlock}
-                className="rounded-md bg-severity-critical/10 border border-severity-critical/30 px-4 py-2 text-sm font-medium text-severity-critical hover:bg-severity-critical/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+                className="rounded-md bg-severity-critical/10 border border-severity-critical/30 px-4 py-2 text-sm font-medium text-[var(--color-severity-critical-on-soft)] hover:bg-severity-critical/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
               >
                 Mark blocked
               </button>

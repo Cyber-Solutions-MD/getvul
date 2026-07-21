@@ -89,11 +89,11 @@ export function BlockedToggle({
     return (
       <div className="flex items-center gap-2">
         {/* Blocked indicator */}
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-severity-critical/40 bg-severity-critical/10 px-2 py-0.5 text-xs text-severity-critical">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-severity-critical/40 bg-severity-critical/10 px-2 py-0.5 text-xs text-[var(--color-severity-critical-on-soft)]">
           <span className="size-1.5 rounded-full bg-current" />
           Blocked
           {blockedReason && (
-            <span className="font-normal text-severity-critical/80">— {blockedReason}</span>
+            <span className="font-normal text-[var(--color-severity-critical-on-soft)]">— {blockedReason}</span>
           )}
         </span>
         <button
@@ -115,7 +115,7 @@ export function BlockedToggle({
         type="button"
         onClick={openEditor}
         disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-1.5 text-xs font-medium text-text-muted hover:border-severity-critical/40 hover:text-severity-critical focus:outline-none focus-visible:ring-2 focus-visible:ring-violet disabled:cursor-not-allowed disabled:opacity-40"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-1.5 text-xs font-medium text-text-muted hover:border-severity-critical/40 hover:text-[var(--color-severity-critical-on-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet disabled:cursor-not-allowed disabled:opacity-40"
       >
         {microcopy.markBlocked}
       </button>
@@ -141,7 +141,7 @@ export function BlockedToggle({
         type="button"
         onClick={handleSave}
         disabled={pending}
-        className="rounded-lg bg-severity-critical/10 px-3 py-1.5 text-xs font-medium text-severity-critical hover:bg-severity-critical/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded-lg bg-severity-critical/10 px-3 py-1.5 text-xs font-medium text-[var(--color-severity-critical-on-soft)] hover:bg-severity-critical/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet disabled:cursor-not-allowed disabled:opacity-40"
       >
         {microcopy.blockedSave}
       </button>

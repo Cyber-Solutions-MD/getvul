@@ -278,7 +278,7 @@ export function ConnectorForm({
             testResult.success
               ? // reconciled lavender→green success token (Phase 19, UI-SPEC §Color / RESEARCH Pitfall 2)
                 'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]'
-              : 'border-severity-critical/30 bg-severity-critical/10 text-severity-critical',
+              : 'border-severity-critical/30 bg-severity-critical/10 text-[var(--color-severity-critical-on-soft)]',
           )}
         >
           {testResult.success ? (
@@ -292,7 +292,7 @@ export function ConnectorForm({
 
       {/* Form-level error */}
       {formError && (
-        <div className="rounded-md border border-severity-critical/30 bg-severity-critical/10 p-3 text-sm text-severity-critical">
+        <div className="rounded-md border border-severity-critical/30 bg-severity-critical/10 p-3 text-sm text-[var(--color-severity-critical-on-soft)]">
           {formError}
         </div>
       )}

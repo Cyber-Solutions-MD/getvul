@@ -44,7 +44,7 @@ export const SEVERITY_GLYPH: Record<string, string> = {
 
 /** Severity text color classes per severity level. */
 export const SEVERITY_CLASS: Record<string, string> = {
-  CRITICAL: 'text-severity-critical',
+  CRITICAL: 'text-[var(--color-severity-critical-on-soft)]',
   HIGH: 'text-[var(--color-severity-high-on-soft)]',
   MEDIUM: 'text-severity-medium',
   LOW: 'text-severity-low',

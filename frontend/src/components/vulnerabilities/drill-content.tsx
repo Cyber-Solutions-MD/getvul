@@ -180,14 +180,14 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
               className={cn(
                 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
                 sevLower === 'critical'
-                  ? 'border-severity-critical bg-pink-soft text-severity-critical'
+                  ? 'border-severity-critical bg-pink-soft text-[var(--color-severity-critical-on-soft)]'
                   : 'border-border-subtle bg-surface-2 text-text-muted',
               )}
             >
               {sevLabel}
             </span>
             {v.cisa_kev && (
-              <span className="rounded-md bg-pink-soft px-2 py-0.5 font-mono text-[10px] font-medium uppercase text-severity-critical">
+              <span className="rounded-md bg-pink-soft px-2 py-0.5 font-mono text-[10px] font-medium uppercase text-[var(--color-severity-critical-on-soft)]">
                 ★ CISA KEV
               </span>
             )}
