@@ -50,8 +50,8 @@ describe('StatusPill', () => {
     expect(pills.length).toBe(2);
     // First pill: provider status (open = violet, resolves via --color-violet-on-soft)
     expect(pills[0].className).toContain('text-[var(--color-violet-on-soft)]');
-    // Second pill: blocked (severity-critical)
-    expect(pills[1].className).toContain('text-severity-critical');
+    // Second pill: blocked (severity-critical-on-soft)
+    expect(pills[1].className).toContain('text-[var(--color-severity-critical-on-soft)]');
     expect(pills[1].textContent).toContain('Blocked');
   });
 
@@ -61,7 +61,7 @@ describe('StatusPill', () => {
     const blockedPill = pills[1] as HTMLElement;
     expect(blockedPill.className).toContain('border-severity-critical/40');
     expect(blockedPill.className).toContain('bg-severity-critical/10');
-    expect(blockedPill.className).toContain('text-severity-critical');
+    expect(blockedPill.className).toContain('text-[var(--color-severity-critical-on-soft)]');
   });
 
   it('label text is plain ("Open", "In progress", "Completed") — no status: prefix', () => {

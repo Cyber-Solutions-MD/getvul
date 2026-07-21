@@ -48,8 +48,8 @@ describe('AssetVulnsList', () => {
   it('renders one role=row per item with correct severity glyph', () => {
     render(<AssetVulnsList rows={ROWS} onRowOpen={vi.fn()} />);
     expect(screen.getAllByRole('row')).toHaveLength(2);
-    // critical glyph rendered with severity-critical tint
-    expect(screen.getByText('■').className).toContain('text-severity-critical');
+    // critical glyph rendered with severity-critical-on-soft tint
+    expect(screen.getByText('■').className).toContain('text-[var(--color-severity-critical-on-soft)]');
   });
 
   it('renders KEV badge only for cisa_kev rows', () => {

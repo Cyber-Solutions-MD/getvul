@@ -31,7 +31,7 @@ const SEVERITY_AXIS: ChipAxis = {
   allowList: ['critical', 'high', 'medium', 'low', 'info'] as const,
   counts: { critical: 12, high: 5 },
   chips: [
-    { value: 'critical', label: 'Critical', glyph: '■', glyphClassName: 'text-severity-critical' },
+    { value: 'critical', label: 'Critical', glyph: '■', glyphClassName: 'text-[var(--color-severity-critical-on-soft)]' },
     { value: 'high', label: 'High', glyph: '▲', glyphClassName: 'text-[var(--color-severity-high-on-soft)]' },
   ],
 };

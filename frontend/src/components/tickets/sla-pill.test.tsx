@@ -20,7 +20,7 @@ describe('SlaPill', () => {
     const pastDate = new Date(NOW - 2 * 60 * 60 * 1000).toISOString(); // 2h ago
     const { container } = render(<SlaPill dueAt={pastDate} />);
     const pill = container.firstChild as HTMLElement;
-    expect(pill.className).toContain('text-severity-critical');
+    expect(pill.className).toContain('text-[var(--color-severity-critical-on-soft)]');
   });
 
   it('due in 3 days → Soon (within 7d), amber/severity-high classes', () => {

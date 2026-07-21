@@ -55,8 +55,8 @@ describe('AssetsTable', () => {
     const { container } = render(<AssetsTable rows={ROWS} onRowOpen={vi.fn()} />);
     const hostnameCell = table().getByText('prod-db-01');
     expect(hostnameCell.className).toContain('font-mono');
-    // risk 85 → critical band tint
-    const riskCells = container.querySelectorAll('td[class*="text-severity-critical"]');
+    // risk 85 → critical band tint (on-soft token)
+    const riskCells = container.querySelectorAll('td[class*="severity-critical-on-soft"]');
     expect(riskCells.length).toBeGreaterThan(0);
   });
 

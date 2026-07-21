@@ -48,7 +48,7 @@ describe('<RiskRing> (UX-04-03 — risk-score visualization)', () => {
       1,
     );
     expect(screen.getByTestId('risk-ring-score').className).toContain(
-      'text-severity-critical',
+      'text-[var(--color-severity-critical-on-soft)]',
     );
     expect(screen.getByTestId('risk-ring-score').textContent).toBe('100');
   });

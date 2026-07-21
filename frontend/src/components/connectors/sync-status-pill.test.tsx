@@ -19,11 +19,11 @@ describe('SyncStatusPill', () => {
     expect(pill.className).toContain('text-severity-low');
   });
 
-  it('Test 2: status="failed" renders label "Failed" with text-severity-critical class', () => {
+  it('Test 2: status="failed" renders label "Failed" with severity-critical-on-soft class', () => {
     const { container } = render(<SyncStatusPill status="failed" />);
     expect(screen.getByText('Failed')).toBeInTheDocument();
     const pill = container.firstChild as HTMLElement;
-    expect(pill.className).toContain('text-severity-critical');
+    expect(pill.className).toContain('text-[var(--color-severity-critical-on-soft)]');
   });
 
   it('Test 3: status="syncing" renders label "Syncing" with amber-on-soft text and animated dot', () => {
