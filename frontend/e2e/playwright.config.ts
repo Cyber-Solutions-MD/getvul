@@ -75,5 +75,21 @@ export default defineConfig({
       testMatch: /smoke\.spec\.ts/,
       dependencies: ['setup'],
     },
+
+    // Phase 21 (UX-D-06-03, Pitfall 2): dedicated Firefox project pointed at
+    // page-transitions.spec.ts. firefox-smoke's testMatch is scoped to
+    // smoke.spec.ts only and would silently never collect the Firefox
+    // CSS-fallback assertion — this project closes that gap explicitly.
+    {
+      name: 'firefox-transitions',
+      use: {
+        ...devices['Desktop Firefox'],
+        colorScheme: 'dark',
+        launchOptions: { firefoxUserPrefs: { 'ui.systemUsesDarkTheme': 1 } },
+        storageState: 'e2e/.auth/state.json',
+      },
+      testMatch: /page-transitions\.spec\.ts/,
+      dependencies: ['setup'],
+    },
   ],
 });
