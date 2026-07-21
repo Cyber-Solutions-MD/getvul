@@ -12,12 +12,13 @@ Requirement IDs anchor to the originating backlog items (UX-D-01/02/03/06) expan
 ## Phase 16 — Light-theme visual completion (from UX-D-03)
 
 > **Gap closure (2026-07-20):** the v2.2 audit found the light sweep red at HEAD (`text-severity-high` 3.19:1). UX-D-03-02/-03/-05 are re-closed by **Phase 20**; -01/-04 tracking boxes tick once Phase 20's sweep is green.
+> **Closed (2026-07-21):** Phase 20 shipped `--color-severity-high-on-soft` (#9A3412) + `--color-severity-critical-on-soft` (#991B1B) and migrated all foreground severity text; the blocking light-theme axe sweep is now GREEN end-to-end (11/11 routes, both themes ✓). All five boxes tick per the tracking rule above.
 
-- [ ] **UX-D-03-01**: Every authenticated route renders visually correct in light mode — no dark-only borders, shadows, hover, or disabled artifacts.
-- [ ] **UX-D-03-02**: All text + UI meets WCAG 2.1 AA contrast (4.5:1 text, 3:1 UI/graphics) in light mode on every route. → **Phase 20**
-- [ ] **UX-D-03-03**: Severity / status / SLA pills and severity glyphs are legible and mutually distinct on light surfaces. → **Phase 20**
-- [ ] **UX-D-03-04**: `text-muted` / `text-faint` / disabled-state tokens pass AA on light surfaces; any source-palette change is reconciled into the design system (per the BL-04 pattern).
-- [ ] **UX-D-03-05**: The e2e a11y sweep (`e2e/a11y-routes.spec.ts`) runs under `data-theme="light"` as well as dark, and is green. → **Phase 20**
+- [x] **UX-D-03-01**: Every authenticated route renders visually correct in light mode — no dark-only borders, shadows, hover, or disabled artifacts. → **Phase 20** (tracking box — light sweep green)
+- [x] **UX-D-03-02**: All text + UI meets WCAG 2.1 AA contrast (4.5:1 text, 3:1 UI/graphics) in light mode on every route. → **Phase 20**
+- [x] **UX-D-03-03**: Severity / status / SLA pills and severity glyphs are legible and mutually distinct on light surfaces. → **Phase 20**
+- [x] **UX-D-03-04**: `text-muted` / `text-faint` / disabled-state tokens pass AA on light surfaces; any source-palette change is reconciled into the design system (per the BL-04 pattern). → **Phase 20** (tracking box — light sweep green)
+- [x] **UX-D-03-05**: The e2e a11y sweep (`e2e/a11y-routes.spec.ts`) runs under `data-theme="light"` as well as dark, and is green. → **Phase 20**
 
 ## Phase 17 — Page-transition motion (from UX-D-06)
 
