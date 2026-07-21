@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
-status: Ready to plan
-last_updated: "2026-07-21T10:46:54.219Z"
+status: Ready to execute
+last_updated: "2026-07-21T12:46:29.563Z"
 progress:
   total_phases: 15
   completed_phases: 12
-  total_plans: 39
-  completed_plans: 40
+  total_plans: 41
+  completed_plans: 41
   percent: 100
 ---
 
@@ -20,14 +20,14 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 20 — light-theme-severity-high-aa
+**Current focus:** Phase 21 — page-transition-verification
 
 ## Current Position
 
-Phase: 21
+Phase: 21 (page-transition-verification) — EXECUTING
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
-Plan: Not started
+Plan: 2 of 2
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
@@ -132,3 +132,5 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 18]: 18-03: KanbanReasonPrompt renders in a fixed top-centered overlay (not anchored to drop position); board lazily imported via next/dynamic({ssr:false}) keeping @dnd-kit off First-Load JS (/dashboard/tickets confirmed 167 kB)
 - [Phase 18]: Keyboard coordinateGetter tracks column index via useRef, not context.over (avoids collision-detection lag under rapid keypresses)
 - [Phase 18]: 18-04 gate evidence fixed 3 live e2e-spec race conditions (networkidle wait, Save-click settle wait, post-mutation reflow settle wait) rather than only documenting them, since they blocked producing genuine gate evidence
+- [Phase 21]: 21-01: ChipBar severity chip is present/visible in e2e data state -> used as the real no-fade router.replace trigger (Pattern 3), not a skip
+- [Phase 21]: 21-01: Playwright-managed Firefox (151.0) now natively supports document.startViewTransition -> CSS-keyframe fallback path is unreachable on this engine; Firefox test rewritten as a feature-detecting dual-branch assertion, verified green via the native-VT branch (5 named animations observed live)
