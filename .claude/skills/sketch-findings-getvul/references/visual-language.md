@@ -119,8 +119,9 @@ The tinted-fill *border* and *dot* still use the base accent — only the text l
 | `--color-pink-soft` | `--color-pink-on-soft` | `#9D174D` (pink-800) | ~6.0:1 on `#F9D9EC` |
 | `--color-amber-soft` | `--color-amber-on-soft` | `#92400E` (amber-800) | ~5.5:1 on `#FDF3D8` |
 | `--color-severity-high` /10 tint | `--color-severity-high-on-soft` | `#9A3412` (orange-800) | ~6.07:1 on the /10 tint (6.56:1 on #F7F2EA) |
+| `--color-severity-critical` /10 tint | `--color-severity-critical-on-soft` | `#991B1B` (red-800) | ~7.45:1 on the /10 tint (measured on #F7F2EA) |
 
-The production CSS cascade handles both themes without JS: `var(--color-violet-on-soft)` resolves to the dark value (`#C4B5FD`) by default and to the light value (`#5B21B6`) when `data-theme="light"` is set. Always use `text-[var(--color-violet-on-soft)]` / `text-[var(--color-pink-on-soft)]` Tailwind JIT references — never hardcode the hex. Values axe-confirmed in 16-01-SUMMARY.md. Where severity-high renders as TEXT/glyph on a soft/tinted cream surface, `--color-severity-high-on-soft` is used instead of the bare token (the bare token is reserved for borders, ring strokes, chart lines, and background fills) — see Phase 20 / UX-D-03-02,-03.
+The production CSS cascade handles both themes without JS: `var(--color-violet-on-soft)` resolves to the dark value (`#C4B5FD`) by default and to the light value (`#5B21B6`) when `data-theme="light"` is set. Always use `text-[var(--color-violet-on-soft)]` / `text-[var(--color-pink-on-soft)]` Tailwind JIT references — never hardcode the hex. Values axe-confirmed in 16-01-SUMMARY.md. Where severity-high renders as TEXT/glyph on a soft/tinted cream surface, `--color-severity-high-on-soft` is used instead of the bare token (the bare token is reserved for borders, ring strokes, chart lines, and background fills) — see Phase 20 / UX-D-03-02,-03. Same rule for severity-critical: where it renders as TEXT/glyph on a soft/tinted cream surface (e.g. the "Blocked" status badge), `--color-severity-critical-on-soft` (`#991B1B`) is used instead of the bare token — see Phase 20 / UX-D-03-05.
 
 ## SLA (3-tier time deltas)
 
