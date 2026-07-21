@@ -1,6 +1,15 @@
 # Phase 20 — Deferred Items (out of scope, discovered during 20-03 gate run)
 
-## 1. `severity-critical`-on-soft has no AA-safe text token (blocks full light-theme green)
+## 1. `severity-critical`-on-soft has no AA-safe text token (blocks full light-theme green) — RESOLVED (Plan 20-04)
+
+**RESOLVED in Plan 20-04.** `--color-severity-critical-on-soft` (light `#991B1B` / dark `#F87171` no-op) was
+added to `globals.css` + reconciled into the design skill (`e9d94b9`), all 27 FOREGROUND
+`text-severity-critical` consumer sites were migrated to it (`d021a81`), 8 affected unit tests were
+updated (`ab78037`), and the live prod-build axe sweep re-run from this exact plan printed
+`AXE_BOTH_THEMES_GREEN` — both the dark and light blocking describes pass end-to-end across all 11
+routes, including the previously-failing `/dashboard/tickets/<id>` Blocked badge. See
+`20-04-SUMMARY.md` for the full raw evidence. UX-D-03-05 is now satisfied.
+
 
 - **Discovered during:** 20-03 Task 2, live prod-build axe sweep (`npx playwright test
   --config=e2e/playwright.config.ts a11y-routes`).
