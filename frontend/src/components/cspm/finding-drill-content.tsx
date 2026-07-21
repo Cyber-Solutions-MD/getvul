@@ -199,7 +199,7 @@ export function FindingDrillContent({ findingId, onClose }: FindingDrillContentP
                 href={data.remediation_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-xs text-violet hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+                className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--color-violet-on-soft)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
               >
                 View remediation <ExternalLink size={10} aria-hidden="true" />
               </a>

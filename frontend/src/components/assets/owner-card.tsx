@@ -101,7 +101,7 @@ export function OwnerCard({ asset }: { asset: AssetDetail }) {
         <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className="text-xs text-violet hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+          className="text-xs text-[var(--color-violet-on-soft)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
           data-testid="owner-reassign-btn"
         >
           Reassign

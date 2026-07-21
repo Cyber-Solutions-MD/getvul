@@ -193,7 +193,7 @@ function TicketDetailInner() {
           <EmptyState.Title>Ticket not found</EmptyState.Title>
           <EmptyState.Body>
             This ticket doesn&apos;t exist or you don&apos;t have access to it.{' '}
-            <Link href="/dashboard/tickets" className="text-violet hover:underline">
+            <Link href="/dashboard/tickets" className="text-[var(--color-violet-on-soft)] hover:underline">
               Back to tickets
             </Link>
           </EmptyState.Body>

@@ -58,7 +58,7 @@ export function TicketAssetCard({
       {/* Cross-link to asset detail */}
       <Link
         href={`/dashboard/assets/${assetId}`}
-        className="inline-flex items-center text-xs text-violet hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-violet rounded"
+        className="inline-flex items-center text-xs text-[var(--color-violet-on-soft)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-violet rounded"
       >
         {microcopy.viewAsset}
       </Link>
