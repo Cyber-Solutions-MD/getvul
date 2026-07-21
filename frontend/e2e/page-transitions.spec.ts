@@ -130,19 +130,36 @@ test.describe('Page-transition motion', () => {
     await page.goto('/dashboard/vulnerabilities');
     await page.locator('nav[aria-label="Primary navigation"]').waitFor({ state: 'visible', timeout: 10_000 });
 
-    // Capture the current pathname before the searchParams mutation.
+    // Capture the current pathname AND search string before the searchParams mutation.
     const pathnameBefore = await page.evaluate(() => location.pathname);
+    const searchBefore = await page.evaluate(() => location.search);
 
     // Phase 21 Task 1 live probe result: the severity ChipBar IS present and visible in
-    // this e2e session's data state (getByRole('button', { name: /critical/i }) resolved,
-    // count=1, visible=true against seeded kanban-gate-host-01 rows). Per D-02/D-03, the
-    // primary no-fade evidence is now this REAL router.replace — not the retired
+    // this e2e session's data state (against seeded kanban-gate-host-01 rows). Per D-02/D-03,
+    // the primary no-fade evidence is now this REAL router.replace — not the retired
     // history.pushState + PopStateEvent proxy (IN-01, kept below as a labeled legacy check).
-    const criticalChip = page.getByRole('button', { name: /critical/i });
+    //
+    // WR-03: scope the selector to the severity axis's stable container
+    // (data-chip-bar="generic" > data-axis="severity", ChipBar.tsx) and anchor the name
+    // instead of a bare page-wide substring regex. ChipBar renders no role="group", so the
+    // reviewer's group-scoped option is not available; the vuln severity chip's accessible
+    // name is "Critical · {count}" (counts always present via Object.fromEntries in
+    // vulnerabilities/chip-bar.tsx), so a bare `name: 'Critical'` exact match would NOT
+    // resolve. Scoping to the severity axis removes the strict-mode cross-page ambiguity
+    // (a stray "Critical" badge/CTA elsewhere can no longer match) while staying accurate.
+    const severityAxis = page.locator('[data-chip-bar="generic"] [data-axis="severity"]');
+    const criticalChip = severityAxis.getByRole('button', { name: /^Critical\b/i });
     await expect(criticalChip).toBeVisible();
     await criticalChip.click(); // real router.replace(...?severity=critical...), searchParams only
 
-    // Poll for NAMED authed-page-content VT animations over ~800ms (WR-03 tightened).
+    // WR-02: prove the searchParams mutation actually landed BEFORE trusting the
+    // zero-fade result. Without this, a no-op click (handler unwired, router.replace
+    // never fired) yields the same maxNamedVtCount===0 / pathname-unchanged state and the
+    // test passes vacuously. toggle('critical') appends the lowercase enum value
+    // (useUrlStateList → `severity=critical`), so this regex matches the real URL.
+    await expect(page).toHaveURL(/[?&]severity=critical/);
+
+    // Poll for NAMED authed-page-content VT animations over ~800ms.
     // Asserts that the count stays 0 — no named-group fade should fire on a searchParams change.
     // This asserts the D-01/D-02 architectural guarantee: template.tsx is keyed on the
     // segment, so searchParams changes never remount it and never trigger startViewTransition.
@@ -154,7 +171,10 @@ test.describe('Page-transition motion', () => {
       '(D-02: template.tsx does not remount on searchParams change).',
     ).toBe(0);
 
-    // Pathname must be unchanged after the searchParams mutation.
+    // The search string MUST have changed (real searchParams mutation) while the
+    // pathname MUST NOT have (no segment change → no remount → no fade).
+    const searchAfter = await page.evaluate(() => location.search);
+    expect(searchAfter, 'searchParams must have actually mutated (real router.replace landed)').not.toBe(searchBefore);
     const pathnameAfter = await page.evaluate(() => location.pathname);
     expect(pathnameAfter).toBe(pathnameBefore);
   });
