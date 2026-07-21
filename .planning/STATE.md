@@ -26,7 +26,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 Phase: 21 (page-transition-verification) — EXECUTING
 Next: `/gsd-plan-phase 18`
-Prior: Phase 17 (page-transition-motion) COMPLETE — human-UAT checkpoint OUTSTANDING (17-02 Task 4: perceptual cross-fade, chrome stillness, DrillPanel-during-transition, Firefox feel).
+Prior: Phase 17 (page-transition-motion) COMPLETE & VERIFIED — human-UAT checkpoint CLOSED (see 17-HUMAN-UAT.md, resolved — all 4 perceptual items approved by user 2026-07-21); 17-VERIFICATION.md authored in Phase 21.
 Plan: 2 of 2
 | Field | Value |
 |-------|-------|
