@@ -25,10 +25,10 @@ Requirement IDs anchor to the originating backlog items (UX-D-01/02/03/06) expan
 > **Gap closure (2026-07-20):** the v2.2 audit found Phase 17 formally unverified (no VERIFICATION.md, perceptual UAT unpersisted, IN-01 proxy test undone). UX-D-06-01/-03/-04 are re-closed by **Phase 21**.
 
 - [x] **UX-D-06-01**: Route changes within the `(authed)` shell animate with a cross-fade/transition via the **View Transitions API** (single `template.tsx`). → **Phase 21**
-- [ ] **UX-D-06-02**: Transitions are fully suppressed under `prefers-reduced-motion` (animation-duration ≤0.02s); `e2e/reduced-motion.spec.ts` stays green.
+- [x] **UX-D-06-02**: Transitions are fully suppressed under `prefers-reduced-motion` (animation-duration ≤0.02s); `e2e/reduced-motion.spec.ts` stays green. → verified live in **Phase 21** (17-VERIFICATION.md)
 - [x] **UX-D-06-03**: A CSS-animation fallback keeps navigation clean in browsers without View Transitions support (no jank/broken nav in Firefox). → **Phase 21**
 - [x] **UX-D-06-04**: Transitions do not race with DrillPanel Esc/clickaway close and cause no layout shift. → **Phase 21**
-- [ ] **UX-D-06-05**: No route exceeds the 250 KB First-Load JS budget (native API adds 0 KB).
+- [x] **UX-D-06-05**: No route exceeds the 250 KB First-Load JS budget (native API adds 0 KB). → verified live in **Phase 21** (17-VERIFICATION.md; highest authed route 167 kB)
 
 ## Phase 18 — Tickets kanban board (from UX-D-01)
 

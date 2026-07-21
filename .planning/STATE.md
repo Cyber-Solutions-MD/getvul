@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
-status: Ready to execute
-last_updated: "2026-07-21T12:46:29.563Z"
+status: Ready to plan
+last_updated: "2026-07-21T13:46:21.182Z"
 progress:
   total_phases: 15
-  completed_phases: 12
+  completed_phases: 13
   total_plans: 41
-  completed_plans: 41
+  completed_plans: 42
   percent: 100
 ---
 
@@ -24,10 +24,10 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 ## Current Position
 
-Phase: 21 (page-transition-verification) — EXECUTING
+Phase: 22
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE & VERIFIED — human-UAT checkpoint CLOSED (see 17-HUMAN-UAT.md, resolved — all 4 perceptual items approved by user 2026-07-21); 17-VERIFICATION.md authored in Phase 21.
-Plan: 2 of 2
+Plan: Not started
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
