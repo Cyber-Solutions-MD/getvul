@@ -68,6 +68,9 @@ test.describe('WCAG 2.1 AA axe sweep — all routes (blocking)', () => {
       }
       // Do NOT assert on reportResults — this is intentionally report-only (D-03)
     }
+
+    // Unconditional reached-the-end proof (runs on every completed pass, not just failures).
+    console.log(`[axe] dark sweep completed: ${routes.length} routes, last=${routes[routes.length - 1]}`);
   });
 });
 
@@ -131,6 +134,9 @@ test.describe('WCAG 2.1 AA axe sweep — light theme (blocking)', () => {
         `Zero critical/serious axe violations (light) on ${route}`,
       ).toHaveLength(0);
     }
+
+    // Unconditional reached-the-end proof (runs on every completed pass, not just failures).
+    console.log(`[axe] light sweep completed: ${routes.length} routes, last=${routes[routes.length - 1]}`);
   });
 });
 
