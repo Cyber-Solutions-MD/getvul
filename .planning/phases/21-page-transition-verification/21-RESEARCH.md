@@ -478,11 +478,12 @@ secondary/regression check if desired, but it must not remain the primary eviden
 **If this table is empty:** N/A — see above; all four assumptions are low-to-medium risk and
 none block planning (each has a documented sidestep or verification step).
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does the vulnerabilities page's `ChipBar` reliably render in the e2e session's data state
    (Pattern 3), or should the plan default straight to the DrillPanel Escape-close (Pattern 4)
    as the primary no-fade trigger?**
+   - **RESOLVED:** deferred to a live Wave-0 probe in 21-01 Task 1 (requires a running app), with Escape-close (Pattern 4) as the zero-data-dependency primary trigger.
    - What we know: `ChipBar` is hidden in the "empty-filtered" branch per an inline codebase
      comment; the normal/seeded-data branch renders it unconditionally from static
      `allowList` descriptors.
@@ -497,6 +498,7 @@ none block planning (each has a documented sidestep or verification step).
 2. **Should the retroactive `17-VERIFICATION.md` re-run the FULL Phase 17 quality gate (bundle
    budget, reduced-motion, cross-browser smoke) or scope strictly to UX-D-06-01..05 using the
    now-hardened `page-transitions.spec.ts` + `reduced-motion.spec.ts`?**
+   - **RESOLVED:** re-run all commands live per 21-02 Task 2 — no "trust the old green run."
    - What we know: `17-VALIDATION.md`'s Per-Task Verification Map already lists the specific
      commands per requirement (bundle via `next build | grep "First Load JS"`, reduced-motion
      via the existing spec).
