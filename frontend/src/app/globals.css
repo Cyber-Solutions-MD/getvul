@@ -53,6 +53,7 @@
   --color-violet-on-soft: #5B21B6;  /* violet-800 */
   --color-pink-on-soft:   #9D174D;  /* pink-800   */
   --color-amber-on-soft:  #92400E;  /* amber-800  */
+  --color-severity-high-on-soft: #9A3412;  /* orange-800 — text on severity-high /10 tint & cream (6.56:1 on #F7F2EA); base #EA580C failed at 3.19:1 (Phase 20, UX-D-03-02/03) */
 
   /* text-faint darkened for AA on cream (UX-D-03-04): #8A8298 is ~3.8:1 on bg. */
   --color-text-faint: #6B6480;  /* same hue/sat, darker value */
@@ -84,6 +85,7 @@
   --color-violet-on-soft: #C4B5FD;  /* violet-300 — text on --color-violet-soft */
   --color-pink-on-soft:   #F472B6;  /* pink-400   — text on --color-pink-soft   */
   --color-amber-on-soft:  #F59E0B;  /* = old text-amber value → dark no-op (WR-02) */
+  --color-severity-high-on-soft: #FB923C;  /* = current --color-severity-high dark value → dark no-op (mirrors WR-02 amber-on-soft) */
 }
 
 /* Phase-15 a11y (UX-07-03 / WCAG 2.4.11 Focus Not Obscured): at phone widths the
