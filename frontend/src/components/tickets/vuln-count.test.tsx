@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { VulnCount } from './vuln-count';
 
 describe('VulnCount', () => {
-  it('total=3 crit=2 high=1 → renders T with text-text, C with text-severity-critical, H with text-severity-high', () => {
+  it('total=3 crit=2 high=1 → renders T with text-text, C with text-severity-critical, H with text-[var(--color-severity-high-on-soft)]', () => {
     const { container } = render(<VulnCount total={3} critical={2} high={1} />);
     const spans = container.querySelectorAll('span');
     // Expect three colored spans (total, critical, high)
@@ -15,7 +15,7 @@ describe('VulnCount', () => {
     expect(critSpan).toBeDefined();
     expect(critSpan?.className).toContain('text-severity-critical');
     expect(highSpan).toBeDefined();
-    expect(highSpan?.className).toContain('text-severity-high');
+    expect(highSpan?.className).toContain('text-[var(--color-severity-high-on-soft)]');
   });
 
   it('total=3 crit=0 high=0 → zeros are explicit (not hidden)', () => {

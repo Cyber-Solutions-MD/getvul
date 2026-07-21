@@ -16,7 +16,7 @@ describe('SeverityRibbon', () => {
   it('dims zero-count entries with text-text-faint', () => {
     render(<SeverityRibbon counts={{ critical: 0, high: 1, medium: 0, low: 0 }} />);
     expect(screen.getByTestId('ribbon-critical').className).toContain('text-text-faint');
-    expect(screen.getByTestId('ribbon-high').className).toContain('text-severity-high');
+    expect(screen.getByTestId('ribbon-high').className).toContain('text-[var(--color-severity-high-on-soft)]');
   });
 
   it('exposes aria-label per entry for screen readers', () => {

@@ -29,8 +29,8 @@ describe('SlaPill', () => {
     const soonDate = msFromNow(3 * 24 * 60 * 60 * 1000); // 3 days from now
     const { container } = render(<SlaPill dueAt={soonDate} />);
     const pill = container.firstChild as HTMLElement;
-    // Soon tier maps to severity-high (amber in the design system)
-    expect(pill.className).toContain('text-severity-high');
+    // Soon tier maps to severity-high (amber in the design system), on-soft token for AA contrast
+    expect(pill.className).toContain('text-[var(--color-severity-high-on-soft)]');
   });
 
   it('due in 30 days → OK, severity-low (green) classes', () => {
