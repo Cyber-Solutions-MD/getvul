@@ -171,6 +171,7 @@ a { color: inherit; text-decoration: none; }
   --color-violet-on-soft: #5B21B6;  /* was dark #C4B5FD — violet-800, ~7.5:1 on #EDE9FE */
   --color-pink-on-soft:   #9D174D;  /* was dark #F472B6 — pink-800, ~6.0:1 on #F9D9EC */
   --color-amber-on-soft:  #92400E;  /* was dark #F59E0B — amber-800, ~5.5:1 on #FDF3D8 */
+  --color-severity-high-on-soft: #9A3412;  /* orange-800 — text on severity-high /10 tint & cream, 6.56:1 on #F7F2EA (Phase 20). Dark no-op value: #FB923C (= --color-severity-high dark). */
 
   /* ─── Text ─── */
   --color-text-faint: #6B6480;  /* was dark #8B84A8 — ~3.8:1 → ~4.8:1 on #FAF7F2 cream */

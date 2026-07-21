@@ -33,6 +33,7 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
 /* + matching -on-soft text shades (AA-safe text on a -soft fill):
    pink-on-soft #F472B6, violet-on-soft #C4B5FD, amber-on-soft #F59E0B. (dark theme)
    Light-mode on-soft: pink-on-soft #9D174D, violet-on-soft #5B21B6, amber-on-soft #92400E.
+   severity-high-on-soft #9A3412 (light) / #FB923C (dark).
    See visual-language.md "Text on -soft fills". */
 
 /* The signature gradient */
@@ -59,6 +60,8 @@ All values consumed via CSS variables. See `sources/themes/sunset.css` for the f
 ```
 
 **Light-mode note:** All 5 severity tokens are overridden under `data-theme="light"` to darker same-hue variants that clear WCAG 2.1 AA (4.5:1) on the warm-cream `#FAF7F2` background. The three-axis encoding (color + glyph + text) keeps severity levels distinct even where hue shifts for contrast. Values axe-confirmed in 16-01-SUMMARY.md.
+
+**severity-high-on-soft (Phase 20, UX-D-03-02/03):** severity-high has an `-on-soft` text variant for light soft/tinted fills — the bare light-mode `#EA580C` measures only 3.19:1 on the `#F7F2EA` soft surface (fails 4.5:1). `--color-severity-high-on-soft` (`#9A3412`, orange-800) clears 6.56:1 on `#F7F2EA`. See visual-language.md "Text on -soft fills".
 
 ## Typography
 

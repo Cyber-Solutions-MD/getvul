@@ -28,6 +28,8 @@ Under `data-theme="light"`, all severity tokens shift to darker same-hue variant
 
 Values axe-confirmed in 16-01-SUMMARY.md. The pill backgrounds (rgba at 12%) and border colors use the matching dark-mode raw hex — the production CSS overrides only the foreground token, so tinted fills adapt automatically via the cascade.
 
+**severity-high on soft/tinted fills (Phase 20, UX-D-03-02/03):** the light-mode `#EA580C` above (~4.7:1 on the plain cream background) drops to only 3.19:1 when used as text on the severity-high `/10` tint or the `#F7F2EA` soft surface — failing AA. Use `--color-severity-high-on-soft` (`#9A3412`, orange-800) for text/glyph rendered on those soft fills; see "Text on -soft fills" below.
+
 ### Severity pill (default chrome for any severity reference)
 
 ```html
@@ -116,8 +118,9 @@ The tinted-fill *border* and *dot* still use the base accent — only the text l
 | `--color-violet-soft` | `--color-violet-on-soft` | `#5B21B6` (violet-800) | ~7.5:1 on `#EDE9FE` |
 | `--color-pink-soft` | `--color-pink-on-soft` | `#9D174D` (pink-800) | ~6.0:1 on `#F9D9EC` |
 | `--color-amber-soft` | `--color-amber-on-soft` | `#92400E` (amber-800) | ~5.5:1 on `#FDF3D8` |
+| `--color-severity-high` /10 tint | `--color-severity-high-on-soft` | `#9A3412` (orange-800) | ~6.07:1 on the /10 tint (6.56:1 on #F7F2EA) |
 
-The production CSS cascade handles both themes without JS: `var(--color-violet-on-soft)` resolves to the dark value (`#C4B5FD`) by default and to the light value (`#5B21B6`) when `data-theme="light"` is set. Always use `text-[var(--color-violet-on-soft)]` / `text-[var(--color-pink-on-soft)]` Tailwind JIT references — never hardcode the hex. Values axe-confirmed in 16-01-SUMMARY.md.
+The production CSS cascade handles both themes without JS: `var(--color-violet-on-soft)` resolves to the dark value (`#C4B5FD`) by default and to the light value (`#5B21B6`) when `data-theme="light"` is set. Always use `text-[var(--color-violet-on-soft)]` / `text-[var(--color-pink-on-soft)]` Tailwind JIT references — never hardcode the hex. Values axe-confirmed in 16-01-SUMMARY.md. Where severity-high renders as TEXT/glyph on a soft/tinted cream surface, `--color-severity-high-on-soft` is used instead of the bare token (the bare token is reserved for borders, ring strokes, chart lines, and background fills) — see Phase 20 / UX-D-03-02,-03.
 
 ## SLA (3-tier time deltas)
 
