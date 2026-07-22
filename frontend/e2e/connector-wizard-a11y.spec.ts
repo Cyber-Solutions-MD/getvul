@@ -241,6 +241,32 @@ async function driveToTestStep(page: Page, theme: Theme) {
 }
 
 /**
+ * Extends `driveToTestStep` all the way to the Confirm step: mocks a passing
+ * `POST /api/v1/connectors/test` result, clicks "Test connection", waits for
+ * the success status block, then advances Next. Does NOT mock
+ * `GET /connectors/types` — the Confirm permission list must render real
+ * metadata.
+ */
+async function driveToConfirmStep(page: Page, theme: Theme) {
+  await page.route('**/api/v1/connectors/test', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, message: 'Successfully authenticated' }),
+    }),
+  );
+
+  await driveToTestStep(page, theme);
+
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: /test connection/i }).click();
+  await expect(dialog.getByRole('status')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(dialog.getByRole('heading', { name: 'Confirm', exact: true })).toBeVisible();
+}
+
+/**
  * Polls the `disabled` DOM property directly on a captured element handle
  * rather than re-resolving `locator` (a `getByRole()` match) on every retry.
  * `getByRole` recomputes the page's accessibility tree per query, which can
@@ -410,6 +436,67 @@ test.describe('Add-connector wizard — Test step axe sweep (both themes, blocki
       await expect(dialog.getByRole('alert')).toBeVisible();
 
       await sweepBlocking(makeAxeBuilder, 'test step error (light)');
+    });
+  });
+});
+
+// --- Confirm step (permissions/sync review + submit-error), both themes (blocking) ---
+test.describe('Add-connector wizard — Confirm step axe sweep (both themes, blocking)', () => {
+  test.describe('dark theme', () => {
+    test('confirm step permission/sync review reports zero critical/serious axe violations (dark)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await driveToConfirmStep(page, 'dark');
+      await sweepBlocking(makeAxeBuilder, 'confirm step permission/sync review (dark)');
+    });
+
+    test('confirm step submit-error reports zero critical/serious axe violations (dark)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await driveToConfirmStep(page, 'dark');
+
+      // 500 mock ensures create_connector is never reached — no unvalidated
+      // credential row is persisted (22-RESEARCH; T-22-02-03 mitigation).
+      await page.route('**/api/v1/connectors', (route) =>
+        route.fulfill({ status: 500, contentType: 'application/json', body: '{}' }),
+      );
+
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: /add connector/i }).click();
+      await expect(dialog.getByRole('alert')).toBeVisible();
+
+      await sweepBlocking(makeAxeBuilder, 'confirm step submit-error (dark)');
+    });
+  });
+
+  test.describe('light theme', () => {
+    useLightThemeInit();
+
+    test('confirm step permission/sync review reports zero critical/serious axe violations (light)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await driveToConfirmStep(page, 'light');
+      await sweepBlocking(makeAxeBuilder, 'confirm step permission/sync review (light)');
+    });
+
+    test('confirm step submit-error reports zero critical/serious axe violations (light)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await driveToConfirmStep(page, 'light');
+
+      await page.route('**/api/v1/connectors', (route) =>
+        route.fulfill({ status: 500, contentType: 'application/json', body: '{}' }),
+      );
+
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: /add connector/i }).click();
+      await expect(dialog.getByRole('alert')).toBeVisible();
+
+      await sweepBlocking(makeAxeBuilder, 'confirm step submit-error (light)');
     });
   });
 });
