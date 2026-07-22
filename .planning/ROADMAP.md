@@ -45,7 +45,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 19: Add-connector wizard** — 4-step provider → credentials → test → confirm (UX-D-02) (completed 2026-07-20)
 - [x] **Phase 20: Light-theme severity-high AA fix** — GAP CLOSURE: `-on-soft` variant for `--color-severity-high` across ~15 sites + live axe sweep green (UX-D-03-02/-03/-05) (added 2026-07-20) (completed 2026-07-21)
 - [x] **Phase 21: Page-transition verification** — GAP CLOSURE: real DrillPanel-during-VT test + persisted human-UAT + 17-VERIFICATION.md (UX-D-06-01/-03/-04) (added 2026-07-20) (completed 2026-07-21)
-- [ ] **Phase 22: Kanban + wizard test-coverage hardening** — GAP CLOSURE (warnings): Enter-key-drag + gated-drop SR test; wizard axe sweep extended to Test + Confirm steps (UX-D-01-02, UX-D-02-06 coverage) (added 2026-07-20)
+- [x] **Phase 22: Kanban + wizard test-coverage hardening** — GAP CLOSURE (warnings): Enter-key-drag + gated-drop SR test; wizard axe sweep extended to Test + Confirm steps (UX-D-01-02, UX-D-02-06 coverage) (added 2026-07-20) (completed 2026-07-22)
 
 ## Phase Details
 
@@ -299,7 +299,7 @@ Plans:
 
 Plans:
 - [x] 22-01-PLAN.md — Extend tickets-kanban.spec.ts: CR-01 Enter-key-drag (status changes, DrillPanel never opens) + WR-02 gated-no-op/committed-move live-region assertions
-- [ ] 22-02-PLAN.md — Extend connector-wizard-a11y.spec.ts: axe-sweep the Test step (loader/success/error) + Confirm step (permissions/sync/submit-error) in both themes via page.route() mocks
+- [x] 22-02-PLAN.md — Extend connector-wizard-a11y.spec.ts: axe-sweep the Test step (loader/success/error) + Confirm step (permissions/sync/submit-error) in both themes via page.route() mocks
 
 ## Progress
 
