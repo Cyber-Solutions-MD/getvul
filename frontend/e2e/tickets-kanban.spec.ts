@@ -168,6 +168,10 @@ test.describe('Tickets kanban board', () => {
       return;
     }
 
+    // WR-02 positive-branch assertion (22-01): the dnd-kit live region announces
+    // the committed move. Declared once here to avoid a duplicate-const error.
+    const liveRegion = page.locator('[id^="DndLiveRegion"]');
+
     const firstCard = cards.first();
     const ticketId = await firstCard.getAttribute('data-ticket-id');
     await firstCard.focus();
@@ -191,6 +195,10 @@ test.describe('Tickets kanban board', () => {
     await expect(blockedColumn.locator(`[data-ticket-id="${ticketId}"]`)).toBeVisible({
       timeout: 5_000,
     });
+
+    // WR-02: the committed read-only->Blocked drop announces a real success
+    // in the same live region (positive branch of the gating logic).
+    await expect(liveRegion).toContainText(/Moved ticket .* to the Blocked column/i);
   });
 
   test('keyboard drag with Enter does not open the DrillPanel', async ({ page }) => {
@@ -240,6 +248,43 @@ test.describe('Tickets kanban board', () => {
 
     // Final guard — DrillPanel still closed after the whole sequence.
     await expect(page.locator('[data-drill-panel]')).toHaveCount(0);
+  });
+
+  test('gated no-op drop announces returned-to-column, not a false success', async ({ page }) => {
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 1280);
+    await page.waitForLoadState('networkidle');
+
+    const openCard = page.locator('[data-column="open"] [data-ticket-id]').first();
+    if ((await openCard.count()) === 0) {
+      test.skip(true, 'no Open tickets seeded — cannot assert read-only->read-only gated drop');
+      return;
+    }
+
+    await openCard.focus();
+    const liveRegion = page.locator('[id^="DndLiveRegion"]');
+
+    await page.keyboard.press('Space'); // pick up
+    await page.keyboard.press('ArrowRight'); // -> In progress (still a read-only lane)
+
+    // CRITICAL anti-vacuous-pass gate: prove the ArrowRight actually moved the
+    // drag to a DIFFERENT column BEFORE dropping. Without this interim
+    // assertion, if ArrowRight failed to register a column change, dnd-kit
+    // would resolve `over` back to the STARTING `open` column, and the
+    // gated-no-op drop below would emit the IDENTICAL "returned to its
+    // column" text regardless of whether a genuine cross-column drop was
+    // ever attempted — the exact vacuous-pass class this phase exists to
+    // eliminate.
+    await expect(liveRegion).toContainText(/is over the In progress column/i);
+
+    await page.keyboard.press('Space'); // drop -> gated no-op -> snaps back
+
+    // Assert the correct wording, and the ABSENCE of a false success.
+    await expect(liveRegion).toContainText(/returned to its column/i);
+    await expect(liveRegion).not.toContainText(/^Moved ticket/i);
+
+    // Assert the card did NOT move — it is still under Open.
+    await expect(page.locator('[data-column="open"] [data-ticket-id]').first()).toBeVisible();
   });
 
   test('empty column', async ({ page }) => {

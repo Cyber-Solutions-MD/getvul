@@ -94,9 +94,20 @@ function makeKanbanColumnCoordinateGetter(
     const rect = context.droppableContainers.get(nextColumnId)?.rect.current;
     if (!rect) return undefined;
 
+    // 22-01 gate fix (WR-02 test discovery): target the CENTER of the target
+    // column's own rect, not the y carried over from the origin column.
+    // KanbanColumn's droppable ref sits on its inner card-list div (min-h-[4rem]),
+    // which collapses to a short EmptyState height for a column with 0 cards.
+    // Keeping `currentCoordinates.y` (the y of the card being dragged FROM)
+    // could fall outside a short empty intermediate column's rect, causing
+    // closestCorners collision detection to skip past it entirely (reproduced
+    // live: one ArrowRight from Open jumped straight to Completed when
+    // In progress was empty). Re-centering vertically on every keypress keeps
+    // the virtual position inside the intended column regardless of its
+    // height, so each ArrowRight/ArrowLeft reliably lands exactly one column over.
     return {
       x: rect.left + rect.width / 2,
-      y: currentCoordinates.y,
+      y: rect.top + rect.height / 2,
     };
   };
 }

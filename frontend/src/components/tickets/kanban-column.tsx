@@ -67,7 +67,18 @@ export function KanbanColumn({
       role="region"
       aria-label={label}
       className={cn(
-        'snap-start shrink-0 basis-[85vw] md:basis-0 md:flex-1 flex flex-col rounded-lg',
+        // 22-01 gate fix: min-w-0 overrides the flexbox default min-width:auto.
+        // Without it, a column's content-driven min-content width (e.g. a
+        // rendered KanbanCard, ~239px) wins over the equal flex-1 distribution
+        // whenever a SIBLING column is empty (its EmptyState min-content is
+        // narrower), so populated columns render wider and empty columns
+        // narrower than intended — not just a visual nit: the keyboard
+        // coordinateGetter's per-column center-point target (tickets-kanban-board.tsx)
+        // then sits close enough to a column boundary that closestCorners
+        // collision detection can resolve `over` to the WRONG column
+        // (reproduced live: one ArrowRight from Open skipped In progress
+        // entirely and landed on Completed).
+        'min-w-0 snap-start shrink-0 basis-[85vw] md:basis-0 md:flex-1 flex flex-col rounded-lg',
         isDragActive && !isValidTarget && 'opacity-40',
         isOver && isValidTarget && 'ring-2 ring-violet',
       )}
