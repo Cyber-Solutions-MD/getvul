@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
-status: Phase complete — ready for verification
-last_updated: "2026-07-22T09:31:08.170Z"
+status: Milestone complete
+last_updated: "2026-07-22T10:18:39.247Z"
 progress:
   total_phases: 15
   completed_phases: 14
@@ -24,10 +24,10 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 ## Current Position
 
-Phase: 22 (kanban-wizard-test-coverage) — PLANS COMPLETE, ready for verification
+Phase: 22
 Next: `/gsd-verify-phase 22`
 Prior: Phase 17 (page-transition-motion) COMPLETE & VERIFIED — human-UAT checkpoint CLOSED (see 17-HUMAN-UAT.md, resolved — all 4 perceptual items approved by user 2026-07-21); 17-VERIFICATION.md authored in Phase 21.
-Plan: 2 of 2 — 22-02 COMPLETE (2026-07-22): connector-wizard-a11y.spec.ts extended with "Test step" (loader/success/error x dark/light, 6 tests) and "Confirm step" (permission/sync review + submit-error x dark/light, 4 tests) axe sweeps, both driven via page.route() mocks of POST /connectors/test and POST /connectors (no real outbound provider call, no DB row created). Full spec 14/14 passed live against a prod build; `/dashboard/connectors` holds at 156 kB. One test-authoring flakiness fix (getByRole()-based disabled-state polling was too slow in this environment vs. the mutation's pending window — fixed with an ElementHandle + expect.poll() pattern); no production source changed. Closes UX-D-02-06's coverage warning. See 22-02-SUMMARY.md.
+Plan: Not started
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
