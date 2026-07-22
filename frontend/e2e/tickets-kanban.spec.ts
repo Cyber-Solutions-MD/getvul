@@ -193,6 +193,55 @@ test.describe('Tickets kanban board', () => {
     });
   });
 
+  test('keyboard drag with Enter does not open the DrillPanel', async ({ page }) => {
+    // CR-01: dnd-kit's KeyboardSensor treats Enter as a drag start/end activator
+    // and calls preventDefault() when it consumes the key. kanban-card.tsx's
+    // handleKeyDown guard (`if (e.defaultPrevented) return;`) relies on this to
+    // suppress onOpen (the DrillPanel) during an Enter-driven keyboard drag.
+    await page.goto('/dashboard/tickets?view=board');
+    await waitForNav(page, 1280);
+    await page.waitForLoadState('networkidle');
+
+    const cards = page.locator('[data-ticket-id]');
+    if ((await cards.count()) === 0) {
+      test.skip(true, 'no seeded tickets — cannot assert Enter-key drag');
+      return;
+    }
+
+    const firstCard = cards.first();
+    const ticketId = await firstCard.getAttribute('data-ticket-id');
+    await firstCard.focus();
+
+    // Pick up with Enter (dnd-kit consumes it -> preventDefault -> onOpen suppressed).
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-drill-panel]')).toHaveCount(0); // not opened mid-drag
+
+    // Move to Blocked.
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('ArrowRight');
+    }
+
+    // Drop with Enter.
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-drill-panel]')).toHaveCount(0); // still not opened after drop
+
+    // The committed read-only->Blocked transition opens KanbanReasonPrompt — Save it,
+    // mirroring the existing 'keyboard drag' test's settle beat.
+    const saveButton = page.getByRole('button', { name: /save/i });
+    await saveButton.waitFor({ state: 'visible', timeout: 5_000 });
+    await page.waitForTimeout(200); // deferred-autofocus settle (18-04 gate fix)
+    await saveButton.click();
+
+    // Assert the card landed in Blocked (status changed).
+    const blockedColumn = page.locator('[data-column="blocked"]');
+    await expect(blockedColumn.locator(`[data-ticket-id="${ticketId}"]`)).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // Final guard — DrillPanel still closed after the whole sequence.
+    await expect(page.locator('[data-drill-panel]')).toHaveCount(0);
+  });
+
   test('empty column', async ({ page }) => {
     await page.goto('/dashboard/tickets?view=board&status=open');
     await waitForNav(page, 1280);
