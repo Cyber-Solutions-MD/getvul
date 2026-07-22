@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
-status: Milestone complete
-last_updated: "2026-07-22T10:18:39.247Z"
+status: v2.2 milestone complete
+last_updated: "2026-07-22T10:43:33.215Z"
 progress:
   total_phases: 15
   completed_phases: 14
@@ -16,21 +16,21 @@ progress:
 
 ## Project Reference
 
-See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
+See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-22)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 22 — kanban-wizard-test-coverage
+**Current focus:** No active milestone. v2.2 Deferred UI Features COMPLETE & ARCHIVED 2026-07-22. Start the next with `/gsd-new-milestone`.
 
 ## Current Position
 
-Phase: 22
-Next: `/gsd-verify-phase 22`
-Prior: Phase 17 (page-transition-motion) COMPLETE & VERIFIED — human-UAT checkpoint CLOSED (see 17-HUMAN-UAT.md, resolved — all 4 perceptual items approved by user 2026-07-21); 17-VERIFICATION.md authored in Phase 21.
-Plan: Not started
+Milestone: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements). Tagged `v2.2`.
+Next: `/gsd-new-milestone` (no queued milestone remains — all of v1.0, v2.0, v2.1, v2.2 shipped). Candidates: deploy/remote reconciliation, backlog cleanup, or a v2.3 UI line — see PROJECT.md "Next Milestone (candidate)".
+Prior: Phase 22 (kanban-wizard-test-coverage) COMPLETE & VERIFIED (7/7 must-haves) — closed the two v2.2-audit coverage warnings with live deterministic e2e.
+Plan: —
 | Field | Value |
 |-------|-------|
-| Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
+| Active milestone | None. v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. Next: `/gsd-new-milestone`. |
 | History (v1.0, retained) | Rows below describe the v1.0 Phase 6/7 era and are kept as accumulated context. |
 | Active milestone (v1.0, archived) | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–6 done; Phases 7–8 remaining) |
 | Last completed phase | 6 — Default Admin Hardening ✓ (2026-07-09) — forced first-login password rotation for the install.sh admin. Migration 029 adds `users.must_change_password` (NOT NULL, server_default false); `create_admin.py` seeds it true on the OWNER admin; JWT carries the claim through to `CurrentUser`; `get_current_user` 403-gates all non-allowlist routes (`password_change_required`) while flagged; `/auth/change-password` clears the flag, emits `auth.first_login_rotation`, returns fresh flag-free tokens, and rejects reusing `Admin123!`; frontend `/change-password` page (Phase 9 primitives + sunset tokens) + `auth.tsx` redirect gate. Verifier 5/5 must-haves. PROD-06-01..04 Complete. |
@@ -120,7 +120,7 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - Phase 15-04: Wrapper.displayName='Wrapper' pattern for factory-returned test components (react/display-name); vitest-axe.d.ts eslint-disable comments removed (nonexistent rule)
 
 ---
-*Last updated: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC). Full quality gate green on the production build (Playwright 28 passed, bundle 15/15, Lighthouse ≥90). v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15). 676 unit tests + lint green.*
+*Last updated: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. No queued milestone remains — next: `/gsd-new-milestone`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
 
 - [Phase 18]: 18-00: --legacy-peer-deps required for @dnd-kit/core install (pre-existing lucide-react/React19 peer conflict blocks any plain npm install)
 - [Phase 18]: 18-00: useMarkBlocked onMutate/onError switched from exact setQueryData(['tickets']) to fuzzy setQueriesData/getQueriesData({queryKey:['tickets','list']}) — fixes Pitfall 1 latent list-cache no-op and unblocks board optimistic reprojection

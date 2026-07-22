@@ -9,7 +9,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - ✅ **v1.0 Production Readiness** — Phases 1–8 (all complete 2026-07-14)
 - ✅ **v2.0 UI/UX Redesign** — Phases 9–15 (SHIPPED 2026-06-30) — archived: [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 - ✅ **v2.1 Polish & Tech Debt** — BL-01..05 (SHIPPED 2026-07-15; no new phases — backlog cleanup) — see [MILESTONES.md](MILESTONES.md)
-- 🚧 **v2.2 Deferred UI Features** — Phases 16–22 (opened 2026-07-15; gap-closure phases 20–22 added 2026-07-20 from v2.2-MILESTONE-AUDIT) — [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md)
+- ✅ **v2.2 Deferred UI Features** — Phases 16–22 (SHIPPED 2026-07-22; gap-closure phases 20–22 added 2026-07-20 from v2.2-MILESTONE-AUDIT) — archived: [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md)
 
 ## Phases
 
@@ -37,7 +37,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 14: Remaining Screens** — CSPM, connectors, users, settings (sidebar-of-categories) against established primitives
 - [x] **Phase 15: Mobile + a11y + Perf Quality Gate** — 360/390/768/1280 viewport audit, bottom-nav, Lighthouse ≥ 90, axe pass per route, cross-browser, reduce-motion — closed the milestone
 
-**v2.2 Deferred UI Features (opened 2026-07-15 — Phases 16–22):** full detail in [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
+**v2.2 Deferred UI Features (SHIPPED 2026-07-22 — Phases 16–22):** full detail archived in [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
 
 - [x] **Phase 16: Light-theme visual completion** — per-route light-mode QA + axe AA in both themes (UX-D-03) (executed 2026-07-15; gap-closure 16-03 + WR-04 systemic on-soft migration 2026-07-16; verification passed 4/4 SC, live axe sweep green in both themes — see 16-VERIFICATION.md) (completed 2026-07-16 — but see Phase 20: the live gate found `text-severity-high` still red at HEAD)
 - [x] **Phase 17: Page-transition motion** — View Transitions API cross-fade, reduced-motion-safe (UX-D-06) (completed 2026-07-16 — but formally unverified; see Phase 21)
@@ -190,116 +190,11 @@ Phases 9–15 redesigned every authenticated screen against the Wiz-inspired sun
 
 **Full phase detail + accomplishments + decisions + tech-debt:** [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) · **Requirements:** [milestones/v2.0-REQUIREMENTS.md](milestones/v2.0-REQUIREMENTS.md) · **Audit:** [milestones/v2.0-MILESTONE-AUDIT.md](milestones/v2.0-MILESTONE-AUDIT.md)
 
-## 🚧 v2.2 Deferred UI Features — IN PROGRESS (opened 2026-07-15)
+## ✅ v2.2 Deferred UI Features — SHIPPED 2026-07-22
 
-Finishing the four features deferred out of v2.0. Every phase holds the phase-15 gate (axe WCAG 2.1 AA in both themes, reduced-motion, ≤250 KB First-Load JS/route) and the `sketch-findings-getvul` design contract. Locked: View Transitions API (motion) + @dnd-kit (kanban). Full detail: [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md).
+Phases 16–22 finished the four features deferred out of v2.0, each holding the phase-15 quality gate (axe WCAG 2.1 AA in **both** themes, reduced-motion, ≤250 KB First-Load JS/route) and the `sketch-findings-getvul` design contract. Phases 16–19 shipped the features (light-theme completion UX-D-03, page-transition motion UX-D-06, tickets kanban UX-D-01, add-connector wizard UX-D-02); the 2026-07-20 audit found three verification gaps, which gap-closure Phases 20–22 closed. Locked decisions: native View Transitions API (0 KB motion) + @dnd-kit (board). Audit: `passed` (22/22 UX-D requirements, 9/9 integration seams, 5/5 flows).
 
-### Phase 16: Light-theme visual completion
-**Goal**: Every authenticated route is visually correct and WCAG 2.1 AA in light mode — not just architecturally themed.
-**Depends on**: Nothing (unblocks the axe-in-both-themes requirement for phases 17–19)
-**Requirements**: UX-D-03-01, UX-D-03-02, UX-D-03-03, UX-D-03-04, UX-D-03-05
-**Success Criteria** (what must be TRUE):
-  1. A per-route light-mode sweep shows no dark-only visual artifacts (borders/shadows/hover/disabled) on any of the ~15 routes
-  2. `e2e/a11y-routes.spec.ts` runs under `data-theme="light"` and reports 0 serious/critical axe violations on every route
-  3. Severity/status/SLA pills and glyphs are legible and distinct on light surfaces; muted/faint/disabled tokens pass AA (source-palette changes reconciled into the design system)
-  4. Zero First-Load-JS delta (CSS-only); the existing dark-mode gate stays green
-**Plans**: 3 plans (2 waves + 1 gap-closure)
-- [x] 16-01-PLAN.md — light-mode token overrides + component literal fixes + light-theme axe sweep (the joint UX-D-03-01..05 gate)
-- [x] 16-02-PLAN.md — reconcile axe-confirmed light values into the design-system skill (BL-04 mirror) + enable the Theme: Light toggle
-- [x] 16-03-PLAN.md — gap closure: --color-info light override (WR-01) + amber-on-soft migration (WR-02) + executed light+dark axe sweep evidence (SC#2)
-
-### Phase 17: Page-transition motion
-**Goal**: Route changes within the app shell cross-fade smoothly, reduced-motion-safe, at zero bundle cost.
-**Depends on**: Phase 16 (both-themes axe baseline)
-**Requirements**: UX-D-06-01, UX-D-06-02, UX-D-06-03, UX-D-06-04, UX-D-06-05
-**Success Criteria** (what must be TRUE):
-  1. Navigating between authed routes shows a View-Transitions cross-fade via a single `(authed)/template.tsx`
-  2. Under `prefers-reduced-motion: reduce`, transitions are suppressed (animation-duration ≤0.02s) and `e2e/reduced-motion.spec.ts` stays green
-  3. A CSS fallback keeps navigation clean in non-supporting browsers (Firefox) — no jank or broken paint
-  4. DrillPanel Esc/clickaway close still works during/after a transition; no layout shift; no route over 250 KB
-**Plans**: 2 plans (Wave 0 tests-first + Wave 1 implementation)
-
-Plans:
-- [x] 17-01-PLAN.md — Wave 0 tests-first: NEW e2e/page-transitions.spec.ts (UX-D-06-01) + EXTEND e2e/reduced-motion.spec.ts with VT-pseudo-element suppression (UX-D-06-02); both RED
-- [x] 17-02-PLAN.md — Wave 1: globals.css VT cross-fade + explicit reduced-motion suppressor (corrects D-06) + Firefox fallback, (authed)/template.tsx pathname-keyed trigger, RED→GREEN + 250 KB budget, human-verify checkpoint (UX-D-06-01..05)
-
-### Phase 18: Tickets kanban board
-**Goal**: Replace the board-view placeholder with a real, keyboard-accessible status kanban backed by a persisting mutation.
-**Depends on**: Phase 16
-**Requirements**: UX-D-01-01, UX-D-01-02, UX-D-01-03, UX-D-01-04, UX-D-01-05, UX-D-01-06
-**Success Criteria** (what must be TRUE):
-  1. The board renders four status columns populated from `useTickets`; the list/board URL toggle is preserved
-  2. Dragging a ticket to another column (pointer or keyboard, via @dnd-kit) persists its status with optimistic update and rolls back on error
-  3. Empty columns show the canonical empty-state; the status chip filter still applies
-  4. At <768px the board degrades cleanly without regressing the fixed bottom-nav; the route stays ≤250 KB and passes axe in both themes
-**Plans**: 5 plans (Waves 0-3)
-
-Plans:
-- [x] 18-00-PLAN.md — Wave 0: install @dnd-kit/core + pure bucketTickets() (+tests) + useMarkBlocked optimistic list-cache-key fix (Pitfall 1) +guard
-- [x] 18-01-PLAN.md — Wave 0: RED test scaffolds (NEW e2e/tickets-kanban.spec.ts + kanban-reason-prompt.test.tsx; EXTEND a11y-routes both-themes + reduced-motion to board view)
-- [x] 18-02-PLAN.md — Wave 1: kanban leaf components (shared severity-glyph module, draggable KanbanCard, droppable KanbanColumn, KanbanReasonPrompt)
-- [x] 18-03-PLAN.md — Wave 2: DndContext board container (sensors, onDragEnd block/unblock gating, DragOverlay reduced-motion, a11y announcements, mobile scroll-snap) + page.tsx next/dynamic wiring
-- [x] 18-04-PLAN.md — Wave 3: full gate run w/ pasted evidence (bundle 250KB + axe both themes + board e2e + reduced-motion) + human-verify touch/DrillPanel checkpoint
-
-### Phase 19: Add-connector wizard
-**Goal**: Replace the single-step connector form with a guided four-step wizard, reusing existing endpoints.
-**Depends on**: Phase 16
-**Requirements**: UX-D-02-01, UX-D-02-02, UX-D-02-03, UX-D-02-04, UX-D-02-05, UX-D-02-06
-**Success Criteria** (what must be TRUE):
-  1. Adding a connector runs provider pick → credentials → test → confirm, with step navigation gated on a successful connection test
-  2. The credentials step preserves the sentinel-passthrough (untouched secrets not resent); the confirm step shows required scopes before submit
-  3. The wizard reuses `POST /connectors/test` and `POST /connectors` (no new backend) and works in the ResponsiveDialog/vaul mobile pattern
-  4. The connectors route passes axe in both themes and stays ≤250 KB
-**Plans**: 5 plans (Waves 0–3)
-
-Plans:
-- [x] 19-00-PLAN.md — Wave 0: WIZARD_COPY microcopy + useWizardState gating state machine (TDD, incl. Pitfall-4 bounce) + RED test scaffolds
-- [x] 19-01-PLAN.md — Wave 1: leaf components — display-only WizardStepper, CredentialsStep, TestStep (green success reconciliation, no auto-fire)
-- [x] 19-02-PLAN.md — Wave 1: ConfirmStep (required scopes + Add-connector CTA) + edit-form success-color reconciliation
-- [x] 19-03-PLAN.md — Wave 2: AddConnectorWizard container (gated Back/Next, focus mgmt, live-region hints) + page.tsx add→wizard / edit→form wiring
-- [x] 19-04-PLAN.md — Wave 3: open-wizard axe sweep (both themes) e2e + full gate evidence (≤250 KB) + human-verify checkpoint
-
-### Phase 20: Light-theme severity-high AA fix
-**Goal**: The light-theme WCAG-AA axe sweep runs green end-to-end on every authenticated route, closing the milestone's headline promise (UX-D-03) that Phase 16's verification masked.
-**Depends on**: Nothing (isolated CSS-token + component change)
-**Requirements**: UX-D-03-02, UX-D-03-03, UX-D-03-05 (unblocks tracking of UX-D-03-01, UX-D-03-04)
-**Gap Closure**: Closes blocker #1 from v2.2-MILESTONE-AUDIT — `text-severity-high` #EA580C on #f7f2ea = 3.19:1 (needs 4.5:1) on `/dashboard/vulnerabilities`; the shared light sweep short-circuits there and hides later routes.
-**Success Criteria** (what must be TRUE):
-  1. `--color-severity-high` gains a light-mode `-on-soft` variant (BL-04 / WR-04 pattern) that meets ≥4.5:1 on the `#f7f2ea` soft surface, reconciled into `foundation.md` + the `sketch-findings-getvul` skill
-  2. All bare `text-severity-high` sites (~15: vuln-table, top5-card, RiskRing, assets-table, sla-pill, …) use the on-soft variant on light surfaces; the High-severity pill/glyph is legible and distinct
-  3. `e2e/a11y-routes.spec.ts` under `data-theme="light"` runs to completion with 0 serious/critical violations on every route, evidenced by a pasted live-server gate run; the dark sweep stays green
-  4. Zero First-Load-JS delta (CSS-only); UX-D-03-01/-04 tracking boxes ticked once the sweep is green
-**Plans**: TBD
-
-### Phase 21: Page-transition verification
-**Goal**: Phase 17 (View Transitions, UX-D-06) is formally verified with real combined-scenario coverage and a persisted perceptual UAT — converting a verification-coverage gap into a closed, evidenced phase.
-**Depends on**: Nothing (Phase 17 code is already shipped and e2e-green)
-**Requirements**: UX-D-06-01, UX-D-06-03, UX-D-06-04
-**Gap Closure**: Closes blocker #2 from v2.2-MILESTONE-AUDIT — no 17-VERIFICATION.md, perceptual human-UAT never persisted, IN-01 proxy test (synthetic `PopStateEvent`) left undone.
-**Success Criteria** (what must be TRUE):
-  1. `e2e/page-transitions.spec.ts` exercises the *real* DrillPanel-open-during-navigation scenario (searchParams-only `router.replace` vs. pathname change), replacing the synthetic `PopStateEvent` proxy (IN-01) — confirms no VT×DrillPanel race and no layout shift
-  2. `17-HUMAN-UAT.md` exists and records the perceptual checkpoint (cross-fade feel, chrome stillness, Firefox CSS-fallback) as closed; STATE.md no longer marks it OUTSTANDING
-  3. `17-VERIFICATION.md` exists from a goal-backward verify pass confirming UX-D-06-01..05 delivered
-**Plans**: 2 plans
-
-Plans:
-- [x] 21-01-PLAN.md — e2e hardening: real router-driven no-fade + DrillPanel-during-nav fade + Esc close-race/layout-shift + Firefox CSS-fallback assertion (with firefox-transitions project so it provably runs)
-- [x] 21-02-PLAN.md — doc closure: guided perceptual human-UAT → 17-HUMAN-UAT.md (resolved) + clear STATE.md OUTSTANDING flag + goal-backward 17-VERIFICATION.md (UX-D-06-01..05)
-
-### Phase 22: Kanban + wizard test-coverage hardening
-**Goal**: The two audit warnings on already-satisfied requirements are closed — the kanban's keyboard/announcement fixes and the wizard's later steps gain real test coverage.
-**Depends on**: Nothing
-**Requirements**: UX-D-01-02 (coverage), UX-D-02-06 (coverage)
-**Gap Closure**: Closes both warnings from v2.2-MILESTONE-AUDIT — Phase-18 CR-01 (Enter-key drag must not also open DrillPanel) + WR-02 (gated no-op-drop SR wording) were never exercised by test or human; Phase-19 axe swept only the Credentials step (1 of 3).
-**Success Criteria** (what must be TRUE):
-  1. The kanban test suite asserts Enter-key drag changes status without opening the DrillPanel (CR-01) and that a gated no-op drop announces the correct SR wording (WR-02)
-  2. `connector-wizard-a11y.spec.ts` independently axe-sweeps the Test step (loader/success/error) and the Confirm step (permission list, sync display, submit-error) in both themes — 0 serious/critical
-  3. No production-code regression; both routes stay ≤250 KB and green in the existing gate
-**Plans**: 2 plans
-
-Plans:
-- [x] 22-01-PLAN.md — Extend tickets-kanban.spec.ts: CR-01 Enter-key-drag (status changes, DrillPanel never opens) + WR-02 gated-no-op/committed-move live-region assertions
-- [x] 22-02-PLAN.md — Extend connector-wizard-a11y.spec.ts: axe-sweep the Test step (loader/success/error) + Confirm step (permissions/sync/submit-error) in both themes via page.route() mocks
+**Full phase detail + success criteria + plans:** [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md) · **Requirements:** [milestones/v2.2-REQUIREMENTS.md](milestones/v2.2-REQUIREMENTS.md) · **Audit:** [milestones/v2.2-MILESTONE-AUDIT.md](milestones/v2.2-MILESTONE-AUDIT.md) · **Summary:** [MILESTONES.md](MILESTONES.md)
 
 ## Progress
 
@@ -311,11 +206,11 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 1. Multi-Replica State | v1.0 Production Readiness | 4/4 | Complete | 2026-05-09 |
 | 2. CI Gating | v1.0 Production Readiness | 2/2 | Complete | 2026-07-01 |
 | 3. Update Path Reconciliation | v1.0 Production Readiness | 2/2 | Complete | 2026-07-02 |
-| 4. Doc/Code Parity | v1.0 Production Readiness | 0/3 | Planned | - |
-| 5. Encryption Key Lifecycle | v1.0 Production Readiness | 0/2 | Deferred | - |
+| 4. Doc/Code Parity | v1.0 Production Readiness | 3/3 | Complete | 2026-07-03 |
+| 5. Encryption Key Lifecycle | v1.0 Production Readiness | 3/3 | Complete | 2026-07-08 |
 | 6. Default Admin Hardening | v1.0 Production Readiness | 4/4 | Complete | 2026-07-09 |
 | 7. Health and Observability | v1.0 Production Readiness | 3/3 | Complete | 2026-07-10 |
-| 8. Test Coverage Floor | v1.0 Production Readiness | 0/3 | Deferred | - |
+| 8. Test Coverage Floor | v1.0 Production Readiness | 3/3 | Complete | 2026-07-14 |
 | 9. `/login` + Foundation | v2.0 UI/UX Redesign | 6/6 | Complete | 2026-05-13 |
 | 10. `/dashboard` | v2.0 UI/UX Redesign | 6/6 | Complete    | 2026-05-18 |
 | 11. `/vulnerabilities` + State Patterns | v2.0 UI/UX Redesign | 8/8 | Complete    | 2026-05-27 |
@@ -323,6 +218,13 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 13. `/tickets` List + Detail | v2.0 UI/UX Redesign | 9/9 | Complete    | 2026-06-02 |
 | 14. Remaining Screens | v2.0 UI/UX Redesign | 6/6 | Complete    | 2026-06-03 |
 | 15. Mobile + a11y + Perf Quality Gate | v2.0 UI/UX Redesign | 6/6 | Complete   | 2026-06-29 |
+| 16. Light-theme visual completion | v2.2 Deferred UI Features | 3/3 | Complete | 2026-07-16 |
+| 17. Page-transition motion | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-16 |
+| 18. Tickets kanban board | v2.2 Deferred UI Features | 5/5 | Complete | 2026-07-18 |
+| 19. Add-connector wizard | v2.2 Deferred UI Features | 5/5 | Complete | 2026-07-20 |
+| 20. Light-theme severity-high AA fix | v2.2 Deferred UI Features | 4/4 | Complete | 2026-07-21 |
+| 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
+| 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 
 ---
-*Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings.*
+*Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings. v2.2 collapsed to archive 2026-07-22 on milestone completion.*
