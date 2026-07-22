@@ -295,7 +295,11 @@ Plans:
   1. The kanban test suite asserts Enter-key drag changes status without opening the DrillPanel (CR-01) and that a gated no-op drop announces the correct SR wording (WR-02)
   2. `connector-wizard-a11y.spec.ts` independently axe-sweeps the Test step (loader/success/error) and the Confirm step (permission list, sync display, submit-error) in both themes — 0 serious/critical
   3. No production-code regression; both routes stay ≤250 KB and green in the existing gate
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — Extend tickets-kanban.spec.ts: CR-01 Enter-key-drag (status changes, DrillPanel never opens) + WR-02 gated-no-op/committed-move live-region assertions
+- [ ] 22-02-PLAN.md — Extend connector-wizard-a11y.spec.ts: axe-sweep the Test step (loader/success/error) + Confirm step (permissions/sync/submit-error) in both themes via page.route() mocks
 
 ## Progress
 
