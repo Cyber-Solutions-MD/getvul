@@ -1,12 +1,21 @@
 ---
 phase: 22-kanban-wizard-test-coverage
 verified: 2026-07-22T13:10:00Z
-status: gaps_found
-score: 6/7 must-haves verified
+status: passed
+score: 7/7 must-haves verified
+resolution: >
+  Gap closed inline 2026-07-22 (commit fcf9d25, test-only). The flaky wizard axe gate
+  was made deterministic and re-proven with 10/10 clean full-suite reruns (see
+  22-02-SUMMARY.md gap-closure addendum). Fixes: (1) waitForToastSettled() polls the
+  global error toast's opacity to 1 before sweeping (kills the ~40% mid-fade
+  color-contrast false positive on Confirm submit-error dark); (2) driveToTestStep now
+  stubs the read-only GET /api/v1/connectors list to [] so the launch-page
+  [data-add-connector] CTA renders without waiting on a contended backend query (kills
+  the ~18% 30s click-timeout on test-step error light). Zero production diff.
 overrides_applied: 0
 gaps:
   - truth: "The wizard Confirm step's submit-error state reports 0 serious/critical axe violations in both dark and light themes"
-    status: partial
+    status: resolved
     reason: >
       Live-reproduced (5 full-suite reruns of `connector-wizard-a11y.spec.ts` against the
       same prod build + command the plan mandates): the DARK-theme "confirm step submit-error"
@@ -49,8 +58,8 @@ gaps:
 
 **Phase Goal:** The two audit warnings on already-satisfied requirements are closed — the kanban's keyboard/announcement fixes and the wizard's later steps gain real test coverage.
 **Verified:** 2026-07-22T13:10:00Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Status:** passed (gap resolved inline 2026-07-22, commit fcf9d25 — see frontmatter `resolution` + 22-02-SUMMARY addendum; 10/10 clean full-suite reruns)
+**Re-verification:** Gap closure verified via 10× full-suite reruns (0 failed)
 
 ## Goal Achievement
 

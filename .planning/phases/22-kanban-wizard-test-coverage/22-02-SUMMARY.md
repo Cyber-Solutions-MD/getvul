@@ -182,3 +182,32 @@ The production server on :3000 was stopped after this run (port freed).
 - FOUND: .planning/phases/22-kanban-wizard-test-coverage/22-02-SUMMARY.md
 - FOUND commit: a33eccc (Task 1)
 - FOUND commit: d2d3287 (Task 2)
+
+---
+
+## Gap-closure addendum (2026-07-22, commit fcf9d25)
+
+Phase verification (`22-VERIFICATION.md`) re-ran the full spec 5× and found the original single-run "14 passed" transcript above reflected one lucky run of a gate that was **not deterministically green**. Two full-suite-only flakes surfaced, both fixed **test-only** (zero production diff, confirmed via `git diff --stat` = 1 file, +43 lines):
+
+1. **Confirm-step submit-error (dark) axe flake (~40% under full-suite load).** The mocked 500 fires a global error Toast (`ToastProvider` portal, `role="alert"`, `transition-all duration-200`) that axe sometimes sampled mid-fade, reading a false serious `color-contrast` violation (3.58:1) even though the toast's settled contrast is ~7.65:1 (AA-compliant). **Fix:** a `waitForToastSettled(page)` helper that polls the toast's computed `opacity` to `1` before `sweepBlocking()` in both submit-error tests (dark + light) — deterministic, not a fixed timeout.
+
+2. **Launch-page click stall (~18%): `[data-add-connector]` click 30s timeout.** The connectors page gates `[data-add-connector]` behind `connectorsQuery.isPending → SkeletonTable` (connectors/page.tsx:208). Under Playwright's default parallel workers all hammering the one Docker backend, the real `GET /api/v1/connectors` list query occasionally stalled past the 30s action timeout, leaving the CTA unrendered. **Fix:** `driveToTestStep` now stubs the LIST query (`GET /api/v1/connectors`) to `[]` (read-only, NOT a swept surface; the add CTA still renders from the REAL types query). `GET /connectors/types` stays real (Confirm permissions); `POST /connectors` is left to each test's own 500 handler via `route.fallback()`.
+
+**Determinism evidence — 10/10 full-suite reruns, 0 failed** (post-fix, against the same prod build; spec-only change requires no rebuild):
+
+```
+Run 1: PASS ->   14 passed (11.9s)
+Run 2: PASS ->   14 passed (11.8s)
+Run 3: PASS ->   14 passed (11.8s)
+Run 4: PASS ->   14 passed (11.8s)
+Run 5: PASS ->   14 passed (11.7s)
+Run 6: PASS ->   14 passed (11.7s)
+Run 7: PASS ->   14 passed (11.9s)
+Run 8: PASS ->   14 passed (11.8s)
+Run 9: PASS ->   14 passed (11.8s)
+Run 10: PASS ->  14 passed (11.8s)
+======================================
+FINAL: 10 passed-runs / 0 failed-runs (out of 10)
+```
+
+The pre-fix 41s stall runs are gone (all runs now ~11.8s). `/dashboard/connectors` bundle unaffected (156 kB — no production source changed).
