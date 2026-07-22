@@ -154,6 +154,12 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen, onRetry }: 
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingBlock, setPendingBlock] = useState<{ ticketId: string } | null>(null);
+  // WR-01: read-only→Blocked commits on the reason prompt's Save, not at drop.
+  // dnd-kit's own onDragEnd live region can only announce the pending state
+  // (the mutation hasn't fired yet), so the confirmed "Moved…" success is
+  // announced here — via a dedicated polite live region — only after Save.
+  // A Cancel never sets this, so no stale false-success is ever spoken.
+  const [blockCommitAnnouncement, setBlockCommitAnnouncement] = useState('');
 
   // 18-04 gate fix: backs the column-snapping keyboard coordinateGetter (see
   // makeKanbanColumnCoordinateGetter comment above) — reset in handleDragStart
@@ -242,22 +248,28 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen, onRetry }: 
       active: { id: string | number };
       over: { id: string | number } | null;
     }) => {
-      // WR-02: mirror handleDragEnd's gating so we only announce a committed
-      // move for the two valid transitions (read-only→Blocked, Blocked→read-only).
-      // Every other drop is a gated no-op that snaps back — announcing a
-      // "Dropped on {column}" success for those contradicts the visual snap-back.
+      // WR-01/WR-02: mirror handleDragEnd's gating, but distinguish the two
+      // valid transitions by WHEN they commit. read-only→Blocked does NOT
+      // mutate at drop — it only opens the reason prompt (handleDragEnd
+      // setPendingBlock); the move commits on Save. Announcing "Moved…" here
+      // is a false success: a subsequent Cancel snaps the card back with no
+      // correction. So announce a PENDING state at drop and emit the confirmed
+      // "Moved…" from the reason prompt's onSave (see the polite live region
+      // below). Blocked→read-only is the only immediate-commit path, so it
+      // keeps the "Moved…" wording here. Every other drop is a gated no-op.
       const card = rowsById.get(String(active.id));
       const overKey = over?.id as ColumnKey | undefined;
-      const committed = !!(
-        over &&
-        card &&
-        overKey &&
-        ((!card.blocked && overKey === 'blocked') ||
-          (card.blocked && READ_ONLY_LANES.has(overKey)))
-      );
-      return committed
-        ? `Moved ticket ${labelFor(active.id)} to the ${colLabel(over!.id)} column.`
-        : `Ticket ${labelFor(active.id)} returned to its column.`;
+      if (over && card && overKey) {
+        if (!card.blocked && overKey === 'blocked') {
+          // Pending — reason prompt now open, mutation not yet fired.
+          return `Ticket ${labelFor(active.id)} ready to block — confirm the reason to finish.`;
+        }
+        if (card.blocked && READ_ONLY_LANES.has(overKey)) {
+          // Immediate unblock commit.
+          return `Moved ticket ${labelFor(active.id)} to the ${colLabel(over.id)} column.`;
+        }
+      }
+      return `Ticket ${labelFor(active.id)} returned to its column.`;
     },
     onDragCancel: ({ active }: { active: { id: string | number } }) =>
       `Cancelled dragging ticket ${labelFor(active.id)}.`,
@@ -317,6 +329,12 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen, onRetry }: 
         ))}
       </div>
 
+      {/* WR-01: confirmed-on-Save success announcement (Cancel never populates
+          this, so the SR is never told a pending block "Moved" until it did). */}
+      <div role="status" aria-live="polite" className="sr-only" data-block-announcer>
+        {blockCommitAnnouncement}
+      </div>
+
       <DragOverlay dropAnimation={reduced ? null : undefined}>
         {activeCard ? <KanbanCard ticket={activeCard} onOpen={() => {}} overlay /> : null}
       </DragOverlay>
@@ -327,6 +345,10 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen, onRetry }: 
             ticketLabel={rowsById.get(pendingBlock.ticketId)?.external_ticket_id ?? ''}
             onSave={(reason) => {
               markBlocked.mutate({ id: pendingBlock.ticketId, blocked: true, blocked_reason: reason });
+              // WR-01: NOW the move is committed — announce the confirmed success.
+              const label =
+                rowsById.get(pendingBlock.ticketId)?.external_ticket_id ?? pendingBlock.ticketId;
+              setBlockCommitAnnouncement(`Moved ticket ${label} to the Blocked column.`);
               setPendingBlock(null);
             }}
             onCancel={() => setPendingBlock(null)}

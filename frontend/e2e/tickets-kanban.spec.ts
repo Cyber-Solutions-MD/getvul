@@ -169,8 +169,11 @@ test.describe('Tickets kanban board', () => {
     }
 
     // WR-02 positive-branch assertion (22-01): the dnd-kit live region announces
-    // the committed move. Declared once here to avoid a duplicate-const error.
+    // the drop outcome. Declared once here to avoid a duplicate-const error.
     const liveRegion = page.locator('[id^="DndLiveRegion"]');
+    // WR-01: read-only→Blocked commits on Save, not at drop, so the confirmed
+    // "Moved…" success is spoken from the board's own polite live region.
+    const blockAnnouncer = page.locator('[data-block-announcer]');
 
     const firstCard = cards.first();
     const ticketId = await firstCard.getAttribute('data-ticket-id');
@@ -196,9 +199,14 @@ test.describe('Tickets kanban board', () => {
       timeout: 5_000,
     });
 
-    // WR-02: the committed read-only->Blocked drop announces a real success
-    // in the same live region (positive branch of the gating logic).
-    await expect(liveRegion).toContainText(/Moved ticket .* to the Blocked column/i);
+    // WR-01: at DROP, the read-only->Blocked transition is only PENDING (the
+    // reason prompt is open, no mutation yet) — dnd-kit announces the pending
+    // state, NOT a premature "Moved…".
+    await expect(liveRegion).toContainText(/ready to block — confirm the reason to finish/i);
+    // WR-01/WR-02: the confirmed success is announced only AFTER Save, from the
+    // board's dedicated polite live region — so a Cancel would leave no stale
+    // false success. This is the positive branch of the gating logic.
+    await expect(blockAnnouncer).toContainText(/Moved ticket .* to the Blocked column/i);
   });
 
   test('keyboard drag with Enter does not open the DrillPanel', async ({ page }) => {
