@@ -93,6 +93,11 @@ export function BlockedToggle({
           <span className="size-1.5 rounded-full bg-current" />
           Blocked
           {blockedReason && (
+            // Intentionally full-opacity: the prior `/80` de-emphasis is dropped.
+            // Light mode needs the full-strength on-soft token (#991B1B) to clear AA
+            // contrast, and Tailwind 3.4 does not reliably emit an alpha modifier
+            // (`/80`) on a `var()` arbitrary value. Dark mode is a deliberate no-op
+            // token, so it also renders at 100% — accepted; no a11y regression.
             <span className="font-normal text-[var(--color-severity-critical-on-soft)]">— {blockedReason}</span>
           )}
         </span>
