@@ -203,6 +203,28 @@ async function sweepBlocking(makeAxeBuilder: MakeAxeBuilder, label: string) {
   expect(blocking, `zero critical/serious axe on ${label}`).toHaveLength(0);
 }
 
+/**
+ * The mocked 500 fires a GLOBAL error Toast (ToastProvider portal — `role="alert"`,
+ * OUTSIDE the dialog) that fades in over a 200ms opacity transition
+ * (Toast.tsx: `transition-all duration-200` + `opacity-0` -> `opacity-100`). axe's
+ * color-contrast check can sample this toast MID-FADE and read an artificially low
+ * blended ratio, even though its settled colors compute to ~7.65:1 (AA-compliant).
+ * That produced a ~40% full-suite flake on the Confirm-step submit-error sweep
+ * (22-VERIFICATION.md). Wait for the toast to reach FULL opacity before sweeping so
+ * the full-page sweep only ever sees settled colors. Deterministic (polls computed
+ * opacity), not a fixed timeout. No-op if no ambient toast is present.
+ */
+async function waitForToastSettled(page: Page) {
+  const toast = page.locator('.fixed.top-4.right-4 [role="alert"]').first();
+  if ((await toast.count()) === 0) return;
+  await expect(toast).toBeVisible();
+  await expect
+    .poll(async () => toast.evaluate((el) => getComputedStyle(el).opacity), {
+      timeout: 2_000,
+    })
+    .toBe('1');
+}
+
 /** Defensive light-theme re-assert (mirrors lines 77-84 above) — call AFTER goto. */
 async function assertLightTheme(page: Page) {
   const actualTheme = await page.locator('html').getAttribute('data-theme');
@@ -222,6 +244,25 @@ async function assertLightTheme(page: Page) {
  * their `page.route()` mock BEFORE calling this helper.
  */
 async function driveToTestStep(page: Page, theme: Theme) {
+  // Stabilize the launch page under parallel-worker backend contention. The
+  // connectors LIST query (GET /api/v1/connectors) gates [data-add-connector]
+  // behind `connectorsQuery.isPending -> SkeletonTable` (connectors/page.tsx:208).
+  // A contended real GET can stall past the 30s action timeout, leaving the CTA
+  // unrendered so the opening click times out (a full-suite-only flake found in the
+  // 22-VERIFICATION follow-up 5x reruns). The list is NOT part of any swept surface,
+  // so mock it to a deterministic empty array — the add CTA then renders immediately
+  // from the REAL types query (an empty category shows its EmptyState + add button,
+  // connectors/page.tsx:298-315). GET /connectors/types stays REAL (Confirm-step
+  // permissions depend on it); POST /connectors is left to each test's own 500
+  // handler via route.fallback().
+  await page.route('**/api/v1/connectors', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    } else {
+      await route.fallback();
+    }
+  });
+
   await page.goto('/dashboard/connectors');
   await waitForNav(page, 1280);
   if (theme === 'light') await assertLightTheme(page);
@@ -466,6 +507,7 @@ test.describe('Add-connector wizard — Confirm step axe sweep (both themes, blo
       const dialog = page.getByRole('dialog');
       await dialog.getByRole('button', { name: /add connector/i }).click();
       await expect(dialog.getByRole('alert')).toBeVisible();
+      await waitForToastSettled(page); // avoid axe sampling the global toast mid-fade
 
       await sweepBlocking(makeAxeBuilder, 'confirm step submit-error (dark)');
     });
@@ -495,6 +537,7 @@ test.describe('Add-connector wizard — Confirm step axe sweep (both themes, blo
       const dialog = page.getByRole('dialog');
       await dialog.getByRole('button', { name: /add connector/i }).click();
       await expect(dialog.getByRole('alert')).toBeVisible();
+      await waitForToastSettled(page); // avoid axe sampling the global toast mid-fade
 
       await sweepBlocking(makeAxeBuilder, 'confirm step submit-error (light)');
     });
