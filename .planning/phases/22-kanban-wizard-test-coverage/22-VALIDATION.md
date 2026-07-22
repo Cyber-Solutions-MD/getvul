@@ -1,8 +1,8 @@
 ---
 phase: 22
 slug: kanban-wizard-test-coverage
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-22
 ---
@@ -71,11 +71,11 @@ created: 2026-07-22
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify (all e2e, run live against prod build)
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references (N/A — existing specs extended)
-- [ ] No watch-mode flags (Playwright runs are one-shot, not `--watch`)
-- [ ] Feedback latency < 25s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify (all e2e, run live against prod build)
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (N/A — existing specs extended)
+- [x] No watch-mode flags (Playwright runs are one-shot, not `--watch`)
+- [x] Feedback latency < 25s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-07-22 (plan-checker VERIFICATION PASSED, iteration 2 — all 11 dimensions incl. Dimension 8 Nyquist)

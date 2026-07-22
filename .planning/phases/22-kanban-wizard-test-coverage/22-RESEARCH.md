@@ -263,7 +263,7 @@ Reuse this exact `beforeEach` pattern for the new Test-step/Confirm-step describ
 
 **If empty:** N/A — see table above; two low-risk assumptions logged for planner awareness, neither blocks planning.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 _All open questions from the phase's own framing were resolved during this research session:_
 
