@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Deferred UI Features
 status: Ready to execute
-last_updated: "2026-07-22T08:41:22.477Z"
+last_updated: "2026-07-22T09:04:21.502Z"
 progress:
   total_phases: 15
   completed_phases: 13
   total_plans: 43
-  completed_plans: 42
-  percent: 98
+  completed_plans: 43
+  percent: 100
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,14 +20,14 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-05-12)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** Phase 21 — page-transition-verification
+**Current focus:** Phase 22 — kanban-wizard-test-coverage
 
 ## Current Position
 
-Phase: 22
+Phase: 22 (kanban-wizard-test-coverage) — EXECUTING
 Next: `/gsd-plan-phase 18`
 Prior: Phase 17 (page-transition-motion) COMPLETE & VERIFIED — human-UAT checkpoint CLOSED (see 17-HUMAN-UAT.md, resolved — all 4 perceptual items approved by user 2026-07-21); 17-VERIFICATION.md authored in Phase 21.
-Plan: Not started
+Plan: 2 of 2
 | Field | Value |
 |-------|-------|
 | Active milestone | v2.2 Deferred UI Features — **OPENED 2026-07-15** (Phases 16–19). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog) all shipped. Next: `/gsd-plan-phase 16`. Locked: View Transitions API (motion) + @dnd-kit (kanban). |
@@ -134,3 +134,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 18]: 18-04 gate evidence fixed 3 live e2e-spec race conditions (networkidle wait, Save-click settle wait, post-mutation reflow settle wait) rather than only documenting them, since they blocked producing genuine gate evidence
 - [Phase 21]: 21-01: ChipBar severity chip is present/visible in e2e data state -> used as the real no-fade router.replace trigger (Pattern 3), not a skip
 - [Phase 21]: 21-01: Playwright-managed Firefox (151.0) now natively supports document.startViewTransition -> CSS-keyframe fallback path is unreachable on this engine; Firefox test rewritten as a feature-detecting dual-branch assertion, verified green via the native-VT branch (5 named animations observed live)
+- [Phase 22]: 22-01: coordinateGetter targets destination column rect center (not carried-over y) to fix keyboard-drag column-skip
+- [Phase 22]: 22-01: KanbanColumn needs min-w-0 to hold equal flex-1 width regardless of empty-vs-populated sibling content
+- [Phase 22]: 22-01: Enter on a fresh focused card is always consumed by dnd-kit's KeyboardSensor as drag-pickup (default keyboardCodes.start includes Enter) -- it never opens the DrillPanel, so the plan's optional sanity test was skipped as empirically false

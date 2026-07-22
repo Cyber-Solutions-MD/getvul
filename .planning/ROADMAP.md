@@ -298,7 +298,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 22-01-PLAN.md — Extend tickets-kanban.spec.ts: CR-01 Enter-key-drag (status changes, DrillPanel never opens) + WR-02 gated-no-op/committed-move live-region assertions
+- [x] 22-01-PLAN.md — Extend tickets-kanban.spec.ts: CR-01 Enter-key-drag (status changes, DrillPanel never opens) + WR-02 gated-no-op/committed-move live-region assertions
 - [ ] 22-02-PLAN.md — Extend connector-wizard-a11y.spec.ts: axe-sweep the Test step (loader/success/error) + Confirm step (permissions/sync/submit-error) in both themes via page.route() mocks
 
 ## Progress
