@@ -15,6 +15,7 @@
 // Import: { test, expect } from './fixtures/axe' — provides makeAxeBuilder (blocking,
 // WCAG 2.1 AA: wcag2a + wcag2aa + wcag21aa, zero critical/serious violations).
 
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from './fixtures/axe';
 import { waitForNav, MOBILE_NAV } from './routes';
 
@@ -154,5 +155,261 @@ test.describe('Add-connector wizard — mobile vaul sheet render (blocking)', ()
     expect(blocking, 'zero critical/serious axe on open wizard (mobile vaul sheet)').toHaveLength(
       0,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test step + Confirm step axe sweeps (Plan 22-02) — extends the OPEN-dialog
+// coverage above from the Credentials step (step 2 only) to the two later
+// in-dialog steps: Test (step 3) and Confirm (step 4), in both themes.
+//
+// POST /api/v1/connectors/test makes a real outbound call to the provider API
+// (CrowdStrike/Nessus/Defender) with no sandbox mode, and POST /api/v1/connectors
+// stores whatever it's given with no server-side re-validation (22-RESEARCH) —
+// so both are driven deterministically via page.route(), mirroring the
+// tickets-kanban.spec.ts:117 precedent. GET /connectors/types is hit for real
+// (static metadata, no side effects) so the Confirm permission list sweeps
+// true data, never mocked.
+// ---------------------------------------------------------------------------
+
+type Theme = 'dark' | 'light';
+
+type AxeAnalyzeResult = {
+  violations: Array<{
+    impact?: string | null;
+    id: string;
+    description: string;
+    nodes: unknown[];
+  }>;
+};
+type MakeAxeBuilder = () => { analyze: () => Promise<AxeAnalyzeResult> };
+
+/** Shared blocking-violation filter + diagnostic log + labeled assertion (mirrors lines 34-52 above). */
+async function sweepBlocking(makeAxeBuilder: MakeAxeBuilder, label: string) {
+  const results = await makeAxeBuilder().analyze();
+  const blocking = results.violations.filter(
+    (v) => v.impact === 'critical' || v.impact === 'serious',
+  );
+
+  if (blocking.length > 0) {
+    console.error(
+      `[connector-wizard-a11y] BLOCKING violations (${label}):\n` +
+        blocking
+          .map((v) => `  [${v.impact}] ${v.id}: ${v.description} — ${v.nodes.length} node(s)`)
+          .join('\n'),
+    );
+  }
+
+  expect(blocking, `zero critical/serious axe on ${label}`).toHaveLength(0);
+}
+
+/** Defensive light-theme re-assert (mirrors lines 77-84 above) — call AFTER goto. */
+async function assertLightTheme(page: Page) {
+  const actualTheme = await page.locator('html').getAttribute('data-theme');
+  if (actualTheme !== 'light') {
+    await page.evaluate(() => {
+      document.documentElement.setAttribute('data-theme', 'light');
+    });
+    await page.waitForTimeout(50); // allow the CSS cascade to repaint
+  }
+}
+
+/**
+ * Opens the wizard, fills every rendered credential input (provider-agnostic —
+ * never hardcodes a connector type's field names, since a fresh tenant may
+ * have any subset of fields configured), and clicks Next to reach the Test
+ * step. Callers that need a specific `connectors/test` result must register
+ * their `page.route()` mock BEFORE calling this helper.
+ */
+async function driveToTestStep(page: Page, theme: Theme) {
+  await page.goto('/dashboard/connectors');
+  await waitForNav(page, 1280);
+  if (theme === 'light') await assertLightTheme(page);
+
+  await page.locator('[data-add-connector]').first().click();
+  await page.getByRole('dialog').waitFor();
+  await expect(page.getByRole('heading', { name: /Add connector · /i })).toBeVisible();
+
+  const dialog = page.getByRole('dialog');
+  const inputs = dialog.locator('input');
+  const count = await inputs.count();
+  for (let i = 0; i < count; i++) {
+    await inputs.nth(i).fill('test-value');
+  }
+
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click();
+}
+
+/**
+ * Polls the `disabled` DOM property directly on a captured element handle
+ * rather than re-resolving `locator` (a `getByRole()` match) on every retry.
+ * `getByRole` recomputes the page's accessibility tree per query, which can
+ * take several hundred ms — slower than the mocked mutation's brief pending
+ * window — so role-based polling can miss the transient disabled state
+ * entirely. Reading the DOM property off a handle has no such overhead.
+ */
+async function waitForDisabled(locator: Locator, expected: boolean, timeout = 2000) {
+  const handle = await locator.elementHandle();
+  if (!handle) throw new Error('waitForDisabled: element not found');
+  await expect
+    .poll(() => handle.evaluate((el) => (el as HTMLButtonElement).disabled), { timeout })
+    .toBe(expected);
+}
+
+/** Registers the addInitScript light-theme seed used by every light-theme test below. */
+function useLightThemeInit() {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('getvul_theme', 'light');
+      } catch {
+        /* storage unavailable — assertLightTheme() force-sets after goto */
+      }
+    });
+  });
+}
+
+// --- Test step (loader / success / error), both themes (blocking) ---
+test.describe('Add-connector wizard — Test step axe sweep (both themes, blocking)', () => {
+  test.describe('dark theme', () => {
+    test('test-connection loader reports zero critical/serious axe violations (dark)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      // Delay the fulfill so the pending/disabled UI is present long enough to sweep.
+      await page.route('**/api/v1/connectors/test', async (route) => {
+        await new Promise((r) => setTimeout(r, 400));
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, message: 'Successfully authenticated' }),
+        });
+      });
+
+      await driveToTestStep(page, 'dark');
+
+      const dialog = page.getByRole('dialog');
+      const testButton = dialog.getByRole('button', { name: /test connection/i });
+      await testButton.click();
+      await waitForDisabled(testButton, true);
+
+      await sweepBlocking(makeAxeBuilder, 'test step loader (dark)');
+
+      // Let the mocked mutation settle before the test ends.
+      await expect(dialog.getByRole('status')).toBeVisible();
+    });
+
+    test('test-connection success reports zero critical/serious axe violations (dark)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await page.route('**/api/v1/connectors/test', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, message: 'Successfully authenticated' }),
+        }),
+      );
+
+      await driveToTestStep(page, 'dark');
+
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: /test connection/i }).click();
+      await expect(dialog.getByRole('status')).toBeVisible();
+
+      await sweepBlocking(makeAxeBuilder, 'test step success (dark)');
+    });
+
+    test('test-connection error reports zero critical/serious axe violations (dark)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await page.route('**/api/v1/connectors/test', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: false, message: 'Authentication failed: HTTP 401' }),
+        }),
+      );
+
+      await driveToTestStep(page, 'dark');
+
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: /test connection/i }).click();
+      await expect(dialog.getByRole('alert')).toBeVisible();
+
+      await sweepBlocking(makeAxeBuilder, 'test step error (dark)');
+    });
+  });
+
+  test.describe('light theme', () => {
+    useLightThemeInit();
+
+    test('test-connection loader reports zero critical/serious axe violations (light)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await page.route('**/api/v1/connectors/test', async (route) => {
+        await new Promise((r) => setTimeout(r, 400));
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, message: 'Successfully authenticated' }),
+        });
+      });
+
+      await driveToTestStep(page, 'light');
+
+      const dialog = page.getByRole('dialog');
+      const testButton = dialog.getByRole('button', { name: /test connection/i });
+      await testButton.click();
+      await waitForDisabled(testButton, true);
+
+      await sweepBlocking(makeAxeBuilder, 'test step loader (light)');
+
+      await expect(dialog.getByRole('status')).toBeVisible();
+    });
+
+    test('test-connection success reports zero critical/serious axe violations (light)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await page.route('**/api/v1/connectors/test', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, message: 'Successfully authenticated' }),
+        }),
+      );
+
+      await driveToTestStep(page, 'light');
+
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: /test connection/i }).click();
+      await expect(dialog.getByRole('status')).toBeVisible();
+
+      await sweepBlocking(makeAxeBuilder, 'test step success (light)');
+    });
+
+    test('test-connection error reports zero critical/serious axe violations (light)', async ({
+      page,
+      makeAxeBuilder,
+    }) => {
+      await page.route('**/api/v1/connectors/test', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: false, message: 'Authentication failed: HTTP 401' }),
+        }),
+      );
+
+      await driveToTestStep(page, 'light');
+
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: /test connection/i }).click();
+      await expect(dialog.getByRole('alert')).toBeVisible();
+
+      await sweepBlocking(makeAxeBuilder, 'test step error (light)');
+    });
   });
 });
