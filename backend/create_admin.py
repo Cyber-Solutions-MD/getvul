@@ -10,11 +10,15 @@ from app.db.session import async_session_factory
 
 async def create_admin():
     async with async_session_factory() as db:
-        # Check if any user with password exists (app user, not synced directory user)
-        result = await db.execute(text("SELECT COUNT(*) FROM users WHERE password_hash IS NOT NULL"))
+        # Idempotency keys on the seed's OWN identity (the default admin), not on
+        # any unrelated password user. Scoping to the whole table meant the seed
+        # was skipped whenever some other tenant already had a password user
+        # (e.g. after a `register` call), so `admin@getvul.local` was never
+        # created (WR-02).
+        result = await db.execute(text("SELECT COUNT(*) FROM users WHERE email = 'admin@getvul.local'"))
         count = result.scalar()
         if count > 0:
-            print("    App users already exist — skipping.")
+            print("    Default admin already exists — skipping.")
             return
 
         # Ensure a tenant exists
