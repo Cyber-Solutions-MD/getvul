@@ -69,8 +69,13 @@ test.describe('WCAG 2.1 AA axe sweep — all routes (blocking)', () => {
       // Do NOT assert on reportResults — this is intentionally report-only (D-03)
     }
 
-    // Unconditional reached-the-end proof (runs on every completed pass, not just failures).
-    console.log(`[axe] dark sweep completed: ${routes.length} routes, last=${routes[routes.length - 1]}`);
+    // Reached-the-end proof (runs on every completed pass, not just failures).
+    // Recorded as a Playwright annotation instead of console.log so the "sweep actually
+    // ran" evidence survives in the test report without polluting CI stdout.
+    test.info().annotations.push({
+      type: 'axe-sweep-completed',
+      description: `dark sweep completed: ${routes.length} routes, last=${routes[routes.length - 1]}`,
+    });
   });
 });
 
@@ -135,8 +140,13 @@ test.describe('WCAG 2.1 AA axe sweep — light theme (blocking)', () => {
       ).toHaveLength(0);
     }
 
-    // Unconditional reached-the-end proof (runs on every completed pass, not just failures).
-    console.log(`[axe] light sweep completed: ${routes.length} routes, last=${routes[routes.length - 1]}`);
+    // Reached-the-end proof (runs on every completed pass, not just failures).
+    // Recorded as a Playwright annotation instead of console.log so the "sweep actually
+    // ran" evidence survives in the test report without polluting CI stdout.
+    test.info().annotations.push({
+      type: 'axe-sweep-completed',
+      description: `light sweep completed: ${routes.length} routes, last=${routes[routes.length - 1]}`,
+    });
   });
 });
 
