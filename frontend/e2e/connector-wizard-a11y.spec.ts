@@ -274,6 +274,14 @@ async function driveToTestStep(page: Page, theme: Theme) {
   const dialog = page.getByRole('dialog');
   const inputs = dialog.locator('input');
   const count = await inputs.count();
+  // IN-04 ASSUMPTION: every credential field is filled with the literal
+  // 'test-value', which relies on NO rendered field applying client-side format
+  // validation (URL, port/number, etc.) that would keep "Next" disabled. The
+  // `connectors/test` call is mocked, so the value never matters server-side —
+  // the only risk is client-side gating. This holds for the current field set;
+  // if a future provider adds a format-validated field, fill by input `type`
+  // instead (a valid `https://…` for type=url, a digit for type=number) or this
+  // helper will stall at the Next click below.
   for (let i = 0; i < count; i++) {
     await inputs.nth(i).fill('test-value');
   }
