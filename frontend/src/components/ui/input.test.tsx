@@ -1,8 +1,18 @@
+import * as React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
+import { useForm } from 'react-hook-form';
 import { Input } from './input';
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from './form';
 
 describe('<Input>', () => {
   it('renders text input by default', () => {
@@ -42,6 +52,52 @@ describe('<Input>', () => {
   it('honors disabled prop', () => {
     render(<Input aria-label="Email" disabled />);
     expect(screen.getByLabelText('Email')).toBeDisabled();
+  });
+
+  // WR-01 regression: when a password <Input> is composed through <FormControl>,
+  // the Radix <Slot>-forwarded id / aria-invalid / aria-describedby must land on
+  // the real <input>, NOT the eye-toggle wrapper <div>. The password branch
+  // spreads {...props} (which carries the Slot-injected attributes) onto the
+  // inner <input>, and forwardRef sends the ref there too, so the <label htmlFor>
+  // association and the aria-[invalid=true]:border-danger styling both target the
+  // input. This test locks that behavior.
+  it('forwards FormControl a11y attributes onto the inner password <input> (WR-01)', () => {
+    function Harness() {
+      const form = useForm({ defaultValues: { password: '' } });
+      React.useEffect(() => {
+        form.setError('password', { type: 'manual', message: 'Required' });
+      }, [form]);
+      return (
+        <Form {...form}>
+          <form>
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
+      );
+    }
+
+    render(<Harness />);
+    const labelled = screen.getByLabelText('Password');
+    // The label must resolve to the <input>, not the wrapper <div>.
+    expect(labelled.tagName).toBe('INPUT');
+    // A forced Zod/RHF error must set aria-invalid on that same <input> so the
+    // aria-[invalid=true]:border-danger selector matches.
+    expect(labelled).toHaveAttribute('aria-invalid', 'true');
+    // id + aria-describedby must also be on the input (label association + SR).
+    expect(labelled.getAttribute('id')).toMatch(/-form-item$/);
+    expect(labelled.getAttribute('aria-describedby')).toContain('-form-item-message');
   });
 
   it('has no axe violations (UX-F-04)', async () => {
