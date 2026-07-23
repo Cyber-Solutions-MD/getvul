@@ -77,7 +77,7 @@ const READ_ONLY_LANES = new Set<ColumnKey>(['open', 'in_progress', 'completed'])
 function makeKanbanColumnCoordinateGetter(
   columnIndexRef: MutableRefObject<number>,
 ): KeyboardCoordinateGetter {
-  return (event, { currentCoordinates, context }) => {
+  return (event, { context }) => {
     const { code } = event;
     if (code !== 'ArrowRight' && code !== 'ArrowLeft') {
       return undefined;
