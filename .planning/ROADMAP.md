@@ -226,5 +226,18 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 
+## Backlog
+
+### Phase 999.1: Re-vendor sunset.css & collapse duplicated on-soft/faint token overrides (BACKLOG)
+
+**Goal:** Re-sync `frontend/src/styles/sunset.css` from the `sketch-findings-getvul` skill source (`references/foundation.md` / `sources/themes/sunset.css`) so the vendored copy carries the newer design tokens directly. Once re-synced, delete the accumulated "retire on re-vendor" override groups in `frontend/src/app/globals.css` — the `--color-text-faint` dark override (~lines 63–73), the `--color-{violet,pink,amber}-on-soft` dark overrides (~lines 84–86), and the `--color-severity-{high,critical}-on-soft` dark no-op overrides added in Phase 20 — collapsing three locations of duplicated tokens back to a single source of truth.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+_Source: Phase 16 REVIEW IN-02 (advisory Info, no per-phase change needed), reinforced by Phase 20 carrying the same retire-on-resync pattern._
+
 ---
 *Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings. v2.2 collapsed to archive 2026-07-22 on milestone completion.*
