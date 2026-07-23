@@ -143,7 +143,7 @@ async def lifespan(app: FastAPI):
                     cfg["host"], int(cfg.get("port", 514)), cfg.get("protocol", "udp"), cfg.get("facility", "local0")
                 )
     except Exception:
-        pass
+        logger.exception("syslog_setup_failed_at_startup")
 
     yield
 
