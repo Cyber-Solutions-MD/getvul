@@ -206,7 +206,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await resp.json().catch(() => ({}));
       throw new AuthError(data?.detail || 'Sign-in failed.', resp.status);
     }
-    const data = await resp.json();
+    // Parse defensively: a 2xx with an empty / non-JSON / truncated body (CDN or
+    // nginx intermediary, dropped connection) makes resp.json() reject with a raw
+    // SyntaxError. Guard it so we surface the D-49 generic copy instead of leaking
+    // "Unexpected end of JSON input" into the <ErrorAlert>.
+    const data = await resp.json().catch(() => null);
+    if (!data?.access_token) {
+      throw new AuthError('Sign-in failed. Try again in a moment.');
+    }
     storeTokens(data);
   }, []);
 
@@ -217,8 +224,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, display_name: name }),
       });
-      const data = await resp.json();
-      if (!resp.ok) return data.detail || "Registration failed";
+      // Parse defensively AFTER the ok check so a 4xx (or 2xx) with a non-JSON /
+      // empty body returns clean copy instead of throwing a raw SyntaxError into
+      // the catch below.
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) return data?.detail || "Registration failed";
       storeTokens(data);
       router.replace("/dashboard");
       return null;
