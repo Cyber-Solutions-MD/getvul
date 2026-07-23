@@ -147,13 +147,19 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await app.state.redis.aclose()
+    try:
+        await app.state.redis.aclose()
+    except Exception:
+        logger.exception("redis_aclose_failed")
 
     # Cleanup
     if settings.environment in ("development", "production"):
-        from app.connectors.scheduler import stop_scheduler
+        try:
+            from app.connectors.scheduler import stop_scheduler
 
-        stop_scheduler()
+            stop_scheduler()
+        except Exception:
+            logger.exception("scheduler_stop_failed")
 
 
 # ── Security headers middleware ──
