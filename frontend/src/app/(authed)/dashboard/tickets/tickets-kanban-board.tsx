@@ -74,7 +74,7 @@ const READ_ONLY_LANES = new Set<ColumnKey>(['open', 'in_progress', 'completed'])
 // counter advances deterministically on every keypress regardless of
 // collision-detection timing; `handleDragStart` resets it to 0 (Open) so
 // each new drag starts from the picked-up card's actual column.
-function makeKanbanColumnCoordinateGetter(
+export function makeKanbanColumnCoordinateGetter(
   columnIndexRef: MutableRefObject<number>,
 ): KeyboardCoordinateGetter {
   return (event, { context }) => {
@@ -114,6 +114,35 @@ function makeKanbanColumnCoordinateGetter(
       y: rect.top + rect.height / 2,
     };
   };
+}
+
+// WR-01: the pure drop-announcement decision, extracted so every branch is
+// unit-testable without a live drag (the e2e keyboard-drag paths that exercise
+// this only run when the Open lane is seeded, which the default dev seed is
+// not — see the kanban-e2e seed-gating note). Mirrors handleDragEnd's gating:
+// read-only→Blocked is PENDING at drop (mutation fires on the reason prompt's
+// Save, not here), Blocked→read-only is the only immediate commit, everything
+// else is a gated no-op. Strings are asserted byte-for-byte by
+// tickets-kanban.spec.ts — do not reword (the em-dash included) without updating
+// the spec regexes.
+export function dragEndAnnouncement(
+  card: { blocked: boolean } | undefined,
+  over: { id: string | number } | null,
+  activeLabel: string,
+  colLabel: (id: string | number) => string,
+): string {
+  const overKey = over?.id as ColumnKey | undefined;
+  if (over && card && overKey) {
+    if (!card.blocked && overKey === 'blocked') {
+      // Pending — reason prompt now open, mutation not yet fired.
+      return `Ticket ${activeLabel} ready to block — confirm the reason to finish.`;
+    }
+    if (card.blocked && READ_ONLY_LANES.has(overKey)) {
+      // Immediate unblock commit.
+      return `Moved ticket ${activeLabel} to the ${colLabel(over.id)} column.`;
+    }
+  }
+  return `Ticket ${activeLabel} returned to its column.`;
 }
 
 export type TicketsKanbanBoardProps = {
@@ -251,30 +280,11 @@ export function TicketsKanbanBoard({ rows, isLoading, error, onOpen, onRetry }: 
     }: {
       active: { id: string | number };
       over: { id: string | number } | null;
-    }) => {
-      // WR-01/WR-02: mirror handleDragEnd's gating, but distinguish the two
-      // valid transitions by WHEN they commit. read-only→Blocked does NOT
-      // mutate at drop — it only opens the reason prompt (handleDragEnd
-      // setPendingBlock); the move commits on Save. Announcing "Moved…" here
-      // is a false success: a subsequent Cancel snaps the card back with no
-      // correction. So announce a PENDING state at drop and emit the confirmed
-      // "Moved…" from the reason prompt's onSave (see the polite live region
-      // below). Blocked→read-only is the only immediate-commit path, so it
-      // keeps the "Moved…" wording here. Every other drop is a gated no-op.
-      const card = rowsById.get(String(active.id));
-      const overKey = over?.id as ColumnKey | undefined;
-      if (over && card && overKey) {
-        if (!card.blocked && overKey === 'blocked') {
-          // Pending — reason prompt now open, mutation not yet fired.
-          return `Ticket ${labelFor(active.id)} ready to block — confirm the reason to finish.`;
-        }
-        if (card.blocked && READ_ONLY_LANES.has(overKey)) {
-          // Immediate unblock commit.
-          return `Moved ticket ${labelFor(active.id)} to the ${colLabel(over.id)} column.`;
-        }
-      }
-      return `Ticket ${labelFor(active.id)} returned to its column.`;
-    },
+    }) =>
+      // WR-01/WR-02: gating logic lives in the pure `dragEndAnnouncement` helper
+      // (unit-tested) — read-only→Blocked is PENDING at drop, Blocked→read-only
+      // is the only immediate commit, all else is a gated no-op.
+      dragEndAnnouncement(rowsById.get(String(active.id)), over, labelFor(active.id), colLabel),
     onDragCancel: ({ active }: { active: { id: string | number } }) =>
       `Cancelled dragging ticket ${labelFor(active.id)}.`,
   };
