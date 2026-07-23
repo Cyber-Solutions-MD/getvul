@@ -161,10 +161,17 @@ test.describe('Tickets kanban board', () => {
     // 18-04 gate fix — see 'renders four columns' comment (dynamic-import + fetch race).
     await page.waitForLoadState('networkidle');
 
-    const cards = page.locator('[data-ticket-id]');
+    // IN-03: scope the source card to a read-only lane explicitly (mirroring the
+    // gated-no-op test). `[data-ticket-id]` alone = first non-empty column in DOM
+    // order; if a seed ever put the first card in Blocked, handleDragStart would
+    // set columnIndexRef to 3, the ArrowRight presses clamp there, and the drop
+    // becomes a blocked→blocked no-op — the Save button never appears and the
+    // waitFor times out (a confusing false failure). Sourcing from Open keeps the
+    // read-only→Blocked transition under test.
+    const cards = page.locator('[data-column="open"] [data-ticket-id]');
     const cardCount = await cards.count();
     if (cardCount === 0) {
-      test.skip(true, 'no seeded tickets — cannot assert keyboard drag');
+      test.skip(true, 'no Open tickets seeded — cannot assert keyboard drag');
       return;
     }
 
@@ -218,9 +225,12 @@ test.describe('Tickets kanban board', () => {
     await waitForNav(page, 1280);
     await page.waitForLoadState('networkidle');
 
-    const cards = page.locator('[data-ticket-id]');
+    // IN-03: scope the source card to a read-only lane explicitly (see the
+    // keyboard-drag test above) so a Blocked-first seed can't turn this into a
+    // blocked→blocked no-op.
+    const cards = page.locator('[data-column="open"] [data-ticket-id]');
     if ((await cards.count()) === 0) {
-      test.skip(true, 'no seeded tickets — cannot assert Enter-key drag');
+      test.skip(true, 'no Open tickets seeded — cannot assert Enter-key drag');
       return;
     }
 
