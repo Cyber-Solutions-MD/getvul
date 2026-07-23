@@ -211,10 +211,31 @@ async def change_password_endpoint(
 
     # Belt-and-suspenders (T-06-default-cred-reuse): the default tenant has
     # history_count=0, so password-history reuse-prevention is disabled. A
-    # flagged admin could otherwise "rotate" back to the install credential and
-    # defeat the whole gate. Reject the literal default password.
-    if flag_was_set and new_password == "Admin123!":
-        raise HTTPException(400, "Choose a password other than the default install credential")
+    # flagged admin could otherwise "rotate" back to the install credential —
+    # or a trivial variant of it — and defeat the whole gate (WR-01). Reject:
+    #   1. the default install credential, normalized to catch whitespace and
+    #      case-fold variants (" Admin123!", "admin123!", "ADMIN123!"); and
+    #   2. reuse of the caller's *current* password by hash, which generalizes
+    #      the guard beyond a single hardcoded literal.
+    # RESIDUAL (backlog): near-but-not-equal variants such as "Admin1234!"
+    # still pass. Catching those requires a real complexity/similarity policy,
+    # which is a larger design change deliberately out of scope here.
+    if flag_was_set:
+        from app.auth.password import verify_password
+
+        _DEFAULT_INSTALL_CREDENTIAL = "Admin123!"
+        if new_password.strip().casefold() == _DEFAULT_INSTALL_CREDENTIAL.casefold():
+            raise HTTPException(400, "Choose a password other than the default install credential")
+
+        from sqlalchemy import select
+
+        from app.tenants.models import User
+
+        current_hash = (
+            await db.execute(select(User.password_hash).where(User.id == user.id))
+        ).scalar_one_or_none()
+        if current_hash and verify_password(new_password, current_hash):
+            raise HTTPException(400, "Choose a password different from your current one")
 
     result = await change_password(
         db,

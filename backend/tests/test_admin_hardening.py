@@ -359,6 +359,36 @@ async def test_rotation_fresh_tokens(app_factory, db_session, tenant_a):
     assert decode_token(fresh).must_change_password is False
 
 
+async def test_rotation_rejects_default_variant(app_factory, db_session, tenant_a):
+    """WR-01 hardening: a flagged user cannot rotate to the default install
+    credential or a trivial variant of it. Whitespace-padded (" Admin123!"),
+    case-folded ("admin123!" / "ADMIN123!"), and exact reuse ("Admin123!") are
+    all rejected 400, and the must_change_password flag stays True so the gate
+    is not defeated. (Near-but-not-equal variants like "Admin1234!" are the
+    documented residual, out of scope for this minimal hardening.)"""
+    from asgi_lifespan import LifespanManager
+
+    for variant in (" Admin123!", "Admin123! ", "admin123!", "ADMIN123!", "Admin123!"):
+        user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
+        token = create_access_token(
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+            email=user.email,
+            role=user.role,
+            must_change_password=True,
+        )
+        app = app_factory()
+        async with LifespanManager(app), _bearer_client(app, token) as ac:
+            resp = await ac.post(
+                "/auth/change-password",
+                json={"current_password": "Admin123!", "new_password": variant},
+            )
+        assert resp.status_code == 400, f"variant {variant!r} should be rejected"
+
+        row = await db_session.execute(select(User.must_change_password).where(User.id == user.id))
+        assert row.scalar_one() is True, f"flag must remain set after rejecting {variant!r}"
+
+
 async def test_refresh_reads_current_flag(app_factory, db_session, tenant_a):
     """After rotation (flag now False in DB), /auth/refresh yields an access
     token whose decoded must_change_password is False — refresh reads the
