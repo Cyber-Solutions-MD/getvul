@@ -527,9 +527,10 @@ async def test_rotate_cli_subprocess_completes_and_audits(db_session, tenant_a):
     )
 
     # The rotation must complete without error (pre-fix: non-zero + NoReferencedTableError).
-    assert proc.returncode == 0, proc.stderr
-    assert "NoReferencedTableError" not in proc.stderr
-    assert "Rotated 1 rows" in proc.stdout
+    _proc_diag = f"returncode={proc.returncode} stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    assert proc.returncode == 0, _proc_diag
+    assert "NoReferencedTableError" not in proc.stderr, _proc_diag
+    assert "Rotated 1 rows" in proc.stdout, _proc_diag
 
     # Assert the AuditLog row landed AND the credential was re-encrypted under key_b.
     # Use a FRESH session — the subprocess used its own session; the db_session fixture
