@@ -290,9 +290,17 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    if settings.debug:
+        cors_origin_kwargs = {"allow_origins": ["http://localhost:3000"]}
+    else:
+        # Starlette matches allow_origins literally, so a "https://*.getvul.app"
+        # entry never matches a real subdomain. Use allow_origin_regex (matched
+        # via re.fullmatch) to accept any single-label https subdomain of getvul.app.
+        cors_origin_kwargs = {"allow_origin_regex": r"https://[a-z0-9-]+\.getvul\.app"}
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"] if settings.debug else ["https://*.getvul.app"],
+        **cors_origin_kwargs,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
