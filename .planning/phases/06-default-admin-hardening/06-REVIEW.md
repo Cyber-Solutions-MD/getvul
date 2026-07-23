@@ -1,6 +1,6 @@
 ---
 phase: 06-default-admin-hardening
-reviewed: 2026-07-09T00:00:00Z
+reviewed: 2026-07-23T00:00:00Z
 depth: standard
 files_reviewed: 14
 files_reviewed_list:
@@ -20,102 +20,99 @@ files_reviewed_list:
   - frontend/vitest.setup.ts
 findings:
   critical: 0
-  warning: 5
-  info: 4
-  total: 9
+  warning: 2
+  info: 5
+  total: 7
 status: issues_found
 ---
 
 # Phase 6: Code Review Report
 
-**Reviewed:** 2026-07-09
+**Reviewed:** 2026-07-23 (re-review of a shipped phase; supersedes the 2026-07-09 report)
 **Depth:** standard
 **Files Reviewed:** 14
 **Status:** issues_found
 
 ## Summary
 
-Forced default-admin password rotation. The backend enforcement gate is the strongest part of this phase: `_enforce_password_change_gate` runs on both the JWT and dev-token paths in `get_current_user`, FastAPI injects `Request` into the dependency even when it is a sub-dependency of `RequireRole`, and the allowlist is an exact-match `frozenset` with no prefix/case tricks. The `request is None` no-op is genuinely unreachable through the ASGI stack (every route resolves through the dependency with a populated `Request`), so the documented trade-off is acceptable — it is only exercised by direct in-process unit calls, which cannot originate from an attacker. The rotation ordering (clear flag -> audit -> commit -> reissue tokens) is correct, and refresh re-reads the live DB flag rather than trusting a stale claim.
+Re-review of the v1.0 default-admin hardening phase against the CURRENT code. The two prior Warnings that mattered most — the broken client-side rotation UX (WR-01) and its refresh-path variant (WR-02) — have been **fixed** since 2026-07-09 and are no longer reported. The remaining findings are genuine but lower-stakes: they persist verbatim in the current tree and are re-confirmed below.
 
-The main defect is on the frontend: the post-login SPA navigation bypasses the client-side redirect gate because the login response payload (`UserInfo`) does not carry `must_change_password`, so a flagged admin logging in via password lands on `/dashboard` and hits a wall of backend 403s instead of the rotation page. The security boundary holds (the backend 403 is authoritative), but the intended UX flow is broken and the code comment asserting it works is inaccurate. Several secondary hardening gaps and robustness issues follow.
+The security boundary remains strong. `_enforce_password_change_gate` (dependencies.py:102-116) runs on both the JWT and dev-token paths in `get_current_user`, the allowlist is an exact-match `frozenset` (dependencies.py:25-32), the JWT claim round-trips through `create_access_token`/`decode_token`, the DB column is `NOT NULL server_default false` (migration 029), and `refresh_access_token` re-reads the live DB flag rather than trusting a stale claim (service.py:96-125). The forced-rotation write order in the router (clear flag → audit → commit → reissue tokens) is correct and fail-closed on the audit row.
+
+**Resolved since the prior review (verified against current code):**
+- **WR-01 (client rotation gate bypass) — FIXED.** `UserInfo` now carries `must_change_password` (schemas.py:37-51) and `issue_tokens` populates it (service.py:83-92), so the `/auth/login` payload includes the flag. `storeTokens` → `setUser(data.user)` (auth.tsx:166-171) now arms the force-rotation `useEffect` (auth.tsx:131-135) immediately after a SPA login; the flagged admin is bounced to `/change-password` even though the login page also calls `router.replace(dest)` (login/page.tsx:284-287). The gate's inline comment is now accurate.
+- **WR-02 (refresh propagates flagged user) — FIXED by the same change.** `refreshToken` → `fetchMe` → `setUser` (auth.tsx:147-164) also feeds the same gate, and `refresh_access_token` re-issues the claim from the current DB flag.
+
+The two retained Warnings both concern the *strength* of the forced-rotation guarantee (weak-default reuse, seed idempotency), which is the security objective of this phase.
 
 ## Warnings
 
-### WR-01: Flagged user bypasses the client-side rotation gate after password login
+### WR-01: Default-credential reject is a brittle literal, not a policy (retained — verified against current code)
 
-**File:** `frontend/src/lib/auth.tsx:155-160`, `frontend/src/app/login/page.tsx:284-287`
-**Issue:** `storeTokens` sets `setUser(data.user)` directly from the `/auth/login` response body. That body is a `TokenResponse` whose `user` field is a `UserInfo` (`backend/app/auth/schemas.py:37-46`), which has **no `must_change_password` field**. So after a password login, `user.must_change_password` is `undefined`. The login page then immediately calls `router.replace(dest)` to `/dashboard` (login/page.tsx:284-287). The force-rotation `useEffect` (auth.tsx:120-124) never fires because `user?.must_change_password` is falsy. The flagged admin lands on `/dashboard`, and every `/api/v1/*` call returns the backend 403 `password_change_required` — a broken dashboard rather than the intended rotation prompt. The comment at auth.tsx:116-119 claims "it also fires post-login: the mount fetchMe resolves the flag" — this is false for the SPA login path; only a subsequent hard reload (which re-runs the mount `fetchMe`) recovers the flag and redirects. Security is intact (backend gate is authoritative), but the enforcement UX is dead on the primary path.
-**Fix:** Have `storeTokens` hydrate the flag from `/auth/me` (which does return it) before navigating, or add `must_change_password` to the `UserInfo` schema and `issue_tokens` so the login payload carries it:
+**File:** `backend/app/auth/router.py:216-217` (policy: `backend/app/auth/password.py:19-26`)
+**Issue:** The forced-rotation guard still blocks only the exact literal `"Admin123!"`:
 ```python
-# backend/app/auth/schemas.py — UserInfo
-must_change_password: bool = False
+if flag_was_set and new_password == "Admin123!":
+    raise HTTPException(400, "Choose a password other than the default install credential")
 ```
-```python
-# backend/app/auth/service.py — issue_tokens, inside UserInfo(...)
-must_change_password=user.must_change_password,
-```
-Then the existing auth.tsx:120-124 gate fires immediately after `storeTokens`.
-
-### WR-02: `refreshToken` propagates a flagged user to `/dashboard` without gating
-
-**File:** `frontend/src/lib/auth.tsx:136-153`
-**Issue:** `refreshToken` calls `fetchMe(newToken)` and `setUser(u)` on success. `fetchMe` does return `must_change_password`, so the flag is set correctly here — but this path runs inside the mount effect and there is no guarantee the force-rotation `useEffect` re-evaluates before other route logic. More importantly, a flagged user whose access token has expired but whose refresh token is valid will be silently re-authenticated; the redirect gate depends on `pathname` being stable at that moment. This is a softer instance of WR-01. Combined with WR-01, the client gate only reliably fires on a cold page load, not on the interactive login/refresh paths.
-**Fix:** Centralize the flag check: after any `setUser`, guard navigation on `must_change_password` in one place rather than relying on a `useEffect` that may race with the login page's own `router.replace`.
-
-### WR-03: `setFormError` may receive a non-string `detail` and crash the render
-
-**File:** `frontend/src/app/change-password/page.tsx:88-92`
-**Issue:** On a non-ok response, `body?.detail` is passed to `setFormError`, then rendered in `<ErrorAlert>{formError}</ErrorAlert>`. `formError` is typed `string | null`, but FastAPI `HTTPException` details can be objects — e.g. the enforcement gate raises `detail={"reason": "password_change_required"}` (dependencies.py:110-111). Although `/auth/change-password` is allowlisted so the flag gate will not fire here, other 4xx responses on this route (or a future change) that return a structured `detail` would set `formError` to an object, and React will throw "Objects are not valid as a React child." The `?? 'Password change failed'` fallback does not catch a truthy object.
-**Fix:** Coerce defensively:
-```ts
-const detail = body?.detail;
-setFormError(typeof detail === 'string' ? detail : 'Password change failed. Try again.');
-```
-
-### WR-04: `create_admin` skips seeding if ANY user in ANY tenant has a password hash
-
-**File:** `backend/create_admin.py:13-20`
-**Issue:** The guard counts `users WHERE password_hash IS NOT NULL` across the entire table with no tenant scoping. In a multi-tenant deployment where a non-default tenant already has a password user, the default-admin seed is skipped entirely and no `admin@getvul.local` is created — which may be intended, but it also means the seed is not idempotent per-tenant and the operator gets no admin if the DB was populated by any other flow first. Conversely, if the intent is "only skip when the default admin already exists," the check is too broad.
-**Fix:** Scope the existence check to the default admin identity, e.g. `SELECT COUNT(*) FROM users WHERE email = 'admin@getvul.local'`, so the seed is idempotent and independent of unrelated password users.
-
-### WR-05: Default-credential reject is a brittle literal string, not a policy
-
-**File:** `backend/app/auth/router.py:216-217`
-**Issue:** The forced-rotation reject only blocks the exact literal `"Admin123!"`. The default tenant policy (`DEFAULT_POLICY`, password.py:19-26) has `history_count=0` and no complexity requirements, so a flagged admin can "rotate" to `Admin1234!`, `admin123!`, or ` Admin123! ` (trailing space) and satisfy the gate while keeping a near-default, guessable credential. The comment acknowledges the history-reuse hole but the mitigation is narrower than the threat. This weakens the security objective of the phase (force a genuinely new credential).
-**Fix:** Reject reuse of the current password directly (compare `new_password` against the stored hash via `verify_password`) rather than a hardcoded literal, and/or enforce a minimum complexity policy on the default tenant so a trivially-similar password is not accepted:
+`DEFAULT_POLICY` has `history_count=0` and every complexity requirement `False`, so a flagged admin can satisfy the gate with a trivially-near-default credential — `Admin1234!`, `admin123!`, or `" Admin123!"` (leading/trailing space; `new_password` is never stripped) — all of which clear the min-length-8 check and rotate the flag to False. `change_password` also does not reject reusing the *current* password when `history_count == 0`. This weakens the phase's core objective (force a genuinely new credential).
+**Fix:** Reject reuse of the current password by hash rather than matching a literal, and/or enforce minimal complexity on the default tenant:
 ```python
 if flag_was_set and verify_password(new_password, user_row.password_hash):
     raise HTTPException(400, "Choose a password different from your current one")
 ```
 
+### WR-02: `create_admin` skips seeding if ANY user in ANY tenant has a password hash (retained — verified against current code)
+
+**File:** `backend/create_admin.py:13-18`
+**Issue:** Unchanged since the prior review. The idempotency guard counts password users table-wide with no identity/tenant scoping:
+```python
+result = await db.execute(text("SELECT COUNT(*) FROM users WHERE password_hash IS NOT NULL"))
+count = result.scalar()
+if count > 0:
+    print("    App users already exist — skipping.")
+    return
+```
+In any deployment where a non-default tenant already has a password user (e.g. a `register` call ran first), the default-admin seed is skipped and no `admin@getvul.local` is created. The seed is not idempotent on its own identity — it is coupled to unrelated password users.
+**Fix:** Scope the existence check to the seed identity so it is idempotent and independent of other users:
+```python
+result = await db.execute(text("SELECT COUNT(*) FROM users WHERE email = 'admin@getvul.local'"))
+```
+
 ## Info
 
-### IN-01: `_enforce_password_change_gate` no-op on `request is None` is acceptable but undertested for the enforced path
+### IN-01: `change-password` error handler may pass a non-string `detail` to a React child (was WR-03; downgraded — not currently reachable)
 
-**File:** `backend/app/auth/dependencies.py:98-112`
-**Issue:** The no-op when `request is None` is safe in production (verified: FastAPI injects `Request` into the dependency and all sub-dependencies such as `RequireRole`, so real requests always populate it). However, `test_current_user_claim` (test_admin_hardening.py:163-186) exercises the dependency with `request` omitted, silently taking the no-op branch — the test asserts the claim survives but never exercises the gate through the async path in that case. The gate's real behavior is covered by `test_enforcement_*`, so this is informational, not a gap.
-**Fix:** None required. Optionally assert in a test that a direct call with a flagged user and an explicit `request` mock raises 403, to lock the no-op boundary.
+**File:** `frontend/src/app/change-password/page.tsx:89-93`
+**Issue:** `setFormError(body?.detail ?? 'Password change failed. Try again.')` forwards `body.detail` unchanged into `<ErrorAlert>{formError}</ErrorAlert>`. `formError` is typed `string | null`, but FastAPI can return a structured `detail` (the gate uses `detail={"reason": "password_change_required"}`). **Currently not reachable:** `/auth/change-password` is on the allowlist so the gate never fires here, and every other raise on this route returns a string detail — so no object reaches `setFormError` today. It remains a latent defensive-coding gap: any future 4xx on this route that returns an object detail would throw "Objects are not valid as a React child." Downgraded from Warning to Info because it cannot fire against the current backend.
+**Fix:** Coerce defensively: `const d = body?.detail; setFormError(typeof d === 'string' ? d : 'Password change failed. Try again.');`
 
-### IN-02: Endpoint bodies typed as bare `dict` bypass Pydantic validation
+### IN-02: `_enforce_password_change_gate` no-op on `request is None` is undertested for the enforced path (retained)
 
-**File:** `backend/app/auth/router.py:142-146, 172-176, 194-199, 249-253, 266-269`
-**Issue:** `register`, `login_password`, `change_password_endpoint`, `forgot_password`, and `reset_password` all accept `body: dict` and reach into it with `.get(...)`. This defeats FastAPI's request validation, allows arbitrary/oversized payloads through, and produces silent empty-string defaults (e.g. `body.get("new_password", "")`) rather than 422s. `RefreshRequest` shows the correct pattern already exists.
-**Fix:** Define request models (e.g. `ChangePasswordRequest`) with typed, validated fields and use them as the parameter type.
+**File:** `backend/app/auth/dependencies.py:102-116`; test at `backend/tests/test_admin_hardening.py:156-177`
+**Issue:** The `if request is None: return` no-op is safe in production (FastAPI always injects `Request` through the ASGI stack, including via `RequireRole`/`require_role` sub-dependencies). But `test_current_user_claim` still calls `get_current_user(credentials=creds, db=db_session)` with `request` omitted, silently taking the no-op branch — it asserts the claim survives but never exercises the gate in that call. The gate's real behavior is covered by the `test_enforcement_*` cases via a real ASGI client, so this is informational.
+**Fix:** None required. Optionally add a direct-call test that passes a mock `Request` with a non-allowlist path and a flagged user, asserting the 403 — to lock the no-op boundary.
 
-### IN-03: Redundant/dead `require_role` helper alongside `RequireRole`
+### IN-03: Two divergent role hierarchies coexist; `require_role` is live, not dead (retained — reclassified)
 
-**File:** `backend/app/auth/dependencies.py:117-136`
-**Issue:** `dependencies.py` defines a `ROLE_HIERARCHY` and a `require_role` factory, while `rbac.py` defines a separate `ROLE_HIERARCHY` (different values: 4/3/2/1 vs 40/30/20/10) and a `RequireRole` class. Two divergent role-hierarchy sources are a maintenance and correctness hazard; if only one is wired into routes, the other is dead code.
-**Fix:** Consolidate on `rbac.py`'s `RequireRole` and remove the duplicate `ROLE_HIERARCHY`/`require_role` from `dependencies.py`.
+**File:** `backend/app/auth/dependencies.py:121-140` vs `backend/app/auth/rbac.py:14-53`
+**Issue:** `dependencies.py` defines `ROLE_HIERARCHY = {"owner": 4, "admin": 3, "analyst": 2, "viewer": 1}` plus a `require_role` factory; `rbac.py` defines a separate `ROLE_HIERARCHY` keyed on `UserRole.*.value` with different magnitudes (40/30/20/10) plus the `RequireRole` class. Contrary to the prior review's "dead code" framing, `require_role` **is wired in** — `app/assets/router.py:538,551` gate admin-only asset endpoints on `Depends(require_role("admin"))`. The lowercasing (`user.role.lower()`) makes it behave correctly today, but two independent, divergent role-hierarchy sources for the same RBAC concept is a real maintenance/correctness hazard: a future role tweak applied to one map silently diverges from the other.
+**Fix:** Consolidate on `rbac.py`'s `RequireRole`, migrate the two `assets/router.py` call sites, and delete the duplicate `ROLE_HIERARCHY`/`require_role` from `dependencies.py`.
 
-### IN-04: Unused fetched row in rotation path
+### IN-04: Endpoint bodies typed as bare `dict` bypass Pydantic validation (retained)
 
-**File:** `backend/app/auth/router.py:238-239`
-**Issue:** `tenant_row` is fetched and later used by `issue_tokens`, which is fine; but `user_row` is re-fetched via a fresh `select` even though `change_password` already loaded and mutated the same identity-mapped `User` object earlier in the request. The extra query is harmless (same identity map) but redundant.
-**Fix:** Optional — `change_password` could return the mutated user object to avoid the re-query, tightening the flag-clear/token-reissue path.
+**File:** `backend/app/auth/router.py:141-156, 171-191, 194-224, 249-263, 266-286`
+**Issue:** `register`, `login_password`, `change_password_endpoint`, `forgot_password`, and `reset_password` all accept `body: dict` and reach in via `.get(...)`, defeating FastAPI request validation and producing silent empty-string defaults (`body.get("new_password", "")`) instead of 422s. `RefreshRequest` (used by `/auth/refresh`) demonstrates the correct typed pattern already exists in this file.
+**Fix:** Define request models (e.g. `ChangePasswordRequest`, `LoginRequest`) with typed, validated fields.
+
+### IN-05: Redundant re-fetch of the mutated user in the rotation path (retained)
+
+**File:** `backend/app/auth/router.py:238`
+**Issue:** In the flagged-rotation branch, `user_row` is re-`select`ed even though `change_password` already loaded and mutated the same identity-mapped `User` (setting `password_hash`/`password_history`) earlier in the request. The re-query is harmless (SQLAlchemy identity map returns the same object) but redundant.
+**Fix:** Optional — have `change_password` return the mutated `User` so the rotation branch reuses it instead of re-querying.
 
 ---
 
-_Reviewed: 2026-07-09_
+_Reviewed: 2026-07-23 (re-review; prior report dated 2026-07-09 superseded)_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_

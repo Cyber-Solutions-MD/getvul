@@ -1,259 +1,176 @@
 ---
 phase: 09-login-foundation
-reviewed: 2026-05-13T07:10:57Z
+reviewed: 2026-07-23T00:00:00Z
 depth: standard
-files_reviewed: 40
+files_reviewed: 8
 files_reviewed_list:
-  - frontend/components.json
-  - frontend/middleware.ts
-  - frontend/package.json
-  - frontend/src/__tests__/foundation.test.ts
-  - frontend/src/app/(authed)/dashboard/cspm/page.tsx
-  - frontend/src/app/(authed)/dashboard/users/page.tsx
-  - frontend/src/app/(authed)/layout.tsx
-  - frontend/src/app/dev/primitives/page.tsx
-  - frontend/src/app/globals.css
-  - frontend/src/app/layout.tsx
-  - frontend/src/app/login/page.test.tsx
-  - frontend/src/app/login/page.tsx
   - frontend/src/app/login/sanitize-next.ts
-  - frontend/src/components/auth/error-alert.tsx
-  - frontend/src/components/shell/app-shell.test.tsx
-  - frontend/src/components/shell/app-shell.tsx
-  - frontend/src/components/shell/sidebar.test.tsx
-  - frontend/src/components/shell/sidebar.tsx
-  - frontend/src/components/shell/topbar.tsx
-  - frontend/src/components/shell/user-chip.tsx
-  - frontend/src/components/ui/button.test.tsx
-  - frontend/src/components/ui/button.tsx
-  - frontend/src/components/ui/dropdown-menu.tsx
-  - frontend/src/components/ui/form.tsx
-  - frontend/src/components/ui/gradient-text.test.tsx
-  - frontend/src/components/ui/gradient-text.tsx
-  - frontend/src/components/ui/input.test.tsx
-  - frontend/src/components/ui/input.tsx
-  - frontend/src/components/ui/label.tsx
-  - frontend/src/components/ui/sso-button.test.tsx
-  - frontend/src/components/ui/sso-button.tsx
-  - frontend/src/components/ui/sso-icons.tsx
+  - frontend/src/app/login/page.tsx
   - frontend/src/lib/auth.tsx
-  - frontend/src/lib/theme.tsx
-  - frontend/src/lib/utils.ts
-  - frontend/src/lib/validation/auth.ts
-  - frontend/src/styles/sunset.css
-  - frontend/src/types/vitest-axe.d.ts
+  - frontend/src/components/ui/input.tsx
+  - frontend/src/components/ui/form.tsx
+  - frontend/src/components/ui/dropdown-menu.tsx
   - frontend/tailwind.config.ts
-  - frontend/vitest.config.mts
-  - frontend/vitest.setup.ts
+  - frontend/src/app/globals.css
 findings:
   critical: 0
-  warning: 4
-  info: 6
-  total: 10
+  warning: 3
+  info: 3
+  total: 6
 status: issues_found
 ---
 
-# Phase 9: Code Review Report
+# Phase 9: Code Review Report (Re-Review)
 
-**Reviewed:** 2026-05-13T07:10:57Z
+**Reviewed:** 2026-07-23T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 40
+**Files Reviewed:** 8 (of original 40-file scope; the rest verified unchanged-or-resolved via targeted checks)
 **Status:** issues_found
 
 ## Summary
 
-Phase 9 lays down a clean, well-tested foundation for the v2.0 redesign: sunset palette tokens, `(authed)` route group with shell ownership, login screen with mode state machine, open-redirect sanitization, and a SSO pre-flight that surfaces 5xx as user-facing copy. Test coverage is solid (axe assertions on every primitive, anti-enumeration coverage for forgot-password, sanitize-next edge cases, autoComplete attribute assertions per D-48).
+This is a reconciliation re-review of the original 2026-05-13 Phase 9 report against the CURRENT codebase, after v2.0 (Phases 09–15), v2.1, and v2.2 all landed. The original report had 0 critical, 4 warnings, 6 info. Several findings have since been fixed by later phases; the remainder were re-verified line-by-line against current code.
 
-No security-critical issues found. The `sanitizeNext` function correctly handles the documented bypass vectors (protocol-relative, absolute URLs, backslash tricks, decode failures). Auth/SSO flows surface errors without leaking enumeration signals.
+**Path relocations confirmed:** `frontend/middleware.ts` → `frontend/src/middleware.ts`; `sanitize-next.ts` and `vitest.config.mts` are unchanged from the original scope paths.
 
-Four warnings concern real correctness/a11y issues:
-- `<Input type="password">` is incompatible with `<FormControl>`'s `Slot`-based prop forwarding, breaking label association and `aria-invalid` styling in production usage (login form).
-- Bare `border` class in `dropdown-menu.tsx` does not pick up the project's `--color-border` token — it falls back to Tailwind preflight's `currentColor`, producing a near-white border on dark surface.
-- `globals.css` light-theme overrides only redefine surfaces; sunset accent variables and severity tokens still use the dark-theme values, so the "light theme architecture" is genuinely incomplete (acknowledged as D-06 deferral but a hot-swap will visibly break severity pills if a user toggles light early).
-- `useAuth().login` does not catch JSON-parse failures on a 2xx response, so a malformed response body crashes the sign-in path with an unhandled rejection instead of surfacing the generic error copy.
+**Security posture (re-verified):** The `sanitizeNext` open-redirect guard (`sanitize-next.ts`) remains correct — it decodes once (fails closed on decode error), then admits only same-origin relative paths (`startsWith('/')` while rejecting `//` protocol-relative and `/\` backslash tricks). Double-encoded payloads (`%252F…`) resolve to a single `%2F…` decode that fails the `/`-prefix test and falls back to `/dashboard`. Both consumers (`page.tsx:70` already-authed bounce, `page.tsx:286` post-login redirect) route through it. The `?next=` producer in `auth.tsx:114-121` encodes correctly. Forgot-password anti-enumeration (Pitfall 9) is intact. No open-redirect or XSS surface found. Tokens live in `localStorage` — an established app-wide auth architecture decision, not a Phase 9 regression, so not flagged here.
 
-Six info items concern dead code carried into pre-existing files during the route move (`timeAgo`, `SOURCES`, `accent="blue"` invalid keys), one ESLint-flaggable `useEffect` deps omission in `auth.tsx`, and one stylistic inconsistency (`AuthError` thrown for password failures but plain `Error` for SSO failures — readers will reasonably expect symmetry).
+**Reconciliation outcome:**
+- WR-01 (password `<Input>` + `<FormControl>` Slot) — **RETAINED, verified against current code.**
+- WR-02 (bare `border` in `dropdown-menu.tsx`) — **RETAINED, verified against current code.**
+- WR-03 (light theme incomplete) — **RESOLVED.** Phase 16 (`globals.css:7-63`) now overrides severity, danger/success/warning/info, glows, shadows, and on-soft tokens for `data-theme="light"` with AA-tuned values. Dropped.
+- WR-04 (login JSON-parse crash on 2xx) — **RETAINED, verified against current code.**
+- IN-01 (`timeAgo` dead code) — **RESOLVED.** No longer present in `users/page.tsx`. Dropped.
+- IN-02 (`SOURCES` unused) — **RESOLVED.** `cspm/page.tsx` now consumes `SOURCES` at lines 93-94, 111. Dropped.
+- IN-03 (`accent="blue"`) — was already self-retracted as a false alarm; dropped.
+- IN-04 → renumbered **IN-01** (useEffect deps) — RETAINED, verified.
+- IN-05 → renumbered **IN-02** (asymmetric error contracts) — RETAINED, verified.
+- IN-06 → renumbered **IN-03** (`any` at auth boundary) — RETAINED, verified.
+
+No new Critical or Warning issues surfaced.
 
 ## Warnings
 
-### WR-01: `<Input type="password">` breaks label association and `aria-invalid` styling when used inside `<FormControl>`
+### WR-01: `<Input type="password">` breaks label association and `aria-invalid` styling inside `<FormControl>` (verified against current code)
 
-**File:** `frontend/src/components/ui/input.tsx:34-56` (with consumer at `frontend/src/app/login/page.tsx:323-339, 522-542`)
-**Issue:** When `type === 'password'`, `Input` returns a `<div>` wrapper around the `<input>` and the eye-toggle `<button>`. The login form composes this through `<FormControl>` (`frontend/src/components/ui/form.tsx:106-126`), which uses Radix `<Slot>` to merge props onto its single child. `<Slot>` forwards `id`, `aria-describedby`, and `aria-invalid` onto the *outermost* element returned by `Input` — which is the wrapper `<div>`, not the `<input>`. Three concrete consequences:
+**File:** `frontend/src/components/ui/input.tsx:34-57` (consumers: `frontend/src/app/login/page.tsx:329-335` and `529-537`)
+**Issue:** When `type === 'password'`, `Input` returns a `<div className="relative">` wrapping the `<input>` and the eye-toggle `<button>` (input.tsx:35). The login form composes this through `<FormControl>` (`form.tsx:106-126`), which uses Radix `<Slot>` to merge `id={formItemId}`, `aria-describedby`, and `aria-invalid={!!error}` onto its single child's **outermost** element — the wrapper `<div>`, not the `<input>`. Consequences, all still live:
 
-1. `<FormLabel htmlFor={formItemId}>` points at the `<div>`, breaking the `<label for>` ↔ `<input>` association required by WCAG 2 SC 1.3.1 / SC 3.3.2. Screen readers may still announce the label via heuristics, but click-to-focus on the label no longer reaches the input.
-2. `aria-invalid` lands on the `<div>`, so the Tailwind selector `aria-[invalid=true]:border-danger` in `baseClasses` (input.tsx:16) never matches the actual `<input>` element — Zod validation errors will not turn the password border red.
-3. The `id={formItemId}` ends up on the `<div>`, not the `<input>` — duplicate IDs in the DOM if multiple password fields render (reset mode renders token + newPassword).
+1. `<FormLabel htmlFor={formItemId}>` (form.tsx:99) targets the `<div>`, breaking the `<label for>` ↔ `<input>` association (WCAG 2 SC 1.3.1 / SC 3.3.2); click-to-focus on the label no longer reaches the input.
+2. `aria-invalid` lands on the `<div>`, so the `aria-[invalid=true]:border-danger` selector in `baseClasses` (input.tsx:16) never matches the `<input>` — Zod errors won't turn the password border red.
+3. `id={formItemId}` sits on the `<div>`; in reset mode two password-family fields render (token + newPassword), risking duplicate/misplaced IDs.
 
-The test suite did not catch this because `input.test.tsx:35-40` asserts `aria-[invalid=true]` styling against `type="email"` (no wrapper div) and `page.test.tsx:137-141` finds the password by `getByLabelText` (RTL's heuristic-based matcher tolerates broken `htmlFor`).
+The `field.ref` from react-hook-form still reaches the inner input via `forwardRef`, so value binding works — masking the a11y break in tests that use `getByLabelText` (RTL's heuristic matcher tolerates broken `htmlFor`).
 
-**Fix:** Forward the wrapper-relevant props from the `<div>` to the inner `<input>`. Two options:
+**Fix:** Pull the Slot-forwarded props off `...props` and place them on the inner `<input>` for the password branch:
 
 ```tsx
-// Option A — explicit prop forwarding so Slot can still merge onto outer div.
+// input.tsx password branch
+const { id, 'aria-invalid': ariaInvalid, 'aria-describedby': ariaDescribedby, ...rest } = props;
 return (
-  <div className="relative" id={undefined /* leak nothing to wrapper */}>
+  <div className="relative">
     <input
       ref={ref}
-      id={props.id}                    // pull explicitly off ...props before spreading
-      aria-invalid={props['aria-invalid']}
-      aria-describedby={props['aria-describedby']}
+      id={id}
+      aria-invalid={ariaInvalid}
+      aria-describedby={ariaDescribedby}
       type={revealed ? 'text' : 'password'}
       className={cn(baseClasses, 'pr-10', className)}
-      {...props}
+      {...rest}
     />
     {/* eye toggle */}
   </div>
 );
 ```
 
-```tsx
-// Option B — restructure so the <input> is the outer element. Render the eye
-// toggle absolutely-positioned via a sibling that is layered, not parent-wrapped.
-// Requires lifting the position:relative onto a container that wraps Input
-// from outside (FormControl/FormItem already creates one). Less surgical.
-```
-
-Option A is the smaller change. Add a regression test that uses `<Form><FormField><FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" /></FormControl></FormItem></FormField></Form>` and asserts `screen.getByLabelText('Password').tagName === 'INPUT'` plus `expect(input).toHaveAttribute('aria-invalid', 'true')` after a forced error.
+Add a regression test rendering `<Form>…<FormControl><Input type="password" /></FormControl>…` that asserts `screen.getByLabelText('Password').tagName === 'INPUT'` and that a forced error sets `aria-invalid="true"` on that `<input>`.
 
 ---
 
-### WR-02: `dropdown-menu.tsx` uses bare `border` class with no `borderColor.DEFAULT` configured — renders as `currentColor`, not `--color-border`
+### WR-02: `dropdown-menu.tsx` uses bare `border` with no `borderColor.DEFAULT` configured — renders as `currentColor`, not `--color-border` (verified against current code)
 
 **File:** `frontend/src/components/ui/dropdown-menu.tsx:50, 68`
-**Issue:** Lines 50 and 68 use the bare `border` Tailwind utility:
+**Issue:** Lines 50 (`DropdownMenuSubContent`) and 68 (`DropdownMenuContent`) still use the bare `border` utility:
 
-```ts
-"z-50 min-w-[8rem] overflow-hidden rounded-md border bg-surface p-1 text-text shadow-lg ..."
+```
+"z-50 ... rounded-md border bg-surface p-1 text-text shadow-lg ..."
 ```
 
-In `tailwind.config.ts`, `colors.border` is set to `var(--color-border)`, which makes `border-border` resolve to the project's plum-dark border token. But the *bare* `border` utility only emits `border-width: 1px` — the border *color* comes from `theme.borderColor.DEFAULT`, which is not configured. Tailwind v3 Preflight sets `border-color: currentColor` on every element, so the dropdown content renders with a border in `text-text` color (warm white `#F0E8FF` on dark, dark plum `#1A1430` on light). This is visually wrong on the dark sunset palette — a near-white outline around the menu — and contradicts D-09's "borders preferred over shadows" subtle-chrome direction.
+`tailwind.config.ts:16` maps `colors.border → var(--color-border)`, which powers `border-border`. But the **bare** `border` utility only emits `border-width: 1px`; the color comes from `theme.borderColor.DEFAULT`, which is NOT configured anywhere in `tailwind.config.ts` (re-checked — the `theme.extend` block has `colors`, `backgroundImage`, `fontFamily`, `borderRadius`, `boxShadow`, `keyframes`, `animation`, but no `borderColor`). Tailwind v3 Preflight therefore falls back to `border-color: currentColor`, so the menu draws a border in `text-text` color — a near-white outline on the dark sunset surface and a near-black outline on light. Contradicts D-09 subtle-chrome intent. The user-chip dropdown is the live consumer.
 
-The user-chip dropdown (the only Phase-9 consumer) will exhibit this in production.
+Every other Phase-9 primitive (`input.tsx`, `error-alert.tsx`, `button.tsx`, `sso-button.tsx`, and the `DropdownMenuSeparator` at line 166) uses explicit `border-border` / `border-border-subtle` / `bg-border-subtle` — only these two dropdown-content lines regressed.
 
-**Fix:** Replace `border` with `border border-border` (or `border-border-subtle` to match the rest of the chrome) on both lines:
+**Fix:** Add the explicit color on both lines:
 
-```ts
-// dropdown-menu.tsx:50
-"z-50 min-w-[8rem] overflow-hidden rounded-md border border-border bg-surface ..."
-// dropdown-menu.tsx:68
-"z-50 ... overflow-x-hidden rounded-md border border-border bg-surface ..."
+```
+// line 50 and line 68
+"... rounded-md border border-border bg-surface ..."
 ```
 
-Optionally, set `theme.extend.borderColor.DEFAULT = 'var(--color-border)'` in `tailwind.config.ts` so future shadcn-generated components don't repeat the mistake. (Note: this only affects the dropdown-menu primitive added in this phase — `error-alert.tsx`, `input.tsx`, `button.tsx`, `sso-button.tsx` all use explicit `border-border` / `border-border-subtle` / `border-danger`.)
+Optionally set `theme.extend.borderColor.DEFAULT = 'var(--color-border)'` in `tailwind.config.ts` so future shadcn-generated components inherit the token.
 
 ---
 
-### WR-03: Light theme overrides in `globals.css` only redefine surfaces — sunset accents, gradients, and severity tokens still resolve to dark-theme values
+### WR-04: `useAuth().login` does not catch JSON-parse failures on the 2xx happy path — malformed body surfaces a raw `SyntaxError` (verified against current code)
 
-**File:** `frontend/src/app/globals.css:8-22`
-**Issue:** The `:root[data-theme="light"]` block overrides 11 surface/border/text tokens, but leaves these declared-once-in-sunset.css variables at their dark-theme values when the user picks Light from the user chip:
-- `--color-pink`, `--color-violet`, `--color-amber` (and their `-soft` companions)
-- `--gradient-sunset`, `--gradient-sunset-vertical`, `--gradient-orb`, `--gradient-mesh`
-- `--color-danger`, `--color-danger-soft`, `--color-success`, `--color-success-soft`, `--color-warning`, `--color-info`
-- All `--color-severity-*` tokens
-
-The phase intentionally defers visual polish per D-06, but the *functional* swap is wired up (theme.tsx + user-chip radio + foundation.test.ts), so a user toggling Light today gets a partial swap: cream background with the same pink/violet/amber accents (which look fine) but a `#F87171` red severity-critical pill on a `#FAF7F2` cream background — which has insufficient contrast (axe will fail) and breaks the visual language defined in `references/visual-language.md`. The danger color `#F87171` on the dark plum was tuned for that surface.
-
-`foundation.test.ts:25-35` proves the swap *mechanism* works, but does not assert that severity / danger / success tokens have light-mode equivalents.
-
-**Fix:** Choose one:
-1. (Documented intent) Add a runtime guard in `theme.tsx` that disables the Light radio option (or shows it as "Coming soon" disabled) until D-06 is delivered. This honors the "architecture only, polish deferred" framing instead of half-shipping.
-2. (Minimum to ship Light functionally) Add light-theme overrides for at least danger / severity-critical / severity-high (the only Phase-9-visible consumers via `ErrorAlert` and `LeftPanel` sample vulns) in `globals.css:8-22`. Use the `references/foundation.md` light-mode values if defined; if not defined, flag the gap per the CLAUDE.md "follow the spirit and flag" rule.
-
-Recommend option 1 — Phase 9 doesn't have a visible light-theme acceptance criterion, and shipping a broken theme is worse than shipping no theme.
-
----
-
-### WR-04: `useAuth().login` does not catch JSON-parse failures on the 2xx happy path — malformed response body crashes the form
-
-**File:** `frontend/src/lib/auth.tsx:162-167`
-**Issue:** Compare the two `resp.json()` calls:
+**File:** `frontend/src/lib/auth.tsx:205-210` (login), same shape at `213-228` (register)
+**Issue:** The failure branch is defensive, the success branch is not:
 
 ```ts
-// Failure branch — line 163: defensive
+// auth.tsx:205-210
 if (!resp.ok) {
-  const data = await resp.json().catch(() => ({}));  // ← swallows parse errors
+  const data = await resp.json().catch(() => ({}));      // swallows parse errors
   throw new AuthError(data?.detail || 'Sign-in failed.', resp.status);
 }
-// Success branch — line 166: NOT defensive
-const data = await resp.json();   // ← throws if body is empty or not JSON
+const data = await resp.json();                            // throws on empty / non-JSON body
 storeTokens(data);
 ```
 
-If the backend responds 200 with an empty body, a non-JSON content type, or partial JSON (network truncation, CDN intermediary, misconfigured nginx), `resp.json()` rejects with `SyntaxError: Unexpected end of JSON input`. That rejection propagates out of `login()` un-wrapped — `LoginForm.onSubmit` catches it (`page.tsx:288-297`), but the catch block reads `err?.status` (undefined) and falls through to `err?.message ?? 'Sign-in failed. Try again in a moment.'`, producing the SyntaxError stringified message ("Unexpected end of JSON input") in the user-facing alert. That leaks runtime detail and contradicts D-49 ("401 → generic; other 4xx → pass-through backend message" — a SyntaxError is neither).
+A 200 response with an empty body, wrong content-type, or truncated JSON (CDN/nginx intermediary, network cut) makes `resp.json()` reject with `SyntaxError: Unexpected end of JSON input`. That rejection escapes `login()` un-wrapped; `LoginForm.onSubmit` (`page.tsx:288-297`) catches it, finds `err.status === undefined`, and renders `err.message` — i.e. the stringified `SyntaxError` in the user-facing `<ErrorAlert>`. This leaks runtime detail and violates D-49 (401 → generic; other 4xx → backend message — a `SyntaxError` is neither).
 
-Also note that the `register()` function (line 177) has the same issue — `await resp.json()` before the `if (!resp.ok)` check, which means a 4xx with a non-JSON body crashes register too.
+`register()` (auth.tsx:220) has the same class of bug in the opposite direction: `const data = await resp.json();` runs **before** the `if (!resp.ok)` check (line 221), so a 4xx with a non-JSON body throws inside the `try` and returns the raw error message via `catch (e: any)` at line 225.
 
 **Fix:**
 
 ```ts
-// auth.tsx:162-167
-if (!resp.ok) {
-  const data = await resp.json().catch(() => ({}));
-  throw new AuthError(data?.detail || 'Sign-in failed.', resp.status);
-}
+// login (auth.tsx:209)
 const data = await resp.json().catch(() => null);
-if (!data) {
+if (!data?.access_token) {
   throw new AuthError('Sign-in failed. Try again in a moment.');
 }
 storeTokens(data);
+
+// register (auth.tsx:215-221) — parse defensively AFTER the ok check
+const data = await resp.json().catch(() => ({}));
+if (!resp.ok) return data?.detail || 'Registration failed';
 ```
-
-Same shape for `register()` (line 170-185): parse defensively, treat null as a network-shape error.
-
----
 
 ## Info
 
-### IN-01: `frontend/src/app/(authed)/dashboard/users/page.tsx:420-429` carries dead `timeAgo()` helper
+### IN-01: token-bootstrap `useEffect` deps array omits `fetchMe` / `refreshToken` / `clearAuth` (verified against current code)
 
-**File:** `frontend/src/app/(authed)/dashboard/users/page.tsx:420-429`
-**Issue:** `function timeAgo(iso: string): string` is declared but never referenced in the file. Pre-existing in the v1 file that was moved into the `(authed)` group — not introduced by Phase 9 — but worth dropping now that the file was touched. Trips ESLint `no-unused-vars`.
-**Fix:** Delete the function.
-
----
-
-### IN-02: `frontend/src/app/(authed)/dashboard/cspm/page.tsx:92` declares unused `SOURCES` constant
-
-**File:** `frontend/src/app/(authed)/dashboard/cspm/page.tsx:92`
-**Issue:** `const SOURCES = ["CROWDSTRIKE", "WIZ", "DEFENDER"];` is declared but never iterated. The `selSource` state and filter logic exist, but no UI control reads from `SOURCES`. Pre-existing, but the file was touched in this phase.
-**Fix:** Either render a source-filter chip group (parallel to the SEVERITIES / CATEGORIES / CLOUDS groups at lines 460-477) or delete the constant.
+**File:** `frontend/src/lib/auth.tsx:87-109`
+**Issue:** The mount effect uses `[]` deps but calls `fetchMe`, `refreshToken`, and `clearAuth`, which are plain function declarations re-created every render. Behaviorally fine today (they don't close over mutating state that matters here), but `react-hooks/exhaustive-deps` flags it, and a future edit that adds a state reference inside `fetchMe` would silently run against a stale closure.
+**Fix:** Hoist the three helpers out of the component (preferred — none of them call hooks; they take their inputs as args and use `setToken`/`setUser` which are stable) or wrap in `useCallback` and add to deps.
 
 ---
 
-### IN-03: `accent="blue"` in `users/page.tsx:80` references an undefined color key
+### IN-02: `login` throws `AuthError`; `loginSSO` throws plain `Error` — asymmetric error contracts (verified against current code)
 
-**File:** `frontend/src/app/(authed)/dashboard/users/page.tsx:80, 391-395`
-**Issue:** `<StatCard label="Assigned Devices" value={stats.assigned_assets} accent="blue" />` passes `accent="blue"`, but the `colors` map inside `StatCard` (line 392-395) only defines `emerald | orange | indigo | blue | gray` — actually `blue` *is* defined, so this works. False alarm; ignore. (Removing this on second read — leaving the entry only to record that I checked it.)
-**Fix:** N/A — `blue` is defined in the colors map.
-
----
-
-### IN-04: `useEffect` deps array on load-token effect omits `fetchMe` / `refreshToken` / `clearAuth`
-
-**File:** `frontend/src/lib/auth.tsx:68-90`
-**Issue:** The token-bootstrap effect runs on mount with `[]` deps but references three locally-declared functions. Works correctly because those functions don't capture mutating state, but ESLint `react-hooks/exhaustive-deps` will flag it. Future readers will assume the functions are stable references when they are actually re-created every render.
-**Fix:** Either hoist the helpers out of the component (preferred — they don't use hooks) or wrap them in `useCallback` and add to deps. Hoisting would also resolve a latent risk: if a future refactor adds state references inside `fetchMe`, the effect would silently use a stale closure.
+**File:** `frontend/src/lib/auth.tsx:190-211 (login)` vs `236-262 (loginSSO)`
+**Issue:** `login()` throws a typed `AuthError` carrying `.status`; `loginSSO()` throws a plain `Error` with the verbatim D-51 copy. Consumers in `page.tsx` read them differently — password path via `(e as { status?; message? })` (page.tsx:290), SSO path via `e instanceof Error` (page.tsx:245). The divergence is intentional (D-49 status-mapping vs D-51 verbatim-copy) but invites reader confusion.
+**Fix:** Either throw `AuthError` from `loginSSO` with `status: undefined` so both call sites share one type, or add a one-line comment at the `loginSSO` throw boundary documenting why the contract differs. Informational only.
 
 ---
 
-### IN-05: `loginSSO` throws `Error`; `login` throws `AuthError` — asymmetric error contracts for a parallel API
+### IN-03: `any` and untyped JSON access at the auth response boundary (verified against current code)
 
-**File:** `frontend/src/lib/auth.tsx:147-168, 193-219`
-**Issue:** `login()` throws a typed `AuthError` carrying `.status`. `loginSSO()` throws a plain `Error`. Both are caught by parallel call sites in `/login/page.tsx`. The asymmetry is intentional (D-49 vs D-51) but the consumer (page.tsx) reads them via `e instanceof Error` for SSO and `(e as { status?: number; message?: string })` for password. A reader skimming both files reasonably expects one error type.
-**Fix:** Either (a) throw `AuthError` from `loginSSO` with `status: undefined` so both consumers can use the same type, or (b) leave as-is and add a one-line comment at `loginSSO`'s try/catch boundary noting why the contract diverges. Either is acceptable; this is informational.
-
----
-
-### IN-06: `auth.tsx:133, 170, 182, 285-286` use `any` and untyped JSON access
-
-**File:** `frontend/src/lib/auth.tsx:133-137 (storeTokens), 170-185 (register), 290-291 (login form err)`
-**Issue:** `storeTokens(data: any)` and `register` `catch (e: any)` defeat the type system precisely at the auth boundary — where attacker-controlled response shapes are parsed. While runtime behavior is fine (defensive optional-chaining throughout), tightening these to `unknown` + a Zod schema for the login/register response would catch shape regressions at the API boundary.
-**Fix:** Define a `LoginResponse` Zod schema in `lib/validation/auth.ts` (alongside the existing input schemas), parse `data` against it in `storeTokens`, and type the function accordingly. Treat schema mismatch as an `AuthError`.
+**File:** `frontend/src/lib/auth.tsx:166 (storeTokens(data: any)), 225 (register catch (e: any))`
+**Issue:** `storeTokens(data: any)` and `register`'s `catch (e: any)` defeat the type system exactly where attacker-influenced response shapes are parsed. Runtime is defensive (optional access, string fallbacks), so this is quality not correctness. `applyAuthData` already uses `unknown` + a narrow cast (line 178-181) — `storeTokens` should match.
+**Fix:** Define a `LoginResponse` Zod schema in `lib/validation/auth.ts` alongside the existing input schemas, parse `data` in `storeTokens`, type the param, and treat a schema mismatch as an `AuthError`. Change `catch (e: any)` to `catch (e: unknown)` with a narrowing check.
 
 ---
 
-_Reviewed: 2026-05-13T07:10:57Z_
+_Reviewed: 2026-07-23T00:00:00Z (re-review of 2026-05-13 original)_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_

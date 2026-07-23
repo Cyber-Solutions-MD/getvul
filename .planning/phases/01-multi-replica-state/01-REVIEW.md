@@ -1,8 +1,8 @@
 ---
 phase: 01-multi-replica-state
-reviewed: 2026-05-09T00:00:00Z
+reviewed: 2026-07-23T00:00:00Z
 depth: standard
-files_reviewed: 9
+files_reviewed: 10
 files_reviewed_list:
   - backend/app/auth/router.py
   - backend/app/main.py
@@ -12,58 +12,68 @@ files_reviewed_list:
   - backend/tests/test_multi_replica.py
   - backend/tests/test_oidc_state.py
   - backend/tests/test_rate_limit.py
-  - doc/security.md
+  - docs/16-security.md
+  - nginx/nginx.conf
 findings:
   critical: 0
-  warning: 4
-  info: 6
+  warning: 3
+  info: 7
   total: 10
 status: issues_found
 ---
 
-# Phase 1: Code Review Report
+# Phase 1: Code Review Report (Re-review)
 
-**Reviewed:** 2026-05-09
+**Reviewed:** 2026-07-23
 **Depth:** standard
-**Files Reviewed:** 9
 **Status:** issues_found
 
 ## Summary
 
-Phase 1 (multi-replica-state) replaces in-memory `_pending_states` and `_rate_limit_store` with Redis-backed equivalents and introduces a `create_app()` factory plus a `get_redis()` dependency. The core mechanics are sound:
+This is a **re-review** of a shipped phase (v1.0). The prior REVIEW.md (2026-05-09)
+flagged 0 critical / 4 warning / 6 info. Each prior finding was verified against the
+**current** code (post-v1.0-ship, post-v2.1-cleanup). Notable reconciliation changes:
 
-- OIDC state uses `SET NX EX 600` (atomic create-with-TTL) and `GETDEL` (atomic consume) with **fail-CLOSED → 503** on `RedisError`. Provider mismatch correctly burns the state to prevent replay against the matching provider.
-- Rate limiter uses a sorted-set sliding window inside `MULTI/EXEC` (`pipeline(transaction=True)`) with a uuid-suffixed member to defeat sub-ms ZADD coalescing (RESEARCH Pitfall 1). It **fails OPEN** on `RedisError` with a structlog warning — matching D-05/D-19.
-- Tests cover both single-replica unit semantics and cross-replica state visibility through two independent `create_app()` instances against a shared Redis db=1, including a Redis-outage failure-mode test that asserts both fail-modes simultaneously.
+- **`doc/security.md` no longer exists** — it was relocated to `docs/16-security.md`
+  (commit `ecf3d13`, "docs: relocate doc/ → docs/ (rename only)"). All prior line
+  references into `doc/security.md` are stale; the equivalent claims were re-verified
+  against `docs/16-security.md`.
+- **Prior WR-01 (auth endpoints bypass rate limiter) is now substantially mitigated.**
+  The application middleware still only rate-limits `/api/` (`main.py:198`), but
+  `nginx/nginx.conf` now applies `limit_req zone=auth rate=5r/s burst=10 nodelay` to
+  `location /auth/` in both the HTTP and HTTPS server blocks. Since the deployment is
+  Docker Compose with nginx in front of the backend (per CLAUDE.md), the Redis-memory
+  amplification via `GET /auth/login/{provider}` is now bounded to ~5 keys/s/IP. The
+  prior finding's own recommended minimum ("document that Nginx rate-limits /auth/*")
+  is satisfied by explicit config. Downgraded from Warning to Info as a residual
+  defense-in-depth gap (see IN-01).
+- **WR-02, WR-03, WR-04 remain unfixed** in current code and are retained as Warnings.
+- All six prior Info items remain (IN-06 narrowed: `auth_config` no longer takes
+  `body: dict`).
 
-The findings below are predominantly maintainability and defensive-coding issues. There are no critical security defects in the new code; the lone correctness concern is a CORS configuration that pre-dates this phase but lives in a touched file (W-04). The most operationally relevant finding is W-01: `/auth/login/{provider}` writes a Redis key per call but is excluded from rate limiting, opening a small Redis-memory amplification vector.
+The core Phase 1 mechanics remain sound and unchanged: OIDC state uses `SET NX EX 600`
++ `GETDEL` with fail-CLOSED → 503; the rate limiter uses a `MULTI/EXEC` sorted-set
+sliding window with a uuid-suffixed member and fails OPEN on `RedisError`. No critical
+security defects. The lone correctness concern is the CORS wildcard (WR-03), which
+pre-dates this phase but lives in a phase-1 touched file.
 
 ## Warnings
 
-### WR-01: `/auth/*` endpoints write Redis state but bypass the rate limiter
+### WR-01: Lifespan shutdown does not isolate scheduler stop from Redis-close failure
 
-**File:** `backend/app/main.py:111`
-**Issue:** `TenantRateLimitMiddleware.dispatch` early-returns when `request.url.path` does not start with `/api/`. Phase 1 makes `/auth/login/{provider}` write a fresh `oidc:state:<token>` key (ex=600) on every call. With no rate limit on `/auth/*`, an unauthenticated client can rapidly call `GET /auth/login/google` to flood Redis with short-lived state keys. Each key is small, but `secrets.token_urlsafe(32)` guarantees uniqueness so `nx=True` never deduplicates, and the 10-minute TTL means keys accumulate per attacker for the entire window. This is a Redis-memory DoS vector that did not exist in the in-memory implementation (which had a process-local dict).
-**Fix:** Either widen the limiter's path filter to include `/auth/login/` and `/auth/callback/`, or add a dedicated lower-cap limiter for unauthenticated auth endpoints keyed by client IP:
+**File:** `backend/app/main.py:148-156`
+**Status:** Verified against current code — still present (prior WR-02).
+**Issue:** Shutdown ordering is unchanged and unguarded:
 ```python
-async def dispatch(self, request: Request, call_next):
-    path = request.url.path
-    if not (path.startswith("/api/") or path.startswith("/auth/login/") or path.startswith("/auth/callback/")):
-        return await call_next(request)
-    ...
+yield
+await app.state.redis.aclose()          # line 150
+if settings.environment in ("development", "production"):
+    from app.connectors.scheduler import stop_scheduler
+    stop_scheduler()                      # line 156
 ```
-At minimum, document the assumption that an upstream proxy (Nginx) rate-limits `/auth/*` — `doc/security.md:86` already mentions Nginx rate limiting, but the phase 1 code now relies on it for correctness, which should be made explicit.
-
-### WR-02: Lifespan shutdown does not isolate scheduler stop from Redis-close failure
-
-**File:** `backend/app/main.py:74-80`
-**Issue:** Shutdown ordering is:
-```python
-await app.state.redis.aclose()        # line 74
-if settings.environment in (...):
-    stop_scheduler()                   # line 80
-```
-If `aclose()` raises (network error, already-closed pool, etc.), `stop_scheduler()` never runs and the background sync scheduler leaks across reload. There is no `try/except` around either call, and they are not independent in the failure sense.
+If `aclose()` raises (network error, already-closed pool), `stop_scheduler()` never
+runs and the background sync scheduler leaks across reload. No `try/except` wraps
+either step; they are not independent in the failure sense.
 **Fix:** Wrap each shutdown step independently and log failures:
 ```python
 yield
@@ -81,64 +91,108 @@ if settings.environment in ("development", "production"):
         logger.exception("scheduler_stop_failed")
 ```
 
-### WR-03: Empty `except Exception: pass` swallows all syslog setup errors
+### WR-02: Empty `except Exception: pass` swallows all syslog setup errors
 
-**File:** `backend/app/main.py:53-70`
-**Issue:** The lifespan startup block that loads syslog config from the first tenant is wrapped in a bare `try: ... except Exception: pass`. Any failure — DB unreachable, missing column, malformed `syslog_config` JSON, type errors in `configure_syslog` — is silently dropped. Operators get no signal that audit-syslog forwarding never started, even though `doc/security.md:73-77` advertises SIEM forwarding as a security feature.
+**File:** `backend/app/main.py:145-146`
+**Status:** Verified against current code — still present (prior WR-03).
+**Issue:** The lifespan startup block that loads syslog config from the first tenant
+(`main.py:129-144`) is wrapped in a bare `try: ... except Exception: pass`. Any
+failure — DB unreachable, missing column, malformed `syslog_config` JSON, type errors
+in `configure_syslog` — is silently dropped. Operators get no signal that audit-syslog
+forwarding never started, even though `docs/16-security.md:225-230` still advertises
+CEF SIEM/Syslog forwarding as a security feature.
 **Fix:** Log the exception instead of silently swallowing it:
 ```python
-try:
-    ...
-    configure_syslog(...)
 except Exception:
     logger.exception("syslog_setup_failed_at_startup")
 ```
 
-### WR-04: CORS `allow_origins` uses a wildcard subdomain that Starlette treats as a literal
+### WR-03: CORS `allow_origins` uses a wildcard subdomain that Starlette treats as a literal
 
-**File:** `backend/app/main.py:181`
-**Issue:** `allow_origins=["http://localhost:3000"] if settings.debug else ["https://*.getvul.app"]`. Starlette's `CORSMiddleware` does **not** expand wildcards in `allow_origins` — the string `"https://*.getvul.app"` is matched literally against the `Origin` header, so no real subdomain (e.g., `https://app.getvul.app`) will ever match in production. Either CORS is silently denied for every cross-origin request in prod (breaks SPA) or — if the production deployment somehow works — it's because cross-origin requests aren't actually happening, which means the rule is dead code. This is pre-existing (not introduced by Phase 1), but lives in a phase-1 touched file.
+**File:** `backend/app/main.py:289`
+**Status:** Verified against current code — still present (prior WR-04).
+**Issue:** `allow_origins=["http://localhost:3000"] if settings.debug else ["https://*.getvul.app"]`.
+Starlette's `CORSMiddleware` does **not** expand wildcards in `allow_origins` — the
+string `"https://*.getvul.app"` is matched literally against the `Origin` header, so no
+real subdomain (e.g. `https://app.getvul.app`) will ever match in production. Either
+CORS is silently denied for every cross-origin request in prod, or the rule is dead
+code because no genuine cross-origin request is being made. Pre-existing (not
+introduced by Phase 1), but lives in a phase-1 touched file.
 **Fix:** Use `allow_origin_regex` for subdomain matching:
 ```python
 if settings.debug:
     cors_kwargs = {"allow_origins": ["http://localhost:3000"]}
 else:
     cors_kwargs = {"allow_origin_regex": r"https://[a-z0-9-]+\.getvul\.app"}
-app.add_middleware(CORSMiddleware, **cors_kwargs, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, **cors_kwargs, allow_credentials=True,
+                   allow_methods=["*"], allow_headers=["*"])
 ```
 
 ## Info
 
-### IN-01: Duplicate `uuid` import (`uuid` and `uuid as _uuid`)
+### IN-01: `/auth/*` endpoints bypass the application-level rate limiter (defense-in-depth gap)
 
-**File:** `backend/app/main.py:4-5`
-**Issue:** `import uuid` (used for `uuid.uuid4()` in the limiter at line 131) and `import uuid as _uuid` (used for `_uuid.UUID(report_id)` in the report endpoints) refer to the same module. The alias adds noise without disambiguating anything.
-**Fix:** Drop `import uuid as _uuid` and use `uuid.UUID(report_id)` everywhere.
-
-### IN-02: Redundant `UTC` / `timezone` imports
-
-**File:** `backend/app/main.py:7`
-**Issue:** `from datetime import UTC, datetime, timezone` brings in two equivalent symbols; line 254 uses `timezone.utc` while line 385 uses `UTC`. Pick one for consistency. ruff's `UP017` is intentionally disabled (per `pyproject.toml:65`) so this is style-only.
-**Fix:** Standardize on `UTC` and drop `timezone` from the import:
+**File:** `backend/app/main.py:198`
+**Status:** Verified against current code — app code unchanged, but the real DoS
+vector is now mitigated at the deployment layer (downgraded from prior WR-01).
+**Issue:** `TenantRateLimitMiddleware.dispatch` still early-returns unless
+`request.url.path` starts with `/api/`, so `/auth/login/{provider}` — which writes a
+fresh `oidc:state:<token>` key (`ex=600`, `nx=True`) per call via `router.py:47` — is
+not rate-limited by the app. However, `nginx/nginx.conf` now applies
+`limit_req zone=auth rate=5r/s burst=10 nodelay` to `location /auth/` in both server
+blocks, bounding key creation to ~5/s/IP. The application itself still relies on the
+upstream proxy for this protection (no in-process cap).
+**Fix (optional, defense-in-depth):** Widen the limiter path filter so the app does not
+depend solely on nginx:
 ```python
-from datetime import UTC, datetime
+path = request.url.path
+if not (path.startswith("/api/") or path.startswith("/auth/login/")
+        or path.startswith("/auth/callback/")):
+    return await call_next(request)
 ```
 
-### IN-03: Tenant key falls back to literal string `"None"` if JWT has empty `tenant_id`
+### IN-02: Duplicate `uuid` import (`uuid` and `uuid as _uuid`)
 
-**File:** `backend/app/main.py:122`
-**Issue:** `decode_token` (in `app/auth/jwt.py:90-97`) constructs `TokenPayload` with `tenant_id=payload.get("tenant_id", "")`. If a token is well-formed but missing `tenant_id`, the limiter key becomes `"ratelimit:"` (empty string) — a single shared bucket for all such tokens. Edge case (system-issued tokens shouldn't lack `tenant_id`), but worth a guard.
-**Fix:** Treat empty/None `tenant_id` as `"anonymous"`:
+**File:** `backend/app/main.py:6-7`
+**Status:** Verified against current code — still present (prior IN-01).
+**Issue:** `import uuid` (used for `uuid.uuid4()` in the limiter, line 218, and
+`RequestIdMiddleware`, line 263) and `import uuid as _uuid` (used for
+`_uuid.UUID(report_id)` in the report endpoints) refer to the same module. The alias
+adds noise without disambiguating anything.
+**Fix:** Drop `import uuid as _uuid` and use `uuid.UUID(report_id)` everywhere.
+
+### IN-03: Redundant `UTC` / `timezone` imports
+
+**File:** `backend/app/main.py:9`
+**Status:** Verified against current code — still present (prior IN-02).
+**Issue:** `from datetime import UTC, datetime, timezone` brings in two equivalent
+symbols; line 409 uses `timezone.utc` while line 540 uses `UTC`. ruff's `UP017` is
+intentionally disabled (`pyproject.toml:65`) so this is style-only.
+**Fix:** Standardize on `UTC` and drop `timezone`: `from datetime import UTC, datetime`.
+
+### IN-04: Empty `tenant_id` collapses all such callers into one shared rate-limit bucket
+
+**File:** `backend/app/main.py:209`
+**Status:** Verified against current code — still present (prior IN-03).
+**Issue:** Line 203 defaults `tenant_key = "anonymous"`, but on a successful Bearer
+decode line 209 does `tenant_key = payload.tenant_id` with no fallback. `decode_token`
+builds `TokenPayload` with `tenant_id=payload.get("tenant_id", "")`, so a well-formed
+token missing `tenant_id` yields key `"ratelimit:"` — a single shared bucket for all
+such tokens. Edge case, but worth a guard.
+**Fix:**
 ```python
 payload = decode_token(auth[7:])
 tenant_key = payload.tenant_id or "anonymous"
 ```
 
-### IN-04: Bare `except Exception` in JWT decode for limiter
+### IN-05: Bare `except Exception` in JWT decode for the limiter
 
-**File:** `backend/app/main.py:123`
-**Issue:** `try: ... except Exception: pass` swallows every error during the JWT decode step inside the limiter. Functionally fine for malformed/expired tokens (intentional fall-through to `tenant_key = "anonymous"`), but it also masks programming errors in `decode_token` itself. Narrow the except to `JWTError` (or `(JWTError, IndexError, ValueError)`) to keep the safety net while still surfacing logic bugs.
-**Fix:**
+**File:** `backend/app/main.py:210-211`
+**Status:** Verified against current code — still present (prior IN-04).
+**Issue:** `try: ... except Exception: pass` swallows every error during the JWT decode
+inside the limiter. Correct for malformed/expired tokens (intentional fall-through to
+`tenant_key = "anonymous"`), but it also masks programming errors in `decode_token`.
+**Fix:** Narrow to `JWTError`:
 ```python
 from jose.exceptions import JWTError
 ...
@@ -149,25 +203,41 @@ except JWTError:
     pass
 ```
 
-### IN-05: Token-exchange error reflects raw provider message into the response body
+### IN-06: Token-exchange error reflects raw provider message into the response body
 
-**File:** `backend/app/auth/router.py:81-82, 87-88`
-**Issue:** `raise HTTPException(status_code=400, detail=f"Token exchange failed: {e}")` and `f"Failed to fetch user info: {e}"` both interpolate the IdP-side exception text directly into the user-visible error. If the IdP returns an unusual error body, this leaks integration internals to the caller. Low severity — these endpoints are also reachable only with a valid `state` cookie, which limits exposure.
-**Fix:** Log full detail, return generic message:
+**File:** `backend/app/auth/router.py:82, 88`
+**Status:** Verified against current code — still present (prior IN-05).
+**Issue:** `raise HTTPException(status_code=400, detail=f"Token exchange failed: {e}")`
+(line 82) and `f"Failed to fetch user info: {e}"` (line 88) interpolate the IdP-side
+exception text directly into the user-visible error, leaking integration internals.
+Low severity — these endpoints require a valid consumed `state`, which limits exposure.
+**Fix:** Log full detail, return a generic message:
 ```python
 except Exception:
     logger.exception("oidc_token_exchange_failed", provider=provider)
     raise HTTPException(status_code=400, detail="Token exchange failed")
 ```
 
-### IN-06: Password-auth route handlers accept untyped `body: dict`
+### IN-07: Password-auth route handlers accept untyped `body: dict`
 
-**File:** `backend/app/auth/router.py:142, 173, 196, 217, 234, 256`
-**Issue:** `register`, `login_password`, `change_password_endpoint`, `forgot_password`, `reset_password`, and `auth_config` declare `body: dict` and pull fields with `body.get(...)`. This bypasses Pydantic schema validation, contradicting `doc/security.md:101` ("Pydantic schemas validate all API request bodies"). Pre-existing, not changed by Phase 1, but the file is in scope for review.
-**Fix:** Define Pydantic models in `app/auth/schemas.py` (e.g. `RegisterRequest`, `LoginRequest`, `ResetPasswordRequest`) and replace `body: dict` with the typed model. This also gives FastAPI automatic 422 responses on malformed input and removes the silent `body.get("password", "")` fallbacks that swallow missing fields.
+**File:** `backend/app/auth/router.py:143, 173, 196, 251, 267`
+**Status:** Verified against current code — still present, narrowed (prior IN-06).
+`auth_config` (now `router.py:290`) no longer takes `body: dict` (it takes a
+`tenant_slug` query param), so it is removed from this finding.
+**Issue:** `register` (143), `login_password` (173), `change_password_endpoint` (196),
+`forgot_password` (251), and `reset_password` (267) declare `body: dict` and pull
+fields with `body.get(...)`. This bypasses Pydantic schema validation, contradicting
+`docs/16-security.md:254` ("Pydantic schemas validate all API request bodies"). It also
+silently swallows missing fields via fallbacks like `body.get("password", "")`.
+Pre-existing; the file is in scope for review. (Note: several `body: dict` endpoints
+also exist in `main.py` — reports/SMTP/certificates — outside this phase's original
+scope but exhibiting the same pattern.)
+**Fix:** Define Pydantic models in `app/auth/schemas.py` (e.g. `RegisterRequest`,
+`LoginRequest`, `ResetPasswordRequest`) and replace `body: dict` with the typed model,
+giving FastAPI automatic 422 responses on malformed input.
 
 ---
 
-_Reviewed: 2026-05-09_
+_Reviewed: 2026-07-23 (re-review of 2026-05-09 original)_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
