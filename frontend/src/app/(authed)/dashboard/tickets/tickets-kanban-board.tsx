@@ -85,14 +85,18 @@ function makeKanbanColumnCoordinateGetter(
     event.preventDefault();
 
     const direction = code === 'ArrowRight' ? 1 : -1;
-    columnIndexRef.current = Math.min(
+    // 22-IN-02: resolve the target index into a local and confirm the target
+    // column's rect is measured BEFORE committing the ref. If the rect is
+    // momentarily unavailable we return undefined (no move) without advancing
+    // columnIndexRef — otherwise the next arrow press would increment from a
+    // stale index and skip a column, desyncing the tracked index from the drag.
+    const target = Math.min(
       Math.max(columnIndexRef.current + direction, 0),
       COLUMN_ORDER.length - 1,
     );
-    const nextColumnId = COLUMN_ORDER[columnIndexRef.current];
-
-    const rect = context.droppableContainers.get(nextColumnId)?.rect.current;
+    const rect = context.droppableContainers.get(COLUMN_ORDER[target])?.rect.current;
     if (!rect) return undefined;
+    columnIndexRef.current = target;
 
     // 22-01 gate fix (WR-02 test discovery): target the CENTER of the target
     // column's own rect, not the y carried over from the origin column.
