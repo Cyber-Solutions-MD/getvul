@@ -239,5 +239,16 @@ Plans:
 
 _Source: Phase 16 REVIEW IN-02 (advisory Info, no per-phase change needed), reinforced by Phase 20 carrying the same retire-on-resync pattern._
 
+### Phase 999.2: Harden forced-rotation password policy (complexity + history) (BACKLOG)
+
+**Goal:** Replace the ad-hoc default-credential rejection on the forced-rotation endpoint (`backend/app/auth/router.py`) with a real password policy. Phase 06 WR-01 closed the exact-literal and whitespace/case-variant + current-password-reuse bypasses, but near-variants like `Admin1234!` still pass because `DEFAULT_POLICY` has `history_count=0` and all complexity flags `False`. Introduce configurable complexity requirements (length/character-class), a password-history check (`history_count > 0`), and optionally a similarity/edit-distance guard against the known default and the previous password.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+_Source: Phase 06 REVIEW re-review (2026-07-23) WR-01 residual — the fixer flagged full complexity/history policy as follow-up beyond the safe subset it applied._
+
 ---
 *Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings. v2.2 collapsed to archive 2026-07-22 on milestone completion.*
