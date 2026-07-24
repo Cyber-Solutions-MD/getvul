@@ -22,9 +22,8 @@ jobs:
     name: Docs
     runs-on: ubuntu-latest
     steps:
-      # Pinned to an immutable commit SHA (supply-chain hardening). The other jobs
-      # in this file still use the mutable @v5/@vX tags — pinning them all is tracked
-      # separately (Phase 02 pre-existing semgrep github-actions-mutable-action-tag).
+      # All action uses in this workflow are pinned to immutable commit SHAs
+      # (supply-chain hardening; the trailing "# vN" records the human-readable tag).
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Verify CI-gating docs are in sync
         run: bash .github/verify-docs.sh
@@ -59,9 +58,9 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install dependencies
@@ -97,7 +96,7 @@ jobs:
         run: pytest -v --cov=app --cov-report=xml
       - name: Upload coverage
         if: github.event_name == 'pull_request'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           file: backend/coverage.xml
           flags: backend
@@ -109,9 +108,9 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -134,9 +133,9 @@ jobs:
       run:
         working-directory: infra
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_version: "1.7"
       - name: Terraform fmt
@@ -152,7 +151,7 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Run Semgrep (publish to semgrep.dev)
         run: semgrep ci
         env:
@@ -164,7 +163,7 @@ jobs:
     needs: [backend, frontend]
     if: github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Start application stack
         run: |
@@ -183,7 +182,7 @@ jobs:
           curl -sf http://localhost:3000 > /dev/null 2>&1 || echo "Frontend not ready — skipping frontend scan"
 
       - name: ZAP API Scan (OpenAPI)
-        uses: zaproxy/action-api-scan@v0.10.0
+        uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
         with:
           target: http://localhost:8000/openapi.json
           cmd_options: "-a"
@@ -192,7 +191,7 @@ jobs:
         continue-on-error: true
 
       - name: ZAP Baseline Scan (Backend)
-        uses: zaproxy/action-baseline@v0.15.0
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           target: http://localhost:8000
           cmd_options: "-a"
@@ -201,7 +200,7 @@ jobs:
         continue-on-error: true
 
       - name: ZAP Baseline Scan (Frontend)
-        uses: zaproxy/action-baseline@v0.15.0
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           target: http://localhost:3000
           cmd_options: "-a"
