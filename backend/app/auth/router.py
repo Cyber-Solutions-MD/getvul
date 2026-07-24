@@ -223,17 +223,15 @@ async def change_password_endpoint(
     if flag_was_set:
         from app.auth.password import verify_password
 
-        _DEFAULT_INSTALL_CREDENTIAL = "Admin123!"
-        if new_password.strip().casefold() == _DEFAULT_INSTALL_CREDENTIAL.casefold():
+        default_install_credential = "Admin123!"
+        if new_password.strip().casefold() == default_install_credential.casefold():
             raise HTTPException(400, "Choose a password other than the default install credential")
 
         from sqlalchemy import select
 
         from app.tenants.models import User
 
-        current_hash = (
-            await db.execute(select(User.password_hash).where(User.id == user.id))
-        ).scalar_one_or_none()
+        current_hash = (await db.execute(select(User.password_hash).where(User.id == user.id))).scalar_one_or_none()
         if current_hash and verify_password(new_password, current_hash):
             raise HTTPException(400, "Choose a password different from your current one")
 
