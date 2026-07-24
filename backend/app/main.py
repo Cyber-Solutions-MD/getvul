@@ -290,6 +290,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    cors_origin_kwargs: dict[str, Any]
     if settings.debug:
         cors_origin_kwargs = {"allow_origins": ["http://localhost:3000"]}
     else:
