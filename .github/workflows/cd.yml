@@ -11,7 +11,8 @@ on:
         required: false
 
 env:
-  VM_HOST: ${{ secrets.GCE_VM_IP }}
+  # VM_HOST (a secret) is NOT declared here — a workflow-level env secret is exposed to
+  # every step. It is scoped to only the two steps that use it (Deploy to VM, Verify).
   VM_USER: deploy
 
 jobs:
@@ -19,7 +20,8 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      # Pinned to an immutable commit SHA (supply-chain hardening; trailing # vN = tag).
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Resolve deploy tag
         env:
@@ -64,6 +66,8 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy to VM
+        env:
+          VM_HOST: ${{ secrets.GCE_VM_IP }}
         run: |
           # Pass DEPLOY_TAG as a remote environment variable (allowlisted above) and
           # use a QUOTED heredoc so the VM-side shell performs all $(...)/$var
@@ -109,6 +113,8 @@ jobs:
           DEPLOY
 
       - name: Verify deployment
+        env:
+          VM_HOST: ${{ secrets.GCE_VM_IP }}
         run: |
           sleep 5
           STATUS=$(curl -sf "http://${{ env.VM_HOST }}/health" | grep -o '"status":"ok"' || echo "FAILED")
