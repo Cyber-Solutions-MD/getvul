@@ -14,6 +14,21 @@ env:
   NODE_VERSION: "20"
 
 jobs:
+  docs:
+    # Guards against doc/CI drift shipping silently (Phase 2 IN-04): verify-docs.sh
+    # asserts the CI-gating docs stay in sync with the workflow (required-check names,
+    # branch-protection.json reference, and no stale "workflow_dispatch only" wording).
+    # Not yet a required check — add "Docs" to .github/branch-protection.json to block on it.
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to an immutable commit SHA (supply-chain hardening). The other jobs
+      # in this file still use the mutable @v5/@vX tags — pinning them all is tracked
+      # separately (Phase 02 pre-existing semgrep github-actions-mutable-action-tag).
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Verify CI-gating docs are in sync
+        run: bash .github/verify-docs.sh
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
