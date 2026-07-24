@@ -52,14 +52,23 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.GCE_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Trust ONLY the pre-verified host key from the secret — no TOFU ssh-keyscan.
+          # GCE_KNOWN_HOSTS must hold the VM's real host key, captured out-of-band and
+          # fingerprint-verified (see 03-REVIEW-FIX.md). Fail loudly if it is unset so a
+          # misconfigured secret surfaces here rather than silently disabling verification.
+          if [ -z "${{ secrets.GCE_KNOWN_HOSTS }}" ]; then
+            echo "ERROR: GCE_KNOWN_HOSTS secret is empty — refusing to deploy without a trusted host key." >&2
+            exit 1
+          fi
+          echo "${{ secrets.GCE_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy to VM
         run: |
           # Pass DEPLOY_TAG as a remote environment variable (allowlisted above) and
           # use a QUOTED heredoc so the VM-side shell performs all $(...)/$var
           # expansion — nothing from the workflow is expanded host-side.
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${{ env.VM_USER }}@${{ env.VM_HOST }}" DEPLOY_TAG="$DEPLOY_TAG" bash -s << 'DEPLOY'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "${{ env.VM_USER }}@${{ env.VM_HOST }}" DEPLOY_TAG="$DEPLOY_TAG" bash -s << 'DEPLOY'
             set -e
             cd /opt/getvul
 
