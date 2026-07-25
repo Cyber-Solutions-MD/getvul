@@ -1,32 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.2
-milestone_name: Deferred UI Features
-status: v2.2 milestone complete
-last_updated: "2026-07-22T10:43:33.215Z"
+milestone: v3.0
+milestone_name: AI-Assisted Triage
+status: Defining requirements
+last_updated: "2026-07-25T00:00:00.000Z"
 progress:
-  total_phases: 15
-  completed_phases: 14
-  total_plans: 43
-  completed_plans: 44
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # STATE — GetVul GSD Session Memory
 
 ## Project Reference
 
-See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-22)
+See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
 
-**Current focus:** No active milestone. v2.2 Deferred UI Features COMPLETE & ARCHIVED 2026-07-22. Start the next with `/gsd-new-milestone`.
+**Current focus:** v3.0 AI-Assisted Triage ("Triage Copilot") — STARTED 2026-07-25. Defining requirements → roadmap. LLM-assisted summarize/prioritize/remediate/draft, grounded in the tenant's own correlated data, with evals + prompt-injection/PII/cost guardrails. Precursor: fix Wiz/Rapid7 ingestion + close scanner test gap first.
 
 ## Current Position
 
-Milestone: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements). Tagged `v2.2`.
-Next: `/gsd-new-milestone` (no queued milestone remains — all of v1.0, v2.0, v2.1, v2.2 shipped). Candidates: deploy/remote reconciliation, backlog cleanup, or a v2.3 UI line — see PROJECT.md "Next Milestone (candidate)".
-Prior: Phase 22 (kanban-wizard-test-coverage) COMPLETE & VERIFIED (7/7 must-haves) — closed the two v2.2-audit coverage warnings with live deterministic e2e.
+Milestone: v3.0 AI-Assisted Triage — 🚧 STARTED 2026-07-25 (defining requirements; continues phase numbering from 22). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8), per-tenant configurable.
+Phase: Not started (defining requirements)
+Next: finish `/gsd-new-milestone` (research → REQUIREMENTS.md → ROADMAP.md), then `/gsd-plan-phase 23`.
+Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared.
 Plan: —
 | Field | Value |
 |-------|-------|
