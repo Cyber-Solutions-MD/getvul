@@ -129,4 +129,105 @@ describe('ConnectorCard', () => {
     // MOCK_CONNECTOR.is_enabled = true, so inverse = false
     expect(onToggle).toHaveBeenCalledWith(false);
   });
+
+  // --- Plan 23-09: last-error inline summary + failure count (D-16, D-18) ---
+
+  it('Test 6: failed connector with last_error shows one-line error summary, expandable to full message + timestamp', () => {
+    render(
+      <ConnectorCard
+        connector={{
+          ...MOCK_CONNECTOR,
+          last_sync_status: 'failed',
+          last_error: 'HTTP 503 Service Unavailable · req_8f2a91c',
+          consecutive_failure_count: 1,
+        }}
+        isAdmin={true}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onSync={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+    // One-line summary visible
+    const summary = screen.getByText(/HTTP 503 Service Unavailable/i);
+    expect(summary).toBeTruthy();
+
+    // Expand to reveal full message + last_sync_at timestamp
+    const details = document.querySelector('details');
+    expect(details).not.toBeNull();
+    fireEvent.click(screen.getByText(/HTTP 503 Service Unavailable/i));
+    expect(details?.open).toBe(true);
+  });
+
+  it('Test 7: failed connector with last_error=null shows fallback "Last sync failed" copy', () => {
+    render(
+      <ConnectorCard
+        connector={{
+          ...MOCK_CONNECTOR,
+          last_sync_status: 'failed',
+          last_error: null,
+          consecutive_failure_count: 1,
+        }}
+        isAdmin={true}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onSync={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/last sync failed/i)).toBeTruthy();
+  });
+
+  it('Test 8: healthy (ok) connector shows no error line', () => {
+    render(
+      <ConnectorCard
+        connector={MOCK_CONNECTOR}
+        isAdmin={true}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onSync={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+    expect(document.querySelector('details')).toBeNull();
+    expect(screen.queryByText(/times in a row/i)).toBeNull();
+  });
+
+  it('Test 9: consecutive_failure_count > 1 renders "failed N times in a row"', () => {
+    render(
+      <ConnectorCard
+        connector={{
+          ...MOCK_CONNECTOR,
+          last_sync_status: 'failed',
+          last_error: 'timeout',
+          consecutive_failure_count: 5,
+        }}
+        isAdmin={true}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onSync={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/failed 5 times in a row/i)).toBeTruthy();
+  });
+
+  it('Test 10: consecutive_failure_count <= 1 does not render "times in a row"', () => {
+    render(
+      <ConnectorCard
+        connector={{
+          ...MOCK_CONNECTOR,
+          last_sync_status: 'failed',
+          last_error: 'timeout',
+          consecutive_failure_count: 1,
+        }}
+        isAdmin={true}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onSync={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/times in a row/i)).toBeNull();
+  });
 });
