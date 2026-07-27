@@ -156,7 +156,7 @@ class WizConnector(BaseConnector):
         self,
         credentials: dict[str, Any],
         config: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> bool:
         """Authenticate via OAuth2 client_credentials grant."""
 
         client_id: str = credentials["client_id"]
@@ -186,6 +186,7 @@ class WizConnector(BaseConnector):
         self._client.headers["Authorization"] = f"Bearer {self._token}"
 
         logger.info("wiz.authenticated")
+        return True
 
     # ------------------------------------------------------------------
     # Internal GraphQL helper
