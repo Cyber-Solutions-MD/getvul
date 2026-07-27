@@ -220,7 +220,18 @@ Phases 16–22 finished the four features deferred out of v2.0, each holding the
   3. An analyst can create a Jira ticket directly from a vulnerability, not just receive status-sync updates for tickets created elsewhere — REL-04
   4. GitHub ticketing works end-to-end (create + sync) or is explicitly retired with no dead stub referenced anywhere in the codebase — REL-05
   5. The Connectors UI shows each connector's last sync time, last error, and status — REL-06
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+- [ ] 23-01-PLAN.md — Connector sync bug fixes (Wiz REL-01, Rapid7 REL-02) + verify_tls TLS hardening across 4 sites
+- [ ] 23-02-PLAN.md — HTTP-layer integration tests for CrowdStrike, Defender, Nessus, Qualys (REL-03)
+- [ ] 23-03-PLAN.md — Ticketing provider enum + dispatch Protocol/adapters + JiraClient consolidation + GitHub client methods (REL-04/05 contracts)
+- [ ] 23-04-PLAN.md — Provider dispatch wiring (service + rule engine + router) + tenant-scoped configured-providers endpoint (REL-04/05)
+- [ ] 23-05-PLAN.md — GitHub connector registration (4 backend points) + daily_sync GitHub branch + auto-close (REL-05)
+- [ ] 23-06-PLAN.md — Health prerequisites: migration 030 + model/schema columns + status-mapping fix (SyncStatusPill crash) (REL-06)
+- [ ] 23-07-PLAN.md — Sync-harness failure counter + redacted/truncated last_error capture + scheduler parity (REL-06)
+- [ ] 23-08-PLAN.md — Drill-panel provider picker create UX + configured-providers query hook (REL-04)
+- [ ] 23-09-PLAN.md — Connector-card health surface: inline last-error, next-sync, consecutive-failure count (REL-06)
 **UI hint**: yes
 
 ### Phase 24: AI Foundation + "Explain This Vuln"
@@ -314,7 +325,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 20. Light-theme severity-high AA fix | v2.2 Deferred UI Features | 4/4 | Complete | 2026-07-21 |
 | 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
-| 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 0/9 | Planned | - |
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
