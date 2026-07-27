@@ -1,0 +1,165 @@
+"""Phase 23 Plan 07 — connector health signals (REL-06, D-18/D-19).
+
+Proves the runtime side of the connector health columns added in Plan 06
+(`consecutive_failure_count`, `last_error`):
+  - increments on any FAILED sync outcome (exception path, auth-failure
+    early-return path) and resets to 0 + clears `last_error` on SUCCESS.
+  - `last_error` is captured via the reused Phase-7 `app.logging` redaction
+    machinery (key-based `_redact_value`) composed with a pattern-based
+    scrub, per the 23-RESEARCH Pitfall 4 / Open Question 7 correction — a
+    crafted `Bearer <token>`-shaped secret must not survive into
+    `last_error` verbatim.
+  - the truncation cap is applied after redaction.
+
+A minimal in-memory `_FakeConnector` (registered into `sync.CONNECTOR_CLASSES`
+under a throwaway "FAKE" type via monkeypatch) drives each outcome without
+touching any real scanner HTTP layer — `connector_type` is a plain string
+column with no DB-level enum constraint, so this is safe.
+"""
+
+from __future__ import annotations
+
+import uuid
+
+import pytest
+
+import app.connectors.sync as sync_module
+from app.connectors.base import BaseConnector
+from app.connectors.sync import _sanitize_error, run_sync
+from app.ticketing.models import ConnectorConfig
+
+
+class _FakeConnector(BaseConnector):
+    """Minimal connector whose behavior is driven by class-level attributes.
+
+    `sync.py`'s harness instantiates connectors with `connector_cls()` (no
+    constructor args), so per-test behavior is configured via class
+    attributes rather than `__init__` args — each test sets them via
+    `monkeypatch.setattr` so they're auto-restored.
+    """
+
+    source_name = "FAKE"
+    AUTH_OK: bool = True
+    RAISE: Exception | None = None
+
+    async def authenticate(self, credentials: dict, config: dict) -> bool:
+        return self.AUTH_OK
+
+    async def fetch_vulnerabilities(self) -> list:
+        if self.RAISE is not None:
+            raise self.RAISE
+        return []
+
+    async def fetch_misconfigurations(self) -> list:
+        return []
+
+
+@pytest.fixture(autouse=True)
+def _register_fake_connector(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Register FAKE into sync.CONNECTOR_CLASSES for the duration of each test.
+
+    scheduler.py imports `run_sync` from this same module and reads the same
+    module-level `CONNECTOR_CLASSES` dict object at call time, so this single
+    monkeypatch covers both the direct and scheduler-driven test paths.
+    """
+    monkeypatch.setitem(sync_module.CONNECTOR_CLASSES, "FAKE", _FakeConnector)
+    # Reset class-level state before/after each test so tests can't bleed
+    # into each other via the shared class attributes.
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", True)
+    monkeypatch.setattr(_FakeConnector, "RAISE", None)
+
+
+def _seed_fake_connector(tenant_id: uuid.UUID, *, consecutive_failure_count: int = 0) -> ConnectorConfig:
+    return ConnectorConfig(
+        tenant_id=tenant_id,
+        connector_type="FAKE",
+        is_enabled=True,
+        credentials_secret_arn=None,
+        config={},
+        consecutive_failure_count=consecutive_failure_count,
+    )
+
+
+# ── Direct path (run_sync) ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_success_resets_counter_and_clears_last_error(db_session, tenant_a, monkeypatch):
+    connector = _seed_fake_connector(tenant_a, consecutive_failure_count=3)
+    connector.last_error = "stale error from a previous failure"
+    db_session.add(connector)
+    await db_session.flush()
+
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", True)
+    monkeypatch.setattr(_FakeConnector, "RAISE", None)
+
+    log = await run_sync(db_session, connector)
+
+    assert log.status == "SUCCESS"
+    assert connector.consecutive_failure_count == 0
+    assert connector.last_error is None
+
+
+@pytest.mark.asyncio
+async def test_failure_increments_counter_and_sets_sanitized_last_error(db_session, tenant_a, monkeypatch):
+    connector = _seed_fake_connector(tenant_a, consecutive_failure_count=0)
+    db_session.add(connector)
+    await db_session.flush()
+
+    secret_exc = Exception("upstream 401: Authorization: Bearer sk-secret123 was rejected")
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", True)
+    monkeypatch.setattr(_FakeConnector, "RAISE", secret_exc)
+
+    log = await run_sync(db_session, connector)
+
+    assert log.status == "FAILED"
+    assert connector.last_sync_status == "FAILED"
+    assert connector.consecutive_failure_count == 1
+    assert connector.last_error is not None
+    assert "sk-secret123" not in connector.last_error
+    assert "Bearer" not in connector.last_error
+
+
+@pytest.mark.asyncio
+async def test_failure_increments_from_prior_nonzero_value(db_session, tenant_a, monkeypatch):
+    connector = _seed_fake_connector(tenant_a, consecutive_failure_count=2)
+    db_session.add(connector)
+    await db_session.flush()
+
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", True)
+    monkeypatch.setattr(_FakeConnector, "RAISE", Exception("boom"))
+
+    await run_sync(db_session, connector)
+
+    assert connector.consecutive_failure_count == 3
+
+
+@pytest.mark.asyncio
+async def test_auth_failure_path_increments_and_sets_last_error(db_session, tenant_a, monkeypatch):
+    connector = _seed_fake_connector(tenant_a, consecutive_failure_count=0)
+    db_session.add(connector)
+    await db_session.flush()
+
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", False)
+
+    log = await run_sync(db_session, connector)
+
+    assert log.status == "FAILED"
+    assert connector.last_sync_status == "FAILED"
+    assert connector.consecutive_failure_count == 1
+    assert connector.last_error == "Authentication failed"
+
+
+def test_sanitize_error_truncates_after_redaction():
+    # Space-separated words (not one long token-shaped run) so truncation,
+    # not the token-pattern scrub, is what's under test.
+    long_message = "connection failed while syncing host " * 60
+    result = _sanitize_error(Exception(long_message), cap=500)
+    assert len(result) == 500
+
+
+def test_sanitize_error_scrubs_basic_auth_and_long_tokens():
+    exc = Exception("failed with Basic dXNlcjpwYXNz and key abcdefghij0123456789ABCDEFGHIJ0123")
+    result = _sanitize_error(exc)
+    assert "dXNlcjpwYXNz" not in result
+    assert "abcdefghij0123456789ABCDEFGHIJ0123" not in result

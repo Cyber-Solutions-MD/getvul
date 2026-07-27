@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -21,11 +22,42 @@ from app.connectors.rapid7 import Rapid7Connector
 from app.connectors.service import get_decrypted_credentials
 from app.connectors.wiz import WizConnector
 from app.cspm.models import Misconfiguration
+from app.logging import _redact_value  # noqa: PLC2701 — intentional reuse of the Phase-7 redactor (23-RESEARCH Q7)
 from app.ticketing.models import ConnectorConfig, SyncLog
 from app.vulnerabilities.correlation_service import run_correlations
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
+
+# REL-06 (D-18/D-19): pattern-based scrub layered on top of the Phase-7
+# key-based `_redact_value` reuse (23-RESEARCH Pitfall 4 / Open Question 7
+# correction). A bare exception string has no key structure for the
+# key-based redactor to catch, so this regex catches Authorization-header
+# shapes and long api-key-shaped tokens that might be echoed back in an
+# upstream HTTP error body.
+_SECRET_PATTERN = re.compile(r"Bearer\s+[\w.\-]+|Basic\s+[\w+/=]+|[A-Za-z0-9_\-]{32,}")
+
+
+def _sanitize_error(exc: Exception, cap: int = 500) -> str:
+    """Build a redacted, truncated string safe to persist as `last_error`.
+
+    Composes two layers (do NOT build a second standalone redactor):
+    1. Reuse of the Phase-7 `app.logging._redact_value` key-based redactor,
+       via a dict-wrap (`exception_type` + `message`) — catches any
+       sensitive-key-shaped structure nested in the exception's `args`.
+    2. A pattern scrub for `Bearer <token>`, `Basic <token>`, and long
+       api-key-shaped substrings (32+ word/`-` chars) — catches secrets
+       embedded in a raw HTTP-error message string, which has no key
+       structure for (1) to match against.
+
+    Truncation happens AFTER redaction so a secret can't survive by being
+    positioned past the cap.
+    """
+    wrapped = _redact_value({"exception_type": type(exc).__name__, "message": str(exc)})
+    message = wrapped["message"] if isinstance(wrapped, dict) else str(exc)
+    scrubbed = _SECRET_PATTERN.sub("[REDACTED]", str(message))
+    return scrubbed[:cap]
+
 
 CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
     "CROWDSTRIKE": CrowdStrikeConnector,
@@ -111,6 +143,9 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
             log.status = "FAILED"
             log.error_message = "Authentication failed"
             log.finished_at = datetime.now(UTC)
+            connector_config.last_sync_status = "FAILED"
+            connector_config.consecutive_failure_count = (connector_config.consecutive_failure_count or 0) + 1
+            connector_config.last_error = "Authentication failed"
             return log
 
         vulns = await connector.fetch_vulnerabilities()
@@ -151,12 +186,17 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         connector_config.last_sync_at = datetime.now(UTC)
         connector_config.last_sync_status = "SUCCESS"
         connector_config.last_sync_record_count = log.records_fetched
+        connector_config.consecutive_failure_count = 0
+        connector_config.last_error = None
 
     except Exception as e:
-        logger.error("sync_error", error=str(e))
+        sanitized = _sanitize_error(e)
+        logger.error("sync_error", error=sanitized)
         log.status = "FAILED"
         log.error_message = str(e)[:2000]
         connector_config.last_sync_status = "FAILED"
+        connector_config.consecutive_failure_count = (connector_config.consecutive_failure_count or 0) + 1
+        connector_config.last_error = sanitized
     finally:
         log.finished_at = datetime.now(UTC)
         if hasattr(connector, "close"):
