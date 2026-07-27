@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: AI-Assisted Triage
-status: Roadmap created — awaiting approval
-last_updated: "2026-07-27T00:00:00.000Z"
+milestone_name: AI-Assisted Triage ("Triage Copilot")
+status: Executing Phase 23
+last_updated: "2026-07-27T10:05:24.655Z"
 progress:
-  total_phases: 6
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 16
+  completed_phases: 7
+  total_plans: 30
+  completed_plans: 21
+  percent: 70
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -20,15 +20,15 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 adds AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** v3.0 AI-Assisted Triage ("Triage Copilot") — STARTED 2026-07-25, ROADMAP CREATED 2026-07-27 (Phases 23–28, continuing numbering from 22). LLM-assisted summarize/prioritize/remediate/draft, grounded in the tenant's own correlated data, with evals + prompt-injection/PII/cost guardrails. BYOK is a hard constraint: no shared/fallback Anthropic key, AI inert until a tenant configures their own.
+**Current focus:** Phase 23 — ingestion-reliability-precursor
 
 ## Current Position
 
 Milestone: v3.0 AI-Assisted Triage — 🚧 ROADMAP CREATED 2026-07-27 (Phases 23–28 defined, awaiting user approval; not yet started). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
-Phase: Not started
+Phase: 23 (ingestion-reliability-precursor) — EXECUTING
 Next: User approves the roadmap draft, then `/gsd-plan-phase 23`.
 Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28.
-Plan: —
+Plan: 1 of 9
 
 | Field | Value |
 |-------|-------|
