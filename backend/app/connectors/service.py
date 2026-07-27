@@ -26,6 +26,24 @@ def _get_connector_name(connector_type: str) -> str:
     return info.name if hasattr(info, "name") else connector_type
 
 
+# Wire-boundary normalization (CR-06 precedent): the DB/sync harness only ever
+# writes uppercase "SUCCESS"/"FAILED"/None to last_sync_status (see sync.py),
+# but the frontend SyncStatusPill union is 'ok'|'failed'|'syncing'|null. Map
+# raw DB values to the lowercase wire contract here, not in the frontend.
+_SYNC_STATUS_MAP = {
+    "SUCCESS": "ok",
+    "FAILED": "failed",
+    "SYNCING": "syncing",
+}
+
+
+def _normalize_sync_status(raw: str | None) -> str | None:
+    """Map a raw DB sync-status value to the lowercase wire contract."""
+    if raw is None:
+        return None
+    return _SYNC_STATUS_MAP.get(raw, raw)
+
+
 def _to_response(c: ConnectorConfig) -> ConnectorConfigResponse:
     """Convert DB model to response schema."""
     return ConnectorConfigResponse(
@@ -36,7 +54,7 @@ def _to_response(c: ConnectorConfig) -> ConnectorConfigResponse:
         config=c.config or {},
         has_credentials=bool(c.credentials_secret_arn),
         last_sync_at=c.last_sync_at,
-        last_sync_status=c.last_sync_status,
+        last_sync_status=_normalize_sync_status(c.last_sync_status),
         last_sync_record_count=c.last_sync_record_count,
         last_error=c.last_error,
         consecutive_failure_count=c.consecutive_failure_count,
