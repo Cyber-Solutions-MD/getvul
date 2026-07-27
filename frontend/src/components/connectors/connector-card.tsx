@@ -8,6 +8,11 @@
  * Sunset-tokenized: no raw gray-*, indigo-*, emerald-* utilities.
  *
  * T-14-08: Delete button is UX-layer gating; backend DELETE requires Admin.
+ *
+ * REL-06 (Plan 23-09): "health at a glance" additions —
+ *   D-16: last_error inline summary, rendered ONLY on last_sync_status='failed'.
+ *   D-17: frontend-derived "next sync in ~Xm" line (last_sync_at + sync_interval_minutes, no backend call).
+ *   D-18: "failed N times in a row" from consecutive_failure_count (>1 threshold — a single failure is a blip).
  */
 import { Play, Pencil, Trash2 } from 'lucide-react';
 import { ConnectorMark } from './connector-mark';
@@ -32,6 +37,25 @@ function formatSyncTime(isoString: string | null): string {
   return `Synced ${diffDays}d ago`;
 }
 
+/**
+ * D-17: frontend-derived "next sync in ~Xm" line — pure client math from
+ * last_sync_at + sync_interval_minutes, no backend call.
+ *   - last_sync_at null            -> "not synced yet"
+ *   - computed next-sync in the past -> "sync due"
+ *   - < 60m away                   -> "next sync in ~Xm"
+ *   - >= 60m away                  -> "next sync in ~Xh"
+ */
+function nextSyncLabel(lastSyncAt: string | null, syncIntervalMinutes: number): string {
+  if (!lastSyncAt) return 'not synced yet';
+  const next = new Date(lastSyncAt).getTime() + syncIntervalMinutes * 60_000;
+  const diffMs = next - Date.now();
+  if (diffMs <= 0) return 'sync due';
+  const diffMin = Math.round(diffMs / 60_000);
+  if (diffMin < 60) return `next sync in ~${diffMin}m`;
+  const diffHrs = Math.round(diffMin / 60);
+  return `next sync in ~${diffHrs}h`;
+}
+
 export type ConnectorCardProps = {
   connector: ConnectorConfigResponse;
   isAdmin: boolean;
@@ -53,6 +77,7 @@ export function ConnectorCard({
 }: ConnectorCardProps) {
   const provider = connector.connector_type.toLowerCase() as ConnectorProvider;
   const syncTime = formatSyncTime(connector.last_sync_at);
+  const nextSync = nextSyncLabel(connector.last_sync_at, connector.sync_interval_minutes);
 
   return (
     <div
@@ -80,6 +105,31 @@ export function ConnectorCard({
           </span>
         )}
       </div>
+
+      {/* Next-sync line (D-17) — pure client math, no backend call */}
+      <div className="mt-1 text-xs text-text-faint">{nextSync}</div>
+
+      {/* Last-error summary (D-16) — ONLY on failure; healthy connectors render nothing here.
+          Matches SyncStatusPill's failed=severity-critical convention (no amber here). */}
+      {connector.last_sync_status === 'failed' && (
+        <details className="mt-2 rounded-md border border-severity-critical/30 bg-severity-critical/10 px-2.5 py-1.5 text-xs">
+          <summary className="cursor-pointer truncate text-[var(--color-severity-critical-on-soft)]">
+            {connector.last_error || 'Last sync failed'}
+          </summary>
+          <div className="mt-1.5 space-y-1 text-text-muted">
+            <p className="font-mono text-[11px] leading-snug text-[var(--color-severity-critical-on-soft)]">
+              {connector.last_error || 'Last sync failed'}
+            </p>
+            <p className="text-text-faint">{syncTime}</p>
+          </div>
+          {/* D-18: a single failure is a blip; only surface a run of 2+ as a persistent-outage signal */}
+          {connector.consecutive_failure_count > 1 && (
+            <p className="mt-1 text-[var(--color-severity-critical-on-soft)]">
+              failed {connector.consecutive_failure_count} times in a row
+            </p>
+          )}
+        </details>
+      )}
 
       {/* Actions row */}
       <div className="mt-3 flex items-center gap-2">
