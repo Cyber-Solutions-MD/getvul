@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import contextlib
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import String, case, func, select, update
@@ -16,7 +17,9 @@ from app.auth.rbac import require_analyst
 from app.auth.schemas import CurrentUser
 from app.db.session import get_db
 from app.ticketing.asana_client import AsanaClient
+from app.ticketing.dispatch import TicketingClient, build_ticketing_client
 from app.ticketing.models import Ticket, TicketComment, TicketWatcher
+from app.ticketing.providers import TicketProvider
 from app.ticketing.schemas import (
     AsanaConfigResponse,
     AsanaConfigUpdate,
@@ -82,16 +85,69 @@ async def _get_asana_client(
     return AsanaClient(token), workspace_gid, project_gid
 
 
-async def _get_asana_client_from_connector(
+# ── Generalized provider-dispatched client resolution (D-10) ─────────────────
+#
+# The old workspace-requiring Asana-only connector helper is gone — every
+# create/close/sync/bulk/run-now call site below now resolves its client via
+# `_get_ticketing_client`, generalized to any provider. `_get_asana_client`
+# itself stays (it's used only by the Asana-specific /asana/setup +
+# /asana/config settings routes, out of this plan's scope).
+#
+# Which config key a per-request project override lands on, keyed by
+# provider. GitHub has no per-request project concept — its routing
+# (owner/repo) is fixed on the connector's own config.
+_PROVIDER_PROJECT_FIELD = {
+    TicketProvider.ASANA: "project_gid",
+    TicketProvider.JIRA: "project_key",
+}
+
+
+async def _get_ticketing_client(
     db: AsyncSession,
     tenant_id: uuid.UUID,
-) -> tuple[AsanaClient, str, str]:
-    """Get an AsanaClient and REQUIRE workspace to be configured."""
-    client, workspace_gid, project_gid = await _get_asana_client(db, tenant_id)
-    if not workspace_gid:
-        await client.close()
-        raise HTTPException(400, "Asana workspace not configured. Go to Tickets → Asana Settings.")
-    return client, workspace_gid, project_gid
+    provider: str,
+    project_override: str | None = None,
+) -> tuple[TicketingClient, str]:
+    """Resolve a tenant-scoped dispatched client for `provider` (D-10).
+
+    Mirrors `_get_asana_client`'s tenant-scoped ConnectorConfig lookup
+    (T-23-09: the `tenant_id == user.tenant_id` filter is preserved exactly —
+    never a provider-only global lookup) and Fernet-decrypts credentials via
+    the existing `get_decrypted_credentials` helper, then builds the
+    provider's TicketingClient via `build_ticketing_client`.
+
+    Returns `(client, effective_project_key)` — `effective_project_key` is
+    `project_override` if given, else the connector's own configured project
+    (empty string for GitHub, which has no per-request project concept).
+    Raises the same "not configured" HTTPException shape `_get_asana_client`
+    already used, generalized to name the requested provider.
+    """
+    from app.connectors.service import get_decrypted_credentials
+    from app.ticketing.models import ConnectorConfig
+
+    provider_enum = TicketProvider(provider)
+
+    result = await db.execute(
+        select(ConnectorConfig).where(
+            ConnectorConfig.tenant_id == tenant_id,
+            ConnectorConfig.connector_type == provider_enum.value,
+            ConnectorConfig.is_enabled.is_(True),
+        )
+    )
+    connector = result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(400, f"No {provider_enum.value.title()} connector configured. Add one in Connectors page.")
+
+    creds = get_decrypted_credentials(connector)
+    config = dict(connector.config or {})
+
+    project_field = _PROVIDER_PROJECT_FIELD.get(provider_enum)
+    effective_project = project_override or (config.get(project_field, "") if project_field else "")
+    if project_field and project_override:
+        config[project_field] = project_override
+
+    client = build_ticketing_client(provider_enum, creds, config)
+    return client, effective_project
 
 
 # ── Tickets CRUD ──
@@ -175,38 +231,66 @@ async def ticket_stats(
     return await get_ticket_stats(db, user.tenant_id)
 
 
+@router.get("/providers")
+async def list_configured_providers(
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Return which ticketing providers are configured+enabled for the
+    caller's tenant (D-15). Reused by the Plan 08 provider picker and
+    Phase 27's ticket auto-drafting.
+
+    T-23-10 (Information Disclosure) mitigation: filters strictly by
+    `user.tenant_id` — returns only provider name + enabled flag, never
+    credentials or secret_arn. This static route is declared before the
+    `/{ticket_id}` catch-all (FastAPI matches routes in declaration order;
+    same reasoning as the existing `/rules` note below).
+    """
+    from app.ticketing.models import ConnectorConfig
+
+    result = await db.execute(
+        select(ConnectorConfig.connector_type, ConnectorConfig.is_enabled).where(
+            ConnectorConfig.tenant_id == user.tenant_id,
+            ConnectorConfig.connector_type.in_([p.value for p in TicketProvider]),
+            ConnectorConfig.is_enabled.is_(True),
+        )
+    )
+    return [{"provider": connector_type, "enabled": is_enabled} for connector_type, is_enabled in result.all()]
+
+
 @router.post("")
 async def create_new_tickets(
     body: TicketCreateRequest,
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(require_analyst),
 ):
-    """Create tickets for one or more vulnerabilities."""
-    asana_client, workspace_gid, default_project = await _get_asana_client_from_connector(db, user.tenant_id)
+    """Create tickets for one or more vulnerabilities — dispatches by
+    `body.provider` (D-10): provider:'JIRA' now actually reaches the Jira
+    client, fixing the data-integrity bug where every provider silently
+    created the ticket in Asana.
+    """
+    client, default_project = await _get_ticketing_client(db, user.tenant_id, body.provider, body.project_key or None)
 
-    try:
-        # Use the project from request, or fall back to default configured project
-        if not body.project_key and default_project:
-            body.project_key = default_project
+    # Use the project from request, or fall back to the connector's default
+    # configured project. GitHub has no per-request project concept.
+    if not body.project_key and default_project:
+        body.project_key = default_project
 
-        if not body.project_key:
-            raise HTTPException(400, "No project specified and no default project configured.")
+    if body.provider in (TicketProvider.ASANA, TicketProvider.JIRA) and not body.project_key:
+        raise HTTPException(400, "No project specified and no default project configured.")
 
-        tickets = await create_tickets(
-            db=db,
-            tenant_id=user.tenant_id,
-            user_id=user.id,
-            request=body,
-            asana_client=asana_client,
-            workspace_gid=workspace_gid,
-        )
-        await db.commit()
-        from app.audit import audit as _audit
+    tickets = await create_tickets(
+        db=db,
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        request=body,
+        client=client,
+    )
+    await db.commit()
+    from app.audit import audit as _audit
 
-        await _audit(db, user, "ticket.create", "ticket", None, {"count": len(tickets), "provider": body.provider})
-        return {"created": len(tickets), "tickets": tickets}
-    finally:
-        await asana_client.close()
+    await _audit(db, user, "ticket.create", "ticket", None, {"count": len(tickets), "provider": body.provider})
+    return {"created": len(tickets), "tickets": tickets}
 
 
 @router.post("/host")
@@ -215,30 +299,50 @@ async def create_host_remediation_ticket(
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(require_analyst),
 ):
-    """Create a single ticket for a host with all its remediations grouped."""
-    asana_client, workspace_gid, default_project = await _get_asana_client_from_connector(db, user.tenant_id)
+    """Create a single ticket for a host with all its remediations grouped —
+    dispatches by `body.provider` (D-10)."""
+    client, default_project = await _get_ticketing_client(db, user.tenant_id, body.provider, body.project_key or None)
 
-    try:
-        if not body.project_key and default_project:
-            body.project_key = default_project
-        if not body.project_key:
-            raise HTTPException(400, "No project specified and no default project configured.")
+    if not body.project_key and default_project:
+        body.project_key = default_project
+    if body.provider in (TicketProvider.ASANA, TicketProvider.JIRA) and not body.project_key:
+        raise HTTPException(400, "No project specified and no default project configured.")
 
-        result = await create_host_ticket(
-            db=db,
-            tenant_id=user.tenant_id,
-            user_id=user.id,
-            request=body,
-            asana_client=asana_client,
-            workspace_gid=workspace_gid,
-        )
-        if "error" in result:
-            raise HTTPException(400, result["error"])
+    result = await create_host_ticket(
+        db=db,
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        request=body,
+        client=client,
+    )
+    if "error" in result:
+        raise HTTPException(400, result["error"])
 
-        await db.commit()
-        return result
-    finally:
-        await asana_client.close()
+    await db.commit()
+    return result
+
+
+async def _make_client_resolver(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> Callable[[str], Awaitable[TicketingClient | None]]:
+    """Build a `client_resolver` for service.py's sync_ticket_status/close_ticket.
+
+    Resolves + caches one dispatched client per provider actually requested,
+    tenant-scoped (T-23-09). Returns None (not a raise) for a provider with no
+    enabled connector — sync/close treat that as "skip", not a hard failure.
+    """
+    cache: dict[str, TicketingClient | None] = {}
+
+    async def _resolve(provider: str) -> TicketingClient | None:
+        if provider not in cache:
+            try:
+                client, _project = await _get_ticketing_client(db, tenant_id, provider)
+                cache[provider] = client
+            except HTTPException:
+                cache[provider] = None
+        return cache[provider]
+
+    return _resolve
 
 
 @router.post("/sync-status")
@@ -246,14 +350,13 @@ async def sync_all_ticket_statuses(
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(require_analyst),
 ):
-    """Sync ticket statuses from Asana back to GetVul."""
-    asana_client, _, _ = await _get_asana_client_from_connector(db, user.tenant_id)
-    try:
-        result = await sync_ticket_status(db, user.tenant_id, asana_client)
-        await db.commit()
-        return result
-    finally:
-        await asana_client.close()
+    """Sync ticket statuses from each ticket's own provider back to GetVul
+    (D-10) — previously always synced against Asana regardless of the
+    ticket's persisted provider."""
+    resolver = await _make_client_resolver(db, user.tenant_id)
+    result = await sync_ticket_status(db, user.tenant_id, resolver)
+    await db.commit()
+    return result
 
 
 @router.post("/bulk-action")
@@ -279,96 +382,86 @@ async def bulk_ticket_action(
     results = {"processed": 0, "errors": 0}
 
     if action == "close":
-        asana_client, _, _ = await _get_asana_client_from_connector(db, user.tenant_id)
-        try:
-            for url in urls:
-                result = await close_ticket(db, user.tenant_id, url, asana_client)
-                if "error" in result:
-                    results["errors"] += 1
-                else:
-                    results["processed"] += 1
-            await db.commit()
-        finally:
-            await asana_client.close()
+        resolver = await _make_client_resolver(db, user.tenant_id)
+        for url in urls:
+            result = await close_ticket(db, user.tenant_id, url, resolver)
+            if "error" in result:
+                results["errors"] += 1
+            else:
+                results["processed"] += 1
+        await db.commit()
 
     elif action == "comment":
         if not comment_text:
             raise HTTPException(400, "Comment text is required")
-        asana_client, _, _ = await _get_asana_client_from_connector(db, user.tenant_id)
-        try:
-            seen_tasks: set[str] = set()
-            for url in urls:
-                tickets = (
-                    (
-                        await db.execute(
-                            select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
-                        )
+        resolver = await _make_client_resolver(db, user.tenant_id)
+        seen_tasks: set[str] = set()
+        for url in urls:
+            tickets = (
+                (
+                    await db.execute(
+                        select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
                     )
-                    .scalars()
-                    .all()
                 )
-                for t in tickets:
-                    task_gid = t.external_ticket_id.split(":")[0]
-                    if task_gid not in seen_tasks:
-                        ok = await asana_client.add_comment(task_gid, comment_text)
-                        seen_tasks.add(task_gid)
-                        if ok:
-                            results["processed"] += 1
-                        else:
-                            results["errors"] += 1
-                    break
-        finally:
-            await asana_client.close()
+                .scalars()
+                .all()
+            )
+            for t in tickets:
+                task_ref = t.external_ticket_id.split(":")[0]
+                cache_key = f"{t.provider}:{task_ref}"
+                if cache_key not in seen_tasks:
+                    provider_client = await resolver(t.provider)
+                    seen_tasks.add(cache_key)
+                    if provider_client is None:
+                        results["errors"] += 1
+                    else:
+                        await provider_client.comment(task_ref, comment_text)
+                        results["processed"] += 1
+                break
 
     elif action == "sync-update":
-        asana_client, _, _ = await _get_asana_client_from_connector(db, user.tenant_id)
-        try:
-            from app.ticketing.service import sync_ticket_status
+        resolver = await _make_client_resolver(db, user.tenant_id)
+        from app.ticketing.service import sync_ticket_status
 
-            result = await sync_ticket_status(db, user.tenant_id, asana_client)
-            await db.commit()
-            results = result
-        finally:
-            await asana_client.close()
+        result = await sync_ticket_status(db, user.tenant_id, resolver)
+        await db.commit()
+        results = result
 
     elif action == "delete":
-        asana_client, _, _ = await _get_asana_client_from_connector(db, user.tenant_id)
-        try:
-            deleted_tasks: set[str] = set()
-            for url in urls:
-                tickets = (
-                    (
-                        await db.execute(
-                            select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
-                        )
+        # D-10 deviation: dispatch.py's TicketingClient Protocol has no
+        # `delete` verb (only create/get/comment/close) — the prior raw
+        # `asana_client.client.delete(f"/tasks/{gid}")` HTTP call was already
+        # best-effort (wrapped in contextlib.suppress). Rather than reach
+        # around the Protocol for a provider-specific escape hatch, this
+        # bulk action now only deletes the local GetVul ticket rows +
+        # reopens their vulns; the external ticket is left as-is on its
+        # provider. Logged as a deviation, not silently dropped.
+        for url in urls:
+            tickets = (
+                (
+                    await db.execute(
+                        select(Ticket).where(Ticket.external_ticket_url == url, Ticket.tenant_id == user.tenant_id)
                     )
-                    .scalars()
-                    .all()
                 )
-                for t in tickets:
-                    # Delete Asana task (once per unique task)
-                    task_gid = t.external_ticket_id.split(":")[0]
-                    if task_gid not in deleted_tasks:
-                        with contextlib.suppress(Exception):
-                            await asana_client.client.delete(f"/tasks/{task_gid}")
-                        deleted_tasks.add(task_gid)
-                    # Reopen vulns that were changed by this ticket
-                    vuln = (
-                        await db.execute(select(Vulnerability).where(Vulnerability.id == t.vulnerability_id))
-                    ).scalar_one_or_none()
-                    if vuln and vuln.status in ("IN_PROGRESS", "REMEDIATED"):
-                        vuln.status = "OPEN"
-                        vuln.remediated_at = None
-                    await db.delete(t)
-                results["processed"] += 1
+                .scalars()
+                .all()
+            )
+            for t in tickets:
+                # Reopen vulns that were changed by this ticket
+                vuln = (
+                    await db.execute(select(Vulnerability).where(Vulnerability.id == t.vulnerability_id))
+                ).scalar_one_or_none()
+                if vuln and vuln.status in ("IN_PROGRESS", "REMEDIATED"):
+                    vuln.status = "OPEN"
+                    vuln.remediated_at = None
+                await db.delete(t)
+            results["processed"] += 1
 
-            # Recompute risk scores
-            from app.assets.risk_score import compute_risk_scores
+        # Recompute risk scores
+        from app.assets.risk_score import compute_risk_scores
 
-            await compute_risk_scores(db, user.tenant_id)
-            await db.commit()
-        finally:
-            await asana_client.close()
+        await compute_risk_scores(db, user.tenant_id)
+        await db.commit()
 
     elif action in ("block", "unblock"):
         # Bulk block/unblock: group-scoped UPDATE for each provided external_ticket_url.
@@ -405,20 +498,18 @@ async def close_ticket_endpoint(
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(require_analyst),
 ):
-    """Manually close a ticket — completes the Asana task and resolves vulns."""
+    """Manually close a ticket — dispatches by the ticket's own stored
+    provider (D-10) and resolves vulns."""
     url = body.get("external_ticket_url", "")
     if not url:
         raise HTTPException(400, "external_ticket_url is required")
 
-    asana_client, _, _ = await _get_asana_client_from_connector(db, user.tenant_id)
-    try:
-        result = await close_ticket(db, user.tenant_id, url, asana_client)
-        if "error" in result:
-            raise HTTPException(404, result["error"])
-        await db.commit()
-        return result
-    finally:
-        await asana_client.close()
+    resolver = await _make_client_resolver(db, user.tenant_id)
+    result = await close_ticket(db, user.tenant_id, url, resolver)
+    if "error" in result:
+        raise HTTPException(404, result["error"])
+    await db.commit()
+    return result
 
 
 # ── Canonical-group resolution helper ─────────────────────────────────────────
@@ -1117,10 +1208,12 @@ async def run_rule_now(
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(require_analyst),
 ):
-    """Run a rule immediately (manual trigger)."""
+    """Run a rule immediately (manual trigger) — dispatches by the rule's OWN
+    `action.provider` (D-10), not always Asana."""
     from sqlalchemy import select
 
-    from app.ticketing.models import TicketRule
+    from app.connectors.service import get_decrypted_credentials
+    from app.ticketing.models import ConnectorConfig, TicketRule
     from app.ticketing.rule_engine import run_rule
 
     result = await db.execute(
@@ -1130,18 +1223,29 @@ async def run_rule_now(
     if not rule:
         raise HTTPException(404, "Rule not found")
 
-    asana_client, workspace_gid, project_gid = await _get_asana_client_from_connector(db, user.tenant_id)
-    try:
-        run_result = await run_rule(db, rule, asana_client, workspace_gid, project_gid)
-        from datetime import datetime
+    provider = (rule.action or {}).get("provider", "ASANA")
+    connector_result = await db.execute(
+        select(ConnectorConfig).where(
+            ConnectorConfig.tenant_id == user.tenant_id,
+            ConnectorConfig.connector_type == provider,
+            ConnectorConfig.is_enabled.is_(True),
+        )
+    )
+    connector = connector_result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(400, f"No {provider.title()} connector configured. Add one in Connectors page.")
 
-        rule.last_run_at = datetime.now(UTC)
-        rule.last_run_status = "SUCCESS"
-        rule.last_run_tickets_created = run_result["created"]
-        await db.commit()
-        return run_result
-    finally:
-        await asana_client.close()
+    creds = get_decrypted_credentials(connector)
+    config = connector.config or {}
+
+    run_result = await run_rule(db, rule, creds, config)
+    from datetime import datetime
+
+    rule.last_run_at = datetime.now(UTC)
+    rule.last_run_status = "SUCCESS"
+    rule.last_run_tickets_created = run_result["created"]
+    await db.commit()
+    return run_result
 
 
 @router.post("/sync-status")

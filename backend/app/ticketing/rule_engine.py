@@ -21,19 +21,31 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
-from app.ticketing.asana_client import AsanaClient
+from app.ticketing.dispatch import build_ticketing_client
 from app.ticketing.models import Ticket, TicketRule
+from app.ticketing.providers import TicketProvider
 from app.ticketing.schemas import HostTicketCreateRequest
 from app.ticketing.service import create_host_ticket, create_remediation_ticket
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
+
+# Which config key a rule's action.project_key override lands on, per provider
+# (D-09: mirrors router.py's per-request project override so a rule can still
+# target a non-default Asana project / Jira project without dispatch.py
+# needing to know about rules at all). GitHub has no per-request project
+# concept — its routing (owner/repo) is fixed on the connector.
+_PROVIDER_PROJECT_FIELD = {
+    TicketProvider.ASANA: "project_gid",
+    TicketProvider.JIRA: "project_key",
+}
 
 
 async def find_matching_assets(
@@ -121,11 +133,16 @@ async def find_matching_assets(
 async def run_rule(
     db: AsyncSession,
     rule: TicketRule,
-    asana_client: AsanaClient,
-    workspace_gid: str,
-    default_project: str,
+    credentials: dict[str, Any],
+    config: dict[str, Any],
 ) -> dict:
-    """Evaluate a single rule and create tickets for matching assets."""
+    """Evaluate a single rule and create tickets for matching assets (D-09).
+
+    `credentials`/`config` are the ALREADY-DECRYPTED connector credentials +
+    raw connector config for whichever provider this rule's own
+    `action.provider` resolves to (the caller looks that connector up per
+    rule — see run_all_due_rules/router.run_rule_now) — not always Asana.
+    """
     conditions = rule.conditions or {}
     action = rule.action or {}
 
@@ -136,7 +153,19 @@ async def run_rule(
         return {"matched": 0, "created": 0, "skipped": 0}
 
     provider = action.get("provider", "ASANA")
-    project_key = action.get("project_key") or default_project
+    provider_enum = TicketProvider(provider)
+
+    rule_project_key = action.get("project_key")
+    effective_config = dict(config)
+    project_field = _PROVIDER_PROJECT_FIELD.get(provider_enum)
+    if rule_project_key and project_field:
+        effective_config[project_field] = rule_project_key
+
+    client = build_ticketing_client(provider_enum, credentials, effective_config)
+
+    # project_key stored on Ticket rows is metadata only (D-07: routing itself
+    # is baked into `client` via effective_config above).
+    project_key = rule_project_key or (effective_config.get(project_field, "") if project_field else "")
     auto_assign = action.get("auto_assign", True)
     due_days = action.get("due_days")
     ticket_mode = action.get("ticket_mode", "per_host")
@@ -207,8 +236,7 @@ async def run_rule(
                 remediation_id=row.remediation_id,
                 provider=provider,
                 project_key=project_key,
-                asana_client=asana_client,
-                workspace_gid=workspace_gid,
+                client=client,
                 due_days=due_days,
                 assignee_email=assignee_email,
                 severity_filter=conditions.get("severity"),
@@ -259,8 +287,7 @@ async def run_rule(
                 tenant_id=rule.tenant_id,
                 user_id=None,
                 request=request,
-                asana_client=asana_client,
-                workspace_gid=workspace_gid,
+                client=client,
             )
 
             if "error" not in result:
@@ -272,8 +299,33 @@ async def run_rule(
     return {"matched": len(assets), "created": created, "skipped": skipped}
 
 
+def _has_min_credentials(provider: str, creds: dict[str, Any], config: dict[str, Any]) -> bool:
+    """Minimal sanity check before dispatching — mirrors the pre-existing
+    Asana `if not token: continue` / `if not workspace_gid: continue` guards,
+    generalized per provider (D-09)."""
+    if provider == TicketProvider.ASANA:
+        return bool(creds.get("access_token")) and bool(config.get("workspace_gid"))
+    if provider == TicketProvider.JIRA:
+        return bool(creds.get("email")) and bool(creds.get("api_token")) and bool(creds.get("url"))
+    if provider == TicketProvider.GITHUB:
+        return bool(creds.get("token")) and bool(config.get("owner")) and bool(config.get("repo"))
+    return False
+
+
 async def run_all_due_rules(db: AsyncSession) -> dict:
-    """Check all enabled rules and run those that are due. Called by the scheduler."""
+    """Check all enabled rules and run those that are due. Called by the scheduler.
+
+    D-09: the connector lookup used to be hardcoded to the Asana connector
+    type only — a rule with `action.provider="JIRA"` either no-op'd (no
+    Asana connector to find) or,
+    worse, silently ran against the tenant's Asana connector regardless of
+    what the rule asked for. Now the lookup is keyed on the UNION of
+    providers actually referenced by the tenant's due rules (default ASANA
+    for back-compat), one enabled ConnectorConfig per provider, and each rule
+    dispatches through ITS OWN provider's client. A rule whose provider has no
+    configured connector is skipped (logged), not silently redirected to a
+    different provider.
+    """
     from app.connectors.service import get_decrypted_credentials
     from app.ticketing.models import ConnectorConfig
 
@@ -299,56 +351,61 @@ async def run_all_due_rules(db: AsyncSession) -> dict:
         tenant_rules.setdefault(rule.tenant_id, []).append(rule)
 
     for tenant_id, t_rules in tenant_rules.items():
-        # Get Asana client for this tenant
-        connector = (
-            await db.execute(
-                select(ConnectorConfig).where(
-                    ConnectorConfig.tenant_id == tenant_id,
-                    ConnectorConfig.connector_type == "ASANA",
-                    ConnectorConfig.is_enabled.is_(True),
-                )
-            )
-        ).scalar_one_or_none()
+        # Union of providers referenced by this tenant's due rules (default ASANA)
+        providers_needed = {(rule.action or {}).get("provider", "ASANA") for rule in t_rules}
 
-        if not connector:
-            continue
-
-        creds = get_decrypted_credentials(connector)
-        token = creds.get("access_token", "")
-        if not token:
-            continue
-
-        config = connector.config or {}
-        workspace_gid = config.get("workspace_gid", "")
-        project_gid = config.get("project_gid", "")
-        if not workspace_gid:
-            continue
-
-        asana_client = AsanaClient(token)
-
-        try:
-            for rule in t_rules:
-                try:
-                    result = await run_rule(db, rule, asana_client, workspace_gid, project_gid)
-                    rule.last_run_at = now
-                    rule.last_run_status = "SUCCESS"
-                    rule.last_run_tickets_created = result["created"]
-                    total_created += result["created"]
-                    rules_run += 1
-
-                    logger.info(
-                        "ticket_rule_run",
-                        rule=rule.name,
-                        matched=result["matched"],
-                        created=result["created"],
-                        skipped=result["skipped"],
+        connectors_by_provider: dict[str, tuple[dict[str, Any], dict[str, Any]] | None] = {}
+        for provider in providers_needed:
+            connector = (
+                await db.execute(
+                    select(ConnectorConfig).where(
+                        ConnectorConfig.tenant_id == tenant_id,
+                        ConnectorConfig.connector_type == provider,
+                        ConnectorConfig.is_enabled.is_(True),
                     )
-                except Exception as e:
-                    rule.last_run_at = now
-                    rule.last_run_status = "FAILED"
-                    logger.error("ticket_rule_error", rule=rule.name, error=str(e))
-        finally:
-            await asana_client.close()
+                )
+            ).scalar_one_or_none()
+
+            if not connector:
+                connectors_by_provider[provider] = None
+                continue
+
+            creds = get_decrypted_credentials(connector)
+            config = connector.config or {}
+            if not _has_min_credentials(provider, creds, config):
+                connectors_by_provider[provider] = None
+                continue
+
+            connectors_by_provider[provider] = (creds, config)
+
+        for rule in t_rules:
+            provider = (rule.action or {}).get("provider", "ASANA")
+            resolved = connectors_by_provider.get(provider)
+            if resolved is None:
+                logger.warning("rule_provider_not_configured", rule=rule.name, provider=provider)
+                continue
+            creds, config = resolved
+
+            try:
+                result = await run_rule(db, rule, creds, config)
+                rule.last_run_at = now
+                rule.last_run_status = "SUCCESS"
+                rule.last_run_tickets_created = result["created"]
+                total_created += result["created"]
+                rules_run += 1
+
+                logger.info(
+                    "ticket_rule_run",
+                    rule=rule.name,
+                    provider=provider,
+                    matched=result["matched"],
+                    created=result["created"],
+                    skipped=result["skipped"],
+                )
+            except Exception as e:
+                rule.last_run_at = now
+                rule.last_run_status = "FAILED"
+                logger.error("ticket_rule_error", rule=rule.name, provider=provider, error=str(e))
 
     await db.commit()
     return {"rules_checked": len(rules), "rules_run": rules_run, "tickets_created": total_created}
