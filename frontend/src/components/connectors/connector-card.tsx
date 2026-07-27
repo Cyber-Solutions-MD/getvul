@@ -8,6 +8,11 @@
  * Sunset-tokenized: no raw gray-*, indigo-*, emerald-* utilities.
  *
  * T-14-08: Delete button is UX-layer gating; backend DELETE requires Admin.
+ *
+ * REL-06 (Plan 23-09): "health at a glance" additions —
+ *   D-16: last_error inline summary, rendered ONLY on last_sync_status='failed'.
+ *   D-17: frontend-derived "next sync in ~Xm" line (last_sync_at + sync_interval_minutes, no backend call).
+ *   D-18: "failed N times in a row" from consecutive_failure_count (>1 threshold — a single failure is a blip).
  */
 import { Play, Pencil, Trash2 } from 'lucide-react';
 import { ConnectorMark } from './connector-mark';
