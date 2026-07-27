@@ -19,12 +19,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-
-
-class TicketProvider(str, enum.Enum):
-    JIRA = "JIRA"
-    GITHUB = "GITHUB"
-    ASANA = "ASANA"
+from app.ticketing.providers import TicketProvider  # noqa: F401 - re-exported for existing importers
 
 
 class ConnectorType(str, enum.Enum):

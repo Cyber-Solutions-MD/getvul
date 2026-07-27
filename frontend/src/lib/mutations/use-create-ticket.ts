@@ -2,10 +2,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/queries/keys';
+import type { TicketProvider } from '@/lib/ticketing/providers';
 
 export type CreateTicketRequest = {
   vulnerability_ids: string[]; // 1..50 UUIDs (validated server-side)
-  provider: 'ASANA' | 'JIRA' | 'GITHUB';
+  provider: TicketProvider;
   project_key?: string;
   assignee?: string;
   due_days?: number;
