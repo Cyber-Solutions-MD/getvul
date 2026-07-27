@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Assisted Triage
-status: Defining requirements
-last_updated: "2026-07-25T00:00:00.000Z"
+status: Roadmap created — awaiting approval
+last_updated: "2026-07-27T00:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,29 +18,42 @@ progress:
 
 See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
-**Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console.
+**Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 adds AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** v3.0 AI-Assisted Triage ("Triage Copilot") — STARTED 2026-07-25. Defining requirements → roadmap. LLM-assisted summarize/prioritize/remediate/draft, grounded in the tenant's own correlated data, with evals + prompt-injection/PII/cost guardrails. Precursor: fix Wiz/Rapid7 ingestion + close scanner test gap first.
+**Current focus:** v3.0 AI-Assisted Triage ("Triage Copilot") — STARTED 2026-07-25, ROADMAP CREATED 2026-07-27 (Phases 23–28, continuing numbering from 22). LLM-assisted summarize/prioritize/remediate/draft, grounded in the tenant's own correlated data, with evals + prompt-injection/PII/cost guardrails. BYOK is a hard constraint: no shared/fallback Anthropic key, AI inert until a tenant configures their own.
 
 ## Current Position
 
-Milestone: v3.0 AI-Assisted Triage — 🚧 STARTED 2026-07-25 (defining requirements; continues phase numbering from 22). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8), per-tenant configurable.
-Phase: Not started (defining requirements)
-Next: finish `/gsd-new-milestone` (research → REQUIREMENTS.md → ROADMAP.md), then `/gsd-plan-phase 23`.
-Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared.
+Milestone: v3.0 AI-Assisted Triage — 🚧 ROADMAP CREATED 2026-07-27 (Phases 23–28 defined, awaiting user approval; not yet started). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
+Phase: Not started
+Next: User approves the roadmap draft, then `/gsd-plan-phase 23`.
+Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28.
 Plan: —
+
 | Field | Value |
 |-------|-------|
-| Active milestone | None. v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. Next: `/gsd-new-milestone`. |
-| History (v1.0, retained) | Rows below describe the v1.0 Phase 6/7 era and are kept as accumulated context. |
-| Active milestone (v1.0, archived) | v1.0 Production Readiness — **RESUMED 2026-06-30** (Phases 1–6 done; Phases 7–8 remaining) |
-| Last completed phase | 6 — Default Admin Hardening ✓ (2026-07-09) — forced first-login password rotation for the install.sh admin. Migration 029 adds `users.must_change_password` (NOT NULL, server_default false); `create_admin.py` seeds it true on the OWNER admin; JWT carries the claim through to `CurrentUser`; `get_current_user` 403-gates all non-allowlist routes (`password_change_required`) while flagged; `/auth/change-password` clears the flag, emits `auth.first_login_rotation`, returns fresh flag-free tokens, and rejects reusing `Admin123!`; frontend `/change-password` page (Phase 9 primitives + sunset tokens) + `auth.tsx` redirect gate. Verifier 5/5 must-haves. PROD-06-01..04 Complete. |
-| Last action | 2026-07-09 — Phase 6 executed via `/gsd-execute-phase 6` (4 plans, 3 waves, worktree parallel; Wave 1 06-00/06-01 in parallel). Both Wave-1 agents hit the known stale-base hazard and self-recovered via the branch-check reset; 06-00/06-01 both authored `test_admin_hardening.py` (add/add merge conflict resolved in favor of owner 06-00). Verifier first pass found SC#4 blocker (WR-01: `/auth/login` UserInfo omitted `must_change_password`, so the SPA redirect gate never fired on the primary login path — only after a hard reload via `/auth/me`). Fixed inline (commit db20589): added the field to `UserInfo` schema + populated in `issue_tokens()`, plus backend + frontend regression tests. Re-verify 5/5 passed. |
-| Next action | Phase 7 (Health and Observability). `/gsd-discuss-phase 7` → `/gsd-plan-phase 7` → `/gsd-execute-phase 7`. |
-| Open items | Phase 6: 3 non-blocking code-review findings in 06-REVIEW.md unfixed — WR-03 (React crash if `/auth/change-password` error `detail` is a non-string object), WR-04 (over-broad `create_admin` skip guard counts password users across all tenants), WR-05 (brittle literal `"Admin123!"` reject permits near-default rotations like `Admin1234!`). Run `/gsd-code-review-fix 06` to address. Also 2 pre-existing environmental test failures on local runs (test_rate_limit.py needs real Redis + doc/security.md; test_snooze.py async-teardown) — Docker-only, not phase-6 regressions. Phase 5: 1 human-UAT item outstanding (05-HUMAN-UAT.md). Phase 4: 03 human dry-run rollback on a test VM (SC#4) pending; cd.yml WR-02/03/04 in 03-REVIEW.md unfixed. |
-| Deploy note | Local `main` is ~286 commits ahead of `origin/main`; armed `ci.yml` not yet on remote `main` — pushing this work to remote is a separate step. |
-| Phase numbering | v1.0 = Phases 1–8. v2.0 occupied Phases 9–15 (shipped). |
-| Follow-up queued | mypy 619-error burn-down = a new deferred phase (baseline ratchets down); sequence before/with Phase 8. |
+| Active milestone | v3.0 AI-Assisted Triage — roadmap created 2026-07-27, Phases 23–28, not yet started. Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
+| Phase numbering | v1.0 = Phases 1–8. v2.0 = Phases 9–15. v2.2 = Phases 16–22. v3.0 = Phases 23–28 (continues numbering, does not reset). |
+| v3.0 phase map | See "v3.0 Phase Map" table below. |
+| Next action | Present roadmap draft for approval → on approval, `/gsd-plan-phase 23` (Ingestion Reliability Precursor). |
+| History (v1.0/v2.0/v2.2, retained) | Rows below the divider describe prior-milestone eras and are kept as accumulated context. |
+
+## v3.0 Phase Map
+
+| Phase | Name | Requirements | Depends on |
+|-------|------|--------------|------------|
+| 23 | Ingestion Reliability Precursor | REL-01..06 | Nothing (first phase) |
+| 24 | AI Foundation + "Explain This Vuln" | AI-01..06 | Phase 23 |
+| 25 | Asset-Aware Remediation Guidance | AIR-01..02 | Phase 24 |
+| 26 | Prioritization Narrative | AIP-01..02 | Phase 24 |
+| 27 | Ticket Auto-Drafting | AID-01 | Phase 24, Phase 25 |
+| 28 | Eval + Cost + Observability Gate | AIE-01..04 | Phases 24–27 |
+
+Coverage: 21/21 v3.0 v1 requirements mapped, no orphans. AINL-01 (natural-language query) is explicitly deferred to v3.1 — not in this phase set. Phase 24 concentrates the milestone's integration risk (SSE streaming through nginx, encrypted per-tenant `AiConfig`, the full guardrail scaffold) and every later phase (25–27) reuses it unmodified; Phase 28 is the milestone-closing gate, seeded from real usage data generated by Phases 24–27.
+
+**BYOK constraint (applies to every v3.0 phase):** client-provided Anthropic key only, no shared/fallback key, AI inert (graceful "configure AI" state) until a tenant configures their own key. **Other hard constraints:** tenant-scoped-only caching (no cross-tenant serving), deterministic risk score (ASSET-02) augmented/explained never replaced, prompt-injection defense first-class (untrusted scanner text as data not instructions), fail-closed cost guardrail.
+
+**Pitfall ownership (from research/PITFALLS.md):** #1 prompt injection + #3 PII leakage + #4 cross-tenant bleed + #6 non-determinism + #9 drill-panel latency → Phase 24 (scaffold established once, reused everywhere). #2 hallucinated remediation (cite-or-refuse) → Phase 25. #7 over-trusting AI over the deterministic score (augment-not-replace) → Phase 26. #5 cost blowup + #6 non-determinism (nightly re-run) + #8 shipping without evals → Phase 28.
 
 ## v1.0 Phase 2 Decisions (CONTEXT, 2026-06-30)
 
@@ -73,13 +86,13 @@ Coverage: 50/50 v2.0 requirements mapped. Foundation (UX-F-*) embedded in Phase 
 
 ## Deferred — v1.0 Production Readiness
 
-v1.0 Phase 1 (Multi-Replica State) shipped 2026-05-09. Phases 2–8 deferred while v2.0 redesign takes precedence. Backend hardening work doesn't share files with frontend rebuild — can resume as a future v1.1 milestone in parallel or sequentially.
+v1.0 Phase 1 (Multi-Replica State) shipped 2026-05-09. Phases 2–8 deferred while v2.0 redesign took precedence, then resumed and shipped 2026-06-30 → 2026-07-14. Backend hardening work doesn't share files with the frontend rebuild.
 
-Phases preserved in [.planning/ROADMAP.md](ROADMAP.md) under the collapsed v1.0 section for reference. Recovery branch from the rolled-back v2-01 attempt: `v2-01-rollback-recovery` (at commit `c09194c`).
+Phases preserved in [.planning/ROADMAP.md](ROADMAP.md) under the v1.0 section for reference. Recovery branch from the rolled-back v2-01 attempt: `v2-01-rollback-recovery` (at commit `c09194c`).
 
 ## Audit Reference
 
-The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against commit `8cede77`. The v2.0 redesign is sourced from a 6-sketch design exploration on 2026-05-12 — see [.planning/sketches/WRAP-UP-SUMMARY.md](sketches/WRAP-UP-SUMMARY.md) and `.claude/skills/sketch-findings-getvul/SKILL.md`.
+The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against commit `8cede77`. The v2.0 redesign is sourced from a 6-sketch design exploration on 2026-05-12 — see [.planning/sketches/WRAP-UP-SUMMARY.md](sketches/WRAP-UP-SUMMARY.md) and `.claude/skills/sketch-findings-getvul/SKILL.md`. The v3.0 roadmap is sourced from research completed 2026-07-25 — see [.planning/research/SUMMARY.md](research/SUMMARY.md) (confidence MEDIUM-HIGH; architectural conclusions corroborated across STACK/FEATURES/ARCHITECTURE/PITFALLS.md).
 
 ## Workflow Notes
 
@@ -87,6 +100,8 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - Sketch findings skill auto-loads on UI work per [CLAUDE.md](../CLAUDE.md) routing — every frontend implementation phase consumes the 7 reference files.
 - v0.1 features in [PROJECT.md](PROJECT.md) "Validated Requirements" remain intact; v2.0 rebuilds the UI surface, not the backend.
 - **Anti-pattern guarded:** No foundation-only phase. UX-F-01..F-04 (token system, theme architecture, persistent shell, first primitive set) ride inside Phase 9. The rolled-back v2-01 attempt failed because it shipped foundation without a visible screen ("looks worse than before"). v2.0 ships visible screens from day one.
+- **v3.0 anti-pattern guarded:** No foundation-only AI phase either — Phase 24 ships the full scaffold (grounding/cache/client/guardrails/costs) *and* the first user-visible capability ("Explain this vuln") together, proven end-to-end at minimum blast radius before Phases 25–27 multiply it across four capabilities.
+- **v3.0 research flags carried into planning:** Phase 24 needs a dedicated research/design pass on generalizing `rotate_credentials()` to sweep the new `AiConfig` table (currently hardcodes `ConnectorConfig`) given the "no Fernet key rotation without a documented migration" constraint; SSE streaming through the existing nginx/FastAPI setup is architecture-researched but not implementation-proven — treat as a spike. Phase 26 needs to confirm the scheduler's `user=None`/`system:scheduler` direct-`AuditLog`-construction precedent is the right long-term fix vs. a scheduler-wide `audit()` signature change. Phase 28 should check `AiEvalRun`/`AiEvalResult` Postgres schema against any `gsd-ai-integration-phase` tooling conventions before finalizing.
 
 ## Decisions
 
@@ -119,10 +134,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - Phase 15-04: watcher-stack.tsx Escape key moved to outer wrapper div (no role) — jsx-a11y/no-noninteractive-element-interactions satisfied without changing dialog semantics
 - Phase 15-04: backdrop split pattern (role=presentation outer + role=dialog inner) — AT announces only the inner dialog; Escape/click-outside on outer div
 - Phase 15-04: Wrapper.displayName='Wrapper' pattern for factory-returned test components (react/display-name); vitest-axe.d.ts eslint-disable comments removed (nonexistent rule)
-
----
-*Last updated: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. No queued milestone remains — next: `/gsd-new-milestone`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
-
 - [Phase 18]: 18-00: --legacy-peer-deps required for @dnd-kit/core install (pre-existing lucide-react/React19 peer conflict blocks any plain npm install)
 - [Phase 18]: 18-00: useMarkBlocked onMutate/onError switched from exact setQueryData(['tickets']) to fuzzy setQueriesData/getQueriesData({queryKey:['tickets','list']}) — fixes Pitfall 1 latent list-cache no-op and unblocks board optimistic reprojection
 - [Phase 18]: 18-01: Board DOM contract pinned (data-column + data-ticket-id) via RED e2e spec; KanbanReasonPromptProps (ticketLabel/onSave/onCancel) pinned via RED unit spec mirroring blocked-toggle.tsx
@@ -139,3 +150,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 22]: 22-01: KanbanColumn needs min-w-0 to hold equal flex-1 width regardless of empty-vs-populated sibling content
 - [Phase 22]: 22-01: Enter on a fresh focused card is always consumed by dnd-kit's KeyboardSensor as drag-pickup (default keyboardCodes.start includes Enter) -- it never opens the DrillPanel, so the plan's optional sanity test was skipped as empirically false
 - [Phase 22]: 22-02: getByRole()-based polling for a mutation's brief disabled state is unreliable (accessibility-tree recompute cost) — use an ElementHandle + expect.poll() on the raw DOM property instead
+
+---
+*Last updated: 2026-07-27 — **v3.0 AI-Assisted Triage ROADMAP CREATED** (Phases 23–28, continuing numbering from 22; 21/21 v1 requirements mapped with 100% coverage, no orphans). Added "v3.0 Phase Map" section with dependency chain + pitfall ownership. Awaiting user approval of the roadmap draft before `/gsd-plan-phase 23`. Prior: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*

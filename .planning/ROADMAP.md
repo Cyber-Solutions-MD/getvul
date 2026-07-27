@@ -2,7 +2,7 @@
 
 ## Overview
 
-GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, SLA, CSPM, notifications, reports). Its first GSD milestone is **v1.0 Production Readiness** — closing the blockers identified in the 2026-05-08 audit so a real customer can run this beyond the demo VM. Phase 1 (Multi-Replica State) shipped 2026-05-09; phases 2–8 are deferred while **v2.0 UI/UX Redesign** takes precedence. v2.0 rebuilds every authenticated screen against the validated Wiz-inspired sunset-palette design system (43 design decisions from 6 sketches, captured in `.claude/skills/sketch-findings-getvul/`). v2.0 ships as **vertical-slice phases**: each phase delivers one fully redesigned screen end-to-end (tokens + primitives + page wired to real backend + a11y + tests). Foundation requirements (UX-F-01..F-04) are embedded inside Phase 9 (the `/login` slice) — there is no foundation-only phase, by deliberate design. v1.0 phases 2–8 do not share files with the frontend rebuild and can resume in parallel or sequentially as a future v1.1 milestone.
+GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, SLA, CSPM, notifications, reports). Its first GSD milestone is **v1.0 Production Readiness** — closing the blockers identified in the 2026-05-08 audit so a real customer can run this beyond the demo VM. Phase 1 (Multi-Replica State) shipped 2026-05-09; phases 2–8 are deferred while **v2.0 UI/UX Redesign** takes precedence. v2.0 rebuilds every authenticated screen against the validated Wiz-inspired sunset-palette design system (43 design decisions from 6 sketches, captured in `.claude/skills/sketch-findings-getvul/`). v2.0 ships as **vertical-slice phases**: each phase delivers one fully redesigned screen end-to-end (tokens + primitives + page wired to real backend + a11y + tests). Foundation requirements (UX-F-01..F-04) are embedded inside Phase 9 (the `/login` slice) — there is no foundation-only phase, by deliberate design. v1.0 phases 2–8 do not share files with the frontend rebuild and can resume in parallel or sequentially as a future v1.1 milestone. **v3.0 AI-Assisted Triage ("Triage Copilot")** is the current milestone: it adds a BYOK (bring-your-own-key, tenant-supplied Anthropic key only) LLM-assistance layer — grounded in the tenant's own correlated data, guardrailed against prompt injection/PII leakage/cost blowup, and gated by evals — so an analyst gets help *deciding and act*ing, not just seeing. It continues phase numbering from 22 (Phases 23–28).
 
 ## Milestones
 
@@ -10,6 +10,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - ✅ **v2.0 UI/UX Redesign** — Phases 9–15 (SHIPPED 2026-06-30) — archived: [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 - ✅ **v2.1 Polish & Tech Debt** — BL-01..05 (SHIPPED 2026-07-15; no new phases — backlog cleanup) — see [MILESTONES.md](MILESTONES.md)
 - ✅ **v2.2 Deferred UI Features** — Phases 16–22 (SHIPPED 2026-07-22; gap-closure phases 20–22 added 2026-07-20 from v2.2-MILESTONE-AUDIT) — archived: [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md)
+- 🚧 **v3.0 AI-Assisted Triage ("Triage Copilot")** — Phases 23–28 (IN PROGRESS, opened 2026-07-25) — BYOK LLM assistance: ingestion-reliability precursor, "Explain this vuln," remediation guidance, prioritization narrative, ticket auto-drafting, eval/cost/observability gate
 
 ## Phases
 
@@ -46,6 +47,15 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 20: Light-theme severity-high AA fix** — GAP CLOSURE: `-on-soft` variant for `--color-severity-high` across ~15 sites + live axe sweep green (UX-D-03-02/-03/-05) (added 2026-07-20) (completed 2026-07-21)
 - [x] **Phase 21: Page-transition verification** — GAP CLOSURE: real DrillPanel-during-VT test + persisted human-UAT + 17-VERIFICATION.md (UX-D-06-01/-03/-04) (added 2026-07-20) (completed 2026-07-21)
 - [x] **Phase 22: Kanban + wizard test-coverage hardening** — GAP CLOSURE (warnings): Enter-key-drag + gated-drop SR test; wizard axe sweep extended to Test + Confirm steps (UX-D-01-02, UX-D-02-06 coverage) (added 2026-07-20) (completed 2026-07-22)
+
+**v3.0 AI-Assisted Triage ("Triage Copilot") (IN PROGRESS, opened 2026-07-25 — Phases 23–28):**
+
+- [ ] **Phase 23: Ingestion Reliability Precursor** — Fix Wiz/Rapid7 connector wiring, add scanner HTTP-layer integration tests, wire Jira ticket-create, finish-or-retire GitHub ticketing, surface per-connector sync health
+- [ ] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel
+- [ ] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description
+- [ ] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API
+- [ ] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships
+- [ ] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI
 
 ## Phase Details
 
@@ -196,10 +206,89 @@ Phases 16–22 finished the four features deferred out of v2.0, each holding the
 
 **Full phase detail + success criteria + plans:** [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md) · **Requirements:** [milestones/v2.2-REQUIREMENTS.md](milestones/v2.2-REQUIREMENTS.md) · **Audit:** [milestones/v2.2-MILESTONE-AUDIT.md](milestones/v2.2-MILESTONE-AUDIT.md) · **Summary:** [MILESTONES.md](MILESTONES.md)
 
+## 🚧 v3.0 AI-Assisted Triage ("Triage Copilot") — IN PROGRESS (opened 2026-07-25 — Phases 23–28)
+
+**Foundational principle (applies to every phase below): BYOK.** All AI functionality is client-provided-key only — each tenant supplies their own Anthropic API key; there is no GetVul-owned/shared/fallback key and no GetVul-proxied inference. AI features stay inert (graceful "configure AI" state, never an error) for a tenant until they configure their own key. Other hard constraints threaded through every phase: caching is tenant-scoped only (no cross-tenant serving), the deterministic risk score (ASSET-02) is augmented/explained but never replaced, prompt-injection defense is first-class (untrusted scanner text is delivered as data, never instructions), and the cost guardrail fails closed. See `.planning/research/SUMMARY.md` and `.planning/research/PITFALLS.md` for full rationale.
+
+### Phase 23: Ingestion Reliability Precursor
+**Goal**: Analysts can rely on every scanner connector actually syncing, every ticketing path actually working, and can see per-connector health at a glance — the grounding data every later AI phase depends on is trustworthy.
+**Depends on**: Nothing (independent connector/ticketing fixes; first phase of the milestone)
+**Requirements**: REL-01, REL-02, REL-03, REL-04, REL-05, REL-06
+**Success Criteria** (what must be TRUE):
+  1. Wiz and Rapid7 connectors each complete a full sync end-to-end (the `authenticate()` return-type wiring bug and the no-arg instantiation `TypeError` are both fixed) — REL-01, REL-02
+  2. All six scanner connectors (CrowdStrike, Nessus, Defender, Wiz, Qualys, Rapid7) have HTTP-layer integration tests covering auth, pagination, and `fetch_vulnerabilities` mapping against a mocked transport — REL-03
+  3. An analyst can create a Jira ticket directly from a vulnerability, not just receive status-sync updates for tickets created elsewhere — REL-04
+  4. GitHub ticketing works end-to-end (create + sync) or is explicitly retired with no dead stub referenced anywhere in the codebase — REL-05
+  5. The Connectors UI shows each connector's last sync time, last error, and status — REL-06
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 24: AI Foundation + "Explain This Vuln"
+**Goal**: A tenant admin can turn AI on with their own key, and an analyst gets a grounded, safely-guardrailed, streamed plain-English explanation of any vulnerability — proving the full integration risk (streaming, encrypted per-tenant config, guardrails) end-to-end at minimum blast radius before it's multiplied across four more capabilities.
+**Depends on**: Phase 23 (AI is only as good as its grounding data; also reuses the now-complete Jira/GitHub ticketing paths)
+**Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05, AI-06
+**Success Criteria** (what must be TRUE):
+  1. A tenant admin can configure their own Anthropic API key and model preferences, encrypted at rest via the existing Fernet/`ConnectorConfig` pattern; every AI feature stays in a graceful "configure AI" UI state until that key is set — no shared or fallback key exists anywhere in the system — AI-01
+  2. Opening a vulnerability's drill panel and clicking "Explain this vuln" streams a plain-English summary + business-risk framing into the panel token-by-token — AI-03, AI-04
+  3. The summary visibly distinguishes verbatim scanner-sourced text from AI-interpreted framing (two-tier citation) — AI-04
+  4. Untrusted scanner text (CVE descriptions, hostnames, finding titles) — including adversarially crafted text — is delivered to the model only as data (never as instructions), and every model response is schema-validated before it reaches the UI — AI-02
+  5. Every AI call, including scheduler-originated ones, is audit-logged with model/tokens/cost-estimate/prompt provenance, and AI output cached for one tenant is never served to another tenant — AI-05, AI-06
+**Plans**: TBD
+**UI hint**: yes
+**Pitfalls owned** (see research/PITFALLS.md): #1 prompt injection (headline threat — untrusted-content-as-data contract established here for reuse by every later phase), #3 PII/secret leakage (prompt-builder field allowlist), #4 cross-tenant cache/prompt bleed, #6 non-determinism breaking CI (schema/property-test convention established here), #9 drill-panel latency regression (Suspense-bounded async region).
+
+### Phase 25: Asset-Aware Remediation Guidance
+**Goal**: An analyst gets remediation guidance grounded strictly in the scanner's own solution text plus asset facts — never a fabricated fix — and can carry it straight into a draft ticket.
+**Depends on**: Phase 24 (reuses the grounding/cache/client/guardrail scaffold entirely)
+**Requirements**: AIR-01, AIR-02
+**Success Criteria** (what must be TRUE):
+  1. An analyst can request remediation guidance for a finding and see OS/package-aware steps that cite the scanner's own solution text verbatim before any AI-authored interpretation, surfaced in the drill panel UI — AIR-01
+  2. When no vendor remediation guidance exists for a finding, the assistant says so explicitly (cites insufficient evidence) rather than inventing a plausible-sounding fix — AIR-01
+  3. An analyst can populate a draft ticket description from the remediation guidance and still review/edit it before anything is created — AIR-02
+**Plans**: TBD
+**UI hint**: yes
+**Pitfalls owned**: #2 hallucinated/unsafe remediation guidance — enforced via "cite or refuse" as an output-schema contract (not prompt wording) plus a post-generation dangerous-pattern regex (`rm -rf`, `DROP TABLE`, "disable firewall/EDR").
+
+### Phase 26: Prioritization Narrative
+**Goal**: An analyst sees a "what to fix first and why" narrative — built from exploit/KEV/owner/SLA factors — that explains and augments the existing deterministic risk score without ever competing with or replacing it, generated cost-efficiently in bulk.
+**Depends on**: Phase 24 (reuses the scaffold; first phase to touch the scheduler's batch pre-warm path, sequenced after the request-path phases 24–25 so a known-good single-request reference already exists)
+**Requirements**: AIP-01, AIP-02
+**Success Criteria** (what must be TRUE):
+  1. An analyst can see a "what to fix first and why" narrative for a finding, built from exploit/KEV/owner/SLA factors fed to the model as structured facts, never raw free reasoning — AIP-01
+  2. The deterministic risk score (ASSET-02) remains the one sortable/authoritative number in every list and view; there is no independently-sortable AI-generated rank anywhere in the UI — AIP-01
+  3. Prioritization narratives for a tenant's backlog are pre-generated in bulk on a schedule via the Message Batches API, dispatched via `asyncio.create_task` (never inline, never stalling a connector-sync tick), using only that tenant's own configured key — AIP-02
+**Plans**: TBD
+**UI hint**: yes
+**Pitfalls owned**: #7 over-trusting AI over the deterministic score — "augment, never replace" enforced as a literal output-schema/prompt constraint and a UI constraint (no AI-rank sort control), not just a design intention.
+
+### Phase 27: Ticket Auto-Drafting
+**Goal**: An analyst creating a Jira/Asana ticket gets an AI-drafted title/description/remediation/asset-context pre-filled into the existing create flow, edits it, and ships it — a human click always creates the ticket.
+**Depends on**: Phase 24, Phase 25 (pure consumer of the explain + remediation outputs; no new backend risk surface, no `Ticket` model changes)
+**Requirements**: AID-01
+**Success Criteria** (what must be TRUE):
+  1. Opening the ticket-create flow for a vulnerability pre-fills the form with an AI-drafted title, description, remediation, and asset context — AID-01
+  2. An analyst can edit every drafted field before submission — AID-01
+  3. No ticket is ever created without an explicit human click on Create/Submit — the draft never auto-submits — AID-01
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 28: Eval + Cost + Observability Gate
+**Goal**: The milestone closes with a real, CI-enforced quality gate — evals, red-team injection resistance, a fail-closed cost breaker, and admin-visible usage — seeded from real usage data now that every capability exists.
+**Depends on**: Phases 24–27 (golden-set fixtures are seeded from real observed outputs, not purely synthetic cases; the red-team suite runs against real system prompts)
+**Requirements**: AIE-01, AIE-02, AIE-03, AIE-04
+**Success Criteria** (what must be TRUE):
+  1. A DeepEval pytest-native eval suite runs in CI against golden sets seeded from real Phase 24–27 outputs and fails the build when schema/grounding/citation assertions regress (never brittle exact-prose snapshots) — AIE-01
+  2. A promptfoo red-team job runs as its own CI check (alongside semgrep/ZAP) and asserts prompt-injection resistance over adversarial scanner text across every AI capability shipped so far — AIE-02
+  3. When a tenant exceeds their configured token/cost budget, further AI calls for that tenant halt immediately (fail-closed) and the product degrades to deterministic-score-only — never silently overspending — AIE-03
+  4. A tenant admin can view their AI usage and cost, and manage their key/model/budget settings, in the UI — AIE-04
+**Plans**: TBD
+**UI hint**: yes
+**Pitfalls owned**: #5 cost blowup at scale (fail-closed circuit breaker + cheap-model-first routing already established, hard budget enforced here as a release gate), #6 non-determinism (nightly golden-dataset re-run policy), #8 shipping without evals (evals are the arbiter, matching this codebase's "the sweep, not the file list, is the arbiter" discipline).
+
 ## Progress
 
 **Execution Order:**
-v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in numeric order 9 → 10 → 11 → 12 → 13 → 14 → 15. Phases 10–14 each depend on the prior phase's primitives / patterns; Phase 15 is the closing gate and depends on Phase 14.
+v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in numeric order 9 → 10 → 11 → 12 → 13 → 14 → 15. Phases 10–14 each depend on the prior phase's primitives / patterns; Phase 15 is the closing gate and depends on Phase 14. v3.0 phases execute in numeric order 23 → 24 → 25 → 26 → 27 → 28: Phase 23 is an independent precursor; Phase 24 concentrates the integration risk and every later phase (25–27) reuses its scaffold; Phase 28 is the milestone-closing gate and depends on 24–27.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -225,6 +314,12 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 20. Light-theme severity-high AA fix | v2.2 Deferred UI Features | 4/4 | Complete | 2026-07-21 |
 | 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
+| 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 
 ## Backlog
 
@@ -251,4 +346,4 @@ Plans:
 _Source: Phase 06 REVIEW re-review (2026-07-23) WR-01 residual — the fixer flagged full complexity/history policy as follow-up beyond the safe subset it applied._
 
 ---
-*Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings. v2.2 collapsed to archive 2026-07-22 on milestone completion.*
+*Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings. v2.2 collapsed to archive 2026-07-22 on milestone completion. v3.0 AI-Assisted Triage section added 2026-07-27 from research/SUMMARY.md's validated 6-phase build order — Phases 23–28, continuing phase numbering from 22; coverage 21/21 v1 requirements mapped.*

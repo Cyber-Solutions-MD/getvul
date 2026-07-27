@@ -72,13 +72,28 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 
 ## Traceability
 
-Filled by the roadmapper. Intended mapping (phases continue from 22):
+Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no duplicates.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REL-01..06 | 23 (Ingestion Reliability) | Pending |
-| AI-01..06 | 24 (AI Foundation + Explain-this-vuln) | Pending |
-| AIR-01..02 | 25 (Remediation Guidance) | Pending |
-| AIP-01..02 | 26 (Prioritization Narrative) | Pending |
+| REL-01 | 23 (Ingestion Reliability Precursor) | Pending |
+| REL-02 | 23 (Ingestion Reliability Precursor) | Pending |
+| REL-03 | 23 (Ingestion Reliability Precursor) | Pending |
+| REL-04 | 23 (Ingestion Reliability Precursor) | Pending |
+| REL-05 | 23 (Ingestion Reliability Precursor) | Pending |
+| REL-06 | 23 (Ingestion Reliability Precursor) | Pending |
+| AI-01 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AI-02 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AI-03 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AI-04 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AI-05 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AI-06 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AIR-01 | 25 (Asset-Aware Remediation Guidance) | Pending |
+| AIR-02 | 25 (Asset-Aware Remediation Guidance) | Pending |
+| AIP-01 | 26 (Prioritization Narrative) | Pending |
+| AIP-02 | 26 (Prioritization Narrative) | Pending |
 | AID-01 | 27 (Ticket Auto-Drafting) | Pending |
-| AIE-01..04 | 28 (Eval + Cost + Observability Gate) | Pending |
+| AIE-01 | 28 (Eval + Cost + Observability Gate) | Pending |
+| AIE-02 | 28 (Eval + Cost + Observability Gate) | Pending |
+| AIE-03 | 28 (Eval + Cost + Observability Gate) | Pending |
+| AIE-04 | 28 (Eval + Cost + Observability Gate) | Pending |
