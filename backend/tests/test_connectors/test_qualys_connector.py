@@ -1,0 +1,309 @@
+"""Phase 23 Plan 02 — Qualys VMDR connector coverage (REL-03).
+
+Exercises the full simulated sync: authenticate (Basic auth, a hosts-list
+connectivity probe, False-on-failure convention, no raise) -> XML host-list
+pagination -> XML VM-detection pagination -> knowledge-base batch enrichment
+-> fetch_vulnerabilities -> NormalizedVulnerability mapping, via an
+httpx.MockTransport (no live credentials).
+
+Also pins D-22: `_request_with_rate_limit` retries on HTTP 409 (Qualys's own
+rate-limit status code, not 429) and proactively throttles when
+`X-RateLimit-Remaining <= 2`.
+
+NOTE on pagination fixture size: both `_fetch_all_hosts` and
+`_fetch_all_detections` only continue past page 1 when the page returned
+>= 1000 records (`if len(host_list) < 1000: break` / `if len(host_records) < 1000: break`)
+— genuinely exercising 2-page XML pagination therefore requires building a
+1000-element first page programmatically rather than pasting a literal fixture.
+
+NOTE (discovered, out of scope for this test-authoring plan per D-22/threat
+model — no production code changes): three sites read a LOWERCASE-ONLY key
+with no uppercase fallback, unlike `_normalize_detection`'s dual-case-checked
+QID/SEVERITY/IP/DNS/OS fields:
+  - `_fetch_all_hosts`/`_fetch_all_detections`: `h.get("id")` / `host_rec.get("id")`
+    (the id_min pagination cursor + host_id association)
+  - `fetch_vulnerabilities`'s KB-prefetch step: `det.get("qid")` (which QIDs get
+    knowledge-base-enriched)
+  - `_fetch_kb_entries`: `v.get("qid")` (which KB response rows get cached)
+Real Qualys XML conventionally uses uppercase `<ID>`/`<QID>` tags, which would
+silently break pagination cursoring, host-to-detection association, AND all
+knowledge-base enrichment (title/CVSS/CVE/solution/exploit) against a live API
+— `_normalize_detection`'s own qid/severity extraction works fine either way,
+but the KB cache it reads from would stay permanently empty. This fixture uses
+lowercase `id`/`qid` tags at exactly these sites to pin the connector's CURRENT
+(as implemented) *working* behavior — logged to deferred-items.md as a real
+production bug candidate, not fixed here per this plan's no-code-changes scope.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import httpx
+import pytest
+
+from app.connectors.qualys import QualysConnector
+
+CREDS = {
+    "url": "https://qualysapi.qualys.com",
+    "username": "fake-user",
+    "password": "fake-password",
+}
+
+REAL_HOST_ID = 1
+REAL_QID = 100234
+FILLER_QID = 9999
+
+
+def _install_mock_transport(monkeypatch: pytest.MonkeyPatch, handler) -> None:
+    original_init = httpx.AsyncClient.__init__
+
+    def patched_init(self, *args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
+
+
+def _install_fast_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fast_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", _fast_sleep)
+
+
+def _xml_response(status: int, body: bytes, headers: dict | None = None) -> httpx.Response:
+    all_headers = {"content-type": "text/xml"}
+    if headers:
+        all_headers.update(headers)
+    return httpx.Response(status_code=status, content=body, headers=all_headers)
+
+
+# ── XML fixture builders (see module docstring on the >=1000-record threshold) ──
+
+
+def _build_hosts_page_1() -> bytes:
+    parts = []
+    for hid in range(1, 1001):
+        if hid == REAL_HOST_ID:
+            parts.append(f"<HOST><id>{hid}</id><IP>10.3.3.3</IP><DNS>qualys-host-1</DNS><OS>Ubuntu 20.04</OS></HOST>")
+        else:
+            parts.append(f"<HOST><id>{hid}</id><IP></IP><DNS></DNS><OS></OS></HOST>")
+    return (
+        "<?xml version='1.0' encoding='UTF-8'?>"
+        "<HOST_LIST_OUTPUT><RESPONSE><HOST_LIST>" + "".join(parts) + "</HOST_LIST></RESPONSE></HOST_LIST_OUTPUT>"
+    ).encode()
+
+
+def _build_hosts_page_2() -> bytes:
+    return (
+        b"<?xml version='1.0' encoding='UTF-8'?>"
+        b"<HOST_LIST_OUTPUT><RESPONSE><HOST_LIST>"
+        b"<HOST><id>1001</id><IP></IP><DNS></DNS><OS></OS></HOST>"
+        b"</HOST_LIST></RESPONSE></HOST_LIST_OUTPUT>"
+    )
+
+
+def _build_detections_page_1() -> bytes:
+    parts = []
+    for hid in range(1, 1001):
+        qid = REAL_QID if hid == REAL_HOST_ID else FILLER_QID
+        sev = 5 if hid == REAL_HOST_ID else 1
+        parts.append(
+            f"<HOST><id>{hid}</id><DETECTION_LIST>"
+            f"<DETECTION><qid>{qid}</qid><SEVERITY>{sev}</SEVERITY></DETECTION>"
+            "</DETECTION_LIST></HOST>"
+        )
+    return (
+        "<?xml version='1.0' encoding='UTF-8'?>"
+        "<HOST_VM_DETECTION_LIST_OUTPUT><RESPONSE><HOST_LIST>"
+        + "".join(parts)
+        + "</HOST_LIST></RESPONSE></HOST_VM_DETECTION_LIST_OUTPUT>"
+    ).encode()
+
+
+def _build_detections_page_2() -> bytes:
+    return (
+        "<?xml version='1.0' encoding='UTF-8'?>"
+        "<HOST_VM_DETECTION_LIST_OUTPUT><RESPONSE><HOST_LIST>"
+        "<HOST><id>1001</id><DETECTION_LIST>"
+        f"<DETECTION><qid>{FILLER_QID}</qid><SEVERITY>1</SEVERITY></DETECTION>"
+        "</DETECTION_LIST></HOST>"
+        "</HOST_LIST></RESPONSE></HOST_VM_DETECTION_LIST_OUTPUT>"
+    ).encode()
+
+
+def _build_kb_page() -> bytes:
+    return (
+        "<?xml version='1.0' encoding='UTF-8'?>"
+        "<KNOWLEDGE_BASE_VULN_LIST_OUTPUT><RESPONSE><VULN_LIST><VULN>"
+        f"<qid>{REAL_QID}</qid><TITLE>OpenSSL Remote Code Execution</TITLE>"
+        "<CVSS_V3><BASE>9.4</BASE></CVSS_V3>"
+        "<CVE_LIST><CVE><ID>CVE-2024-9999</ID></CVE></CVE_LIST>"
+        "<SOLUTION>Upgrade to OpenSSL 3.2.1</SOLUTION>"
+        "<EXPLOIT_LIST><EXPLOIT><REF>EDB-99999</REF></EXPLOIT></EXPLOIT_LIST>"
+        "</VULN></VULN_LIST></RESPONSE></KNOWLEDGE_BASE_VULN_LIST_OUTPUT>"
+    ).encode()
+
+
+HOSTS_PAGE_1 = _build_hosts_page_1()
+HOSTS_PAGE_2 = _build_hosts_page_2()
+DETECTIONS_PAGE_1 = _build_detections_page_1()
+DETECTIONS_PAGE_2 = _build_detections_page_2()
+KB_PAGE = _build_kb_page()
+
+
+def _handler_factory(auth_status: int = 200):
+    calls = {"hosts": 0, "detections": 0, "kb": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        params = dict(request.url.params)
+
+        if path == "/api/2.0/fo/asset/host/":
+            if params.get("truncation_limit") == "1":
+                # The authenticate() connectivity probe.
+                if auth_status != 200:
+                    return _xml_response(auth_status, b"<error/>")
+                return _xml_response(200, b"<HOST_LIST_OUTPUT><RESPONSE/></HOST_LIST_OUTPUT>")
+            calls["hosts"] += 1
+            if "id_min" not in params:
+                return _xml_response(200, HOSTS_PAGE_1)
+            return _xml_response(200, HOSTS_PAGE_2)
+
+        if path == "/api/2.0/fo/asset/host/vm/detection/":
+            calls["detections"] += 1
+            if "id_min" not in params:
+                return _xml_response(200, DETECTIONS_PAGE_1)
+            return _xml_response(200, DETECTIONS_PAGE_2)
+
+        if path == "/api/2.0/fo/knowledge_base/vuln/":
+            calls["kb"] += 1
+            return _xml_response(200, KB_PAGE)
+
+        return _xml_response(404, b"<error/>")
+
+    return handler, calls
+
+
+@pytest.mark.asyncio
+async def test_authenticate_success_returns_true(monkeypatch: pytest.MonkeyPatch):
+    handler, _calls = _handler_factory()
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = QualysConnector()
+    result = await connector.authenticate(CREDS, {})
+    await connector.close()
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_authenticate_failure_returns_false(monkeypatch: pytest.MonkeyPatch):
+    """A 401 connectivity probe raises via resp.raise_for_status(), caught and
+    converted to a clean False return (Qualys's own convention — no propagated
+    exception)."""
+    handler, _calls = _handler_factory(auth_status=401)
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = QualysConnector()
+    result = await connector.authenticate(CREDS, {})
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_paginates_xml_to_completion(monkeypatch: pytest.MonkeyPatch):
+    _install_fast_sleep(monkeypatch)
+    handler, calls = _handler_factory()
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = QualysConnector()
+    authed = await connector.authenticate(CREDS, {})
+    assert authed is True
+
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    assert calls["hosts"] == 2  # id_min cursor followed to a 2nd (terminal) page
+    assert calls["detections"] == 2
+    assert len(results) == 1001  # 1000 (page 1) + 1 (page 2) detections
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_field_mapping(monkeypatch: pytest.MonkeyPatch):
+    """fetch_vulnerabilities maps a fixture response field-for-field into
+    NormalizedVulnerability, including host + knowledge-base enrichment."""
+    _install_fast_sleep(monkeypatch)
+    handler, _calls = _handler_factory()
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = QualysConnector()
+    await connector.authenticate(CREDS, {})
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    real = next(r for r in results if r.cve_id == "CVE-2024-9999")
+
+    assert real.vulnerability_name == "OpenSSL Remote Code Execution"
+    assert real.cvss_v3_score == 9.4
+    assert real.severity == "CRITICAL"
+    assert real.source_vuln_id == str(REAL_QID)
+    assert real.hostname == "qualys-host-1"
+    assert real.ip_addresses == ["10.3.3.3"]
+    assert real.os_name == "Ubuntu"
+    assert real.os_version == "20.04"
+    assert real.remediation_info == "Upgrade to OpenSSL 3.2.1"
+    assert real.exploit_available is True
+
+    # Filler detections have no KB entry -> fall back to a QID-{qid} synthetic id.
+    filler = next(r for r in results if r.cve_id == f"QID-{FILLER_QID}")
+    assert filler.vulnerability_name == f"QID {FILLER_QID}"
+    assert filler.exploit_available is False
+
+
+@pytest.mark.asyncio
+async def test_409_retry_pinned(monkeypatch: pytest.MonkeyPatch):
+    # D-22: pinned — Qualys retries on HTTP 409 (its own rate-limit status code,
+    # not 429), up to `_retries` attempts.
+    _install_fast_sleep(monkeypatch)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _xml_response(409, b"<error/>", headers={"X-RateLimit-ToWait-Sec": "0"})
+        return _xml_response(200, b"<ok/>")
+
+    connector = QualysConnector()
+    connector._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://mock")
+
+    resp = await connector._request_with_rate_limit("GET", "/some/path")
+    await connector.close()
+
+    assert resp.status_code == 200
+    assert calls["n"] == 2  # 409 then success — retried, not abandoned
+
+
+@pytest.mark.asyncio
+async def test_proactive_throttle_on_low_rate_limit_remaining(monkeypatch: pytest.MonkeyPatch):
+    # D-22: pinned — proactively sleeps X-RateLimit-ToWait-Sec whenever
+    # X-RateLimit-Remaining <= 2, even on an otherwise-successful response.
+    sleep_calls: list = []
+
+    async def _spy_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", _spy_sleep)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _xml_response(200, b"<ok/>", headers={"X-RateLimit-Remaining": "2", "X-RateLimit-ToWait-Sec": "7"})
+
+    connector = QualysConnector()
+    connector._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://mock")
+
+    resp = await connector._request_with_rate_limit("GET", "/some/path")
+    await connector.close()
+
+    assert resp.status_code == 200
+    assert 7 in sleep_calls
