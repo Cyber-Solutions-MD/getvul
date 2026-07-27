@@ -10,6 +10,9 @@ Proves the runtime side of the connector health columns added in Plan 06
     crafted `Bearer <token>`-shaped secret must not survive into
     `last_error` verbatim.
   - the truncation cap is applied after redaction.
+  - the scheduler-driven path (`app.connectors.scheduler._run_single_sync`)
+    produces identical counter/last_error semantics to the direct
+    `run_sync` path, proving there is exactly one implementation (T-23-21).
 
 A minimal in-memory `_FakeConnector` (registered into `sync.CONNECTOR_CLASSES`
 under a throwaway "FAKE" type via monkeypatch) drives each outcome without
@@ -163,3 +166,61 @@ def test_sanitize_error_scrubs_basic_auth_and_long_tokens():
     result = _sanitize_error(exc)
     assert "dXNlcjpwYXNz" not in result
     assert "abcdefghij0123456789ABCDEFGHIJ0123" not in result
+
+
+# ── Scheduler-path parity (Task 2, T-23-21) ─────────────────────────────────
+#
+# scheduler.py's `_run_single_sync` delegates straight to `sync.run_sync` —
+# confirmed by inspection (no duplicate write-back logic exists there). These
+# tests prove that delegation holds at runtime: a scheduler-driven failure/
+# success produces identical consecutive_failure_count/last_error semantics
+# to the direct path above, so the two paths cannot drift (T-23-21).
+
+
+@pytest.mark.asyncio
+async def test_scheduler_path_failure_parity(db_session, tenant_a, monkeypatch):
+    """The scheduler's `_run_single_sync` delegates to the same `run_sync` —
+    proving one implementation, not a divergent counter/last_error path."""
+    from app.connectors import scheduler as scheduler_module
+
+    connector = _seed_fake_connector(tenant_a, consecutive_failure_count=0)
+    db_session.add(connector)
+    await db_session.commit()  # scheduler opens its own session — must be visible
+
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", True)
+    monkeypatch.setattr(_FakeConnector, "RAISE", Exception("Authorization: Bearer sk-scheduler-secret"))
+
+    await scheduler_module._run_single_sync(str(connector.id), str(tenant_a))
+
+    # `async_session_factory` is `expire_on_commit=False` (app/db/session.py),
+    # so the test's `db_session` identity map won't auto-refresh `connector`'s
+    # attributes from the scheduler's separately-committed transaction — force
+    # a reload of this specific instance.
+    await db_session.refresh(connector)
+
+    assert connector.last_sync_status == "FAILED"
+    assert connector.consecutive_failure_count == 1
+    assert connector.last_error is not None
+    assert "sk-scheduler-secret" not in connector.last_error
+    assert "Bearer" not in connector.last_error
+
+
+@pytest.mark.asyncio
+async def test_scheduler_path_success_parity(db_session, tenant_a, monkeypatch):
+    from app.connectors import scheduler as scheduler_module
+
+    connector = _seed_fake_connector(tenant_a, consecutive_failure_count=4)
+    connector.last_error = "stale"
+    db_session.add(connector)
+    await db_session.commit()
+
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", True)
+    monkeypatch.setattr(_FakeConnector, "RAISE", None)
+
+    await scheduler_module._run_single_sync(str(connector.id), str(tenant_a))
+
+    await db_session.refresh(connector)
+
+    assert connector.last_sync_status == "SUCCESS"
+    assert connector.consecutive_failure_count == 0
+    assert connector.last_error is None
