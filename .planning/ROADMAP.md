@@ -257,7 +257,7 @@ Phases 16–22 finished the four features deferred out of v2.0, each holding the
   4. GitHub ticketing works end-to-end (create + sync) or is explicitly retired with no dead stub referenced anywhere in the codebase — REL-05
   5. The Connectors UI shows each connector's last sync time, last error, and status — REL-06
 
-**Plans**: 9/9 plans executed
+**Plans**: 11 plans (9 executed; 23-10/23-11 are gap-closure for CR-03/CR-01)
 
 Plans:
 
@@ -270,6 +270,8 @@ Plans:
 - [x] 23-07-PLAN.md — Sync-harness failure counter + redacted/truncated last_error capture + scheduler parity (REL-06)
 - [x] 23-08-PLAN.md — Drill-panel provider picker create UX + configured-providers query hook (REL-04)
 - [x] 23-09-PLAN.md — Connector-card health surface: inline last-error, next-sync, consecutive-failure count (REL-06)
+- [ ] 23-10-PLAN.md — Gap closure (CR-03, REL-06): sanitize SyncLog.error_message + scheduler-log secret-leak regression test
+- [ ] 23-11-PLAN.md — Gap closure (CR-01, REL-04): wire TicketProviderPicker into mobile drill-panel confirm + gated-provider regression test
 
 **UI hint**: yes
 
