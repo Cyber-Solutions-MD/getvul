@@ -22,6 +22,15 @@ interface ConfirmModalProps {
   variant?: "danger" | "warning" | "info";
   onConfirm: () => void;
   onCancel: () => void;
+  // Plan 23-08 (D-14): optional extra body content rendered between the
+  // message and the action row — e.g. the vuln-drill-panel ticket provider
+  // picker. Additive/backward-compatible: all pre-existing call sites omit
+  // it and render exactly as before.
+  children?: React.ReactNode;
+  // Plan 23-08 (D-14): disables the confirm action (e.g. no provider chosen
+  // yet / nothing configured to create against) without touching the
+  // shared Button primitive's disabled styling.
+  confirmDisabled?: boolean;
 }
 
 export default function ConfirmModal({
@@ -33,6 +42,8 @@ export default function ConfirmModal({
   variant = "info",
   onConfirm,
   onCancel,
+  children,
+  confirmDisabled = false,
 }: ConfirmModalProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
 
@@ -78,6 +89,7 @@ export default function ConfirmModal({
         <div className="px-2 pt-4 pb-2 min-[768px]:p-0">
           <h3 className="text-lg font-semibold text-text">{title}</h3>
           <p className="mt-2 text-sm text-text-muted whitespace-pre-wrap">{message}</p>
+          {children && <div className="mt-4">{children}</div>}
           <div className="mt-6 flex justify-end gap-3 pb-[env(safe-area-inset-bottom)]">
             <button
               onClick={onCancel}
@@ -88,7 +100,8 @@ export default function ConfirmModal({
             <button
               ref={confirmRef}
               onClick={onConfirm}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface-2 ${btnColor}`}
+              disabled={confirmDisabled}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface-2 disabled:pointer-events-none disabled:opacity-50 ${btnColor}`}
             >
               {confirmLabel}
             </button>
