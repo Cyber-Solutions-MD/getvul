@@ -1,21 +1,72 @@
-"""Ticketing service — creates vulnerability tickets in Asana, tracks status."""
+"""Ticketing service — creates vulnerability tickets via any dispatched
+TicketingClient (Asana/Jira/GitHub), tracks status.
+
+D-07 (Phase 23 Plan 04): the three create paths, sync_ticket_status, and
+close_ticket used to hardcode the Asana client's create call regardless of
+the caller's requested provider — the live data-integrity bug where
+`provider:"JIRA"` silently created an Asana task while persisting
+`Ticket.provider="JIRA"`. They now accept an already-resolved
+`TicketingClient` (or, for sync/close where a ticket's provider is only
+known after the DB lookup, a `client_resolver` callback) and dispatch
+through the create/get/comment/close verb surface from dispatch.py.
+"""
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
 from sqlalchemy import String, case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
-from app.ticketing.asana_client import AsanaClient
+from app.ticketing.dispatch import TicketingClient
 from app.ticketing.models import Ticket
+from app.ticketing.providers import TicketProvider
 from app.ticketing.schemas import HostTicketCreateRequest, TicketCreateRequest, TicketStats, TicketSummary
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
+
+# A resolver the caller (router.py) supplies to sync_ticket_status/close_ticket
+# so those functions can dispatch to the RIGHT client per ticket's own stored
+# provider, without service.py owning tenant-scoped credential decryption
+# (that stays in router.py, mirroring the pre-existing _get_asana_client
+# pattern). Returns None if no enabled connector exists for that provider —
+# callers of sync_ticket_status treat that as "skip this provider's tickets",
+# not a hard failure (T-23-11).
+ClientResolver = Callable[[str], Awaitable[TicketingClient | None]]
+
+
+def _extract_ref(url: str) -> str:
+    """Extract the provider's raw ticket ref (Asana task gid / Jira issue key /
+    GitHub issue number) from the URL returned by TicketingClient.create().
+
+    All three adapters' create() return the human-facing URL (dispatch.py),
+    and in every case the raw ref is the URL's last path segment:
+      - Asana:  https://app.asana.com/0/{project_gid}/{gid}      -> gid
+      - Jira:   {base_url}/browse/{issue_key}                    -> issue_key
+      - GitHub: https://github.com/{owner}/{repo}/issues/{number} -> number
+    """
+    return url.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _provider_create_kwargs(provider: str, assignee: str | None, due_on: str | None) -> dict[str, Any]:
+    """Only Asana's create_task natively accepts assignee/due_on kwargs.
+
+    JiraClient.create_ticket / GitHubClient.create_ticket do NOT accept these
+    parameter names — JiraAdapter.create forwards **kwargs straight through to
+    create_ticket, so passing assignee/due_on there would raise TypeError.
+    GitHubAdapter.create ignores **kwargs entirely. Asana behavior stays
+    byte-for-byte; Jira/GitHub still get the same info baked into the
+    description text via _build_task_description/_build_host_task_description.
+    """
+    if provider == TicketProvider.ASANA:
+        return {"assignee": assignee, "due_on": due_on}
+    return {}
 
 
 async def recompute_ticket_sla(
@@ -113,10 +164,9 @@ async def create_tickets(
     tenant_id: uuid.UUID,
     user_id: uuid.UUID,
     request: TicketCreateRequest,
-    asana_client: AsanaClient,
-    workspace_gid: str,
+    client: TicketingClient,
 ) -> list[TicketSummary]:
-    """Create tickets for vulnerabilities in Asana."""
+    """Create tickets for vulnerabilities via the dispatched provider client (D-07)."""
     created_tickets: list[TicketSummary] = []
 
     for vuln_id in request.vulnerability_ids:
@@ -171,19 +221,15 @@ async def create_tickets(
 
         notes = _build_task_description(vuln, hostname)
 
-        # Create in Asana
-        task = await asana_client.create_task(
-            workspace_gid=workspace_gid,
-            project_gid=request.project_key,
-            name=task_name,
-            notes=notes,
-            assignee=assignee,
-            due_on=due_on,
-        )
+        # Create via the dispatched provider client (D-07: destination now
+        # matches request.provider, not always Asana).
+        url = await client.create(task_name, notes, **_provider_create_kwargs(request.provider, assignee, due_on))
 
-        if task is None:
-            logger.error("ticket_creation_failed", vuln_id=str(vuln_id))
+        if url is None:
+            logger.error("ticket_creation_failed", vuln_id=str(vuln_id), provider=request.provider)
             continue
+
+        ref = _extract_ref(url)
 
         # Save ticket record
         now = datetime.now(UTC)
@@ -191,8 +237,8 @@ async def create_tickets(
             tenant_id=tenant_id,
             vulnerability_id=vuln_id,
             provider=request.provider,
-            external_ticket_id=task.gid,
-            external_ticket_url=task.url,
+            external_ticket_id=ref,
+            external_ticket_url=url,
             external_status="open",
             project_key=request.project_key,
             assignee=assignee,
@@ -204,7 +250,7 @@ async def create_tickets(
         await db.flush()
 
         # Recompute group SLA so the new row gets the group MIN(linked vuln.sla_due_at)
-        await recompute_ticket_sla(db, task.url, tenant_id)
+        await recompute_ticket_sla(db, url, tenant_id)
 
         # Update vulnerability status to IN_PROGRESS
         vuln.status = "IN_PROGRESS"
@@ -213,8 +259,8 @@ async def create_tickets(
             TicketSummary(
                 id=ticket.id,
                 provider=ticket.provider,
-                external_ticket_id=task.gid,
-                external_ticket_url=task.url,
+                external_ticket_id=ref,
+                external_ticket_url=url,
                 external_status="open",
                 assignee=assignee,
                 cve_id=vuln.cve_id,
@@ -224,7 +270,7 @@ async def create_tickets(
             )
         )
 
-        logger.info("ticket_created", vuln_id=str(vuln_id), task_gid=task.gid, assignee=assignee)
+        logger.info("ticket_created", vuln_id=str(vuln_id), ref=ref, provider=request.provider, assignee=assignee)
 
     return created_tickets
 
@@ -296,10 +342,9 @@ async def create_host_ticket(
     tenant_id: uuid.UUID,
     user_id: uuid.UUID,
     request: HostTicketCreateRequest,
-    asana_client: AsanaClient,
-    workspace_gid: str,
+    client: TicketingClient,
 ) -> dict:
-    """Create a single Asana ticket for a host with all its remediations."""
+    """Create a single ticket for a host with all its remediations (D-07)."""
 
     # Fetch asset
     result = await db.execute(select(Asset).where(Asset.id == request.asset_id, Asset.tenant_id == tenant_id))
@@ -412,18 +457,13 @@ async def create_host_ticket(
 
     notes = _build_host_task_description(asset, remediations, vuln_counts, vulns=vulns)
 
-    # Create in Asana
-    task = await asana_client.create_task(
-        workspace_gid=workspace_gid,
-        project_gid=request.project_key,
-        name=task_name,
-        notes=notes,
-        assignee=assignee,
-        due_on=due_on,
-    )
+    # Create via the dispatched provider client (D-07).
+    url = await client.create(task_name, notes, **_provider_create_kwargs(request.provider, assignee, due_on))
 
-    if task is None:
-        return {"error": "Failed to create Asana task"}
+    if url is None:
+        return {"error": "Failed to create ticket"}
+
+    ref = _extract_ref(url)
 
     # Save ticket records — one per vuln so we can track resolution
     now = datetime.now(UTC)
@@ -444,8 +484,8 @@ async def create_host_ticket(
             tenant_id=tenant_id,
             vulnerability_id=v.id,
             provider=request.provider,
-            external_ticket_id=f"{task.gid}:{v.id}",
-            external_ticket_url=task.url,
+            external_ticket_id=f"{ref}:{v.id}",
+            external_ticket_url=url,
             external_status="open",
             project_key=request.project_key,
             assignee=assignee,
@@ -463,20 +503,21 @@ async def create_host_ticket(
 
     # Recompute group SLA so all rows get MIN(linked vuln.sla_due_at) for this task URL
     if ticket_ids:
-        await recompute_ticket_sla(db, task.url, tenant_id)
+        await recompute_ticket_sla(db, url, tenant_id)
 
     logger.info(
         "host_ticket_created",
         hostname=hostname,
-        task_gid=task.gid,
+        ref=ref,
+        provider=request.provider,
         assignee=assignee,
         vulns=len(ticket_ids),
         remediations=len(remediations),
     )
 
     return {
-        "task_gid": task.gid,
-        "task_url": task.url,
+        "task_gid": ref,
+        "task_url": url,
         "hostname": hostname,
         "assignee": assignee,
         "due_on": due_on,
@@ -493,8 +534,7 @@ async def create_remediation_ticket(
     remediation_id: str,
     provider: str,
     project_key: str,
-    asana_client: AsanaClient,
-    workspace_gid: str,
+    client: TicketingClient,
     due_days: int | None = None,
     assignee_email: str | None = None,
     severity_filter: list[str] | None = None,
@@ -502,7 +542,7 @@ async def create_remediation_ticket(
     exploit_filter: bool = False,
     kev_filter: bool = False,
 ) -> dict:
-    """Create a single ticket for a remediation action, listing all affected hosts."""
+    """Create a single ticket for a remediation action, listing all affected hosts (D-07)."""
 
     # Get open vulns for this remediation, applying filters
     vulns_q = (
@@ -597,16 +637,11 @@ async def create_remediation_ticket(
 
     task_name = f"[{max_sev}] {product}: {remediation_action[:80]} — {len(hosts)} hosts"
 
-    task = await asana_client.create_task(
-        workspace_gid=workspace_gid,
-        project_gid=project_key,
-        name=task_name,
-        notes=notes,
-        assignee=assignee_email,
-        due_on=due_on,
-    )
-    if task is None:
-        return {"error": "Failed to create Asana task"}
+    url = await client.create(task_name, notes, **_provider_create_kwargs(provider, assignee_email, due_on))
+    if url is None:
+        return {"error": "Failed to create ticket"}
+
+    ref = _extract_ref(url)
 
     # Save ticket records
     now = datetime.now(UTC)
@@ -622,8 +657,8 @@ async def create_remediation_ticket(
             tenant_id=tenant_id,
             vulnerability_id=vuln.id,
             provider=provider,
-            external_ticket_id=f"{task.gid}:{vuln.id}",
-            external_ticket_url=task.url,
+            external_ticket_id=f"{ref}:{vuln.id}",
+            external_ticket_url=url,
             external_status="open",
             project_key=project_key,
             assignee=assignee_email,
@@ -640,11 +675,11 @@ async def create_remediation_ticket(
 
     # Recompute group SLA for all rows under this task URL
     if linked > 0:
-        await recompute_ticket_sla(db, task.url, tenant_id)
+        await recompute_ticket_sla(db, url, tenant_id)
 
     return {
-        "task_gid": task.gid,
-        "task_url": task.url,
+        "task_gid": ref,
+        "task_url": url,
         "remediation": remediation_action[:100],
         "product": product,
         "hosts_affected": len(hosts),
@@ -930,19 +965,44 @@ async def get_ticket_stats(db: AsyncSession, tenant_id: uuid.UUID) -> TicketStat
     )
 
 
+def _is_ticket_completed(provider: str, payload: dict[str, Any]) -> bool:
+    """Interpret a provider's raw `client.get(ref)` payload as done/not-done.
+
+    Each provider's raw shape differs (dispatch.py's `get()` deliberately
+    returns the raw provider payload, not a normalized one) — this is the one
+    place that knows how to read all three: Asana's `completed` bool, Jira's
+    status-category/name, GitHub's `state` string.
+    """
+    if provider == TicketProvider.ASANA:
+        return bool(payload.get("completed"))
+    if provider == TicketProvider.JIRA:
+        status = payload.get("fields", {}).get("status", {})
+        category = status.get("statusCategory", {}).get("key", "")
+        name = status.get("name", "")
+        return category == "done" or name.lower() in ("done", "closed", "resolved", "completed")
+    if provider == TicketProvider.GITHUB:
+        return payload.get("state") == "closed"
+    return False
+
+
 async def sync_ticket_status(
     db: AsyncSession,
     tenant_id: uuid.UUID,
-    asana_client: AsanaClient,
+    client_resolver: ClientResolver,
 ) -> dict:
-    """Sync ticket status from Asana back to GetVul.
+    """Sync ticket status from each ticket's OWN provider back to GetVul (D-07).
+
+    Previously hardcoded `Ticket.provider == "ASANA"` — every open ticket
+    regardless of provider is now considered, grouped by provider, and
+    dispatched to that provider's client via `client_resolver`. A provider
+    with no configured connector is skipped (logged), not treated as a hard
+    failure, so one missing connector doesn't abort sync for the others.
 
     Also checks for partially remediated hosts and adds progress comments.
     """
     result = await db.execute(
         select(Ticket).where(
             Ticket.tenant_id == tenant_id,
-            Ticket.provider == "ASANA",
             Ticket.resolved_at.is_(None),
         )
     )
@@ -952,132 +1012,148 @@ async def sync_ticket_status(
     resolved = 0
     comments_added = 0
 
-    # Cache task status to avoid redundant API calls for host tickets
-    task_cache: dict[str, dict | None] = {}
-    # Track which tasks we've already commented on
-    commented_tasks: set[str] = set()
+    tickets_by_provider: dict[str, list[Ticket]] = {}
+    for t in tickets:
+        tickets_by_provider.setdefault(t.provider, []).append(t)
 
-    for ticket in tickets:
-        task_gid = ticket.external_ticket_id.split(":")[0]
+    resolved_clients: dict[str, TicketingClient | None] = {}
 
-        if task_gid not in task_cache:
-            task_cache[task_gid] = await asana_client.get_task(task_gid)
-
-        task = task_cache[task_gid]
-        if task is None:
+    for provider, provider_tickets in tickets_by_provider.items():
+        if provider not in resolved_clients:
+            resolved_clients[provider] = await client_resolver(provider)
+        client = resolved_clients[provider]
+        if client is None:
+            logger.warning("ticket_sync_skip_unconfigured_provider", provider=provider)
             continue
 
-        synced += 1
+        # Cache raw get() payloads to avoid redundant API calls for host tickets
+        task_cache: dict[str, dict[str, Any] | None] = {}
+        # Track which tasks we've already commented on
+        commented_tasks: set[str] = set()
 
-        if task.get("completed"):
-            ticket.external_status = "completed"
-            ticket.resolved_at = datetime.now(UTC)
-            resolved += 1
-            # Mark vulnerability as remediated
-            vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
-            vuln = vuln_result.scalar_one_or_none()
-            if vuln and vuln.status != "REMEDIATED":
-                vuln.status = "REMEDIATED"
-                vuln.remediated_at = datetime.now(UTC)
-        else:
-            ticket.external_status = "open"
+        for ticket in provider_tickets:
+            ref = ticket.external_ticket_id.split(":")[0]
 
-    # For open host tickets, check if any vulns were remediated and post a progress comment
-    # Group open tickets by task URL
-    task_tickets: dict[str, list[Ticket]] = {}
-    for ticket in tickets:
-        task_gid = ticket.external_ticket_id.split(":")[0]
-        if ticket.resolved_at is None:  # Still open
-            task_tickets.setdefault(task_gid, []).append(ticket)
+            if ref not in task_cache:
+                task_cache[ref] = await client.get(ref)
 
-    for task_gid, task_ticket_list in task_tickets.items():
-        # Count how many vulns linked to this task are now remediated vs still open
-        vuln_ids = [t.vulnerability_id for t in task_ticket_list]
-        if not vuln_ids:
-            continue
+            payload = task_cache[ref]
+            if payload is None:
+                continue
 
-        vuln_status_q = (
-            select(
-                Vulnerability.status,
-                func.count(Vulnerability.id).label("cnt"),
-            )
-            .where(Vulnerability.id.in_(vuln_ids))
-            .group_by(Vulnerability.status)
-        )
-        status_rows = (await db.execute(vuln_status_q)).all()
-        status_counts = {r.status: r.cnt for r in status_rows}
+            synced += 1
 
-        total = sum(status_counts.values())
-        remediated = status_counts.get("REMEDIATED", 0)
-        suppressed = status_counts.get("SUPPRESSED", 0)
-        still_open = status_counts.get("OPEN", 0) + status_counts.get("IN_PROGRESS", 0)
+            if _is_ticket_completed(provider, payload):
+                ticket.external_status = "completed"
+                ticket.resolved_at = datetime.now(UTC)
+                resolved += 1
+                # Mark vulnerability as remediated
+                vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+                vuln = vuln_result.scalar_one_or_none()
+                if vuln and vuln.status != "REMEDIATED":
+                    vuln.status = "REMEDIATED"
+                    vuln.remediated_at = datetime.now(UTC)
+            else:
+                ticket.external_status = "open"
 
-        # Auto-close: if no open vulns remain, complete the Asana task
-        if still_open == 0 and total > 0 and task_gid not in commented_tasks:
-            now = datetime.now(UTC)
-            # Complete the Asana task
-            await asana_client.update_task(task_gid, completed=True)
-            await asana_client.add_comment(
-                task_gid,
-                f"✅ All {total} vulnerabilities resolved ({remediated} remediated, {suppressed} suppressed). Closing automatically.",
-            )
-            # Mark all ticket rows as resolved
-            for t in task_ticket_list:
-                t.external_status = "completed"
-                t.resolved_at = now
-            resolved += len(task_ticket_list)
-            comments_added += 1
-            commented_tasks.add(task_gid)
-            continue
+        # For open host tickets, check if any vulns were remediated and post a progress comment
+        # Group open tickets by ref
+        task_tickets: dict[str, list[Ticket]] = {}
+        for ticket in provider_tickets:
+            ref = ticket.external_ticket_id.split(":")[0]
+            if ticket.resolved_at is None:  # Still open
+                task_tickets.setdefault(ref, []).append(ticket)
 
-        # Only comment if some progress was made (at least 1 remediated or suppressed)
-        if (remediated > 0 or suppressed > 0) and still_open > 0 and task_gid not in commented_tasks:
-            # Build remaining remediations summary
-            remaining_q = (
+        for ref, task_ticket_list in task_tickets.items():
+            # Count how many vulns linked to this task are now remediated vs still open
+            vuln_ids = [t.vulnerability_id for t in task_ticket_list]
+            if not vuln_ids:
+                continue
+
+            vuln_status_q = (
                 select(
-                    Vulnerability.remediation_action,
-                    Vulnerability.affected_product,
-                    Vulnerability.severity,
-                    Vulnerability.cve_id,
+                    Vulnerability.status,
+                    func.count(Vulnerability.id).label("cnt"),
                 )
-                .where(
-                    Vulnerability.id.in_(vuln_ids),
-                    Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-                )
-                .order_by(
-                    case(
-                        (Vulnerability.severity == "CRITICAL", 0),
-                        (Vulnerability.severity == "HIGH", 1),
-                        else_=2,
-                    )
-                )
-                .limit(20)
+                .where(Vulnerability.id.in_(vuln_ids))
+                .group_by(Vulnerability.status)
             )
-            remaining = (await db.execute(remaining_q)).all()
+            status_rows = (await db.execute(vuln_status_q)).all()
+            status_counts = {r.status: r.cnt for r in status_rows}
 
-            comment_lines = [
-                "📊 Progress update from GetVul:",
-                "",
-                f"✅ Remediated: {remediated}/{total}",
-            ]
-            if suppressed > 0:
-                comment_lines.append(f"⏭️ Suppressed: {suppressed}")
-            comment_lines.append(f"🔴 Remaining: {still_open}")
-            comment_lines.append("")
-            comment_lines.append("Remaining actions:")
+            total = sum(status_counts.values())
+            remediated = status_counts.get("REMEDIATED", 0)
+            suppressed = status_counts.get("SUPPRESSED", 0)
+            still_open = status_counts.get("OPEN", 0) + status_counts.get("IN_PROGRESS", 0)
 
-            seen = set()
-            for r in remaining:
-                action = r.remediation_action or r.cve_id or "Unknown"
-                if action not in seen:
-                    seen.add(action)
-                    comment_lines.append(f"• [{r.severity}] {r.affected_product or '?'}: {action[:100]}")
-
-            comment = "\n".join(comment_lines)
-            ok = await asana_client.add_comment(task_gid, comment)
-            if ok:
+            # Auto-close: if no open vulns remain, complete the ticket via the
+            # dispatched client (D-07: no longer Asana-only).
+            if still_open == 0 and total > 0 and ref not in commented_tasks:
+                now = datetime.now(UTC)
+                await client.close(ref)
+                await client.comment(
+                    ref,
+                    f"✅ All {total} vulnerabilities resolved ({remediated} remediated, {suppressed} suppressed). Closing automatically.",
+                )
+                # Mark all ticket rows as resolved
+                for t in task_ticket_list:
+                    t.external_status = "completed"
+                    t.resolved_at = now
+                resolved += len(task_ticket_list)
                 comments_added += 1
-                commented_tasks.add(task_gid)
+                commented_tasks.add(ref)
+                continue
+
+            # Only comment if some progress was made (at least 1 remediated or suppressed)
+            if (remediated > 0 or suppressed > 0) and still_open > 0 and ref not in commented_tasks:
+                # Build remaining remediations summary
+                remaining_q = (
+                    select(
+                        Vulnerability.remediation_action,
+                        Vulnerability.affected_product,
+                        Vulnerability.severity,
+                        Vulnerability.cve_id,
+                    )
+                    .where(
+                        Vulnerability.id.in_(vuln_ids),
+                        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                    )
+                    .order_by(
+                        case(
+                            (Vulnerability.severity == "CRITICAL", 0),
+                            (Vulnerability.severity == "HIGH", 1),
+                            else_=2,
+                        )
+                    )
+                    .limit(20)
+                )
+                remaining = (await db.execute(remaining_q)).all()
+
+                comment_lines = [
+                    "📊 Progress update from GetVul:",
+                    "",
+                    f"✅ Remediated: {remediated}/{total}",
+                ]
+                if suppressed > 0:
+                    comment_lines.append(f"⏭️ Suppressed: {suppressed}")
+                comment_lines.append(f"🔴 Remaining: {still_open}")
+                comment_lines.append("")
+                comment_lines.append("Remaining actions:")
+
+                seen = set()
+                for r in remaining:
+                    action = r.remediation_action or r.cve_id or "Unknown"
+                    if action not in seen:
+                        seen.add(action)
+                        comment_lines.append(f"• [{r.severity}] {r.affected_product or '?'}: {action[:100]}")
+
+                comment = "\n".join(comment_lines)
+                # dispatch.py's comment() returns None (not a success bool) —
+                # adapters log-and-swallow provider failures internally, so we
+                # optimistically count it (matches the auto-close branch above).
+                await client.comment(ref, comment)
+                comments_added += 1
+                commented_tasks.add(ref)
 
     return {"synced": synced, "resolved": resolved, "comments_added": comments_added}
 
@@ -1086,9 +1162,13 @@ async def close_ticket(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     external_ticket_url: str,
-    asana_client: AsanaClient,
+    client_resolver: ClientResolver,
 ) -> dict:
-    """Manually close a ticket — completes the Asana task and resolves all linked vulns."""
+    """Manually close a ticket — dispatches by the ticket's OWN stored
+    provider (D-07), completing it on that provider and resolving all linked
+    vulns. Previously always completed an Asana task regardless of the
+    ticket's persisted provider.
+    """
     # Find all ticket rows for this task URL
     result = await db.execute(
         select(Ticket).where(
@@ -1100,11 +1180,16 @@ async def close_ticket(
     if not tickets:
         return {"error": "Ticket not found"}
 
+    provider = tickets[0].provider
+    client = await client_resolver(provider)
+    if client is None:
+        return {"error": f"No {provider} connector configured"}
+
     now = datetime.now(UTC)
 
-    # Complete the Asana task
-    task_gid = tickets[0].external_ticket_id.split(":")[0]
-    await asana_client.update_task(task_gid, completed=True)
+    # Complete the ticket on its own provider
+    ref = tickets[0].external_ticket_id.split(":")[0]
+    await client.close(ref)
 
     # Resolve all ticket rows and their vulns
     resolved_vulns = 0
