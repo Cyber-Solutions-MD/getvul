@@ -26,6 +26,8 @@ export interface ConnectorConfig {
   last_sync_at: string | null;
   last_sync_status: string | null;
   last_sync_record_count: number | null;
+  last_error: string | null;
+  consecutive_failure_count: number;
   sync_interval_minutes: number;
   created_at: string;
   updated_at: string;

@@ -36,6 +36,8 @@ export type ConnectorConfigResponse = {
   last_sync_at: string | null;
   last_sync_status: 'ok' | 'syncing' | 'failed' | null;
   last_sync_record_count: number | null;
+  last_error: string | null;
+  consecutive_failure_count: number;
   sync_interval_minutes: number;
   created_at: string;
   updated_at: string;

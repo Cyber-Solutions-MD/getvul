@@ -52,7 +52,11 @@ const STATUS_CONFIG: Record<NonNullable<SyncStatus> | '__never', StateConfig> = 
 
 export function SyncStatusPill({ status, className }: SyncStatusPillProps) {
   const key = status ?? '__never';
-  const { label, pillClass, dotClass } = STATUS_CONFIG[key];
+  // Total lookup: an unexpected/un-normalized value (e.g. a raw backend
+  // "SUCCESS"/"FAILED" that bypassed the service.py wire normalization)
+  // degrades gracefully to the __never config instead of crashing the
+  // destructure — belt-and-suspenders alongside the backend fix.
+  const { label, pillClass, dotClass } = STATUS_CONFIG[key] ?? STATUS_CONFIG['__never'];
 
   return (
     <span

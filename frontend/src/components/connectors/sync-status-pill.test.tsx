@@ -60,9 +60,9 @@ describe('SyncStatusPill', () => {
     // the pill must fall back instead of crashing on the undefined destructure.
     let container!: HTMLElement;
     expect(() => {
-      ({ container } = render(
-        <SyncStatusPill status={'SUCCESS' as unknown as 'ok' | 'failed' | 'syncing' | null} />,
-      ));
+      // @ts-expect-error — intentionally simulating a raw, un-normalized
+      // backend value bypassing the service.py wire-boundary mapping.
+      ({ container } = render(<SyncStatusPill status="SUCCESS" />));
     }).not.toThrow();
     expect(within(container).getByText('Never synced')).toBeInTheDocument();
     expect((container.firstChild as HTMLElement).dataset.syncStatus).toBe('SUCCESS');
