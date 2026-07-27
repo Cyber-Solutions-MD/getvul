@@ -320,6 +320,23 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         setup_url="https://help.rapid7.com/insightvm/en-us/api/index.html",
         notes="Use the InsightVM Security Console API (v3). URL is your console address, e.g. https://insightvm.company.com:3780",
     ),
+    "GITHUB": ConnectorTypeInfo(
+        id="GITHUB",
+        name="GitHub",
+        description="Create and track vulnerability remediation issues as GitHub Issues",
+        fields=[
+            {"name": "token", "label": "Personal Access Token", "type": "password", "required": True},
+            {"name": "owner", "label": "Repository Owner", "type": "text", "required": True},
+            {"name": "repo", "label": "Repository Name", "type": "text", "required": True},
+        ],
+        permissions=[
+            ConnectorPermission(
+                scope="repo", access="Write", purpose="Create and update issues in the target repository"
+            ),
+        ],
+        setup_url="https://github.com/settings/tokens",
+        notes="Generate a fine-grained or classic Personal Access Token with 'repo' scope (Issues: Read and write). Owner/repo identify the target repository, e.g. owner=acme, repo=infra.",
+    ),
 }
 
 
