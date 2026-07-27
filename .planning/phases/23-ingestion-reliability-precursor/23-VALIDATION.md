@@ -41,25 +41,25 @@ created: 2026-07-27
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 23-01-01 | 01 | 1 | REL-01, REL-03 | T-23-02 | Wiz auth returns True; no secret in log | unit (MockTransport) | `pytest tests/test_connectors/test_wiz_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
-| 23-01-02 | 01 | 1 | REL-02, REL-03 | T-23-03 | Rapid7 constructs no-arg + auth True | unit (MockTransport) | `pytest tests/test_connectors/test_rapid7_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
-| 23-01-03 | 01 | 1 | REL-02 (hardening) | T-23-01 | TLS verify defaults ON at all 4 sites | unit + grep | `grep -rn "verify=False" app/connectors/{rapid7,nessus,tester}.py` == 0 + `pytest tests/test_connectors/test_rapid7_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
-| 23-02-01 | 02 | 2 | REL-03 | T-23-04 | Pins current 429 behavior, no silent change | unit (MockTransport) | `pytest tests/test_connectors/test_crowdstrike_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
-| 23-02-02 | 02 | 2 | REL-03 | T-23-04 | Pins MAX_RETRIES=3 | unit (MockTransport) | `pytest tests/test_connectors/test_defender_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
-| 23-02-03 | 02 | 2 | REL-03 | T-23-05 | Nessus verify_tls default True; Qualys 409 pinned | unit (MockTransport) | `pytest tests/test_connectors/test_nessus_connector.py tests/test_connectors/test_qualys_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-01-01 | 01 | 2 | REL-01, REL-03 | T-23-02 | Wiz auth returns True; no secret in log | unit (MockTransport) | `pytest tests/test_connectors/test_wiz_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-01-02 | 01 | 2 | REL-02, REL-03 | T-23-03 | Rapid7 constructs no-arg + auth True | unit (MockTransport) | `pytest tests/test_connectors/test_rapid7_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-01-03 | 01 | 2 | REL-02 (hardening) | T-23-01 | TLS verify defaults ON at all 4 sites | unit + grep | `grep -rn "verify=False" app/connectors/{rapid7,nessus,tester}.py` == 0 + `pytest tests/test_connectors/test_rapid7_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-02-01 | 02 | 3 | REL-03 | T-23-04 | Pins current 429 behavior, no silent change | unit (MockTransport) | `pytest tests/test_connectors/test_crowdstrike_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-02-02 | 02 | 3 | REL-03 | T-23-04 | Pins MAX_RETRIES=3 | unit (MockTransport) | `pytest tests/test_connectors/test_defender_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-02-03 | 02 | 3 | REL-03 | T-23-05 | Nessus verify_tls default True; Qualys 409 pinned | unit (MockTransport) | `pytest tests/test_connectors/test_nessus_connector.py tests/test_connectors/test_qualys_connector.py -v` | ❌ W0 (created here) | ⬜ pending |
 | 23-03-01 | 03 | 1 | REL-04, REL-05 | T-23-06 | Enum-gated provider; no token in logs | import smoke + tsc | `python -c "from app.ticketing.dispatch import build_ticketing_client"` + `tsc --noEmit` | N/A | ⬜ pending |
 | 23-03-02 | 03 | 1 | REL-04 | T-23-07 | No broken import after JiraClient delete | unit (MockTransport) | `grep -rn "app.connectors.jira_client" backend/` == 0 + `pytest tests/test_ticketing_clients.py -v` | ⚠️ extend | ⬜ pending |
 | 23-03-03 | 03 | 1 | REL-05 | T-23-08 | GitHub close/comment added | unit (MockTransport) | `pytest tests/test_ticketing_clients.py -v` | ⚠️ extend | ⬜ pending |
 | 23-04-01 | 04 | 2 | REL-04, REL-05 | T-23-11 | provider drives destination (data integrity) | integration (DB + MockTransport) | `pytest tests/test_ticketing_dispatch.py -v` | ❌ W0 (created here) | ⬜ pending |
 | 23-04-02 | 04 | 2 | REL-04 | T-23-12 | rule provider enum-coerced; default ASANA | integration | `pytest tests/test_ticketing_dispatch.py -v` | ❌ W0 | ⬜ pending |
 | 23-04-03 | 04 | 2 | REL-04 | T-23-09, T-23-10 | configured-providers endpoint tenant-scoped | integration | `pytest tests/test_ticketing_dispatch.py -v` | ❌ W0 | ⬜ pending |
-| 23-05-01 | 05 | 2 | REL-05 | T-23-13 | GitHub token stored encrypted, not plaintext config | unit + import smoke | `python -c "...assert 'GITHUB' in SPECIAL_CONNECTORS and 'GITHUB' in CONNECTOR_TYPES"` + `pytest tests/test_github_sync.py -v` | ❌ W0 (created here) | ⬜ pending |
-| 23-05-02 | 05 | 2 | REL-05 | T-23-14, T-23-15 | tenant-scoped GitHub sync; issue state enum-checked | integration (MockTransport) | `pytest tests/test_github_sync.py -v` | ❌ W0 | ⬜ pending |
+| 23-05-01 | 05 | 3 | REL-05 | T-23-13 | GitHub token stored encrypted, not plaintext config | unit + import smoke | `python -c "...assert 'GITHUB' in SPECIAL_CONNECTORS and 'GITHUB' in CONNECTOR_TYPES"` + `pytest tests/test_github_sync.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-05-02 | 05 | 3 | REL-05 | T-23-14, T-23-15 | tenant-scoped GitHub sync; issue state enum-checked | integration (MockTransport) | `pytest tests/test_github_sync.py -v` | ❌ W0 | ⬜ pending |
 | 23-06-01 | 06 | 1 | REL-06 | T-23-17 | Additive migration, safe backfill (server_default 0) | migration + import smoke | `alembic upgrade head` + `python -c "assert hasattr(ConnectorConfig,'last_error')"` | N/A | ⬜ pending |
 | 23-06-02 | 06 | 1 | REL-06 | T-23-16 | status normalized at wire boundary | unit | `python -c "from app.connectors.service import _normalize_sync_status as n; assert n('SUCCESS')=='ok'"` | N/A | ⬜ pending |
 | 23-06-03 | 06 | 1 | REL-06 | T-23-16 | Pill non-crashing on real + unexpected values | component (Vitest) | `npm run test -- sync-status-pill connector-card` | ⚠️ correct existing (masks bug) | ⬜ pending |
-| 23-07-01 | 07 | 3 | REL-06 | T-23-19, T-23-20 | counter increment/reset; secret redacted from last_error | unit + integration | `pytest tests/test_connector_health.py -v` | ❌ W0 (created here) | ⬜ pending |
-| 23-07-02 | 07 | 3 | REL-06 | T-23-21 | scheduler parity, single implementation | integration | `pytest tests/test_connector_health.py -v` | ❌ W0 | ⬜ pending |
+| 23-07-01 | 07 | 4 | REL-06 | T-23-19, T-23-20 | counter increment/reset; secret redacted from last_error | unit + integration | `pytest tests/test_connector_health.py -v` | ❌ W0 (created here) | ⬜ pending |
+| 23-07-02 | 07 | 4 | REL-06 | T-23-21 | scheduler parity, single implementation | integration | `pytest tests/test_connector_health.py -v` | ❌ W0 | ⬜ pending |
 | 23-08-01 | 08 | 3 | REL-04 | T-23-22 | providers list tenant-scoped (server-enforced) | component (Vitest) | `npm run test -- ticket-provider-picker` | ❌ W0 (created here) | ⬜ pending |
 | 23-08-02 | 08 | 3 | REL-04 | T-23-24 | empty state deep-links; all 3 states present | component (Vitest) | `npm run test -- ticket-provider-picker` | ❌ W0 | ⬜ pending |
 | 23-08-03 | 08 | 3 | REL-04 | T-23-23 | chosen provider re-validated server-side | tsc + grep | `tsc --noEmit` + `grep -n "TicketProviderPicker" drill-content.tsx` | N/A | ⬜ pending |
@@ -74,7 +74,7 @@ created: 2026-07-27
 
 ## Wave 0 Requirements
 
-Test files are authored RED-first inside each owning Wave-1/Wave-2 plan's first `tdd="true"` task (the six precedent MockTransport files define their helpers locally — there is no shared `conftest`, matching house convention, so no separate Wave-0 fixture plan is needed).
+Test files are authored RED-first inside each owning plan's first `tdd="true"` task (the six precedent MockTransport files define their helpers locally — there is no shared `conftest`, matching house convention, so no separate Wave-0 fixture plan is needed).
 
 New backend test files (created by the owning plan/task):
 - [ ] `backend/tests/test_connectors/test_wiz_connector.py` — REL-01, REL-03 (Plan 01 T1)
