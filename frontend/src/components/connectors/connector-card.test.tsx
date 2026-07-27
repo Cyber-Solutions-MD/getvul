@@ -19,6 +19,8 @@ const MOCK_CONNECTOR = {
   last_sync_at: new Date(Date.now() - 2 * 60 * 60 * 1000 - 14 * 60 * 1000).toISOString(), // ~2h 14m ago
   last_sync_status: 'ok' as const,
   last_sync_record_count: 512,
+  last_error: null,
+  consecutive_failure_count: 0,
   sync_interval_minutes: 15,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-06-02T10:00:00Z',

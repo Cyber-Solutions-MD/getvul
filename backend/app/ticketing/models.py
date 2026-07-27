@@ -56,6 +56,8 @@ class ConnectorConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_sync_status: Mapped[str | None] = mapped_column(String(20))
     last_sync_record_count: Mapped[int | None] = mapped_column(Integer)
     sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    consecutive_failure_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     sync_logs: Mapped[list["SyncLog"]] = relationship(back_populates="connector", cascade="all, delete-orphan")
 

@@ -6,7 +6,7 @@
  * Test 5: queryKeys.cspm / .settings / .directoryUsers namespaces are in
  *   keys.ts (tested separately in keys.test.ts — see that file for full assertions).
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { SyncStatusPill } from './sync-status-pill';
 
@@ -51,5 +51,20 @@ describe('SyncStatusPill', () => {
 
     const { container: c2 } = render(<SyncStatusPill status={null} />);
     expect((c2.firstChild as HTMLElement).dataset.syncStatus).toBe('never');
+  });
+
+  it('Test 6 (regression): a raw un-normalized backend value ("SUCCESS") does not throw and degrades to the __never fallback', () => {
+    // Guards against the pre-existing bug: the backend used to (and a future
+    // regression could again) pass an uppercase raw DB value straight through
+    // without CR-06 wire normalization. STATUS_CONFIG has no "SUCCESS" entry —
+    // the pill must fall back instead of crashing on the undefined destructure.
+    let container!: HTMLElement;
+    expect(() => {
+      // @ts-expect-error — intentionally simulating a raw, un-normalized
+      // backend value bypassing the service.py wire-boundary mapping.
+      ({ container } = render(<SyncStatusPill status="SUCCESS" />));
+    }).not.toThrow();
+    expect(within(container).getByText('Never synced')).toBeInTheDocument();
+    expect((container.firstChild as HTMLElement).dataset.syncStatus).toBe('SUCCESS');
   });
 });

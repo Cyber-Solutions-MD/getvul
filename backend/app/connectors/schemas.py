@@ -346,6 +346,8 @@ class ConnectorResponse(BaseModel):
     last_sync_at: datetime | None = None
     last_sync_status: str | None = None
     last_sync_record_count: int | None = None
+    last_error: str | None = None
+    consecutive_failure_count: int = 0
     sync_interval_minutes: int = 60
     created_at: datetime
     updated_at: datetime
