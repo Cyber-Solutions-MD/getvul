@@ -81,6 +81,28 @@ export function ConnectorCard({
         )}
       </div>
 
+      {/* Last-error summary (D-16) — ONLY on failure; healthy connectors render nothing here.
+          Matches SyncStatusPill's failed=severity-critical convention (no amber here). */}
+      {connector.last_sync_status === 'failed' && (
+        <details className="mt-2 rounded-md border border-severity-critical/30 bg-severity-critical/10 px-2.5 py-1.5 text-xs">
+          <summary className="cursor-pointer truncate text-[var(--color-severity-critical-on-soft)]">
+            {connector.last_error || 'Last sync failed'}
+          </summary>
+          <div className="mt-1.5 space-y-1 text-text-muted">
+            <p className="font-mono text-[11px] leading-snug text-[var(--color-severity-critical-on-soft)]">
+              {connector.last_error || 'Last sync failed'}
+            </p>
+            <p className="text-text-faint">{syncTime}</p>
+          </div>
+          {/* D-18: a single failure is a blip; only surface a run of 2+ as a persistent-outage signal */}
+          {connector.consecutive_failure_count > 1 && (
+            <p className="mt-1 text-[var(--color-severity-critical-on-soft)]">
+              failed {connector.consecutive_failure_count} times in a row
+            </p>
+          )}
+        </details>
+      )}
+
       {/* Actions row */}
       <div className="mt-3 flex items-center gap-2">
         {/* Sync now */}

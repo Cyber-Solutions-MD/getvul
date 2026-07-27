@@ -148,15 +148,17 @@ describe('ConnectorCard', () => {
         onToggleEnabled={vi.fn()}
       />,
     );
-    // One-line summary visible
-    const summary = screen.getByText(/HTTP 503 Service Unavailable/i);
-    expect(summary).toBeTruthy();
+    // One-line summary visible (scoped to the <summary> element — the full
+    // message repeats inside the expanded body once opened)
+    const summaryEl = document.querySelector('summary');
+    expect(summaryEl?.textContent).toMatch(/HTTP 503 Service Unavailable/i);
 
     // Expand to reveal full message + last_sync_at timestamp
     const details = document.querySelector('details');
     expect(details).not.toBeNull();
-    fireEvent.click(screen.getByText(/HTTP 503 Service Unavailable/i));
+    fireEvent.click(summaryEl as Element);
     expect(details?.open).toBe(true);
+    expect(screen.getAllByText(/HTTP 503 Service Unavailable/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('Test 7: failed connector with last_error=null shows fallback "Last sync failed" copy', () => {
@@ -175,7 +177,7 @@ describe('ConnectorCard', () => {
         onToggleEnabled={vi.fn()}
       />,
     );
-    expect(screen.getByText(/last sync failed/i)).toBeTruthy();
+    expect(document.querySelector('summary')?.textContent).toMatch(/last sync failed/i);
   });
 
   it('Test 8: healthy (ok) connector shows no error line', () => {
