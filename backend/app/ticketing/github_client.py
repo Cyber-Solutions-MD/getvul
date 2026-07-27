@@ -161,6 +161,67 @@ class GitHubClient:
         """
         return []
 
+    async def add_comment(self, number: int, body: str) -> None:
+        """Post a comment to a GitHub issue via POST .../issues/{number}/comments.
+
+        Mirrors the Asana auto-close template's `add_comment` call
+        (service.py's `asana_client.update_task(gid, completed=True)` +
+        `asana_client.add_comment(gid, ...)`) so GitHub satisfies the same
+        create/get/comment/close protocol surface (D-12). Reuses the same
+        auth headers and single-429-retry pattern as `create_ticket`.
+        """
+        payload = {"body": body}
+        resp = await self._client.post(
+            f"/repos/{self._owner}/{self._repo}/issues/{number}/comments",
+            json=payload,
+        )
+
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", "5"))
+            logger.warning("github_rate_limited", retry_after=retry_after)
+            await asyncio.sleep(retry_after)
+            resp = await self._client.post(
+                f"/repos/{self._owner}/{self._repo}/issues/{number}/comments",
+                json=payload,
+            )
+
+        if resp.status_code not in (200, 201):
+            logger.error(
+                "github_add_comment_failed",
+                number=number,
+                status=resp.status_code,
+                body=resp.text[:500],
+            )
+
+    async def close_issue(self, number: int) -> None:
+        """Close a GitHub issue via PATCH .../issues/{number} {"state": "closed"}.
+
+        Named `close_issue` — not `close` — because `close()` below is this
+        client's unrelated HTTP-client cleanup method.
+        """
+        payload = {"state": "closed"}
+        resp = await self._client.patch(
+            f"/repos/{self._owner}/{self._repo}/issues/{number}",
+            json=payload,
+        )
+
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", "5"))
+            logger.warning("github_rate_limited", retry_after=retry_after)
+            await asyncio.sleep(retry_after)
+            resp = await self._client.patch(
+                f"/repos/{self._owner}/{self._repo}/issues/{number}",
+                json=payload,
+            )
+
+        if resp.status_code != 200:
+            logger.error(
+                "github_close_issue_failed",
+                number=number,
+                status=resp.status_code,
+                body=resp.text[:500],
+            )
+
     async def close(self) -> None:
         """Close the underlying httpx client and release connections."""
         await self._client.aclose()

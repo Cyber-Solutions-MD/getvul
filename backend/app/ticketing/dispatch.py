@@ -28,7 +28,7 @@ class TicketingClient(Protocol):
         """Create a ticket. Returns the external ticket URL/id, or None on failure."""
         ...
 
-    async def get(self, ref: str) -> dict | None:
+    async def get(self, ref: str) -> dict[str, Any] | None:
         """Fetch a ticket's raw provider payload by its external ref."""
         ...
 
@@ -59,7 +59,7 @@ class AsanaAdapter:
         )
         return task.url if task else None
 
-    async def get(self, ref: str) -> dict | None:
+    async def get(self, ref: str) -> dict[str, Any] | None:
         return await self._client.get_task(ref)
 
     async def comment(self, ref: str, body: str) -> None:
@@ -85,7 +85,7 @@ class JiraAdapter:
         )
         return issue.url if issue else None
 
-    async def get(self, ref: str) -> dict | None:
+    async def get(self, ref: str) -> dict[str, Any] | None:
         return await self._client.get_issue(ref)
 
     async def comment(self, ref: str, body: str) -> None:
@@ -108,7 +108,7 @@ class GitHubAdapter:
         issue = await self._client.create_ticket(title=title, body=body)
         return issue.url if issue else None
 
-    async def get(self, ref: str) -> dict | None:
+    async def get(self, ref: str) -> dict[str, Any] | None:
         return await self._client.get_issue(int(ref))
 
     async def comment(self, ref: str, body: str) -> None:
