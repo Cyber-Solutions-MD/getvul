@@ -74,7 +74,7 @@ async def test_crowdstrike(credentials: dict, config: dict) -> ConnectorTestResu
 async def test_nessus(credentials: dict, config: dict) -> ConnectorTestResult:
     base_url = config.get("base_url", credentials.get("base_url", "https://localhost:8834"))
     try:
-        async with httpx.AsyncClient(timeout=15, verify=False) as client:
+        async with httpx.AsyncClient(timeout=15, verify=config.get("verify_tls", True)) as client:
             resp = await client.get(
                 f"{base_url}/server/status",
                 headers={"X-ApiKeys": f"accessKey={credentials['access_key']};secretKey={credentials['secret_key']}"},
@@ -345,7 +345,7 @@ async def test_rapid7(credentials: dict, config: dict) -> ConnectorTestResult:
     if not all([url, username, password]):
         return ConnectorTestResult(success=False, message="Console URL, username and password are required")
     try:
-        async with httpx.AsyncClient(timeout=15, verify=False) as client:
+        async with httpx.AsyncClient(timeout=15, verify=config.get("verify_tls", True)) as client:
             resp = await client.get(
                 f"{url}/api/3/assets?page=0&size=1",
                 auth=(username, password),

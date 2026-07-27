@@ -64,6 +64,14 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
             {"name": "url", "label": "Nessus URL", "type": "text", "required": True},
             {"name": "access_key", "label": "Access Key", "type": "password", "required": True},
             {"name": "secret_key", "label": "Secret Key", "type": "password", "required": True},
+            {
+                "name": "verify_tls",
+                "label": "Verify TLS certificate",
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "help": "Disable only for on-prem scanners with self-signed/internal-CA certs",
+            },
         ],
         permissions=[
             ConnectorPermission(scope="Scans", access="Read", purpose="List and export scan results"),
@@ -293,6 +301,14 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
             {"name": "url", "label": "InsightVM Console URL", "type": "text", "required": True},
             {"name": "username", "label": "Username", "type": "text", "required": True},
             {"name": "password", "label": "Password", "type": "password", "required": True},
+            {
+                "name": "verify_tls",
+                "label": "Verify TLS certificate",
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "help": "Disable only for on-prem scanners with self-signed/internal-CA certs",
+            },
         ],
         permissions=[
             ConnectorPermission(scope="Assets", access="Read", purpose="Fetch asset inventory"),

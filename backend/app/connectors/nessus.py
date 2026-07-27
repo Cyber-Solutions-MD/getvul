@@ -67,7 +67,7 @@ class NessusConnector(BaseConnector):
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             headers=headers,
-            verify=False,
+            verify=config.get("verify_tls", True),
             timeout=httpx.Timeout(60.0),
         )
 
