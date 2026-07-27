@@ -54,12 +54,12 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
                 stats = await _sync_asana_tickets(db, tenant_id, client)
                 await client.close()
             elif provider == "JIRA":
-                from app.connectors.jira_client import JiraClient
+                from app.ticketing.jira_client import JiraClient
 
                 client = JiraClient(
-                    url=creds.get("url", ""),
                     email=creds.get("email", ""),
                     api_token=creds.get("api_token", ""),
+                    base_url=creds.get("url", ""),
                 )
                 stats = await _sync_jira_tickets(db, tenant_id, client)
                 await client.close()
@@ -334,8 +334,9 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
         status = await _build_status_comment(db, vuln_ids)
 
         if status["should_close"]:
-            # Add comment and try to transition to Done
-            await client.update_issue(issue_key, comment=status["comment_text"], status="Done")
+            # Add comment and transition to Done
+            await client.comment(issue_key, status["comment_text"])
+            await client.transition(issue_key, "Done")
             now = datetime.now(UTC)
             for t in tlist:
                 t.external_status = "done"
@@ -345,7 +346,7 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
             commented_issues.add(issue_key)
         elif status["comment_text"]:
             try:
-                await client.update_issue(issue_key, comment=status["comment_text"])
+                await client.comment(issue_key, status["comment_text"])
                 comments_added += 1
                 commented_issues.add(issue_key)
             except Exception as e:

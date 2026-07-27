@@ -176,6 +176,100 @@ class JiraClient:
 
         return resp.json()
 
+    async def comment(self, issue_key: str, body: str) -> None:
+        """Post a comment to a Jira issue via POST /rest/api/3/issue/{key}/comment.
+
+        Ported from the deleted legacy connectors Jira client's
+        ``update_issue(comment=...)`` (D-08 consolidation) — same call site
+        and body text, now ADF-shaped for the v3 API this client already
+        uses for ``description``. Logs and returns on failure rather than
+        raising, matching this client's existing get/create conventions.
+        """
+        payload = {"body": _adf_paragraph(body)}
+        try:
+            resp = await self._client.post(f"/rest/api/3/issue/{issue_key}/comment", json=payload)
+        except Exception as exc:
+            logger.error("jira_comment_error", issue=issue_key, error=str(exc))
+            return
+
+        if resp.status_code not in (200, 201):
+            logger.error(
+                "jira_comment_failed",
+                issue=issue_key,
+                status=resp.status_code,
+                body=resp.text[:500],
+            )
+
+    async def transition(self, issue_key: str, target_status: str) -> None:
+        """Transition a Jira issue to ``target_status`` by name.
+
+        Ported from ``update_issue(status=...)`` (D-08 consolidation): GET
+        the issue's available transitions, match one by its ``name`` or
+        destination ``to.name`` (case-insensitive), then POST that
+        transition id. No-ops (logs a warning) if no transition matches,
+        mirroring the deleted client's non-raising "not found" behavior.
+        """
+        try:
+            resp = await self._client.get(f"/rest/api/3/issue/{issue_key}/transitions")
+        except Exception as exc:
+            logger.error("jira_transition_lookup_error", issue=issue_key, error=str(exc))
+            return
+
+        if resp.status_code != 200:
+            logger.warning(
+                "jira_transition_lookup_failed",
+                issue=issue_key,
+                status=resp.status_code,
+            )
+            return
+
+        transitions = resp.json().get("transitions", [])
+        transition_id: str | None = None
+        for t in transitions:
+            name = t.get("name", "")
+            to_name = t.get("to", {}).get("name", "")
+            if target_status.lower() in (name.lower(), to_name.lower()):
+                transition_id = t.get("id")
+                break
+
+        if transition_id is None:
+            available = [t.get("name", "") for t in transitions]
+            logger.warning(
+                "jira_transition_not_found",
+                issue=issue_key,
+                requested=target_status,
+                available=available,
+            )
+            return
+
+        try:
+            resp = await self._client.post(
+                f"/rest/api/3/issue/{issue_key}/transitions",
+                json={"transition": {"id": transition_id}},
+            )
+        except Exception as exc:
+            logger.error("jira_transition_post_error", issue=issue_key, error=str(exc))
+            return
+
+        if resp.status_code not in (200, 204):
+            logger.error(
+                "jira_transition_failed",
+                issue=issue_key,
+                status=resp.status_code,
+                body=resp.text[:500],
+            )
+
+    async def close_issue(self, issue_key: str) -> None:
+        """Transition an issue to the tenant's done status ('Done').
+
+        Thin wrapper matching the GitHubClient's create/get/comment/close
+        surface (D-12) so ``JiraAdapter.close`` in dispatch.py can dispatch
+        uniformly. Named ``close_issue`` — not ``close`` — because this
+        class's existing ``close()`` is unrelated HTTP-client cleanup (see
+        below); reusing that name would silently shadow it.
+        """
+        await self.transition(issue_key, "Done")
+
     async def close(self) -> None:
         """Close the underlying httpx client and release connections."""
         await self._client.aclose()
