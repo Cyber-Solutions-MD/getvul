@@ -30,7 +30,7 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
     result = await db.execute(
         select(ConnectorConfig).where(
             ConnectorConfig.is_enabled.is_(True),
-            ConnectorConfig.connector_type.in_(["ASANA", "JIRA"]),
+            ConnectorConfig.connector_type.in_(["ASANA", "JIRA", "GITHUB"]),
             ConnectorConfig.credentials_secret_arn.isnot(None),
         )
     )
@@ -62,6 +62,17 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
                     base_url=creds.get("url", ""),
                 )
                 stats = await _sync_jira_tickets(db, tenant_id, client)
+                await client.close()
+            elif provider == "GITHUB":
+                from app.ticketing.github_client import GitHubClient
+
+                connector_config = connector.config or {}
+                client = GitHubClient(
+                    token=creds.get("token", ""),
+                    owner=connector_config.get("owner", ""),
+                    repo=connector_config.get("repo", ""),
+                )
+                stats = await _sync_github_tickets(db, tenant_id, client)
                 await client.close()
             else:
                 continue
@@ -351,5 +362,95 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
                 commented_issues.add(issue_key)
             except Exception as e:
                 logger.error("jira_comment_error", issue_key=issue_key, error=str(e))
+
+    return {"synced": synced, "resolved": resolved, "comments_added": comments_added}
+
+
+async def _sync_github_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> dict:
+    """Sync all open GitHub-provider tickets for a tenant.
+
+    Mirrors the Jira branch's structure: `get_issue(number)` for inbound
+    state, `close_issue`/`add_comment` for outbound auto-close parity with
+    the Asana template (service.py's Asana auto-close block). `get_watchers`
+    is intentionally never called here — local `ticket_watchers` stay the
+    source of truth for GitHub-backed tickets (D-12).
+    """
+    result = await db.execute(
+        select(Ticket).where(
+            Ticket.tenant_id == tenant_id,
+            Ticket.provider == "GITHUB",
+            Ticket.resolved_at.is_(None),
+        )
+    )
+    tickets = result.scalars().all()
+    if not tickets:
+        return {"synced": 0, "resolved": 0, "comments_added": 0}
+
+    synced = 0
+    resolved = 0
+    comments_added = 0
+    issue_cache: dict[str, dict | None] = {}
+    commented_issues: set[str] = set()
+
+    # First pass: sync state from GitHub
+    for ticket in tickets:
+        issue_number = ticket.external_ticket_id.split(":")[0]
+        if issue_number not in issue_cache:
+            try:
+                issue_cache[issue_number] = await client.get_issue(int(issue_number))
+            except Exception:
+                issue_cache[issue_number] = None
+
+        issue = issue_cache[issue_number]
+        if issue is None:
+            continue
+
+        synced += 1
+
+        if issue.get("state") == "closed":
+            ticket.external_status = "closed"
+            ticket.resolved_at = datetime.now(UTC)
+            resolved += 1
+            vuln = (
+                await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+            ).scalar_one_or_none()
+            if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
+                vuln.status = "REMEDIATED"
+                vuln.remediated_at = datetime.now(UTC)
+        else:
+            ticket.external_status = "open"
+
+    # Second pass: group open tickets by issue number and post progress comments / auto-close
+    issue_tickets: dict[str, list[Ticket]] = {}
+    for ticket in tickets:
+        if ticket.resolved_at is None:
+            issue_number = ticket.external_ticket_id.split(":")[0]
+            issue_tickets.setdefault(issue_number, []).append(ticket)
+
+    for issue_number, tlist in issue_tickets.items():
+        if issue_number in commented_issues:
+            continue
+
+        vuln_ids = [t.vulnerability_id for t in tlist if t.vulnerability_id]
+        status = await _build_status_comment(db, vuln_ids)
+
+        if status["should_close"]:
+            # Auto-close parity with the Asana block: close + comment.
+            await client.close_issue(int(issue_number))
+            await client.add_comment(int(issue_number), status["comment_text"])
+            now = datetime.now(UTC)
+            for t in tlist:
+                t.external_status = "closed"
+                t.resolved_at = now
+            resolved += len(tlist)
+            comments_added += 1
+            commented_issues.add(issue_number)
+        elif status["comment_text"]:
+            try:
+                await client.add_comment(int(issue_number), status["comment_text"])
+                comments_added += 1
+                commented_issues.add(issue_number)
+            except Exception as e:
+                logger.error("github_comment_error", issue_number=issue_number, error=str(e))
 
     return {"synced": synced, "resolved": resolved, "comments_added": comments_added}
