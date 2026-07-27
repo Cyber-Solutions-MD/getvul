@@ -37,7 +37,20 @@ CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
 }
 
 # Special connectors that don't follow the standard vuln/cspm pattern
-SPECIAL_CONNECTORS = {"JAMF", "HUMAANS", "ASANA", "JIRA", "GOOGLE_WORKSPACE", "AZURE_ENTRA_ID", "OKTA", "INTUNE"}
+SPECIAL_CONNECTORS = {
+    "JAMF",
+    "HUMAANS",
+    "ASANA",
+    "JIRA",
+    "GITHUB",
+    "GOOGLE_WORKSPACE",
+    "AZURE_ENTRA_ID",
+    "OKTA",
+    "INTUNE",
+}
+
+# Display names for the no-data-sync ticketing short-circuit message below.
+_TICKETING_DISPLAY_NAMES = {"ASANA": "Asana", "JIRA": "Jira", "GITHUB": "GitHub"}
 
 
 async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncLog:
@@ -74,11 +87,12 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
 
         return await run_intune_sync(db, connector_config)
 
-    if connector_config.connector_type in ("ASANA", "JIRA"):
-        # Asana is a ticketing connector — no data to sync, just config storage
+    if connector_config.connector_type in ("ASANA", "JIRA", "GITHUB"):
+        # Ticketing connectors — no data to sync, just config storage
+        display_name = _TICKETING_DISPLAY_NAMES.get(connector_config.connector_type, connector_config.connector_type)
         log.status = "SUCCESS"
         log.finished_at = datetime.now(UTC)
-        log.details = {"message": "Asana is a ticketing connector, no data sync needed"}
+        log.details = {"message": f"{display_name} is a ticketing connector, no data sync needed"}
         return log
 
     connector_cls = CONNECTOR_CLASSES.get(connector_config.connector_type)

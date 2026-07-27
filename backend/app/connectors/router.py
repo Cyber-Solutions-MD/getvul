@@ -39,6 +39,7 @@ CONNECTOR_CATEGORIES = {
     "RAPID7": "vulnerability_scanner",
     "ASANA": "ticketing",
     "JIRA": "ticketing",
+    "GITHUB": "ticketing",
     "GOOGLE_WORKSPACE": "identity_provider",
     "AZURE_ENTRA_ID": "identity_provider",
     "OKTA": "identity_provider",

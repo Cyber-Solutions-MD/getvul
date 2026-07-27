@@ -397,6 +397,30 @@ async def test_jira(credentials: dict, config: dict) -> ConnectorTestResult:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
 
+async def test_github(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Test a GitHub PAT + owner/repo via GitHubClient.test_connection().
+
+    Mirrors the established dispatch.py/rule_engine.py contract: `token`
+    lives in the encrypted credentials dict, `owner`/`repo` live in the
+    plaintext config dict (T-23-13 — the PAT is never stored in plaintext).
+    """
+    from app.ticketing.github_client import GitHubClient
+
+    token = credentials.get("token", "")
+    owner = config.get("owner", "")
+    repo = config.get("repo", "")
+    if not all([token, owner, repo]):
+        return ConnectorTestResult(success=False, message="Token, owner, and repo are required")
+    client = GitHubClient(token=token, owner=owner, repo=repo)
+    try:
+        result = await client.test_connection()
+        return ConnectorTestResult(success=result["success"], message=result["message"])
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+    finally:
+        await client.close()
+
+
 async def test_okta(credentials: dict, config: dict) -> ConnectorTestResult:
     """Test Okta API access."""
     domain = config.get("domain", credentials.get("domain", "")).strip().rstrip("/")
@@ -482,6 +506,7 @@ TESTERS = {
     "OKTA": test_okta,
     "ASANA": test_asana,
     "JIRA": test_jira,
+    "GITHUB": test_github,
     "HUMAANS": test_humaans,
     "INTUNE": test_intune,
 }
