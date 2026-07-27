@@ -38,6 +38,8 @@ def _to_response(c: ConnectorConfig) -> ConnectorConfigResponse:
         last_sync_at=c.last_sync_at,
         last_sync_status=c.last_sync_status,
         last_sync_record_count=c.last_sync_record_count,
+        last_error=c.last_error,
+        consecutive_failure_count=c.consecutive_failure_count,
         sync_interval_minutes=c.sync_interval_minutes,
         created_at=c.created_at,
         updated_at=c.updated_at,
