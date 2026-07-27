@@ -6,6 +6,8 @@ import { useCreateTicketMutation } from '@/lib/mutations/use-create-ticket';
 import { useSnoozeMutation } from '@/lib/mutations/use-snooze';
 import { useToast } from '@/components/ui/ToastProvider';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import { TicketProviderPicker } from './ticket-provider-picker';
+import type { TicketProvider } from '@/lib/ticketing/providers';
 import { microcopy } from './microcopy';
 import { cn } from '@/lib/utils';
 
@@ -67,6 +69,10 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   const snooze = useSnoozeMutation();
   const { toast } = useToast();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // D-14 (Plan 23-08): analyst-chosen ticketing provider, replacing the
+  // hardcoded 'ASANA'. TicketProviderPicker default-selects the first
+  // tenant-configured provider once its query loads.
+  const [ticketProvider, setTicketProvider] = useState<TicketProvider | null>(null);
 
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const panelInteractivesRef = useRef<HTMLDivElement>(null);
@@ -137,7 +143,12 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
     try {
       const result = (await createTicket.mutateAsync({
         vulnerability_ids: [v.id ?? idOrCve],
-        provider: 'ASANA',
+        // T-23-23: the client-chosen provider is not the trust anchor — the
+        // backend re-coerces via TicketProvider(...) (Plan 04). The
+        // `?? 'ASANA'` is only a type-guard fallback; TicketProviderPicker
+        // default-selects the first configured provider on load and the
+        // Confirm action is disabled while ticketProvider is still null.
+        provider: ticketProvider ?? 'ASANA',
       })) as { tickets?: Array<{ external_ticket_id: string; external_ticket_url: string }> };
       const first = result.tickets?.[0];
       if (first) {
@@ -313,9 +324,12 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             title={microcopy.ticket.confirmTitle(cveLabel)}
             message={microcopy.ticket.confirmBody}
             confirmLabel={microcopy.drill.createTicket}
+            confirmDisabled={!ticketProvider}
             onConfirm={fireTicket}
             onCancel={cancelConfirm}
-          />
+          >
+            <TicketProviderPicker value={ticketProvider} onChange={setTicketProvider} />
+          </ConfirmModal>
         )}
     </div>
   );
