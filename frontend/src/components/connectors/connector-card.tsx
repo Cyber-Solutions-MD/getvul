@@ -32,6 +32,25 @@ function formatSyncTime(isoString: string | null): string {
   return `Synced ${diffDays}d ago`;
 }
 
+/**
+ * D-17: frontend-derived "next sync in ~Xm" line — pure client math from
+ * last_sync_at + sync_interval_minutes, no backend call.
+ *   - last_sync_at null            -> "not synced yet"
+ *   - computed next-sync in the past -> "sync due"
+ *   - < 60m away                   -> "next sync in ~Xm"
+ *   - >= 60m away                  -> "next sync in ~Xh"
+ */
+function nextSyncLabel(lastSyncAt: string | null, syncIntervalMinutes: number): string {
+  if (!lastSyncAt) return 'not synced yet';
+  const next = new Date(lastSyncAt).getTime() + syncIntervalMinutes * 60_000;
+  const diffMs = next - Date.now();
+  if (diffMs <= 0) return 'sync due';
+  const diffMin = Math.round(diffMs / 60_000);
+  if (diffMin < 60) return `next sync in ~${diffMin}m`;
+  const diffHrs = Math.round(diffMin / 60);
+  return `next sync in ~${diffHrs}h`;
+}
+
 export type ConnectorCardProps = {
   connector: ConnectorConfigResponse;
   isAdmin: boolean;
@@ -53,6 +72,7 @@ export function ConnectorCard({
 }: ConnectorCardProps) {
   const provider = connector.connector_type.toLowerCase() as ConnectorProvider;
   const syncTime = formatSyncTime(connector.last_sync_at);
+  const nextSync = nextSyncLabel(connector.last_sync_at, connector.sync_interval_minutes);
 
   return (
     <div
@@ -80,6 +100,9 @@ export function ConnectorCard({
           </span>
         )}
       </div>
+
+      {/* Next-sync line (D-17) — pure client math, no backend call */}
+      <div className="mt-1 text-xs text-text-faint">{nextSync}</div>
 
       {/* Last-error summary (D-16) — ONLY on failure; healthy connectors render nothing here.
           Matches SyncStatusPill's failed=severity-critical convention (no amber here). */}
