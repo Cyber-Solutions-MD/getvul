@@ -22,15 +22,64 @@ PAGE_SIZE = 500
 class Rapid7Connector(BaseConnector):
     source_name = "RAPID7"
 
-    def __init__(self, config: dict[str, Any]) -> None:
-        super().__init__(config)
-        self.base_url = config["base_url"].rstrip("/")
-        self.username = config["username"]
-        self.password = config["password"]
+    def __init__(self) -> None:
+        super().__init__()
+        self.base_url: str = ""
+        self.username: str = ""
+        self.password: str = ""
+        self.verify_tls: bool = True
         self._client: httpx.AsyncClient | None = None
         # Caches
         self._vuln_detail_cache: dict[str, dict] = {}
         self._vuln_solutions_cache: dict[str, str] = {}
+
+    # ------------------------------------------------------------------
+    # Authentication
+    # ------------------------------------------------------------------
+
+    async def authenticate(
+        self,
+        credentials: dict[str, Any],
+        config: dict[str, Any] | None = None,
+    ) -> bool:
+        """Authenticate to the InsightVM Security Console using Basic auth.
+
+        ``credentials`` must contain:
+        - ``url``      – InsightVM console URL, e.g. ``https://insightvm.company.com:3780``
+        - ``username`` – InsightVM API username
+        - ``password`` – InsightVM API password
+
+        ``config`` may contain:
+        - ``verify_tls`` – whether to validate the server's TLS certificate (default True).
+          On-prem consoles on self-signed/internal-CA certs can opt out explicitly (D-21).
+        """
+        config = config or {}
+
+        self.base_url = credentials.get("url", "").rstrip("/")
+        self.username = credentials.get("username", "")
+        self.password = credentials.get("password", "")
+        self.verify_tls = config.get("verify_tls", True)
+
+        if not all([self.base_url, self.username, self.password]):
+            logger.error("Rapid7: missing base_url/username/password credentials")
+            return False
+
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            auth=(self.username, self.password),
+            verify=self.verify_tls,
+            timeout=httpx.Timeout(60.0),
+        )
+
+        try:
+            resp = await self._client.get("/api/3/assets", params={"page": 0, "size": 1})
+            resp.raise_for_status()
+            logger.info("Rapid7: authenticated successfully (base_url=%s)", self.base_url)
+            return True
+        except Exception as exc:
+            logger.error("Rapid7: authentication failed: %s", exc)
+            await self.close()
+            return False
 
     # ------------------------------------------------------------------
     # HTTP helpers
@@ -41,7 +90,7 @@ class Rapid7Connector(BaseConnector):
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
                 auth=(self.username, self.password),
-                verify=False,
+                verify=self.verify_tls,
                 timeout=httpx.Timeout(60.0),
             )
         return self._client
