@@ -708,16 +708,19 @@ Add a supporting migration: `CREATE INDEX ix_audit_logs_tenant_created ON audit_
    - What we know: official Anthropic docs (fetched live, 2026-07-28) list effort-supporting models and do not include Haiku 4.5.
    - What's unclear: whether this means "unsupported (will error)" or "just not the primary documented use case (may silently work or silently no-op)." No live API key was available in this research session to test directly.
    - Recommendation: run one live smoke-test call against a real Anthropic key with `model="claude-haiku-4-5"` + `output_config={"effort":"low", "format": {...}}` before finalizing the Haiku option in D-01's dropdown. If it errors, branch the request builder to omit `effort` for Haiku specifically.
+   - **[PLANNING RESOLVED]** Plan 24-01 Task 1 runs this exact live smoke-test and records the result; Plan 24-04 Task 1's request builder honors the finding (omit `effort` for Haiku if it 400s).
 
 2. **What is the correct grounding shape for "per-remediation" (D-16)?**
    - What we know: the existing "remediation" concept in this codebase (`/assets/[id]` remediation timeline, `RemediationTicket`) is a per-asset `Ticket` row with a single `vulnerability_id` FK — not a multi-asset aggregate.
    - What's unclear: D-16 explicitly frames per-remediation as "what applying this one fix accomplishes **across the affected assets**" — implying a cross-asset grouping (e.g., by CVE ID) that has no existing query today.
    - Recommendation: two candidate designs, either viable — (a) group by CVE ID across all of a tenant's affected assets (new aggregate query, more faithful to D-16's literal framing, more implementation cost); (b) ground on the existing per-asset `Ticket`/`RemediationTicket` shape and interpret "across the affected assets" more loosely as "this fix as scoped to the ticket's actual blast radius" (reuses existing data, less faithful to a literal multi-asset reading). Per D-15's explicit sequencing guidance, resolve this only after the per-vuln path ships — don't let it block Wave 0.
+   - **[PLANNING RESOLVED]** Plan 24-06 Task 2 is a `checkpoint:decision` presenting exactly these two options (cross-asset-cve vs per-ticket-blast-radius) after the tracer ships; Plan 24-08 implements the recorded choice.
 
 3. **Should the AI connector's model dropdown and monthly budget cap live inside `ConnectorConfig.config` JSONB, or does the planner prefer a typed sub-schema for stronger validation?**
    - What we know: the JSONB column already exists and needs no migration; other connectors already store loosely-typed config there (e.g., `base_url`, `verify_tls`).
    - What's unclear: whether the team wants a stricter Pydantic sub-model validating `config` shape specifically for the AI connector type (other connector types don't do this today — `config: dict[str, Any]` is uniformly loose).
    - Recommendation: match the existing convention (loose JSONB, validated ad hoc by the specific tester/service function that reads it) rather than introducing a new validation pattern only for this one connector type — consistency with 15 existing connector types outweighs marginal type-safety gain here.
+   - **[PLANNING RESOLVED]** Adopted the loose-JSONB convention: model + monthly_budget_usd live in `ConnectorConfig.config` (Plan 24-01 fields; Plan 24-03 reads them), no typed sub-schema.
 
 ---
 
