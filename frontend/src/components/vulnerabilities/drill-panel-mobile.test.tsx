@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 
 // Mock next/navigation
 const mockReplace = vi.fn();
@@ -31,9 +31,24 @@ vi.mock('@/lib/queries/use-vulnerability-detail', () => ({
 vi.mock('@/lib/mutations/use-snooze', () => ({
   useSnoozeMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+
+// The mobile nested confirm now renders TicketProviderPicker, which calls
+// drill-content.tsx's createTicket.mutateAsync (not `.mutate`) — the mock
+// must expose mutateAsync so fireTicket's `await createTicket.mutateAsync`
+// resolves instead of throwing "mutateAsync is not a function".
+const mockMutateAsync = vi.fn().mockResolvedValue({ tickets: [] });
 vi.mock('@/lib/mutations/use-create-ticket', () => ({
-  useCreateTicketMutation: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateTicketMutation: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
 }));
+
+// D-14/REL-04: the mobile nested confirm renders <TicketProviderPicker>,
+// which is backed by useTicketingProviders. Mock it per-test so Case A/B
+// can control the configured-provider list and loading state.
+vi.mock('@/lib/queries/use-ticketing-providers', () => ({
+  useTicketingProviders: vi.fn(),
+}));
+import { useTicketingProviders } from '@/lib/queries/use-ticketing-providers';
+const useProvidersMock = vi.mocked(useTicketingProviders);
 
 // Wave 2 (Plan 11-05) will create this file. Import is the RED signal.
 import { DrillPanelMobile } from './drill-panel-mobile';
@@ -55,6 +70,15 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
   beforeEach(() => {
     mockReplace.mockReset();
     mockParams = new URLSearchParams('cve=CVE-2024-3094&open=drill');
+    mockMutateAsync.mockClear();
+    // Default: a single configured provider, so pre-existing tests that
+    // open the nested confirm (but don't assert on provider selection)
+    // keep passing. Case A/B below override this per-test.
+    useProvidersMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [{ provider: 'JIRA', enabled: true }],
+    } as unknown as ReturnType<typeof useTicketingProviders>);
   });
 
   afterEach(() => {
@@ -111,5 +135,64 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
       render(<DrillPanelMobile cveId="CVE-2024-3094" />)
     ).not.toThrow();
     expect(screen.getByText(/CVE-2024-3094/)).toBeInTheDocument();
+  });
+
+  // REL-04 / CR-01 gap closure (23-11): the mobile nested confirm must
+  // honor the analyst-selected/default-selected provider — never fall
+  // through to the hardcoded 'ASANA' — mirroring the desktop ConfirmModal
+  // branch's confirmDisabled={!ticketProvider} gate.
+  it('Case A — mobile confirm fires the SELECTED provider (JIRA), never a silent ASANA fallback', async () => {
+    setMatchMedia(true);
+    useProvidersMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        { provider: 'JIRA', enabled: true },
+        { provider: 'ASANA', enabled: true },
+      ],
+    } as unknown as ReturnType<typeof useTicketingProviders>);
+
+    render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+    fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+    const dialogs = screen.getAllByRole('dialog');
+    const nestedConfirm = dialogs[dialogs.length - 1];
+    const confirmBtn = within(nestedConfirm).getByRole('button', {
+      name: /create ticket/i,
+    });
+
+    // TicketProviderPicker default-selects the first configured provider
+    // (JIRA) — the confirm button must be enabled once that fires.
+    expect(confirmBtn).not.toBeDisabled();
+    fireEvent.click(confirmBtn);
+
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'JIRA' }),
+    );
+    expect(mockMutateAsync).not.toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'ASANA' }),
+    );
+  });
+
+  it('Case B — mobile confirm is BLOCKED (disabled), not defaulted to ASANA, while no provider is loaded/selected', () => {
+    setMatchMedia(true);
+    useProvidersMock.mockReturnValue({
+      isLoading: true,
+      isError: false,
+      data: undefined,
+    } as unknown as ReturnType<typeof useTicketingProviders>);
+
+    render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+    fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+    const dialogs = screen.getAllByRole('dialog');
+    const nestedConfirm = dialogs[dialogs.length - 1];
+    const confirmBtn = within(nestedConfirm).getByRole('button', {
+      name: /create ticket/i,
+    });
+
+    expect(confirmBtn).toBeDisabled();
+    fireEvent.click(confirmBtn);
+    expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 });
