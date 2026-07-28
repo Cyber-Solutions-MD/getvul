@@ -25,10 +25,12 @@ from __future__ import annotations
 import uuid
 
 import pytest
+import structlog.testing
+from sqlalchemy import select
 
 import app.connectors.sync as sync_module
 from app.connectors.base import BaseConnector
-from app.connectors.sync import _sanitize_error, run_sync
+from app.connectors.sync import SyncLog, _sanitize_error, run_sync
 from app.ticketing.models import ConnectorConfig
 
 
@@ -203,6 +205,50 @@ async def test_scheduler_path_failure_parity(db_session, tenant_a, monkeypatch):
     assert connector.last_error is not None
     assert "sk-scheduler-secret" not in connector.last_error
     assert "Bearer" not in connector.last_error
+
+
+@pytest.mark.asyncio
+async def test_scheduler_path_error_message_and_log_are_sanitized(db_session, tenant_a, monkeypatch):
+    """CR-03 regression: `SyncLog.error_message` must go through the same
+    `_sanitize_error` redaction as its sibling `connector_config.last_error`,
+    and the scheduler's `background_sync_complete` log event (which logs
+    `error=log.error_message` verbatim) must therefore be clean by
+    construction. Reverting the Task 1 fix (restoring
+    `log.error_message = str(e)[:2000]`) must fail this test."""
+    from app.connectors import scheduler as scheduler_module
+
+    connector = _seed_fake_connector(tenant_a, consecutive_failure_count=0)
+    db_session.add(connector)
+    await db_session.commit()  # scheduler opens its own session — must be visible
+
+    secret_exc = Exception("upstream 401: Authorization: Bearer sk-log-leak-42 rejected")
+    monkeypatch.setattr(_FakeConnector, "AUTH_OK", True)
+    monkeypatch.setattr(_FakeConnector, "RAISE", secret_exc)
+
+    with structlog.testing.capture_logs() as captured_logs:
+        await scheduler_module._run_single_sync(str(connector.id), str(tenant_a))
+
+    result = await db_session.execute(
+        select(SyncLog)
+        .where(SyncLog.connector_id == connector.id, SyncLog.tenant_id == tenant_a)
+        .order_by(SyncLog.started_at.desc())
+    )
+    log = result.scalars().first()
+
+    assert log is not None
+    assert log.error_message is not None
+    assert "sk-log-leak-42" not in log.error_message
+    assert "Bearer" not in log.error_message
+    assert "[REDACTED]" in log.error_message
+
+    logs_repr = repr(captured_logs)
+    assert "sk-log-leak-42" not in logs_repr
+    assert "Bearer" not in logs_repr
+
+    complete_events = [entry for entry in captured_logs if entry.get("event") == "background_sync_complete"]
+    assert len(complete_events) == 1
+    assert "sk-log-leak-42" not in str(complete_events[0].get("error"))
+    assert "Bearer" not in str(complete_events[0].get("error"))
 
 
 @pytest.mark.asyncio
