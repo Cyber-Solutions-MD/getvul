@@ -288,7 +288,20 @@ Plans:
   4. Untrusted scanner text (CVE descriptions, hostnames, finding titles) — including adversarially crafted text — is delivered to the model only as data (never as instructions), and every model response is schema-validated before it reaches the UI — AI-02
   5. Every AI call, including scheduler-originated ones, is audit-logged with model/tokens/cost-estimate/prompt provenance, and AI output cached for one tenant is never served to another tenant — AI-05, AI-06
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+
+- [ ] 24-01-PLAN.md — Foundations: anthropic dep + incremental-SSE spike (nginx) + ANTHROPIC connector type (wizard reuse, zero migration)
+- [ ] 24-02-PLAN.md — Backend contracts (TDD): response schemas (validation gate) + untrusted-content-as-data prompt builder + AI audit writer
+- [ ] 24-03-PLAN.md — Data wiring (TDD): BYOK key resolution + tenant-scoped cache (cross-tenant isolation) + fail-closed budget + audit_logs index migration
+- [ ] 24-04-PLAN.md — TRACER engine (TDD): buffer-validate-replay SSE core + per-vuln explain endpoint (RBAC, retry-once, no-key inert)
+- [ ] 24-05-PLAN.md — TRACER frontend (TDD): fetch+ReadableStream hook + drill-panel AI Explanation section (8 states) + inline two-tier citations
+- [ ] 24-06-PLAN.md — TRACER gate: human-verify end-to-end through nginx/Docker + checkpoint:decision on per-remediation grounding shape
+- [ ] 24-07-PLAN.md — Feedback capture (TDD): ai_feedback table + editable per-user upsert endpoint + thumbs/note control (capture-only)
+- [ ] 24-08-PLAN.md — Expansion backend (TDD): host + remediation schema variants + PII-excluding prompt builders + grounding assemblers + thin routes
+- [ ] 24-09-PLAN.md — Expansion frontend (TDD): generalize the AI Explanation section + mount on host (asset-detail) and remediation surfaces (D-15 complete)
+
 **UI hint**: yes
 **Pitfalls owned** (see research/PITFALLS.md): #1 prompt injection (headline threat — untrusted-content-as-data contract established here for reuse by every later phase), #3 PII/secret leakage (prompt-builder field allowlist), #4 cross-tenant cache/prompt bleed, #6 non-determinism breaking CI (schema/property-test convention established here), #9 drill-panel latency regression (Suspense-bounded async region).
 
