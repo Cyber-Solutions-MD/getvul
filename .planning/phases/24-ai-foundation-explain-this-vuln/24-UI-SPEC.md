@@ -1,7 +1,7 @@
 ---
 phase: 24
 slug: ai-foundation-explain-this-vuln
-status: draft
+status: approved
 shadcn_initialized: true
 preset: style=new-york, base=radix, baseColor=zinc, cssVariables=true (tokens overridden at runtime by sketch-findings-getvul's sunset.css — see foundation.md)
 created: 2026-07-28
@@ -139,19 +139,31 @@ Rationale: the explanation synthesizes the raw scanner description into plain-En
 
 ## UI Considerations
 
-Applicable state considerations resolved: 7 covered, 1 backstop, 0 unresolved.
+_State-coverage axis (post-verification UI-consideration probe, 2026-07-28). Probe classified 5 surfaces and raised 38 applicable considerations; folded to the meaningful rows below after correcting classifier over-reach and resolving each. **21 covered, 1 backstop, 0 unresolved.** Empty/error/degraded COPY lives in the Copywriting Contract; this section covers shape-rooted STATE coverage and references those rows rather than restating them._
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| empty | ai-explanation-trigger (no key configured) | ✅ covered | Renders the role-gated "AI isn't set up yet" card instead of the trigger button — see Copywriting Contract |
-| loading | ai-explanation-trigger → progress | ✅ covered | Click transitions the section to the "Analyzing this finding…" pulsing-dot state (D-12); the trigger button is replaced, not disabled-in-place |
-| error | ai-explanation-result | ✅ covered | Three distinct typed states — insufficient-evidence (neutral/violet, never amber/red), busy/rate-limited (amber, retry), budget-exceeded (amber, role-gated copy) — never a generic error card |
-| populated | ai-explanation-result | ✅ covered | Validated `summary` + `business_risk` render inline-cited per the Citation Rendering Contract above |
-| partial | ai-explanation-citations | 🧪 backstop | Truncated or allowlist-missing grounding fields surface through the `grounded=false` insufficient-evidence path (AI-SPEC §4 truncation logging) rather than a separate partial-citation UI — no citation is ever rendered half-grounded; needs a held-out test proving a truncated-field fixture actually routes to `grounded=false` in the UI, not just the backend |
-| overflow | ai-explanation-citations | ✅ covered | The section lives inside the drill panel's existing `overflow-y-auto` scroll container (`drill-content.tsx`) — no independent scroll region is introduced |
-| zero-one-many | ai-explanation-citations | ✅ covered | `ExplainVulnResponse.citations` is schema-required non-empty — "zero" is structurally impossible; "many" citations render inline within flowing prose (not a separate list), so density never breaks layout |
-| long-text | ai-explanation-result | ✅ covered | `max_tokens=1024` bounds `summary`+`business_risk` length; text wraps normally at both the 420px desktop panel and the full-width mobile sheet, no truncation UI needed |
-| long-text | ai-feedback-control (note field) | ✅ covered | Optional freeform note capped at 500 characters, plain wrap, no char-count warning UI needed at this length (well below the `CommentInput` 9500-char precedent) |
+| empty | ai-explanation-result | ✅ covered | No-key → role-gated "AI isn't set up yet" card; cache-miss+Viewer → muted "No AI explanation generated yet." text (Section Placement states 3–4, Copywriting Contract) |
+| loading | ai-explanation-result | ✅ covered | Click transitions the section to the "Analyzing this finding…" pulsing-dot state (D-12), not a generic spinner; `prefers-reduced-motion` → instant render, no token-by-token replay |
+| error | ai-explanation-result | ✅ covered | Three distinct typed states — insufficient-evidence (neutral/violet, never amber/red), provider-busy (amber + "Try again"), budget-exceeded (amber, role-gated copy) — never a generic error card |
+| populated | ai-explanation-result | ✅ covered | Validated `summary` + `business_risk` render inline-cited per the Citation Rendering Contract |
+| overflow | ai-explanation-result | ✅ covered | Section lives inside the drill panel's existing `overflow-y-auto` container (`drill-content.tsx`) — no independent scroll region introduced |
+| long-text | ai-explanation-result | ✅ covered | `max_tokens=1024` bounds `summary`+`business_risk`; wraps at both the 420px desktop panel and full-width mobile sheet, no truncation UI |
+| empty | ai-explanation-trigger | ✅ covered | Replaced (not disabled-in-place) by the no-key card or Viewer muted text; the button only renders in the cache-miss + key-configured + role≥Analyst state |
+| long-text | ai-explanation-trigger | ✅ covered | Fixed CTA label "Explain this vuln" — no dynamic/user text, no reflow risk |
+| populated | ai-explanation-citations | ✅ covered | Many citations render inline within one flowing paragraph (not a separate list block), per Citation Rendering Contract |
+| partial | ai-explanation-citations | 🧪 backstop | **Statement:** truncated or allowlist-missing grounding fields route to the `grounded=false` insufficient-evidence path (AI-SPEC §4 truncation logging), never a half-grounded citation. **Verification: backstop** — held-out test proving a truncated-field fixture actually routes to `grounded=false` in the UI, not just the backend |
+| overflow | ai-explanation-citations | ✅ covered | Inherits the section's `overflow-y-auto` container; inline tinted spans/superscripts wrap with the surrounding prose |
+| zero-one-many | ai-explanation-citations | ✅ covered | `ExplainVulnResponse.citations` is schema-required non-empty — "zero" is structurally impossible; "many" render inline within flowing prose, so density never breaks layout |
+| empty | ai-feedback-control | ✅ covered | Unsubmitted = neutral (no thumb active, empty note) — the resting state, not a distinct empty shell |
+| error | ai-feedback-control | ✅ covered | Optimistic non-destructive verdict: on submit failure the thumb state silently reverts, no blocking error card (accuracy signal is low-stakes) — user decision 2026-07-28 |
+| partial | ai-feedback-control | ✅ covered | Thumb alone is a valid submission; the note is optional (never blocks) — no partial-submit gate |
+| long-text | ai-feedback-control | ✅ covered | Optional note capped at 500 chars, plain wrap, no char-count warning UI (well below the `CommentInput` 9500-char precedent) |
+| empty | ai-connector-card | ✅ covered | Reuses the Phase 19 add-connector wizard's unfilled-form state verbatim — no new empty shell this phase (scope note) |
+| loading | ai-connector-card | ✅ covered | Reuses the Phase 19 wizard's "testing key" state from the existing test-before-save gate |
+| error | ai-connector-card | ✅ covered | Reuses the Phase 19 wizard's invalid-key / test-failure validation state — no new error UI introduced this phase — user decision 2026-07-28 |
+| partial | ai-connector-card | ✅ covered | Reuses the Phase 19 wizard's per-field validation for partially-filled input |
+| long-text | ai-connector-card | ✅ covered | API key is a fixed-format single-line input; model selection is a fixed enum dropdown — no free long-text field |
 
 ---
 
@@ -167,11 +179,11 @@ Applicable state considerations resolved: 7 covered, 1 backstop, 0 unresolved.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: FLAG (non-blocking) — declare the section's primary visual anchor (recommend: the citation-tinted prose is the focal read; the feedback row is secondary) so the executor need not infer hierarchy from the color/spacing tables
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (gsd-ui-checker, 2026-07-28) — 5 PASS, 1 non-blocking FLAG
