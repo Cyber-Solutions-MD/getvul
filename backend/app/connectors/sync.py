@@ -193,7 +193,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         sanitized = _sanitize_error(e)
         logger.error("sync_error", error=sanitized)
         log.status = "FAILED"
-        log.error_message = str(e)[:2000]
+        log.error_message = sanitized
         connector_config.last_sync_status = "FAILED"
         connector_config.consecutive_failure_count = (connector_config.consecutive_failure_count or 0) + 1
         connector_config.last_error = sanitized
