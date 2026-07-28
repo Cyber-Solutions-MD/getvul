@@ -18,7 +18,7 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 - [ ] **REL-01**: Wiz connector completes a full sync end-to-end (fix the `authenticate()` return-type wiring so a successful auth is not treated as failure)
 - [ ] **REL-02**: Rapid7 connector completes a full sync end-to-end (implement `authenticate()` / fix the no-arg instantiation `TypeError`)
 - [ ] **REL-03**: Every scanner connector (CrowdStrike, Nessus, Defender, Wiz, Qualys, Rapid7) has HTTP-layer integration tests covering auth + pagination + `fetch_vulnerabilities` mapping (mock transport)
-- [ ] **REL-04**: An analyst can create a **Jira** ticket from a vulnerability (wire Jira into the ticket-create + rule-engine paths, not just status sync)
+- [x] **REL-04**: An analyst can create a **Jira** ticket from a vulnerability (wire Jira into the ticket-create + rule-engine paths, not just status sync)
 - [ ] **REL-05**: GitHub ticketing is finished end-to-end (create + sync) **or** explicitly retired — no dead stub referenced nowhere
 - [x] **REL-06**: An analyst can see per-connector sync health (last sync time, last error, status) in the Connectors UI
 
@@ -79,7 +79,7 @@ Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no 
 | REL-01 | 23 (Ingestion Reliability Precursor) | Pending |
 | REL-02 | 23 (Ingestion Reliability Precursor) | Pending |
 | REL-03 | 23 (Ingestion Reliability Precursor) | Pending |
-| REL-04 | 23 (Ingestion Reliability Precursor) | Pending |
+| REL-04 | 23 (Ingestion Reliability Precursor) | Complete |
 | REL-05 | 23 (Ingestion Reliability Precursor) | Pending |
 | REL-06 | 23 (Ingestion Reliability Precursor) | Complete |
 | AI-01 | 24 (AI Foundation + Explain-this-vuln) | Pending |
