@@ -57,6 +57,8 @@ type Props = {
     onConfirm: () => void;
     onCancel: () => void;
     cveLabel: string;
+    ticketProvider: TicketProvider | null;
+    onProviderChange: (p: TicketProvider) => void;
   }) => React.ReactNode;
 };
 
@@ -317,6 +319,8 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             onConfirm: fireTicket,
             onCancel: cancelConfirm,
             cveLabel,
+            ticketProvider,
+            onProviderChange: setTicketProvider,
           })
         : (
           <ConfirmModal
