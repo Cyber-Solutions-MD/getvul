@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
-current_phase: 23
-current_phase_name: ingestion-reliability-precursor
+current_phase: 24
+current_phase_name: "AI Foundation + \"Explain This Vuln\""
 status: Executing Phase 23
 stopped_at: Completed 23-11-PLAN.md
-last_updated: "2026-07-28T05:53:59.226Z"
+last_updated: "2026-07-28T05:59:47.159Z"
 progress:
   total_phases: 22
   completed_phases: 22
@@ -28,10 +28,10 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 ## Current Position
 
 Milestone: v3.0 AI-Assisted Triage — 🚧 ROADMAP CREATED 2026-07-27 (Phases 23–28 defined, awaiting user approval; not yet started). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
-Phase: 23 (ingestion-reliability-precursor) — EXECUTING
+Phase: 24 — AI Foundation + "Explain This Vuln"
 Next: User approves the roadmap draft, then `/gsd-plan-phase 23`.
 Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28.
-Plan: 3 of 11
+Plan: Not started
 
 | Field | Value |
 |-------|-------|
