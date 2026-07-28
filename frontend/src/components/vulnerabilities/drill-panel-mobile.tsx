@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Drawer } from 'vaul';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DrillContent } from './drill-content';
+import { TicketProviderPicker } from './ticket-provider-picker';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { microcopy } from './microcopy';
 
@@ -98,7 +99,14 @@ export function DrillPanelMobile({ cveId, id, idKey, renderContent, ariaLabel }:
                 <DrillContent
                   idOrCve={effectiveId}
                   onClose={close}
-                  renderConfirm={({ open: confirmOpen, onConfirm, onCancel, cveLabel }) => {
+                  renderConfirm={({
+                    open: confirmOpen,
+                    onConfirm,
+                    onCancel,
+                    cveLabel,
+                    ticketProvider,
+                    onProviderChange,
+                  }) => {
                     if (!confirmOpen) return null;
                     // Pitfall 7 — nested confirmation inside the drawer. Vaul's
                     // `Drawer.NestedRoot` is the canonical pattern; the test
@@ -128,6 +136,12 @@ export function DrillPanelMobile({ cveId, id, idKey, renderContent, ariaLabel }:
                           <p className="mt-2 text-sm text-text-muted">
                             {microcopy.ticket.confirmBody}
                           </p>
+                          <div className="mt-4">
+                            <TicketProviderPicker
+                              value={ticketProvider}
+                              onChange={onProviderChange}
+                            />
+                          </div>
                           <div className="mt-4 flex justify-end gap-2">
                             <button
                               type="button"
@@ -139,7 +153,8 @@ export function DrillPanelMobile({ cveId, id, idKey, renderContent, ariaLabel }:
                             <button
                               type="button"
                               onClick={onConfirm}
-                              className="rounded-md bg-gradient-sunset px-3 py-1.5 text-sm font-medium text-text-inverse shadow-glow-cta"
+                              disabled={ticketProvider === null}
+                              className="rounded-md bg-gradient-sunset px-3 py-1.5 text-sm font-medium text-text-inverse shadow-glow-cta disabled:opacity-50 disabled:pointer-events-none"
                             >
                               {microcopy.drill.createTicket}
                             </button>
