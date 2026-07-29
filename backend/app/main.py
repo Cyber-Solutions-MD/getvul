@@ -23,6 +23,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
+from app.api.v1.ai import ai_router
 from app.assets.router import router as asset_router
 from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
@@ -323,6 +324,7 @@ def create_app() -> FastAPI:
 
     app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
     app.include_router(search_router, prefix="/api/v1", tags=["Search"])
+    app.include_router(ai_router)
 
     @app.get("/health")
     async def health_check():
