@@ -36,11 +36,13 @@ vi.mock('@/lib/mutations/use-create-ticket', () => ({
 // useAuth() default-context value with no Provider resolves user:null ->
 // role defaults to VIEWER inside the section) keeps every other assertion
 // in this file unaffected by the new section's own content.
+// (24-10) use-ai-status replaces use-connectors-admin as the section's key-
+// configured signal (D-23 gap closure) -- mocked the same way.
 vi.mock('@/lib/queries/use-explain-cache', () => ({
   useExplainCache: () => ({ data: { cached: false }, isPending: false, isError: false }),
 }));
-vi.mock('@/lib/queries/use-connectors-admin', () => ({
-  useConnectorsList: () => ({ data: undefined, isPending: false, isError: true }),
+vi.mock('@/lib/queries/use-ai-status', () => ({
+  useAiStatus: () => ({ data: { configured: false }, isPending: false, isError: false }),
 }));
 
 // Wave 2 (Plan 11-05) will create this file. Import is the RED signal.

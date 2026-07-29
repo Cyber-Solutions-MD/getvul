@@ -36,11 +36,13 @@ vi.mock('@/lib/mutations/use-snooze', () => ({
 // DrillContent) uses real useQuery-backed hooks -- mock them so this
 // pre-existing suite doesn't need a QueryClientProvider wrapper. See
 // drill-panel.test.tsx for the identical rationale.
+// (24-10) use-ai-status replaces use-connectors-admin as the section's key-
+// configured signal (D-23 gap closure) -- mocked the same way.
 vi.mock('@/lib/queries/use-explain-cache', () => ({
   useExplainCache: () => ({ data: { cached: false }, isPending: false, isError: false }),
 }));
-vi.mock('@/lib/queries/use-connectors-admin', () => ({
-  useConnectorsList: () => ({ data: undefined, isPending: false, isError: true }),
+vi.mock('@/lib/queries/use-ai-status', () => ({
+  useAiStatus: () => ({ data: { configured: false }, isPending: false, isError: false }),
 }));
 
 // The mobile nested confirm now renders TicketProviderPicker, which calls

@@ -91,8 +91,11 @@ export const queryKeys = {
   },
   // Phase 24 (24-05) — AI Explanation cache-check. resourceType/resourceId
   // parameterized (D-15) so host/remediation views share the same key shape.
+  // (24-10) status — the require_viewer "is AI configured" boolean signal;
+  // tenant-scoped server-side so no tenant/id needs to be part of the key.
   ai: {
     explain: (resourceType: string, resourceId: string) =>
       ['ai', 'explain', resourceType, resourceId] as const,
+    status: () => ['ai', 'status'] as const,
   },
 } as const;

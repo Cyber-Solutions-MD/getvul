@@ -5,7 +5,7 @@ import { AlertTriangle, Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useExplainCache } from '@/lib/queries/use-explain-cache';
 import { useExplainStream } from '@/lib/ai/use-explain-stream';
-import { useConnectorsList } from '@/lib/queries/use-connectors-admin';
+import { useAiStatus } from '@/lib/queries/use-ai-status';
 import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion';
 import { cn } from '@/lib/utils';
 import { AiExplanationCitations } from './ai-explanation-citations';
@@ -96,24 +96,18 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
   const isAnalystOrAbove = isAdminOrOwner || role === 'ANALYST';
 
   const cacheQuery = useExplainCache(resourceType, resourceId);
-  // GET /api/v1/connectors is require_admin-gated on the backend -- Analyst/
-  // Viewer's request here will 403. Called unconditionally anyway (matching
-  // the existing /dashboard/connectors page's own precedent) so
-  // connectorsQuery.isError genuinely reflects "couldn't verify" for those
-  // roles, which the derivation below treats as an optimistic pass-through
-  // rather than a hard "no key" -- otherwise Analyst could never see the
-  // trigger button at all, breaking the tracer for the very role it exists
-  // for. The backend remains the authoritative control regardless (Plan 04's
-  // require_analyst gate + the stream hook's defensive no_key fallback).
-  const connectorsQuery = useConnectorsList();
+  // D-23 gap closure (24-10, 24-VERIFICATION.md truth #2): GET
+  // /api/v1/ai/status is require_viewer-gated -- every role gets a real,
+  // non-error-coded boolean here (unlike the admin-gated GET
+  // /api/v1/connectors this used to read, which always 403s for Analyst/
+  // Viewer). No more optimistic "assume configured" guess off an error state.
+  const statusQuery = useAiStatus();
   const { state, start } = useExplainStream(resourceType, resourceId);
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  const keyConfigured = connectorsQuery.isError
-    ? true
-    : Boolean(connectorsQuery.data?.some((c) => c.connector_type === 'ANTHROPIC' && c.is_enabled));
+  const keyConfigured = Boolean(statusQuery.data?.configured);
 
-  const prereqsPending = cacheQuery.isPending || connectorsQuery.isPending;
+  const prereqsPending = cacheQuery.isPending || statusQuery.isPending;
 
   let body: ReactNode;
 
