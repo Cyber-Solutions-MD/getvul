@@ -53,7 +53,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 **v3.0 AI-Assisted Triage ("Triage Copilot") (IN PROGRESS, opened 2026-07-25 — Phases 23–28):**
 
 - [ ] **Phase 23: Ingestion Reliability Precursor** — Fix Wiz/Rapid7 connector wiring, add scanner HTTP-layer integration tests, wire Jira ticket-create, finish-or-retire GitHub ticketing, surface per-connector sync health
-- [ ] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel
+- [x] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel (completed 2026-07-29)
 - [ ] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description
 - [ ] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API
 - [ ] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships
@@ -322,7 +322,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 24-09-PLAN.md — Expansion frontend (TDD): generalize the AI Explanation section + mount on host (asset-detail) and remediation surfaces (D-15 complete)
+- [x] 24-09-PLAN.md — Expansion frontend (TDD): generalize the AI Explanation section + mount on host (asset-detail) and remediation surfaces (D-15 complete)
 
 **UI hint**: yes
 **Pitfalls owned** (see research/PITFALLS.md): #1 prompt injection (headline threat — untrusted-content-as-data contract established here for reuse by every later phase), #3 PII/secret leakage (prompt-builder field allowlist), #4 cross-tenant cache/prompt bleed, #6 non-determinism breaking CI (schema/property-test convention established here), #9 drill-panel latency regression (Suspense-bounded async region).
@@ -417,7 +417,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
-| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 8/9 | In Progress|  |
+| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 9/9 | Complete   | 2026-07-29 |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
