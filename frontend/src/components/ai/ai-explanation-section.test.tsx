@@ -49,8 +49,8 @@ vi.mock('@/lib/ai/use-explain-stream', () => ({
   useExplainStream: (...args: unknown[]) => mockUseExplainStream(...args),
 }));
 
-const mockUseConnectorsList = vi.fn();
-vi.mock('@/lib/queries/use-connectors-admin', () => ({ useConnectorsList: () => mockUseConnectorsList() }));
+const mockUseAiStatus = vi.fn();
+vi.mock('@/lib/queries/use-ai-status', () => ({ useAiStatus: () => mockUseAiStatus() }));
 
 const mockReducedMotion = vi.fn();
 vi.mock('@/hooks/use-prefers-reduced-motion', () => ({ usePrefersReducedMotion: () => mockReducedMotion() }));
@@ -86,7 +86,7 @@ function setDefaults(overrides?: {
   role?: string;
   cache?: unknown;
   stream?: unknown;
-  connectors?: unknown;
+  status?: unknown;
   reducedMotion?: boolean;
 }) {
   mockUseAuth.mockReturnValue({ user: { role: overrides?.role ?? 'ANALYST' } });
@@ -96,12 +96,8 @@ function setDefaults(overrides?: {
   mockUseExplainStream.mockReturnValue(
     overrides?.stream ?? { state: { phase: 'idle' }, start: mockStart },
   );
-  mockUseConnectorsList.mockReturnValue(
-    overrides?.connectors ?? {
-      data: [{ connector_type: 'ANTHROPIC', is_enabled: true }],
-      isPending: false,
-      isError: false,
-    },
+  mockUseAiStatus.mockReturnValue(
+    overrides?.status ?? { data: { configured: true }, isPending: false, isError: false },
   );
   mockReducedMotion.mockReturnValue(overrides?.reducedMotion ?? true);
 }
@@ -128,7 +124,7 @@ describe('AiExplanationSection', () => {
   });
 
   it('no-key + role=Admin renders the "Configure AI" CTA', () => {
-    setDefaults({ role: 'ADMIN', connectors: { data: [], isPending: false, isError: false } });
+    setDefaults({ role: 'ADMIN', status: { data: { configured: false }, isPending: false, isError: false } });
     render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
     expect(screen.getByText("AI isn't set up yet")).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Configure AI' })).toHaveAttribute('href', '/dashboard/connectors');
@@ -136,13 +132,17 @@ describe('AiExplanationSection', () => {
     expect(screen.queryByTestId('ai-feedback-control-stub')).toBeNull();
   });
 
-  it('no-key + role=Analyst renders the "ask an admin" nudge with no CTA', () => {
-    setDefaults({ role: 'ANALYST', connectors: { data: [], isPending: false, isError: false } });
+  it('no-key + role=Analyst renders the "ask an admin" nudge with no CTA and no trigger button', () => {
+    setDefaults({ role: 'ANALYST', status: { data: { configured: false }, isPending: false, isError: false } });
     render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
     expect(
       screen.getByText("AI explanations aren't available yet — ask an admin to configure GetVul's AI connector."),
     ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Configure AI' })).toBeNull();
+    // D-23 gap closure (24-VERIFICATION.md truth #2): a real unconfigured
+    // signal must never leave the live trigger reachable for Analyst -- this
+    // is exactly the bug the isError-based optimistic pass-through caused.
+    expect(screen.queryByRole('button', { name: 'Explain this vuln' })).toBeNull();
   });
 
   it('grounded=false (post-click error) renders the neutral insufficient-evidence card with no amber/red class', () => {
@@ -306,12 +306,76 @@ describe('three-view parity (D-15) -- identical chrome/copy/role-gating for vuln
   it.each(['vuln', 'host', 'remediation'])(
     'no-key onboarding card renders identically for resourceType=%s',
     (resourceType) => {
-      setDefaults({ role: 'ADMIN', connectors: { data: [], isPending: false, isError: false } });
+      setDefaults({ role: 'ADMIN', status: { data: { configured: false }, isPending: false, isError: false } });
       const { unmount } = render(<AiExplanationSection resourceType={resourceType} resourceId={`${resourceType}-id`} />);
       expect(screen.getByText("AI isn't set up yet")).toBeInTheDocument();
       unmount();
     },
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// D-23 gap closure (24-10, 24-VERIFICATION.md truth #2): keyConfigured now
+// derives from the REAL GET /api/v1/ai/status boolean (via useAiStatus),
+// never from the admin-gated connectors endpoint's isError state. This
+// matrix directly proves the fix for all four roles across both tenant
+// states -- exactly the production behavior the prior isError-based guess
+// could never reach for Analyst/Viewer (their GET /api/v1/connectors always
+// 403s, so isError was always true, which the old code optimistically read
+// as "assume configured").
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('real ai-status signal: role x configured-state matrix (D-23 gap closure)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('unconfigured + Analyst: "ask an admin" nudge present, no CTA, no live trigger button', () => {
+    setDefaults({ role: 'ANALYST', status: { data: { configured: false }, isPending: false, isError: false } });
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(
+      screen.getByText("AI explanations aren't available yet — ask an admin to configure GetVul's AI connector."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Explain this vuln' })).toBeNull();
+  });
+
+  it('unconfigured + Viewer: the SAME "ask an admin" nudge, no CTA, never the generic no-explanation text', () => {
+    setDefaults({ role: 'VIEWER', status: { data: { configured: false }, isPending: false, isError: false } });
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(
+      screen.getByText("AI explanations aren't available yet — ask an admin to configure GetVul's AI connector."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Configure AI' })).toBeNull();
+    expect(screen.queryByText('No AI explanation generated yet.')).toBeNull();
+  });
+
+  it('unconfigured + Admin: "Configure AI" CTA linking to /dashboard/connectors', () => {
+    setDefaults({ role: 'ADMIN', status: { data: { configured: false }, isPending: false, isError: false } });
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(screen.getByRole('link', { name: 'Configure AI' })).toHaveAttribute('href', '/dashboard/connectors');
+  });
+
+  it('configured + Analyst: renders the live "Explain this vuln" button, no false nudge', () => {
+    setDefaults({ role: 'ANALYST', status: { data: { configured: true }, isPending: false, isError: false } });
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(screen.getByRole('button', { name: 'Explain this vuln' })).toBeInTheDocument();
+    expect(
+      screen.queryByText("AI explanations aren't available yet — ask an admin to configure GetVul's AI connector."),
+    ).toBeNull();
+  });
+
+  it('configured + Admin: also renders the live "Explain this vuln" button (asserted explicitly, not only by inference)', () => {
+    setDefaults({ role: 'ADMIN', status: { data: { configured: true }, isPending: false, isError: false } });
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(screen.getByRole('button', { name: 'Explain this vuln' })).toBeInTheDocument();
+  });
+
+  it('forwards nothing to the old admin-gated connectors endpoint for the key signal -- only useAiStatus is consulted', () => {
+    setDefaults();
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(mockUseAiStatus).toHaveBeenCalled();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
