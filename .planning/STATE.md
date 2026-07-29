@@ -1,18 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
-current_phase: 24
-current_phase_name: ai-foundation-explain-this-vuln
-status: Executing Phase 24
-stopped_at: Phase 24 Plan 01 complete
-last_updated: "2026-07-29T08:45:00.000Z"
+milestone_name: AI-Assisted Triage
+status: Ready to execute
+stopped_at: Phase 24 Plan 02 complete (24-02-PLAN.md)
+last_updated: "2026-07-29T09:11:41.630Z"
 progress:
-  total_phases: 23
-  completed_phases: 22
-  total_plans: 121
-  completed_plans: 104
-  percent: 86
+  total_phases: 16
+  completed_phases: 8
+  total_plans: 41
+  completed_plans: 34
+  percent: 83
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -31,7 +29,7 @@ Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-
 Phase: 24 (ai-foundation-explain-this-vuln) — EXECUTING
 Next: Execute `24-02-PLAN.md` (Wave 1, parallel with 24-01 per the wave plan — backend contracts: response schemas + prompt builder + AI audit writer, TDD).
 Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first).
-Plan: 2 of 9 (24-01 complete; 24-02 next)
+Plan: 3 of 9 (24-01 complete; 24-02 next)
 
 | Field | Value |
 |-------|-------|
@@ -164,6 +162,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 - [Phase ?]: 23-10: Reused existing sanitized binding for log.error_message instead of adding a second _sanitize_error() call (CR-03/REL-06 closure)
 - [Phase ?]: Mobile drill-panel confirm now mirrors desktop's ticketProvider gate — renderConfirm slot forwards ticketProvider/onProviderChange, closing the ASANA-fallback gap (REL-04/CR-01)
+- [Phase 24]: 24-02: remediation_info (not cve_description, which isn't a VULN_ALLOWLIST member) is the free-text vehicle for injection-isolation and truncation tests
+- [Phase 24]: 24-02: recheck_business_rules()'s exception is BusinessRuleError (ruff N818 requires an Error suffix), subclassing ValueError alongside pydantic.ValidationError
+- [Phase 24]: 24-02: prompt_version(system_prompt=SYSTEM_PROMPT, few_shot=FEW_SHOT) exposes real inputs as defaulted params so tests can prove hash sensitivity, not just stability
+- [Phase 24]: 24-02: audit_log_ai_call's usage param is typed Any (RESEARCH Pattern 5), not a custom Protocol -- keeps app/ai/audit.py decoupled from the anthropic SDK
+- [Phase 24]: 24-02: only vulnerability_name + remediation_info get the 4000-char truncation budget -- the other 14 VULN_ALLOWLIST fields are short bounded identifiers/enums/scores
+- [Phase 24]: 24-02: BLOCKER -- anthropic>=0.120.0 (declared in backend/pyproject.toml by Plan 01) is not installed in the local backend/.venv. mypy-baseline shows 4 new violations on app/connectors/tester.py:471 and 3/8 Plan 01 test_ai_tester.py tests fail at runtime with ModuleNotFoundError. Unrelated to any 24-02 file (app/ai/ deliberately imports no anthropic). Not fixed (out of scope -- unrelated file, pre-existing). Action for the next plan that runs backend tests locally: pip install -e . in backend/.venv first. See 24-02-SUMMARY.md Issues Encountered.
 
 ## Performance Metrics
 
@@ -172,9 +176,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 23 P10 | 15min | 2 tasks | 2 files |
 | Phase 23 P11 | 18min | 3 tasks | 3 files |
 | Phase 24 P01 | 50min | 2 tasks | 17 files |
+| Phase 24 P02 | 24min | 3 tasks | 7 files |
 
 ## Session
 
-**Last session:** 2026-07-29T08:45:00.000Z
-**Stopped at:** Phase 24 Plan 01 complete (24-01-PLAN.md)
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/24-ai-foundation-explain-this-vuln/24-02-PLAN.md
+**Last session:** 2026-07-29T09:11:41.625Z
+**Stopped at:** Phase 24 Plan 02 complete (24-02-PLAN.md)
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/24-ai-foundation-explain-this-vuln/24-03-PLAN.md

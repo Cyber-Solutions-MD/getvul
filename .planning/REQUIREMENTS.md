@@ -25,11 +25,11 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 ### AI Foundation & Guardrails (AI)
 
 - [ ] **AI-01**: A tenant admin can configure their **own** Anthropic API key + model preferences (encrypted at rest via the Fernet/`ConnectorConfig` pattern); AI features are the ONLY consumers of that key and stay disabled until it is set — no shared/fallback key exists
-- [ ] **AI-02**: Untrusted scanner text (CVE descriptions, hostnames, finding titles) is delimited/encoded and passed to the model as **data** (`tool_result`), never as instructions; all model output is schema-validated (Pydantic) and never executed (prompt-injection + PII guardrails)
+- [x] **AI-02**: Untrusted scanner text (CVE descriptions, hostnames, finding titles) is delimited/encoded and passed to the model as **data** (`tool_result`), never as instructions; all model output is schema-validated (Pydantic) and never executed (prompt-injection + PII guardrails)
 - [ ] **AI-03**: AI responses stream token-by-token into the vuln drill panel (`fetch()` + `ReadableStream`; scoped nginx `location /api/v1/ai/` with `proxy_buffering off`)
 - [ ] **AI-04**: An analyst can get an "Explain this vuln" plain-English summary + business-risk framing in the drill panel, grounded in the correlated data with **two-tier citation** (verbatim scanner text vs. AI-interpreted)
 - [ ] **AI-05**: AI outputs are cached in Redis **tenant-scoped only**, content-hash keyed (no cross-tenant serving — an output billed on one tenant's key never reaches another)
-- [ ] **AI-06**: Every AI call is audit-logged (model, tokens, cost estimate, prompt provenance), including scheduler-originated calls (written directly with `user_email="system:scheduler"`, avoiding the `audit()` nil-tenant path)
+- [x] **AI-06**: Every AI call is audit-logged (model, tokens, cost estimate, prompt provenance), including scheduler-originated calls (written directly with `user_email="system:scheduler"`, avoiding the `audit()` nil-tenant path)
 
 ### AI Remediation Guidance (AIR)
 
@@ -83,11 +83,11 @@ Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no 
 | REL-05 | 23 (Ingestion Reliability Precursor) | Complete |
 | REL-06 | 23 (Ingestion Reliability Precursor) | Complete |
 | AI-01 | 24 (AI Foundation + Explain-this-vuln) | Pending |
-| AI-02 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AI-02 | 24 (AI Foundation + Explain-this-vuln) | Complete |
 | AI-03 | 24 (AI Foundation + Explain-this-vuln) | Pending |
 | AI-04 | 24 (AI Foundation + Explain-this-vuln) | Pending |
 | AI-05 | 24 (AI Foundation + Explain-this-vuln) | Pending |
-| AI-06 | 24 (AI Foundation + Explain-this-vuln) | Pending |
+| AI-06 | 24 (AI Foundation + Explain-this-vuln) | Complete |
 | AIR-01 | 25 (Asset-Aware Remediation Guidance) | Pending |
 | AIR-02 | 25 (Asset-Aware Remediation Guidance) | Pending |
 | AIP-01 | 26 (Prioritization Narrative) | Pending |
