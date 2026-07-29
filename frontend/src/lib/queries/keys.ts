@@ -89,4 +89,10 @@ export const queryKeys = {
       ['directory-users', 'list', opts] as const,
     stats: () => ['directory-users', 'stats'] as const,
   },
+  // Phase 24 (24-05) — AI Explanation cache-check. resourceType/resourceId
+  // parameterized (D-15) so host/remediation views share the same key shape.
+  ai: {
+    explain: (resourceType: string, resourceId: string) =>
+      ['ai', 'explain', resourceType, resourceId] as const,
+  },
 } as const;
