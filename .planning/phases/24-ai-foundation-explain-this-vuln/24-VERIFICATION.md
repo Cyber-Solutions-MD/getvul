@@ -1,9 +1,11 @@
 ---
 phase: 24-ai-foundation-explain-this-vuln
 verified: 2026-07-29T17:45:00Z
-status: human_needed
-score: 12/14 must-haves verified
-overrides_applied: 0
+status: passed
+status_note: "PASSED WITH ACCEPTED DEBT. All 12 code-verifiable truths pass (truth #2 closed by gap plan 24-10, no regressions). The 2 remaining truths (#13, #14) are live-only human_verification items that the user EXPLICITLY WAIVED at the 24-06 checkpoint AND, on 2026-07-29 after re-verification, explicitly chose to ACCEPT AS TRACKED DEBT rather than block the phase (chose 'Mark complete, track live items as debt'). They are NOT observed — they remain open in 24-UAT.md and can be closed via /gsd-verify-work 24 against a live stack. This status reflects a conscious user risk-acceptance decision, not live confirmation."
+human_verification_disposition: waived-accepted-as-debt
+score: 12/14 must-haves verified (2 remaining = waived live items accepted as debt)
+overrides_applied: 1
 re_verification:
   previous_status: gaps_found
   previous_score: 11/14
@@ -30,7 +32,7 @@ human_verification:
 
 **Phase Goal:** A tenant admin can turn AI on with their own key, and an analyst gets a grounded, safely-guardrailed, streamed plain-English explanation of any vulnerability — proving the full integration risk (streaming, encrypted per-tenant config, guardrails) end-to-end at minimum blast radius before it's multiplied across four more capabilities.
 **Verified:** 2026-07-29T17:45:00Z
-**Status:** human_needed
+**Status:** passed (with accepted debt — 2 waived live-verification items, see `status_note`)
 **Re-verification:** Yes — after gap-closure plan 24-10 (previous run: gaps_found, 11/14)
 
 ## Goal Achievement
