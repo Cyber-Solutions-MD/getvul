@@ -1,18 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
-current_phase: 24
-current_phase_name: ai-foundation-explain-this-vuln
+milestone_name: AI-Assisted Triage (\"Triage Copilot\")
 status: Ready to execute
-stopped_at: Completed 24-03-PLAN.md
-last_updated: "2026-07-29T09:34:53.171Z"
+stopped_at: Completed 24-04-PLAN.md
+last_updated: "2026-07-29T10:16:30.031Z"
 progress:
-  total_phases: 23
-  completed_phases: 22
-  total_plans: 112
-  completed_plans: 106
-  percent: 95
+  total_phases: 8
+  completed_phases: 1
+  total_plans: 20
+  completed_plans: 15
+  percent: 75
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -31,7 +29,7 @@ Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-
 Phase: 24 (ai-foundation-explain-this-vuln) — EXECUTING
 Next: Execute `24-04-PLAN.md` (Wave 3, depends_on [02, 03] — the real explain_vuln.py streaming engine: buffer-then-validate-then-replay against the tenant-scoped data layer, TDD).
 Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard).
-Plan: 4 of 9 (24-03 complete; 24-04 next)
+Plan: 5 of 9 (24-03 complete; 24-04 next)
 
 | Field | Value |
 |-------|-------|
@@ -175,6 +173,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24]: 24-03: notify_admins_budget_exceeded() calls create_notification once PER active OWNER/ADMIN user (not a single broadcast row) so send_email_flag=True actually reaches every admin's inbox
 - [Phase 24]: 24-03: get_tenant_anthropic_key wraps json.loads+decrypt_value in one broad try/except returning None on any failure, mirroring get_decrypted_credentials' exact defensive shape
 - [Phase 24]: 24-03: record_hash() hashes exactly what it's given (sha256 over sorted JSON) -- the D-18 allowlist-only guarantee is a caller contract (tested for determinism/sensitivity/order-independence), not re-implemented inside cache.py
+- [Phase 24]: 24-04: leak-marker check reads the REAL system_prompt in scope for the call (first 40 chars of its first line) instead of a hardcoded marker string -- generic across every current/future view
+- [Phase 24]: 24-04: injection_flagged and terminal validation_failed both surface as the SAME {type:error, kind:grounded_false} SSE event -- only the audit status distinguishes them, no dedicated frontend injection UI state needed
+- [Phase 24]: 24-04: budget_exceeded/rate_limited audit rows get cost_estimate_usd=0.0 explicitly (not None) since genuinely zero tokens were spent
+- [Phase 24]: 24-04: cost-estimate pricing table uses Anthropic's standard non-promotional per-MTok rates ($3/$15 Sonnet 5, $5/$25 Opus 5) rather than the active $2/$10 introductory Sonnet-5 rate (expires 2026-08-31), to avoid under-counting spend once the promotion lapses
+- [Phase 24]: 24-04: get_model_and_budget() promoted from a private helper to a shared no-underscore export the moment the GET cache-check route needed the identical model-resolution logic the POST path already used internally, avoiding a stale-model cache-key mismatch
 
 ## Performance Metrics
 
@@ -185,9 +188,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 24 P01 | 50min | 2 tasks | 17 files |
 | Phase 24 P02 | 24min | 3 tasks | 7 files |
 | Phase 24 P03 | 19min | 2 tasks | 6 files |
+| Phase 24 P04 | 58min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-07-29T09:34:21.943Z
-**Stopped at:** Completed 24-03-PLAN.md
-**Resume file:** .planning/phases/24-ai-foundation-explain-this-vuln/24-04-PLAN.md
+**Last session:** 2026-07-29T10:16:30.024Z
+**Stopped at:** Completed 24-04-PLAN.md
+**Resume file:** .planning/phases/24-ai-foundation-explain-this-vuln/24-05-PLAN.md
