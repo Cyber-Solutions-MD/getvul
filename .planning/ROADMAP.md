@@ -288,7 +288,7 @@ Plans:
   4. Untrusted scanner text (CVE descriptions, hostnames, finding titles) — including adversarially crafted text — is delivered to the model only as data (never as instructions), and every model response is schema-validated before it reaches the UI — AI-02
   5. Every AI call, including scheduler-originated ones, is audit-logged with model/tokens/cost-estimate/prompt provenance, and AI output cached for one tenant is never served to another tenant — AI-05, AI-06
 
-**Plans**: 6/9 plans executed
+**Plans**: 7/9 plans executed
 
 Plans:
 **Wave 1**
@@ -314,7 +314,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 24-07-PLAN.md — Feedback capture (TDD): ai_feedback table + editable per-user upsert endpoint + thumbs/note control (capture-only)
+- [x] 24-07-PLAN.md — Feedback capture (TDD): ai_feedback table + editable per-user upsert endpoint + thumbs/note control (capture-only)
 
 **Wave 7** *(blocked on Wave 6 completion)*
 

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Assisted Triage
 status: Ready to execute
-stopped_at: Completed 24-05-PLAN.md
-last_updated: "2026-07-29T10:58:45.059Z"
+stopped_at: Completed 24-07-PLAN.md
+last_updated: "2026-07-29T14:54:20+03:00"
 progress:
   total_phases: 16
   completed_phases: 8
   total_plans: 41
-  completed_plans: 37
-  percent: 90
+  completed_plans: 39
+  percent: 95
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -27,16 +27,16 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
 Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-29). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
 Phase: 24 (ai-foundation-explain-this-vuln) — EXECUTING
-Next: Execute `24-06-PLAN.md` (Wave 5, depends_on [05], `autonomous: false` — the human-verify gate: the full per-vuln tracer through the real Docker/nginx stack, SSE incremental-not-buffered proof, the per-remediation grounding-shape decision for Plan 08, D-27 audit-pane verification).
-Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard). Plan 04 shipped (the real explain_vuln.py buffer-then-validate-then-replay streaming engine + per-vuln SSE endpoint, proven against the real installed Anthropic SDK). Plan 05 shipped (frontend: useExplainStream SSE hook + useExplainCache + the 8-state AiExplanationSection + AiExplanationCitations two-tier renderer, wired into drill-content.tsx — the end-to-end tracer is now code-complete, pending Plan 06's live human-verify gate).
-Plan: 6 of 9 (24-05 complete; 24-06 next)
+Next: Execute `24-08-PLAN.md` (Wave 7, depends_on [07], `autonomous: true` — expansion backend: host + remediation schema variants + PII-excluding prompt builders + grounding assemblers + thin routes, per D-16's Option A cross-asset CVE grouping).
+Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard). Plan 04 shipped (the real explain_vuln.py buffer-then-validate-then-replay streaming engine + per-vuln SSE endpoint, proven against the real installed Anthropic SDK). Plan 05 shipped (frontend: useExplainStream SSE hook + useExplainCache + the 8-state AiExplanationSection + AiExplanationCitations two-tier renderer, wired into drill-content.tsx — the end-to-end tracer is code-complete). Plan 06 (TRACER-gate checkpoint) resolved: live end-to-end verification EXPLICITLY WAIVED by the user ("skip live verify, proceed on trust") and D-16 recorded as Option A (Cross-asset CVE grouping) for Plan 08's per-remediation grounding contract. Plan 07 shipped (backend: `ai_feedback` table (migration 032) + `AiFeedback` model + `POST /feedback/{resource_type}/{resource_id}` idempotent per-user upsert via `on_conflict_do_update`, require_analyst-gated, audited; frontend: `useAiFeedback` mutation hook + `AiFeedbackControl` thumbs/note UI wired beneath both grounded rendering branches of `AiExplanationSection` — capture-only, D-21, seeding Phase 28's flywheel).
+Plan: 7 of 9 (24-07 complete; 24-08 next)
 
 | Field | Value |
 |-------|-------|
-| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 5/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
+| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 7/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 = Phases 9–15. v2.2 = Phases 16–22. v3.0 = Phases 23–28 (continues numbering, does not reset). |
 | v3.0 phase map | See "v3.0 Phase Map" table below. |
-| Next action | Execute `24-06-PLAN.md` (Wave 5, human-verify gate). |
+| Next action | Execute `24-08-PLAN.md` (Wave 7, expansion backend: host/remediation schema variants). |
 | History (v1.0/v2.0/v2.2, retained) | Rows below the divider describe prior-milestone eras and are kept as accumulated context. |
 
 ## v3.0 Phase Map
@@ -182,6 +182,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24]: 24-05: the <section aria-labelledby='drill-ai-h'> landmark lives in drill-content.tsx (not inside AiExplanationSection, which renders only h4+body via a Fragment) so the acceptance grep (exactly 1 occurrence) holds and no section-in-section nesting exists
 - [Phase 24]: 24-05: D-12's token-by-token replay is a per-segment staggered CSS animate-in/fade-in over the complete already-validated payload, never a literal sync to the backend's own cosmetic summary_delta frames (the locked ExplainStreamState has no slot for partial text); replay applies only on a just-streamed 'done' result, never a cache hit (D-09 vs D-12)
 - [Phase 24]: 24-05: a defensive backend no_key SSE frame maps to kind:'unknown' (not its own phase) so an unexpected mid-flight no_key can never leave the hook parked in 'analyzing' forever; a 'done' payload is also defensively re-checked for grounded:false at render time (UI-SPEC backstop), even though the real engine never emits done for an ungrounded response
+- [Phase 24]: 24-06: D-16 per-remediation grounding shape = Option A (Cross-asset CVE grouping) -- aggregates a tenant's affected assets BY CVE/fix across all assets sharing it, faithful to D-16's "across the affected assets" framing; Plan 08 must build a NEW cross-asset-by-CVE query (no existing query does this -- RemediationTicket/Ticket is per-asset with a single vulnerability_id FK)
+- [Phase 24]: 24-06: live end-to-end tracer verification (11-step Docker/nginx checklist) EXPLICITLY WAIVED by user decision ("skip live verify, proceed on trust") -- AI-03 nginx anti-buffering, D-25 busy-card, RBAC live states, and reduced-motion/contrast all remain unproven pending a future live-stack pass
+- [Phase 24]: 24-07: feedback gates at require_analyst (not require_viewer), matching the watch/unwatch analog and D-17's actor model even though feedback capture is free/non-billed
+- [Phase 24]: 24-07: resource_type/resource_id are plain strings end-to-end (DB columns + path params, no enum) so D-15's host/remediation widening needs zero contract change to the feedback endpoint
+- [Phase 24]: 24-07: the optimistic-mark + silent-revert lives in ai-feedback-control.tsx's own local state, not in use-ai-feedback.ts's mutation lifecycle -- no other reader of an analyst's feedback state exists this phase (capture-only), so there's no shared cache to snapshot/patch the way use-mark-blocked.ts does; the hook itself has zero onError/toast, making "silent" a structural (grep-provable) property
+- [Phase 24]: 24-07: BLOCKER -- the plan's own literal verify-command env (ENCRYPTION_KEY=test) fails app.main's startup secrets check for any client-fixture-based test (settings.environment defaults to "production", "test" is not a valid Fernet key); fixed by using a real Fernet.generate_key() value, matching test_ai_explain_stream.py's own documented requirement. Also found: conftest.py's tenant_a/analyst_user fixtures only flush(), never commit() -- added explicit db_session.commit() before each HTTP call per test (WR-13 contract, mirrors test_ticket_watch.py)
 
 ## Performance Metrics
 
@@ -194,9 +200,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 24 P03 | 19min | 2 tasks | 6 files |
 | Phase 24 P04 | 58min | 2 tasks | 4 files |
 | Phase 24 P05 | 41min | 2 tasks | 13 files |
+| Phase 24 P07 | 21min | 2 tasks | 10 files |
 
 ## Session
 
-**Last session:** 2026-07-29T10:58:45.054Z
-**Stopped at:** Completed 24-05-PLAN.md
-**Resume file:** .planning/phases/24-ai-foundation-explain-this-vuln/24-06-PLAN.md
+**Last session:** 2026-07-29T14:54:20+03:00
+**Stopped at:** Completed 24-07-PLAN.md
+**Resume file:** .planning/phases/24-ai-foundation-explain-this-vuln/24-08-PLAN.md
