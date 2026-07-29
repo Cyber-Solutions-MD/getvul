@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: AI-Assisted Triage (\"Triage Copilot\")
+milestone_name: AI-Assisted Triage
 status: Ready to execute
-stopped_at: Completed 24-04-PLAN.md
-last_updated: "2026-07-29T10:16:30.031Z"
+stopped_at: Completed 24-05-PLAN.md
+last_updated: "2026-07-29T10:58:45.059Z"
 progress:
-  total_phases: 8
-  completed_phases: 1
-  total_plans: 20
-  completed_plans: 15
-  percent: 75
+  total_phases: 16
+  completed_phases: 8
+  total_plans: 41
+  completed_plans: 37
+  percent: 90
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -27,16 +27,16 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
 Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-29). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
 Phase: 24 (ai-foundation-explain-this-vuln) — EXECUTING
-Next: Execute `24-04-PLAN.md` (Wave 3, depends_on [02, 03] — the real explain_vuln.py streaming engine: buffer-then-validate-then-replay against the tenant-scoped data layer, TDD).
-Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard).
-Plan: 5 of 9 (24-03 complete; 24-04 next)
+Next: Execute `24-06-PLAN.md` (Wave 5, depends_on [05], `autonomous: false` — the human-verify gate: the full per-vuln tracer through the real Docker/nginx stack, SSE incremental-not-buffered proof, the per-remediation grounding-shape decision for Plan 08, D-27 audit-pane verification).
+Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard). Plan 04 shipped (the real explain_vuln.py buffer-then-validate-then-replay streaming engine + per-vuln SSE endpoint, proven against the real installed Anthropic SDK). Plan 05 shipped (frontend: useExplainStream SSE hook + useExplainCache + the 8-state AiExplanationSection + AiExplanationCitations two-tier renderer, wired into drill-content.tsx — the end-to-end tracer is now code-complete, pending Plan 06's live human-verify gate).
+Plan: 6 of 9 (24-05 complete; 24-06 next)
 
 | Field | Value |
 |-------|-------|
-| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 3/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
+| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 5/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 = Phases 9–15. v2.2 = Phases 16–22. v3.0 = Phases 23–28 (continues numbering, does not reset). |
 | v3.0 phase map | See "v3.0 Phase Map" table below. |
-| Next action | Execute `24-04-PLAN.md` (Wave 3). |
+| Next action | Execute `24-06-PLAN.md` (Wave 5, human-verify gate). |
 | History (v1.0/v2.0/v2.2, retained) | Rows below the divider describe prior-milestone eras and are kept as accumulated context. |
 
 ## v3.0 Phase Map
@@ -158,7 +158,7 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24]: 24-01: BLOCKER — `GETVUL_DEV_ANTHROPIC_KEY` (plan's `user_setup`) was never provisioned in this environment; the Haiku `effort:'low'` live smoke-test (RESEARCH Pitfall 1) could not run. Confirmed via Docker Compose's own `.env` substitution (resolved to empty) that the key is genuinely absent, not merely blocked by tool permissions. Interim resolution: RESEARCH.md's live-docs-sourced finding (effort not listed as Haiku-supported) stands; Plan 04's request builder should omit `effort` when `model=="claude-haiku-4-5"` until live-reverified. See `24-01-SUMMARY.md` "Known Gaps".
 
 ---
-*Last updated: 2026-07-29 — **Phase 24 Plan 03 complete** (tenant-scoped data layer: BYOK key resolution decrypted fresh per call with no shared/fallback key; Redis explanation cache with cross-tenant isolation proven against real flushed Redis + record_hash allowlist-scoping + ~30d TTL + per-tenant in-flight guard; fail-closed monthly budget guard derived from audit_logs + per-admin NOTIF-01 breach alert; migration 031 renames a pre-existing duplicate-shaped index rather than creating a wasteful second one). 18 new tests green (11+7), 54/54 regression pass, ruff+mypy clean, `alembic heads`==031. Prior: 2026-07-29 — **Phase 24 Plan 02 complete** (response-schema validation gate + untrusted-content-as-data prompt builder + AI audit writer — 35 tests). Prior: 2026-07-29 — **Phase 24 Plan 01 complete** (SSE spike proven live through nginx; `ANTHROPIC` connector type registered end-to-end — backend tester/schema/category + generalized wizard field-metadata contract (field_specs) for select/optional-field/config-routing; zero migration). 8 backend + 3 frontend tests added, full existing suites green, tsc/build/ruff/mypy-baseline clean. Outstanding: Haiku effort live smoke-test (needs `GETVUL_DEV_ANTHROPIC_KEY`). Prior: 2026-07-27 — **v3.0 AI-Assisted Triage ROADMAP CREATED** (Phases 23–28, continuing numbering from 22; 21/21 v1 requirements mapped with 100% coverage, no orphans). Prior: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
+*Last updated: 2026-07-29 — **Phase 24 Plan 05 complete** (frontend: `useExplainStream` fetch()+ReadableStream SSE hook (never the generic `api()` helper, resourceType-parameterized per D-15) + `useExplainCache` cheap cache-check + the 8-state `AiExplanationSection` (cache-hit/miss+role branch, role-gated no-key card, analyzing pulsing-dot, neutral grounded=false card, amber busy/unknown/budget cards) + `AiExplanationCitations` inline two-tier renderer (scanner_verbatim tint span, ai_interpreted AI superscript, D-12 staggered reveal respecting prefers-reduced-motion) wired into drill-content.tsx between Description and Remediation, desktop+mobile in one edit. The end-to-end tracer is now code-complete: admin key -> analyst click -> validated cited streamed summary. Found and fixed a real pre-existing test regression (drill-panel/drill-panel-mobile suites lacked a QueryClientProvider) along the way). 27 new tests green (9+18), full suite 783/783, tsc/eslint/build clean. Prior: 2026-07-29 — **Phase 24 Plan 04 complete** (the real explain_vuln.py buffer-then-validate-then-replay streaming engine + per-vuln SSE endpoint (POST require_analyst / GET cache-check require_viewer), proven against the actual installed anthropic==0.120.2 SDK via three live MockTransport spikes, not just a hand-rolled fake; retry/audit status vocabulary reconciled precisely; the SSE error-kind vocabulary {busy, grounded_false, budget_exceeded, unknown} is closed and verified; get_model_and_budget() promoted to a shared export to prevent a POST/GET cache-key mismatch). 16 new tests green, 69/69 regression pass, ruff+mypy clean. Prior: 2026-07-29 — **Phase 24 Plan 03 complete** (tenant-scoped data layer: BYOK key resolution decrypted fresh per call with no shared/fallback key; Redis explanation cache with cross-tenant isolation proven against real flushed Redis + record_hash allowlist-scoping + ~30d TTL + per-tenant in-flight guard; fail-closed monthly budget guard derived from audit_logs + per-admin NOTIF-01 breach alert; migration 031 renames a pre-existing duplicate-shaped index rather than creating a wasteful second one). 18 new tests green (11+7), 54/54 regression pass, ruff+mypy clean, `alembic heads`==031. Prior: 2026-07-29 — **Phase 24 Plan 02 complete** (response-schema validation gate + untrusted-content-as-data prompt builder + AI audit writer — 35 tests). Prior: 2026-07-29 — **Phase 24 Plan 01 complete** (SSE spike proven live through nginx; `ANTHROPIC` connector type registered end-to-end — backend tester/schema/category + generalized wizard field-metadata contract (field_specs) for select/optional-field/config-routing; zero migration). 8 backend + 3 frontend tests added, full existing suites green, tsc/build/ruff/mypy-baseline clean. Outstanding: Haiku effort live smoke-test (needs `GETVUL_DEV_ANTHROPIC_KEY`). Prior: 2026-07-27 — **v3.0 AI-Assisted Triage ROADMAP CREATED** (Phases 23–28, continuing numbering from 22; 21/21 v1 requirements mapped with 100% coverage, no orphans). Prior: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
 
 - [Phase ?]: 23-10: Reused existing sanitized binding for log.error_message instead of adding a second _sanitize_error() call (CR-03/REL-06 closure)
 - [Phase ?]: Mobile drill-panel confirm now mirrors desktop's ticketProvider gate — renderConfirm slot forwards ticketProvider/onProviderChange, closing the ASANA-fallback gap (REL-04/CR-01)
@@ -178,6 +178,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24]: 24-04: budget_exceeded/rate_limited audit rows get cost_estimate_usd=0.0 explicitly (not None) since genuinely zero tokens were spent
 - [Phase 24]: 24-04: cost-estimate pricing table uses Anthropic's standard non-promotional per-MTok rates ($3/$15 Sonnet 5, $5/$25 Opus 5) rather than the active $2/$10 introductory Sonnet-5 rate (expires 2026-08-31), to avoid under-counting spend once the promotion lapses
 - [Phase 24]: 24-04: get_model_and_budget() promoted from a private helper to a shared no-underscore export the moment the GET cache-check route needed the identical model-resolution logic the POST path already used internally, avoiding a stale-model cache-key mismatch
+- [Phase 24]: 24-05: GET /api/v1/connectors is require_admin-gated with no non-admin-safe alternative -- the key-configured signal for Analyst/Viewer is derived via connectorsQuery.isError (optimistic pass-through on a 403) rather than a hardcoded role check, keeping the Explain trigger reachable for the tracer's primary role while Admin/Owner get the real signal from their own successful query
+- [Phase 24]: 24-05: the <section aria-labelledby='drill-ai-h'> landmark lives in drill-content.tsx (not inside AiExplanationSection, which renders only h4+body via a Fragment) so the acceptance grep (exactly 1 occurrence) holds and no section-in-section nesting exists
+- [Phase 24]: 24-05: D-12's token-by-token replay is a per-segment staggered CSS animate-in/fade-in over the complete already-validated payload, never a literal sync to the backend's own cosmetic summary_delta frames (the locked ExplainStreamState has no slot for partial text); replay applies only on a just-streamed 'done' result, never a cache hit (D-09 vs D-12)
+- [Phase 24]: 24-05: a defensive backend no_key SSE frame maps to kind:'unknown' (not its own phase) so an unexpected mid-flight no_key can never leave the hook parked in 'analyzing' forever; a 'done' payload is also defensively re-checked for grounded:false at render time (UI-SPEC backstop), even though the real engine never emits done for an ungrounded response
 
 ## Performance Metrics
 
@@ -189,9 +193,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 24 P02 | 24min | 3 tasks | 7 files |
 | Phase 24 P03 | 19min | 2 tasks | 6 files |
 | Phase 24 P04 | 58min | 2 tasks | 4 files |
+| Phase 24 P05 | 41min | 2 tasks | 13 files |
 
 ## Session
 
-**Last session:** 2026-07-29T10:16:30.024Z
-**Stopped at:** Completed 24-04-PLAN.md
-**Resume file:** .planning/phases/24-ai-foundation-explain-this-vuln/24-05-PLAN.md
+**Last session:** 2026-07-29T10:58:45.054Z
+**Stopped at:** Completed 24-05-PLAN.md
+**Resume file:** .planning/phases/24-ai-foundation-explain-this-vuln/24-06-PLAN.md

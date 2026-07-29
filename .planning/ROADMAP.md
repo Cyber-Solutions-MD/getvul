@@ -306,7 +306,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 24-05-PLAN.md — TRACER frontend (TDD): fetch+ReadableStream hook + drill-panel AI Explanation section (8 states) + inline two-tier citations
+- [x] 24-05-PLAN.md — TRACER frontend (TDD): fetch+ReadableStream hook + drill-panel AI Explanation section (8 states) + inline two-tier citations
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -417,7 +417,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
-| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 4/9 | In Progress|  |
+| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 5/9 | In Progress|  |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
@@ -429,7 +429,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 
 **Goal:** Re-sync `frontend/src/styles/sunset.css` from the `sketch-findings-getvul` skill source (`references/foundation.md` / `sources/themes/sunset.css`) so the vendored copy carries the newer design tokens directly. Once re-synced, delete the accumulated "retire on re-vendor" override groups in `frontend/src/app/globals.css` — the `--color-text-faint` dark override (~lines 63–73), the `--color-{violet,pink,amber}-on-soft` dark overrides (~lines 84–86), and the `--color-severity-{high,critical}-on-soft` dark no-op overrides added in Phase 20 — collapsing three locations of duplicated tokens back to a single source of truth.
 **Requirements:** TBD
-**Plans:** 2/9 plans executed
+**Plans:** 5/9 plans executed
 
 Plans:
 
