@@ -51,13 +51,14 @@ describe('AiExplanationCitations', () => {
       ],
       grounded: true,
     };
-    render(<AiExplanationCitations data={data} />);
+    const { container } = render(<AiExplanationCitations data={data} />);
     const sup = screen.getByText('AI', { selector: 'sup' });
     expect(sup).toHaveAttribute('tabIndex', '0');
     expect(sup.className).toContain('uppercase');
+    expect(container.textContent).toContain('likely low-effort to exploit remotely');
     // The cited prose itself is NOT wrapped in the violet-soft tint (that
     // treatment is reserved for scanner_verbatim only).
-    expect(screen.queryByText('likely low-effort to exploit remotely')?.closest('span.bg-violet-soft')).toBeNull();
+    expect(container.querySelector('.bg-violet-soft')).toBeNull();
   });
 
   it('renders uncited text as plain prose with no citation span', () => {

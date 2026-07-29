@@ -10,6 +10,7 @@ import { TicketProviderPicker } from './ticket-provider-picker';
 import type { TicketProvider } from '@/lib/ticketing/providers';
 import { microcopy } from './microcopy';
 import { cn } from '@/lib/utils';
+import { AiExplanationSection } from './ai-explanation-section';
 
 // D-P-05 — shared section order: Header → CVSS → Affected hosts →
 // Description → Remediation → Activity → Actions. Used by both desktop
@@ -258,6 +259,14 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             {microcopy.drill.sections.description}
           </h4>
           <p className="text-sm text-text">{description}</p>
+        </section>
+
+        {/* Section Placement (UI-SPEC D-11): AI Explanation sits between
+            Description and Remediation. drill-panel-mobile.tsx renders
+            DrillContent directly, so this one insertion covers both desktop
+            and mobile. */}
+        <section aria-labelledby="drill-ai-h">
+          <AiExplanationSection resourceType="vuln" resourceId={v.id ?? idOrCve} />
         </section>
 
         <section aria-labelledby="drill-remed-h">

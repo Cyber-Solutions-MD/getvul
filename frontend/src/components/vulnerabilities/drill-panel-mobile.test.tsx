@@ -32,6 +32,17 @@ vi.mock('@/lib/mutations/use-snooze', () => ({
   useSnoozeMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+// Phase 24-05: the new AI Explanation section (nested inside the shared
+// DrillContent) uses real useQuery-backed hooks -- mock them so this
+// pre-existing suite doesn't need a QueryClientProvider wrapper. See
+// drill-panel.test.tsx for the identical rationale.
+vi.mock('@/lib/queries/use-explain-cache', () => ({
+  useExplainCache: () => ({ data: { cached: false }, isPending: false, isError: false }),
+}));
+vi.mock('@/lib/queries/use-connectors-admin', () => ({
+  useConnectorsList: () => ({ data: undefined, isPending: false, isError: true }),
+}));
+
 // The mobile nested confirm now renders TicketProviderPicker, which calls
 // drill-content.tsx's createTicket.mutateAsync (not `.mutate`) — the mock
 // must expose mutateAsync so fireTicket's `await createTicket.mutateAsync`

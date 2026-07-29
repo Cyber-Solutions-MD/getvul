@@ -29,6 +29,20 @@ vi.mock('@/lib/mutations/use-create-ticket', () => ({
   useCreateTicketMutation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+// Phase 24-05: the new AI Explanation section (nested inside DrillContent,
+// between Description and Remediation) uses real useQuery-backed hooks --
+// mock them so this pre-existing suite doesn't need a QueryClientProvider
+// wrapper. Deterministic "no key configured, Viewer-default" state (real
+// useAuth() default-context value with no Provider resolves user:null ->
+// role defaults to VIEWER inside the section) keeps every other assertion
+// in this file unaffected by the new section's own content.
+vi.mock('@/lib/queries/use-explain-cache', () => ({
+  useExplainCache: () => ({ data: { cached: false }, isPending: false, isError: false }),
+}));
+vi.mock('@/lib/queries/use-connectors-admin', () => ({
+  useConnectorsList: () => ({ data: undefined, isPending: false, isError: true }),
+}));
+
 // Wave 2 (Plan 11-05) will create this file. Import is the RED signal.
 import { DrillPanel } from './drill-panel';
 
@@ -58,15 +72,17 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     } as unknown as ReturnType<typeof useVulnerabilityDetail>);
   });
 
-  it('renders 7 sections in order (Header / CVSS / Affected hosts / Description / Remediation / Activity / Actions)', () => {
+  it('renders 8 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Remediation / Activity / Actions)', () => {
     render(<DrillPanel cveId="CVE-2024-3094" />);
     const headings = screen.getAllByRole('heading').map((h) => h.textContent ?? '');
-    // 7 named sections, in the documented order
+    // 8 named sections, in the documented order (Phase 24-05 / UI-SPEC D-11
+    // inserts AI Explanation between Description and Remediation).
     const expectedOrder = [
       /CVE-2024-3094|Drill|Header/i,
       /CVSS/i,
       /Affected hosts/i,
       /Description/i,
+      /AI Explanation/i,
       /Remediation/i,
       /Activity/i,
       /Actions/i,
