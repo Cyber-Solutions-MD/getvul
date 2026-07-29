@@ -288,7 +288,7 @@ Plans:
   4. Untrusted scanner text (CVE descriptions, hostnames, finding titles) — including adversarially crafted text — is delivered to the model only as data (never as instructions), and every model response is schema-validated before it reaches the UI — AI-02
   5. Every AI call, including scheduler-originated ones, is audit-logged with model/tokens/cost-estimate/prompt provenance, and AI output cached for one tenant is never served to another tenant — AI-05, AI-06
 
-**Plans**: 3/9 plans executed
+**Plans**: 6/9 plans executed
 
 Plans:
 **Wave 1**
@@ -310,7 +310,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 24-06-PLAN.md — TRACER gate: human-verify end-to-end through nginx/Docker + checkpoint:decision on per-remediation grounding shape
+- [x] 24-06-PLAN.md — TRACER gate: human-verify end-to-end through nginx/Docker + checkpoint:decision on per-remediation grounding shape
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -417,7 +417,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
-| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 5/9 | In Progress|  |
+| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 6/9 | In Progress|  |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
