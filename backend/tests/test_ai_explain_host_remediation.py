@@ -21,7 +21,6 @@ from unittest.mock import patch
 
 from app.ai.grounding import get_asset_posture, get_remediation_group
 
-
 # ── Seed helpers ─────────────────────────────────────────────────────────
 
 

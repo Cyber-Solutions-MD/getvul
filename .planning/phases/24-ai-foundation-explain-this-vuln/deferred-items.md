@@ -38,3 +38,48 @@ documented in project memory for the frontend Playwright suite
 unrelated file). Flag for a future backend test-harness hardening pass if
 this resurfaces; matches the already-tracked `getvul-backend-test-harness-rot`
 class of issue.
+
+---
+
+## 24-08: `mypy-baseline.txt` line-number drift on "note:" lines (pre-existing, environmental)
+
+**Found during:** Plan 24-08, Task 2 `mypy app/ | mypy-baseline filter
+--allow-unsynced` check.
+
+**Symptom:** The gate reports `new: 3 / fixed: 3` (all under the `note`
+error-code bucket) even with every Plan 08 file (`grounding.py`,
+`explain_host.py`, `explain_remediation.py`, the `__init__.py` router
+registration) removed/reverted — isolated via a `mv`-to-scratchpad +
+`git show HEAD:...` restore (never `git stash`, per this session's git
+hygiene constraint), confirming this is NOT caused by any Plan 08 change.
+
+**Root cause (confirmed, not just suspected):** `mypy-baseline.txt` (checked
+into the repo) stores every `note:` line with a hardcoded `:0:` line number
+(e.g. `app/assets/router.py:0: note: PEP 484 prohibits implicit
+Optional...`), while a live `mypy app/` run reports the note's REAL line
+number (e.g. `app/assets/router.py:384: note: ...`). `mypy-baseline filter
+--allow-unsynced` does not fuzzy-match note lines across this line-number
+gap, so every note-category line is reported as simultaneously "fixed" (the
+`:0:` baseline entry) and "new" (the real-line-number live entry) on every
+run, regardless of what changed. Diffing the baseline's 21 `note:` lines
+against a live run's 21 `note:` lines confirms an exact 1:1 correspondence
+by message text, differing ONLY in the line number field.
+
+**Confirmed unrelated to Plan 24-08:** none of the 7 files involved
+(`app/assets/router.py`, `app/auth/providers.py`, `app/connectors/
+crowdstrike.py`, `app/connectors/defender.py`, `app/connectors/
+humaans_sync.py`, `app/connectors/jamf.py`, `app/connectors/jamf_sync.py`,
+`app/connectors/sync.py`, `app/enrich_assets.py`, `app/vulnerabilities/
+router.py`, `app/vulnerabilities/trends.py`) is in this plan's
+`files_modified` list. `ruff check`/`ruff format --check`/direct `mypy`
+invocation (not piped through `mypy-baseline`) all confirm ZERO errors
+attributed to any of Plan 08's own new/modified files specifically.
+
+**Action:** Not fixed (out of scope per SCOPE BOUNDARY — pre-existing,
+checked-in artifact affecting unrelated files; regenerating
+`mypy-baseline.txt` is a repo-wide CI-gate change outside this plan's
+scope and was not attempted). This is precisely the risk
+`pyproject.toml`'s own pinning comment already flags: "the mypy-baseline is
+line/version-sensitive — drift silently breaks the type gate." Flag for a
+future `mypy-baseline sync` pass if CI's own gate (which may run under
+different conditions/timing than this local check) starts failing on it.

@@ -117,19 +117,22 @@ def test_explain_remediation_response_rejects_malformed_like_vuln_variant() -> N
 
 
 def test_host_allowlist_has_9_fields() -> None:
-    assert frozenset(
-        {
-            "hostname",
-            "os_name",
-            "os_version",
-            "device_category",
-            "risk_score",
-            "vuln_counts",
-            "tags",
-            "sla_breach",
-            "last_checkin_at",
-        }
-    ) == HOST_ALLOWLIST
+    assert (
+        frozenset(
+            {
+                "hostname",
+                "os_name",
+                "os_version",
+                "device_category",
+                "risk_score",
+                "vuln_counts",
+                "tags",
+                "sla_breach",
+                "last_checkin_at",
+            }
+        )
+        == HOST_ALLOWLIST
+    )
 
 
 def test_allowlisted_host_posture_fields_match_host_allowlist() -> None:
