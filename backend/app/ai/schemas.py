@@ -72,6 +72,19 @@ class ExplainVulnResponse(ExplainResponseBase):
     fields yet — host/remediation variants are added in Plan 08."""
 
 
+class ExplainHostResponse(ExplainResponseBase):
+    """The 'explain this asset' response (D-16 posture-summary view, Plan
+    08). No additional fields — the per-host grounding record is already a
+    narrow, allowlisted posture summary (HOST_ALLOWLIST); the shared base
+    fully covers this view."""
+
+
+class ExplainRemediationResponse(ExplainResponseBase):
+    """The 'explain this fix' response (D-16 Option A: cross-asset CVE
+    grouping, decided at the 24-06 TRACER checkpoint — Plan 08). No
+    additional fields — the shared base fully covers this view."""
+
+
 # ── Business-rule re-check gate (AI-SPEC Section 4b Pitfall 4) ──
 #
 # Per-field character ceilings and citation source_field allowlist

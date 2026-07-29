@@ -117,7 +117,7 @@ def test_explain_remediation_response_rejects_malformed_like_vuln_variant() -> N
 
 
 def test_host_allowlist_has_9_fields() -> None:
-    assert HOST_ALLOWLIST == frozenset(
+    assert frozenset(
         {
             "hostname",
             "os_name",
@@ -129,7 +129,7 @@ def test_host_allowlist_has_9_fields() -> None:
             "sla_breach",
             "last_checkin_at",
         }
-    )
+    ) == HOST_ALLOWLIST
 
 
 def test_allowlisted_host_posture_fields_match_host_allowlist() -> None:
@@ -322,7 +322,7 @@ def _remediation_record(**overrides: Any) -> dict[str, Any]:
 
 
 def test_remediation_allowlist_has_4_fields() -> None:
-    assert REMEDIATION_ALLOWLIST == frozenset({"cve", "fix", "affected_assets", "priority"})
+    assert frozenset({"cve", "fix", "affected_assets", "priority"}) == REMEDIATION_ALLOWLIST
 
 
 def test_allowlisted_remediation_group_fields_match_remediation_allowlist() -> None:
