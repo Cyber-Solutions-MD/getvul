@@ -862,6 +862,15 @@ async def list_tickets(
                 func.bool_and(Ticket.created_by_rule.isnot(None)).label("all_by_rule"),
                 func.min(Vulnerability.remediation_action).label("remediation_action"),
                 func.min(Vulnerability.affected_product).label("affected_product"),
+                # 24-09 (D-15): a representative CVE string for the group, so
+                # the asset-detail remediation timeline can wire
+                # AiExplanationSection resourceType="remediation" per row --
+                # /explain-remediation/{cve_id} is CVE-string-keyed (24-08).
+                # MIN aggregate mirrors this same query's existing
+                # remediation_action/affected_product convention: a ticket
+                # group CAN span >1 Vulnerability, so this is a
+                # representative pick, not a claim of single-CVE-per-ticket.
+                func.min(Vulnerability.cve_id).label("cve_id"),
             )
             .select_from(Ticket)
             .join(Vulnerability, Ticket.vulnerability_id == Vulnerability.id)
@@ -913,6 +922,9 @@ async def list_tickets(
                 "vuln_count": row.vuln_count,
                 "critical_count": critical,
                 "high_count": high,
+                # 24-09 (D-15): representative CVE string for this ticket
+                # group (see the MIN-aggregate comment in details_q above).
+                "cve_id": detail.cve_id if detail else None,
                 "ticket_created_at": row.ticket_created_at.isoformat() if row.ticket_created_at else None,
                 "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None,
                 # Phase 13 / O1: blocked/sla aggregates for the logical-ticket group

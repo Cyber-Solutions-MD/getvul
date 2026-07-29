@@ -16,6 +16,7 @@
  */
 import type { RemediationTicket } from '@/lib/queries/use-asset-remediations';
 import { cn } from '@/lib/utils';
+import { AiExplanationSection } from '@/components/ai/ai-explanation-section';
 
 const PROVIDER_GRADIENT: Record<string, string> = {
   JIRA: 'linear-gradient(135deg, #3B82F6, #60A5FA)',
@@ -104,6 +105,27 @@ export function RemediationTimeline({ tickets }: { tickets: RemediationTicket[] 
                 >
                   {t.external_status}
                 </span>
+              )}
+              {/* D-15: per-row "Explain this remediation" -- gated on a real
+                  CVE string, since /explain-remediation/{cve_id} is CVE-
+                  string-keyed (Plan 08), not ticket/remediation-UUID-keyed.
+                  A ticket group's representative cve_id (backend MIN
+                  aggregate over the group's underlying Vulnerability rows)
+                  can be null (e.g. no CVE resolved) -- no CVE, no
+                  affordance, matching the same "never force a broken
+                  affordance" discipline as the host/vuln mounts always
+                  having a real id. own <section> landmark per row (mirrors
+                  drill-content.tsx's parent-owns-the-landmark convention)
+                  with a per-row unique headingId so N rows never collide
+                  on the shared component's internal h4 id. */}
+              {t.cve_id && (
+                <section aria-labelledby={`ai-explanation-h-remediation-${t.id}`} className="mt-3">
+                  <AiExplanationSection
+                    resourceType="remediation"
+                    resourceId={t.cve_id}
+                    headingId={`ai-explanation-h-remediation-${t.id}`}
+                  />
+                </section>
               )}
             </div>
           </li>

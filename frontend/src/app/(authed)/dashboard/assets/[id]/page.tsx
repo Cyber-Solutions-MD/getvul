@@ -34,6 +34,7 @@ import { IdentityMetadataRail } from '@/components/assets/identity-metadata-rail
 import { SeverityRibbon } from '@/components/assets/severity-ribbon';
 import { AssetVulnsList } from '@/components/assets/asset-vulns-list';
 import { RemediationTimeline } from '@/components/assets/remediation-timeline';
+import { AiExplanationSection } from '@/components/ai/ai-explanation-section';
 import { DrillPanel } from '@/components/vulnerabilities/drill-panel';
 import { DrillPanelMobile } from '@/components/vulnerabilities/drill-panel-mobile';
 import {
@@ -176,6 +177,20 @@ function AssetDetailInner() {
             {!vulns.isLoading && vulnRows.length > 0 && (
               <AssetVulnsList rows={vulnRows} onRowOpen={onRowOpen} />
             )}
+          </section>
+
+          {/* D-15/D-11 analog: the shared AI Explanation section sits
+              between raw findings ("Vulnerabilities on this host") and
+              remediation guidance -- the same "synthesize raw data, then
+              inform remediation" placement rationale as the vuln drill
+              panel's Description -> AI Explanation -> Remediation order.
+              Bare <section>, no bordered-card wrapper -- reuses the exact
+              chrome verified for the vuln view (drill-content.tsx), not a
+              per-surface restyle. The landmark lives here (caller-owned,
+              matching drill-content.tsx's own convention), not inside the
+              shared component. */}
+          <section aria-labelledby="ai-explanation-h-host">
+            <AiExplanationSection resourceType="host" resourceId={id} headingId="ai-explanation-h-host" />
           </section>
 
           <section aria-label="Remediation timeline" className="space-y-2">

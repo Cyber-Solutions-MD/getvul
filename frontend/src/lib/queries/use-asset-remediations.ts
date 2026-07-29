@@ -19,6 +19,13 @@ export type RemediationTicket = {
   high_count: number;
   ticket_created_at: string | null;
   resolved_at: string | null;
+  // 24-09 (D-15): a representative CVE string for this ticket group (backend
+  // MIN-aggregate -- a group CAN span >1 Vulnerability, mirroring the
+  // existing remediation_action/affected_product convention). Null when the
+  // group's underlying vulnerability has no CVE. Used as the resourceId for
+  // AiExplanationSection resourceType="remediation" (/explain-remediation/
+  // {cve_id} is CVE-string-keyed per Plan 08, not ticket/remediation-UUID-keyed).
+  cve_id: string | null;
 };
 
 export type RemediationsResponse = {

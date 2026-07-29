@@ -76,9 +76,20 @@ function AnalyzingIndicator() {
 type Props = {
   resourceType: string;
   resourceId: string;
+  /**
+   * D-15 (24-09 Task 2): this shared component now mounts more than once on
+   * a single page (e.g. a host-view mount alongside a per-ticket
+   * remediation-view mount on /assets/[id]) -- a hardcoded DOM id on the
+   * internal heading would collide (duplicate id, broken aria-labelledby
+   * resolution) the moment two instances render together. Defaults to
+   * 'drill-ai-h' so the vuln view's existing drill-content.tsx
+   * aria-labelledby="drill-ai-h" wrapper needs no change; every other
+   * mount site must pass its own unique id.
+   */
+  headingId?: string;
 };
 
-export function AiExplanationSection({ resourceType, resourceId }: Props) {
+export function AiExplanationSection({ resourceType, resourceId, headingId = 'drill-ai-h' }: Props) {
   const { user } = useAuth();
   const role = user?.role ?? 'VIEWER';
   const isAdminOrOwner = role === 'OWNER' || role === 'ADMIN';
@@ -202,13 +213,15 @@ export function AiExplanationSection({ resourceType, resourceId }: Props) {
     body = <p className="text-sm text-text-muted">No AI explanation generated yet.</p>;
   }
 
-  // The <section aria-labelledby="drill-ai-h"> landmark itself is owned by
-  // drill-content.tsx (the sibling-section precedent + this plan's own
-  // artifact list) -- this component renders only the h4 + body so the two
-  // never nest as <section><section>.
+  // The wrapping <section aria-labelledby={headingId}> landmark is owned by
+  // the CALLER (drill-content.tsx for vuln; assets/[id]/page.tsx for host;
+  // remediation-timeline.tsx per row) -- this component renders only the h4
+  // + body so the two never nest as <section><section>. headingId defaults
+  // to 'drill-ai-h' (vuln view, unchanged) but must be unique per mount when
+  // more than one instance renders on the same page (D-15 Task 2).
   return (
     <>
-      <h4 id="drill-ai-h" className={H4_CLASS}>
+      <h4 id={headingId} className={H4_CLASS}>
         AI Explanation
       </h4>
       {body}
