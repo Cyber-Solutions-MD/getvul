@@ -291,15 +291,37 @@ Plans:
 **Plans**: 9 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 24-01-PLAN.md — Foundations: anthropic dep + incremental-SSE spike (nginx) + ANTHROPIC connector type (wizard reuse, zero migration)
 - [ ] 24-02-PLAN.md — Backend contracts (TDD): response schemas (validation gate) + untrusted-content-as-data prompt builder + AI audit writer
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 24-03-PLAN.md — Data wiring (TDD): BYOK key resolution + tenant-scoped cache (cross-tenant isolation) + fail-closed budget + audit_logs index migration
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 24-04-PLAN.md — TRACER engine (TDD): buffer-validate-replay SSE core + per-vuln explain endpoint (RBAC, retry-once, no-key inert)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 24-05-PLAN.md — TRACER frontend (TDD): fetch+ReadableStream hook + drill-panel AI Explanation section (8 states) + inline two-tier citations
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 24-06-PLAN.md — TRACER gate: human-verify end-to-end through nginx/Docker + checkpoint:decision on per-remediation grounding shape
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 24-07-PLAN.md — Feedback capture (TDD): ai_feedback table + editable per-user upsert endpoint + thumbs/note control (capture-only)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 24-08-PLAN.md — Expansion backend (TDD): host + remediation schema variants + PII-excluding prompt builders + grounding assemblers + thin routes
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 24-09-PLAN.md — Expansion frontend (TDD): generalize the AI Explanation section + mount on host (asset-detail) and remediation surfaces (D-15 complete)
 
 **UI hint**: yes
