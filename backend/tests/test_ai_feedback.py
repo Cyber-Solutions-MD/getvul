@@ -37,6 +37,9 @@ async def test_post_feedback_creates_row(db_session, tenant_a, analyst_user, cli
     """POST feedback (verdict=up, note set) writes one ai_feedback row
     scoped to the analyst's own tenant+user."""
     resource_id = _resource_id()
+    # tenant_a/analyst_user fixtures only flush() -- commit so the FK rows
+    # are visible to the app's own DB session (WR-13, mirrors test_ticket_watch.py).
+    await db_session.commit()
     response = await client.post(
         f"/api/v1/ai/feedback/{RESOURCE_TYPE}/{resource_id}",
         json={"verdict": "up", "note": "off on CVSS"},
@@ -66,6 +69,7 @@ async def test_post_feedback_edit_upserts_single_row(db_session, analyst_user, c
     """A second POST for the same (resource_type, resource_id, user) UPDATES
     verdict/note to a single row -- never a duplicate insert."""
     resource_id = _resource_id()
+    await db_session.commit()
     await client.post(
         f"/api/v1/ai/feedback/{RESOURCE_TYPE}/{resource_id}",
         json={"verdict": "up", "note": "first pass"},
@@ -110,6 +114,7 @@ async def test_post_feedback_edit_upserts_single_row(db_session, analyst_user, c
 async def test_post_feedback_thumb_only_succeeds(db_session, analyst_user, client):
     """A thumb alone (no note) is a valid submission -- partial submit is fine."""
     resource_id = _resource_id()
+    await db_session.commit()
     response = await client.post(
         f"/api/v1/ai/feedback/{RESOURCE_TYPE}/{resource_id}",
         json={"verdict": "down"},
@@ -153,6 +158,7 @@ async def test_cross_tenant_feedback_isolated(
     tenant_a's analyst_user cannot read/overwrite tenant_a's row -- each lands
     in its own row, scoped by (resource_type, resource_id, user_id) + tenant_id."""
     resource_id = _resource_id()
+    await db_session.commit()
 
     client_a = client_factory(analyst_user)
     client_b = client_factory(analyst_user_b)
@@ -228,6 +234,7 @@ async def test_feedback_writes_audit_row(db_session, tenant_a, analyst_user, cli
     interactive user action with a real tenant -- distinct from the AI-call
     audit path, T-24-30)."""
     resource_id = _resource_id()
+    await db_session.commit()
     await client.post(
         f"/api/v1/ai/feedback/{RESOURCE_TYPE}/{resource_id}",
         json={"verdict": "up", "note": "good catch"},
