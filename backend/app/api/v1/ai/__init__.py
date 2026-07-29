@@ -11,6 +11,15 @@ from fastapi import APIRouter
 
 ai_router = APIRouter(prefix="/api/v1/ai", tags=["AI"])
 
-# Wave-0 throwaway incremental-SSE spike (T-24-03: gated behind require_analyst,
-# never anonymous). Remove or leave inert before phase seal — see 24-01-SUMMARY.md.
-from app.api.v1.ai import spike  # noqa: F401
+# spike: Wave-0 throwaway incremental-SSE spike (T-24-03: gated behind
+#   require_analyst, never anonymous). Remove or leave inert before phase
+#   seal — see 24-01-SUMMARY.md.
+# explain_vuln: Plan 04's real per-vuln "Explain this vuln" endpoint (POST
+#   SSE stream + GET cache-check) — the tracer's first real sub-router on
+#   this mount point.
+from app.api.v1.ai import (
+    explain_vuln,  # noqa: E402
+    spike,  # noqa: F401
+)
+
+ai_router.include_router(explain_vuln.router)

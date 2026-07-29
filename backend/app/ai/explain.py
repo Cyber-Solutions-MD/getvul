@@ -203,7 +203,7 @@ def _append_corrective_turn(messages: list[dict[str, Any]], previous_raw_text: s
     ]
 
 
-async def _get_model_and_budget(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, float | None]:
+async def get_model_and_budget(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, float | None]:
     """Resolve the tenant's configured model + optional monthly budget cap
     from their ANTHROPIC ConnectorConfig.config JSONB (D-01/D-02/D-06) --
     no new schema, mirrors tenant_keys.py's own row lookup (a second,
@@ -281,7 +281,7 @@ async def _run_explain_stream(
     tests inject a fake client/transport here instead of monkeypatching
     module globals.
     """
-    model, monthly_cap_usd = await _get_model_and_budget(db, tenant_id)
+    model, monthly_cap_usd = await get_model_and_budget(db, tenant_id)
 
     api_key = await get_tenant_anthropic_key(db, tenant_id)
     if api_key is None:
