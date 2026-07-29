@@ -472,3 +472,150 @@ async def test_error_kind_vocabulary_matches_plan_05_closed_set(db_session, tena
 
     rows = await _audit_rows(db_session, tenant_a)
     assert rows[-1].details["status"] == "unknown"
+
+
+# ── Task 2: route-level tests (RBAC, headers, cache-check, tenant-scoping) ──
+
+
+async def _seed_vulnerability(db_session, tenant_id: uuid.UUID, **overrides: Any) -> uuid.UUID:
+    from datetime import UTC, datetime
+
+    from app.vulnerabilities.models import Vulnerability
+
+    defaults: dict[str, Any] = {
+        "tenant_id": tenant_id,
+        "cve_id": "CVE-2024-1234",
+        "vulnerability_name": "Sample Vuln",
+        "cvss_v3_score": 9.8,
+        "cvss_v3_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "severity": "CRITICAL",
+        "exploit_available": True,
+        "cisa_kev": True,
+        "source": "NESSUS",
+        "source_vuln_id": str(uuid.uuid4()),
+        "affected_product": "OpenSSL",
+        "affected_version": "1.0.1",
+        "fixed_version": "1.0.2",
+        "remediation_info": "Upgrade OpenSSL to 1.0.2.",
+        "status": "OPEN",
+        "first_detected_at": datetime.now(UTC),
+        "last_seen_at": datetime.now(UTC),
+    }
+    defaults.update(overrides)
+    vuln = Vulnerability(**defaults)
+    db_session.add(vuln)
+    await db_session.commit()  # visible to the app's OWN, independently-connected session
+    return vuln.id
+
+
+async def _fake_explain_stream(*args: Any, **kwargs: Any):
+    """Stands in for the real engine at the ROUTE-test layer -- Task 1's
+    own tests already exhaustively cover `_run_explain_stream`'s internal
+    behavior; these tests exercise the ROUTE (RBAC, headers, path/tenant
+    resolution) in isolation."""
+    payload = {"type": "done", **_valid_payload()}
+    yield f"data: {json.dumps(payload)}\n\n".encode()
+
+
+async def test_post_explain_vuln_as_analyst_returns_200_sse_with_headers(
+    client_factory, db_session, tenant_a, analyst_user
+):
+    vuln_id = await _seed_vulnerability(db_session, tenant_a)
+    client = client_factory(analyst_user)
+
+    with patch("app.api.v1.ai.explain_vuln._run_explain_stream", _fake_explain_stream):
+        resp = await client.post(f"/api/v1/ai/explain-vuln/{vuln_id}")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    # The route sets Cache-Control: no-cache explicitly; the app's
+    # pre-existing SecurityHeadersMiddleware then applies its OWN, even
+    # stricter blanket no-cache policy to every /api/* response
+    # ("no-store, no-cache, must-revalidate, max-age=0") -- caching is
+    # still fully prevented, just via a superseding stricter directive.
+    assert "no-cache" in resp.headers["cache-control"]
+    assert resp.headers["x-accel-buffering"] == "no"
+    assert '"type": "done"' in resp.text
+
+
+async def test_post_explain_vuln_as_viewer_returns_403(client_factory, db_session, tenant_a, viewer_user):
+    vuln_id = await _seed_vulnerability(db_session, tenant_a)
+    client = client_factory(viewer_user)
+
+    resp = await client.post(f"/api/v1/ai/explain-vuln/{vuln_id}")
+
+    assert resp.status_code == 403
+
+
+async def test_get_explain_vuln_cache_check_as_viewer_miss_no_dispatch(
+    client_factory, db_session, tenant_a, viewer_user
+):
+    vuln_id = await _seed_vulnerability(db_session, tenant_a)
+    client = client_factory(viewer_user)
+
+    with patch("app.ai.explain.AsyncAnthropic") as mock_anthropic_cls:
+        resp = await client.get(f"/api/v1/ai/explain-vuln/{vuln_id}")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"cached": False}
+    # D-09: a cache-check GET performs NO Anthropic dispatch on a miss.
+    mock_anthropic_cls.assert_not_called()
+
+
+async def test_get_explain_vuln_cache_check_returns_payload_on_hit(
+    client_factory, db_session, flushed_redis, tenant_a, viewer_user
+):
+    from app.ai.cache import build_cache_key, record_hash, set_cached
+    from app.ai.explain import DEFAULT_MODEL
+    from app.ai.prompt_builder import build_explain_vuln_prompt, prompt_version
+
+    vuln_id = await _seed_vulnerability(db_session, tenant_a)
+
+    # Seed the cache under the EXACT key the route itself computes (same
+    # allowlisted fields -- derived from the same real record via the same
+    # prompt builder -- same model default, same prompt_version).
+    from app.vulnerabilities.service import get_vulnerability
+
+    record = await get_vulnerability(db_session, tenant_a, vuln_id)
+    _system_prompt, user_blocks = build_explain_vuln_prompt(record)
+    text = user_blocks[0]["text"]
+    allowlisted_fields = json.loads(text[text.index(">") + 1 : text.rindex("</scanner_data>")])
+    the_hash = record_hash(allowlisted_fields)
+    cache_key = build_cache_key(tenant_a, "vuln", str(vuln_id), the_hash, DEFAULT_MODEL, prompt_version())
+    seeded_payload = _valid_payload()
+    await set_cached(flushed_redis, cache_key, seeded_payload)
+
+    client = client_factory(viewer_user)
+    resp = await client.get(f"/api/v1/ai/explain-vuln/{vuln_id}")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["cached"] is True
+    assert body["summary"] == seeded_payload["summary"]
+    assert body["grounded"] is True
+
+
+async def test_cross_tenant_finding_id_not_resolvable(
+    client_factory, db_session, tenant_a, tenant_b, analyst_user, analyst_user_b
+):
+    """T-24-18: a foreign-tenant finding_id is not resolvable -- 404, never
+    cross-tenant data. Contrasted directly against tenant_a's OWN analyst
+    resolving the SAME finding_id successfully, so this can only pass when
+    the route genuinely exists and enforces tenant scoping -- a vacuous
+    'route not found' 404 would make BOTH assertions fail, not just the
+    cross-tenant one."""
+    vuln_id = await _seed_vulnerability(db_session, tenant_a)  # belongs to tenant_a
+
+    client_a = client_factory(analyst_user)  # tenant_a's own analyst
+    with patch("app.api.v1.ai.explain_vuln._run_explain_stream", _fake_explain_stream):
+        same_tenant_post = await client_a.post(f"/api/v1/ai/explain-vuln/{vuln_id}")
+    assert same_tenant_post.status_code == 200, same_tenant_post.text
+    same_tenant_get = await client_a.get(f"/api/v1/ai/explain-vuln/{vuln_id}")
+    assert same_tenant_get.status_code == 200, same_tenant_get.text
+
+    client_b = client_factory(analyst_user_b)  # analyst in tenant_b
+    cross_tenant_post = await client_b.post(f"/api/v1/ai/explain-vuln/{vuln_id}")
+    assert cross_tenant_post.status_code == 404
+
+    cross_tenant_get = await client_b.get(f"/api/v1/ai/explain-vuln/{vuln_id}")
+    assert cross_tenant_get.status_code == 404
