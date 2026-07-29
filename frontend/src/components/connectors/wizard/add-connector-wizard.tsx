@@ -23,7 +23,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useConnectorTypes } from '@/lib/queries/use-connectors-admin';
-import type { ConnectorTypePermission } from '@/lib/queries/use-connectors-admin';
+import type { ConnectorTypePermission, ConnectorFieldSpec } from '@/lib/queries/use-connectors-admin';
 import { useWizardState } from './use-wizard-state';
 import { WizardStepper } from './wizard-stepper';
 import { CredentialsStep } from './credentials-step';
@@ -57,8 +57,14 @@ export function AddConnectorWizard({
   const typeInfo = typesQuery.data?.find((t) => t.type === connectorType);
   const fields = fieldsProp ?? typeInfo?.fields ?? [];
   const permissions = permissionsProp ?? typeInfo?.permissions ?? [];
+  // 24-01: richer per-field metadata (select options, required, config vs
+  // credentials routing) — always sourced from this component's OWN
+  // useConnectorTypes() call (fieldsProp only ever carries plain names, page.tsx
+  // has no separate prop for this), defaulting to {} (all-required,
+  // all-credentials — today's behavior) while the query is still loading.
+  const fieldSpecs: Record<string, ConnectorFieldSpec> = typeInfo?.field_specs ?? {};
 
-  const w = useWizardState(fields);
+  const w = useWizardState(fields, fieldSpecs);
 
   const credentialsHeadingId = useId();
   const testHeadingId = useId();
@@ -115,12 +121,14 @@ export function AddConnectorWizard({
             onSyncIntervalChange={w.setSyncInterval}
             headingRef={headingRef}
             headingId={credentialsHeadingId}
+            fieldSpecs={fieldSpecs}
           />
         )}
         {w.state.step === 'test' && (
           <TestStep
             connectorType={connectorType}
             buildCredentials={w.buildCredentials}
+            buildConfig={w.buildConfig}
             testResult={w.state.testResult}
             onResult={w.setTestResult}
             headingRef={headingRef}
@@ -134,6 +142,7 @@ export function AddConnectorWizard({
             permissions={permissions}
             syncInterval={w.state.syncInterval}
             credentials={w.buildCredentials()}
+            config={w.buildConfig()}
             onSuccess={onClose}
             headingRef={headingRef}
             headingId={confirmHeadingId}

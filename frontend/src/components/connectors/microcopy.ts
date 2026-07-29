@@ -14,13 +14,15 @@ export type ConnectorCategory =
   | 'vulnerability_scanner'
   | 'ticketing'
   | 'identity_provider'
-  | 'enrichment';
+  | 'enrichment'
+  | 'ai_assistant';
 
 export const CATEGORY_LABELS: Record<ConnectorCategory, string> = {
   vulnerability_scanner: 'Vulnerability scanners',
   identity_provider: 'Identity',
   enrichment: 'MDM & enrichment',
   ticketing: 'Ticketing',
+  ai_assistant: 'AI',
 };
 
 /** Display order for category sections */
@@ -29,6 +31,7 @@ export const CATEGORY_ORDER: ConnectorCategory[] = [
   'identity_provider',
   'enrichment',
   'ticketing',
+  'ai_assistant',
 ];
 
 // ——— Empty state copy per category ———
@@ -64,6 +67,12 @@ export const CATEGORY_EMPTY: Record<ConnectorCategory, EmptyCopy> = {
     body: 'Connect Jira or Asana to create and track remediation tickets directly from vulnerability findings.',
     cta: 'Add connector',
     suggestion: 'Ticket creation is much faster once a ticketing connector is configured.',
+  },
+  ai_assistant: {
+    heading: "AI isn't configured yet",
+    body: 'Add your own Anthropic API key to turn on grounded, plain-English vulnerability explanations for your team.',
+    cta: 'Add connector',
+    suggestion: 'Your key, your account — GetVul never sees or stores a shared key.',
   },
 };
 

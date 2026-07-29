@@ -26,6 +26,9 @@ export type ConfirmStepProps = {
   permissions: ConnectorTypePermission[];
   syncInterval: number;
   credentials: Record<string, string> | undefined;
+  /** 24-01: config-destined field values (model, monthly_budget_usd, ...) —
+   * plaintext, round-trips into ConnectorConfig.config (D-06). */
+  config?: Record<string, unknown>;
   onSuccess: () => void;
   headingRef?: React.Ref<HTMLHeadingElement>;
   headingId?: string;
@@ -41,6 +44,7 @@ export function ConfirmStep({
   permissions,
   syncInterval,
   credentials,
+  config,
   onSuccess,
   headingRef,
   headingId,
@@ -54,6 +58,7 @@ export function ConfirmStep({
       {
         connector_type: connectorType.toUpperCase(),
         credentials: credentials ?? {},
+        config,
         sync_interval_minutes: syncInterval,
       },
       {

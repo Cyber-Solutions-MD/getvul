@@ -19,6 +19,9 @@ import { WIZARD_COPY } from '../microcopy';
 export type TestStepProps = {
   connectorType: string;
   buildCredentials: () => Record<string, string> | undefined;
+  /** 24-01: config-destined field values (model, monthly_budget_usd, ...) —
+   * test_anthropic() reads `model` from here, never from credentials. */
+  buildConfig?: () => Record<string, unknown> | undefined;
   testResult: { success: boolean; message: string } | null;
   onResult: (r: { success: boolean; message: string }) => void;
   headingRef?: React.Ref<HTMLHeadingElement>;
@@ -28,6 +31,7 @@ export type TestStepProps = {
 export function TestStep({
   connectorType,
   buildCredentials,
+  buildConfig,
   testResult,
   onResult,
   headingRef,
@@ -40,6 +44,7 @@ export function TestStep({
       {
         connector_type: connectorType.toUpperCase(),
         credentials: buildCredentials() ?? {},
+        config: buildConfig?.(),
       },
       {
         onSuccess: (data) => onResult(data),

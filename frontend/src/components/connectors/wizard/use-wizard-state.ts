@@ -6,9 +6,20 @@
  * PLANNER DECISION (19-00): all fields treated required (fields: string[] wire
  * contract; GET /connectors/types flattens field metadata server-side — see
  * 19-RESEARCH Pitfall 1). Gating = all-non-empty. 100% of connector-type fields
- * are `required: True` today; if a future connector type ships an optional field,
- * this proxy will need revisiting (flagged in RESEARCH assumptions log, not a
- * Phase-19 blocker).
+ * were `required: True` at the time — that proxy is now revisited (24-01): an
+ * optional `fieldSpecs` map (from GET /connectors/types' additive `field_specs`)
+ * lets a field opt out of the all-non-empty gate via `required: false` (e.g.
+ * the ANTHROPIC connector's `monthly_budget_usd`). Connector types with no
+ * fieldSpecs entry for a field keep the original all-required behavior
+ * (`required` defaults true when unspecified) — zero behavior change for the
+ * 14 pre-existing connector types.
+ *
+ * `fieldSpecs` also carries a `config: boolean` per-field flag (24-01): fields
+ * marked `config: true` (e.g. ANTHROPIC's `model`, `monthly_budget_usd`) are
+ * NOT secrets — they route into `ConnectorConfig.config` (plaintext JSONB) at
+ * submit time via `buildConfig()`, not the Fernet-encrypted `credentials` blob
+ * `buildCredentials()` still produces. Fields with no fieldSpecs entry default
+ * to `config: false` (credentials), matching every existing connector type.
  *
  * D-08 (re-test invalidation, tamper-evident): editing ANY credential field after
  * a passing test clears the effective pass on the very first keystroke (onChange,
@@ -17,6 +28,7 @@
  * see `isTestStale` vs `testResult === null`.
  */
 import { useReducer, useCallback, useMemo } from 'react';
+import type { ConnectorFieldSpec } from '@/lib/queries/use-connectors-admin';
 
 export type WizardStep = 'credentials' | 'test' | 'confirm';
 
@@ -33,6 +45,8 @@ export const SYNC_INTERVALS = [5, 15, 30, 60] as const;
 
 const STEP_ORDER: WizardStep[] = ['credentials', 'test', 'confirm'];
 
+type FieldSpecs = Record<string, ConnectorFieldSpec>;
+
 type Action =
   | { type: 'UPDATE_FIELD'; name: string; value: string }
   | { type: 'SET_TEST_RESULT'; result: { success: boolean; message: string } }
@@ -40,10 +54,29 @@ type Action =
   | { type: 'ADVANCE' }
   | { type: 'BACK' };
 
-function initialState(): WizardState {
+function isRequired(fieldSpecs: FieldSpecs, field: string): boolean {
+  return fieldSpecs[field]?.required !== false;
+}
+
+function isConfigField(fieldSpecs: FieldSpecs, field: string): boolean {
+  return fieldSpecs[field]?.config === true;
+}
+
+function initialState(fields: string[], fieldSpecs: FieldSpecs): WizardState {
+  // Pre-populate `select` fields with their first option's value so a
+  // required select is never "empty" from the gate's perspective, and so
+  // TestStep/ConfirmStep send a real value even if the analyst never
+  // touches the dropdown (D-01's default = the first option, e.g. Sonnet 5).
+  const values: Record<string, string> = {};
+  for (const f of fields) {
+    const spec = fieldSpecs[f];
+    if (spec?.type === 'select' && spec.options && spec.options.length > 0) {
+      values[f] = spec.options[0].value;
+    }
+  }
   return {
     step: 'credentials',
-    values: {},
+    values,
     touched: {},
     testResult: null,
     credentialsChangedSinceTest: false,
@@ -51,14 +84,17 @@ function initialState(): WizardState {
   };
 }
 
-function canAdvanceFrom(state: WizardState, fields: string[]): boolean {
+function canAdvanceFrom(state: WizardState, fields: string[], fieldSpecs: FieldSpecs): boolean {
   switch (state.step) {
     case 'credentials':
       // WR-03: `[].every()` is vacuously true, so require at least one field
       // before the gate can open — otherwise a wizard mounted before
       // useConnectorTypes() resolves (fields === []) would enable Next with
       // zero inputs rendered and let the user advance / submit empty creds.
-      return fields.length > 0 && fields.every((f) => (state.values[f] ?? '').trim() !== '');
+      return (
+        fields.length > 0 &&
+        fields.every((f) => !isRequired(fieldSpecs, f) || (state.values[f] ?? '').trim() !== '')
+      );
     case 'test':
       return state.testResult?.success === true && !state.credentialsChangedSinceTest;
     case 'confirm':
@@ -68,7 +104,7 @@ function canAdvanceFrom(state: WizardState, fields: string[]): boolean {
   }
 }
 
-function reducer(state: WizardState, action: Action, fields: string[]): WizardState {
+function reducer(state: WizardState, action: Action, fields: string[], fieldSpecs: FieldSpecs): WizardState {
   switch (action.type) {
     case 'UPDATE_FIELD': {
       const values = { ...state.values, [action.name]: action.value };
@@ -82,7 +118,7 @@ function reducer(state: WizardState, action: Action, fields: string[]): WizardSt
     case 'SET_SYNC_INTERVAL':
       return { ...state, syncInterval: action.minutes };
     case 'ADVANCE': {
-      if (!canAdvanceFrom(state, fields)) return state;
+      if (!canAdvanceFrom(state, fields, fieldSpecs)) return state;
       const idx = STEP_ORDER.indexOf(state.step);
       const next = STEP_ORDER[Math.min(idx + 1, STEP_ORDER.length - 1)];
       return { ...state, step: next };
@@ -97,7 +133,10 @@ function reducer(state: WizardState, action: Action, fields: string[]): WizardSt
   }
 }
 
-export function useWizardState(fields: string[]): {
+export function useWizardState(
+  fields: string[],
+  fieldSpecs: FieldSpecs = {},
+): {
   state: WizardState;
   allFieldsFilled: boolean;
   isTestStale: boolean;
@@ -109,22 +148,23 @@ export function useWizardState(fields: string[]): {
   advance: () => void;
   back: () => void;
   buildCredentials: () => Record<string, string> | undefined;
+  buildConfig: () => Record<string, unknown> | undefined;
 } {
   const [state, dispatch] = useReducer(
-    (s: WizardState, a: Action) => reducer(s, a, fields),
+    (s: WizardState, a: Action) => reducer(s, a, fields, fieldSpecs),
     undefined,
-    initialState,
+    () => initialState(fields, fieldSpecs),
   );
 
   const allFieldsFilled = useMemo(
-    () => fields.every((f) => (state.values[f] ?? '').trim() !== ''),
-    [fields, state.values],
+    () => fields.every((f) => !isRequired(fieldSpecs, f) || (state.values[f] ?? '').trim() !== ''),
+    [fields, fieldSpecs, state.values],
   );
 
   const isTestStale = state.testResult !== null && state.credentialsChangedSinceTest;
   const testPassed = state.testResult?.success === true && !state.credentialsChangedSinceTest;
 
-  const canAdvance = useMemo(() => canAdvanceFrom(state, fields), [state, fields]);
+  const canAdvance = useMemo(() => canAdvanceFrom(state, fields, fieldSpecs), [state, fields, fieldSpecs]);
 
   const updateField = useCallback((name: string, value: string) => {
     dispatch({ type: 'UPDATE_FIELD', name, value });
@@ -141,16 +181,34 @@ export function useWizardState(fields: string[]): {
   const advance = useCallback(() => dispatch({ type: 'ADVANCE' }), []);
   const back = useCallback(() => dispatch({ type: 'BACK' }), []);
 
-  // D-12: add-path — include only non-empty fields, never the sentinel literal
-  // (add mode never displays a sentinel, so the literal can't appear in `values`).
+  // D-12: add-path — include only non-empty, non-config fields, never the
+  // sentinel literal (add mode never displays a sentinel, so the literal
+  // can't appear in `values`). config:true fields (24-01) are routed to
+  // buildConfig() instead — never Fernet-encrypted.
   const buildCredentials = useCallback((): Record<string, string> | undefined => {
     const creds: Record<string, string> = {};
     for (const f of fields) {
+      if (isConfigField(fieldSpecs, f)) continue;
       const v = state.values[f];
       if (v && v.trim() !== '') creds[f] = v;
     }
     return Object.keys(creds).length > 0 ? creds : undefined;
-  }, [fields, state.values]);
+  }, [fields, fieldSpecs, state.values]);
+
+  // 24-01: config:true fields (model, monthly_budget_usd) round-trip into
+  // ConnectorConfig.config (plaintext) — never into the encrypted credentials
+  // blob. `number`-typed fields coerce from the input's string value; an
+  // empty optional field is omitted entirely (D-06: no budget cap set).
+  const buildConfig = useCallback((): Record<string, unknown> | undefined => {
+    const cfg: Record<string, unknown> = {};
+    for (const f of fields) {
+      if (!isConfigField(fieldSpecs, f)) continue;
+      const v = state.values[f];
+      if (v === undefined || v.trim() === '') continue;
+      cfg[f] = fieldSpecs[f]?.type === 'number' ? Number(v) : v;
+    }
+    return Object.keys(cfg).length > 0 ? cfg : undefined;
+  }, [fields, fieldSpecs, state.values]);
 
   return {
     state,
@@ -164,5 +222,6 @@ export function useWizardState(fields: string[]): {
     advance,
     back,
     buildCredentials,
+    buildConfig,
   };
 }

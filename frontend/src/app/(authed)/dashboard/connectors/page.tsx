@@ -28,7 +28,7 @@ import {
   useDeleteConnector,
   useSyncConnector,
 } from '@/lib/queries/use-connectors-admin';
-import type { ConnectorConfigResponse } from '@/lib/queries/use-connectors-admin';
+import type { ConnectorConfigResponse, ConnectorFieldSpec } from '@/lib/queries/use-connectors-admin';
 import { SkeletonTable, EmptyState, PartialFailureBanner } from '@/components/states';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import ConfirmModal from '@/components/ui/ConfirmModal';
@@ -64,6 +64,7 @@ const CONNECTOR_CATEGORIES: Record<string, ConnectorCategory> = {
   HUMAANS: 'enrichment',
   JAMF: 'enrichment',
   INTUNE: 'enrichment',
+  ANTHROPIC: 'ai_assistant',
 };
 
 // Skeleton columns mirroring card grid layout
@@ -78,6 +79,10 @@ type FormState = {
   mode: 'add' | 'edit';
   connectorType: string;
   fields: string[];
+  /** 24-01: richer per-field metadata (select options, required, config vs
+   * credentials routing) — ConnectorForm has no independent useConnectorTypes()
+   * call of its own, so this must be threaded through from here. */
+  fieldSpecs: Record<string, ConnectorFieldSpec>;
   existing?: ConnectorConfigResponse;
 };
 
@@ -96,6 +101,7 @@ function ConnectorsPageInner() {
     identity_provider: null,
     enrichment: null,
     ticketing: null,
+    ai_assistant: null,
   });
 
   const connectorsQuery = useConnectorsList();
@@ -109,6 +115,7 @@ function ConnectorsPageInner() {
     mode: 'add',
     connectorType: '',
     fields: [],
+    fieldSpecs: {},
   });
   const [deleteState, setDeleteState] = useState<DeleteState>({
     open: false,
@@ -130,6 +137,7 @@ function ConnectorsPageInner() {
       mode: 'add',
       connectorType: providerType,
       fields: typeInfo.fields,
+      fieldSpecs: typeInfo.field_specs ?? {},
     });
 
     // Scroll the matching category section into view (guard for jsdom/test environments).
@@ -146,6 +154,7 @@ function ConnectorsPageInner() {
       mode: 'edit',
       connectorType: connector.connector_type,
       fields: typeInfo?.fields ?? [],
+      fieldSpecs: typeInfo?.field_specs ?? {},
       existing: connector,
     });
   }
@@ -157,11 +166,12 @@ function ConnectorsPageInner() {
       mode: 'add',
       connectorType,
       fields: typeInfo?.fields ?? [],
+      fieldSpecs: typeInfo?.field_specs ?? {},
     });
   }
 
   function closeForm() {
-    setFormState({ open: false, mode: 'add', connectorType: '', fields: [] });
+    setFormState({ open: false, mode: 'add', connectorType: '', fields: [], fieldSpecs: {} });
   }
 
   // D-07 (Phase 15-03): The credential form dialog chrome is handled by
@@ -246,6 +256,7 @@ function ConnectorsPageInner() {
     identity_provider: [],
     enrichment: [],
     ticketing: [],
+    ai_assistant: [],
   };
 
   for (const conn of connectorsQuery.data ?? []) {
@@ -403,6 +414,7 @@ function ConnectorsPageInner() {
                     connectorType={formState.connectorType}
                     existing={formState.existing}
                     fields={formState.fields}
+                    fieldSpecs={formState.fieldSpecs}
                     onClose={closeForm}
                   />
                 )}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -46,6 +46,7 @@ CONNECTOR_CATEGORIES = {
     "HUMAANS": "enrichment",
     "JAMF": "enrichment",
     "INTUNE": "enrichment",
+    "ANTHROPIC": "ai_assistant",
 }
 
 
@@ -58,6 +59,15 @@ async def get_connector_types():
             f["name"] if isinstance(f, dict) else f for f in (v.fields if isinstance(v.fields, list) else [])
         ]
         defaults = {}
+        # field_specs: additive, keyed-by-name per-field metadata (type/required/
+        # options/config-destination/help) alongside the flattened `fields`
+        # name list above. Existing consumers (ConnectorForm, page.tsx) only
+        # ever read `fields`/`defaults` and are unaffected; the add-connector
+        # wizard is the first consumer of the richer shape (select options with
+        # per-option guidance, required=False gating, credentials-vs-config
+        # routing) — needed for the ANTHROPIC model dropdown + optional budget
+        # field (D-01/D-05/D-06).
+        field_specs: dict[str, dict[str, Any]] = {}
         for f in v.fields if isinstance(v.fields, list) else []:
             if isinstance(f, dict):
                 name = f.get("name", "")
@@ -65,6 +75,15 @@ async def get_connector_types():
                     defaults[name] = list(v.base_urls.values())[0]
                 else:
                     defaults[f.get("name", "")] = ""
+                if name:
+                    field_specs[name] = {
+                        "type": f.get("type", "text"),
+                        "label": f.get("label", name),
+                        "required": f.get("required", True),
+                        "config": f.get("config", False),
+                        "options": f.get("options"),
+                        "help": f.get("help"),
+                    }
             else:
                 defaults[f] = ""
         result.append(
@@ -73,6 +92,7 @@ async def get_connector_types():
                 "name": v.name if hasattr(v, "name") else k,
                 "description": v.description if hasattr(v, "description") else "",
                 "fields": field_names,
+                "field_specs": field_specs,
                 "defaults": defaults,
                 "permissions": [
                     {"scope": p.scope, "access": p.access, "purpose": p.purpose}

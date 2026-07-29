@@ -49,11 +49,39 @@ export type ConnectorTypePermission = {
   purpose: string;
 };
 
+/** One selectable option for a `type: 'select'` field (e.g. the AI model dropdown). */
+export type ConnectorFieldOption = {
+  value: string;
+  label: string;
+  /** D-05 short cost/quality guidance copy — shown per-option, not just on hover. */
+  hint?: string;
+};
+
+/**
+ * Per-field metadata additive to `fields: string[]` (which stays a flat name
+ * list for backward compat with ConnectorForm's existing plain-text-input
+ * rendering). Only the add-connector wizard consumes this today — it's what
+ * lets a field render as a real `<select>`/`<input type="number">`, be
+ * optional (`required: false`), and route to `config` (plaintext) instead of
+ * `credentials` (Fernet-encrypted) at submit time.
+ */
+export type ConnectorFieldSpec = {
+  type: string;
+  label: string;
+  required: boolean;
+  /** true = this field's value belongs in ConnectorConfig.config (plaintext),
+   * never in the encrypted credentials blob (e.g. model, monthly_budget_usd). */
+  config: boolean;
+  options?: ConnectorFieldOption[];
+  help?: string;
+};
+
 export type ConnectorTypeInfo = {
   type: string;
   name: string;
   description: string;
   fields: string[];
+  field_specs?: Record<string, ConnectorFieldSpec>;
   defaults: Record<string, string>;
   category: string;
   permissions: ConnectorTypePermission[];

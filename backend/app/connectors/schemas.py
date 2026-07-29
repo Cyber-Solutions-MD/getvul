@@ -337,6 +337,51 @@ CONNECTOR_TYPES: dict[str, ConnectorTypeInfo] = {
         setup_url="https://github.com/settings/tokens",
         notes="Generate a fine-grained or classic Personal Access Token with 'repo' scope (Issues: Read and write). Owner/repo identify the target repository, e.g. owner=acme, repo=infra.",
     ),
+    "ANTHROPIC": ConnectorTypeInfo(
+        id="ANTHROPIC",
+        name="Anthropic",
+        description="BYOK Claude access for AI-assisted triage — plain-English vulnerability explanations grounded in your own scanner data",
+        fields=[
+            {"name": "api_key", "label": "Anthropic API Key", "type": "password", "required": True},
+            {
+                "name": "model",
+                "label": "Model",
+                "type": "select",
+                "required": True,
+                # config=True: this value is NOT a secret — it belongs in
+                # ConnectorConfig.config (plaintext JSONB), never encrypted
+                # credentials (D-01/D-02). Fixed, stable order (Sonnet 5 first
+                # = the default) so the dropdown never reorders between loads.
+                "config": True,
+                # D-05: short cost/quality guidance per option — no naked controls
+                # (copy-voice). Cost lands on the tenant's own BYOK account.
+                "options": [
+                    {
+                        "value": "claude-sonnet-5",
+                        "label": "Sonnet 5",
+                        "hint": "Recommended balance of cost and quality",
+                    },
+                    {"value": "claude-opus-5", "label": "Opus 5", "hint": "Higher cost, highest quality"},
+                    {"value": "claude-haiku-4-5", "label": "Haiku", "hint": "Cheapest, lower grounding fidelity"},
+                ],
+            },
+            {
+                "name": "monthly_budget_usd",
+                "label": "Monthly budget (USD)",
+                "type": "number",
+                "required": False,
+                "config": True,
+                "help": "Optional — AI calls pause for the rest of the month once this is reached (D-06).",
+            },
+        ],
+        permissions=[
+            ConnectorPermission(
+                scope="messages", access="Write", purpose="Generate grounded vulnerability explanations (BYOK)"
+            ),
+        ],
+        setup_url="https://console.anthropic.com/settings/keys",
+        notes="Generate an API key at console.anthropic.com -> Settings -> API keys. This is your own Anthropic account — GetVul stores no shared key and never bills you; usage is billed directly by Anthropic to this key.",
+    ),
 }
 
 

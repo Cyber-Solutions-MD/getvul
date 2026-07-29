@@ -455,6 +455,39 @@ async def test_okta(credentials: dict, config: dict) -> ConnectorTestResult:
         return ConnectorTestResult(success=False, message=f"Connection error: {e}")
 
 
+async def test_anthropic(credentials: dict, config: dict) -> ConnectorTestResult:
+    """Validate a tenant's own (BYOK) Anthropic API key with a free count_tokens
+    call — no inference is billed, unlike a real messages.create() call (D-04).
+
+    `model` is read from `config` (never `credentials` — it's not a secret,
+    routed there by the wizard's config=True field spec) so the test exercises
+    the model the tenant actually selected, not always the default.
+    """
+    api_key = credentials.get("api_key", "")
+    model = config.get("model", "claude-sonnet-5")
+    if not api_key:
+        return ConnectorTestResult(success=False, message="API key is required")
+    try:
+        from anthropic import AsyncAnthropic, AuthenticationError
+
+        client = AsyncAnthropic(api_key=api_key)
+        try:
+            result = await client.messages.count_tokens(
+                model=model,
+                messages=[{"role": "user", "content": "test"}],
+            )
+            return ConnectorTestResult(
+                success=True,
+                message=f"Key validated for {model}",
+                details={"input_tokens": result.input_tokens},
+            )
+        except AuthenticationError:
+            # T-24-02: never echo key material in the response — generic message only.
+            return ConnectorTestResult(success=False, message="Invalid API key")
+    except Exception as e:
+        return ConnectorTestResult(success=False, message=f"Connection error: {e}")
+
+
 async def test_intune(credentials: dict, config: dict) -> ConnectorTestResult:
     """Test Microsoft Intune API access."""
     tenant_id = credentials.get("tenant_id", "")
@@ -509,6 +542,7 @@ TESTERS = {
     "GITHUB": test_github,
     "HUMAANS": test_humaans,
     "INTUNE": test_intune,
+    "ANTHROPIC": test_anthropic,
 }
 
 
