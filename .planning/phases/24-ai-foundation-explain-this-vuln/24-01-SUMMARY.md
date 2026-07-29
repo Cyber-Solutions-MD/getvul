@@ -186,6 +186,12 @@ No other external service configuration required — the ANTHROPIC connector its
 - **Outstanding for Plan 04 (or whenever a dev key is available):** live-verify the Haiku `effort` question; the request builder should assume "omit effort for haiku-4-5" as the safe default until proven otherwise.
 - Spike route (`GET /api/v1/ai/_spike`) is intentionally throwaway — flagged for removal or leaving inert before phase seal (T-24-03).
 
+## Self-Check: PASSED
+
+- Files verified present: `backend/app/api/v1/ai/__init__.py`, `backend/app/api/v1/ai/spike.py`, `backend/tests/test_connectors/test_ai_tester.py`, `frontend/src/components/connectors/wizard/credentials-step.tsx`, `frontend/src/components/connectors/connector-form.tsx`
+- Commits verified present: `ad1a2dc` (Task 1), `3312585` (Task 2), `24e852e` (SUMMARY)
+- Content assertions verified: `anthropic>=0.120` in `backend/pyproject.toml`; `ANTHROPIC` entry in `schemas.py`; `test_anthropic` in `tester.py`; `ai_assistant` category in `microcopy.ts`
+
 ---
 *Phase: 24-ai-foundation-explain-this-vuln*
 *Completed: 2026-07-29*

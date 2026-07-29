@@ -1,18 +1,18 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: "AI-Assisted Triage (\\\"Triage Copilot\\\")"
+milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 24
-current_phase_name: "AI Foundation + \\\"Explain This Vuln\\\""
-status: Executing Phase 23
-stopped_at: Phase 24 UI-SPEC approved
-last_updated: "2026-07-29T07:51:40.172Z"
+current_phase_name: ai-foundation-explain-this-vuln
+status: Executing Phase 24
+stopped_at: Phase 24 Plan 01 complete
+last_updated: "2026-07-29T08:45:00.000Z"
 progress:
   total_phases: 23
   completed_phases: 22
-  total_plans: 112
-  completed_plans: 103
-  percent: 96
+  total_plans: 121
+  completed_plans: 104
+  percent: 86
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -23,22 +23,22 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 adds AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 23 — ingestion-reliability-precursor
+**Current focus:** Phase 24 — ai-foundation-explain-this-vuln
 
 ## Current Position
 
-Milestone: v3.0 AI-Assisted Triage — 🚧 ROADMAP CREATED 2026-07-27 (Phases 23–28 defined, awaiting user approval; not yet started). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
-Phase: 24 — AI Foundation + "Explain This Vuln"
-Next: User approves the roadmap draft, then `/gsd-plan-phase 23`.
-Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28.
-Plan: Not started
+Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-29). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
+Phase: 24 (ai-foundation-explain-this-vuln) — EXECUTING
+Next: Execute `24-02-PLAN.md` (Wave 1, parallel with 24-01 per the wave plan — backend contracts: response schemas + prompt builder + AI audit writer, TDD).
+Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first).
+Plan: 2 of 9 (24-01 complete; 24-02 next)
 
 | Field | Value |
 |-------|-------|
-| Active milestone | v3.0 AI-Assisted Triage — roadmap created 2026-07-27, Phases 23–28, not yet started. Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
+| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 1/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 = Phases 9–15. v2.2 = Phases 16–22. v3.0 = Phases 23–28 (continues numbering, does not reset). |
 | v3.0 phase map | See "v3.0 Phase Map" table below. |
-| Next action | Present roadmap draft for approval → on approval, `/gsd-plan-phase 23` (Ingestion Reliability Precursor). |
+| Next action | Execute `24-02-PLAN.md` (Wave 1). |
 | History (v1.0/v2.0/v2.2, retained) | Rows below the divider describe prior-milestone eras and are kept as accumulated context. |
 
 ## v3.0 Phase Map
@@ -153,9 +153,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 22]: 22-01: KanbanColumn needs min-w-0 to hold equal flex-1 width regardless of empty-vs-populated sibling content
 - [Phase 22]: 22-01: Enter on a fresh focused card is always consumed by dnd-kit's KeyboardSensor as drag-pickup (default keyboardCodes.start includes Enter) -- it never opens the DrillPanel, so the plan's optional sanity test was skipped as empirically false
 - [Phase 22]: 22-02: getByRole()-based polling for a mutation's brief disabled state is unreliable (accessibility-tree recompute cost) — use an ElementHandle + expect.poll() on the raw DOM property instead
+- [Phase 24]: 24-01: True incremental SSE proven live through nginx (first byte ~12ms, total ~2.02s for 4 delayed frames) — `proxy_buffering off` confirmed effective, not just declared; every prior `StreamingResponse` in this backend was one-shot `iter([bytes])`
+- [Phase 24]: 24-01: `GET /connectors/types` gains an additive `field_specs` map (per-field type/required/options/config-destination) alongside the existing flattened `fields: string[]` — lets the add-connector wizard render real `<select>`/`<input type=number>` and route non-secret values to `ConnectorConfig.config` instead of encrypted `credentials`, with zero behavior change for the 14 pre-existing connector types
+- [Phase 24]: 24-01: D-05 model-guidance copy lives backend-side in `CONNECTOR_TYPES["ANTHROPIC"].fields[].options[].hint` (matches existing `notes`/`setup_url`/permission-`purpose` precedent), not frontend `microcopy.ts` — keeps wizard components provider-agnostic
+- [Phase 24]: 24-01: New `ai_assistant` connector category (not folded into an existing one)
+- [Phase 24]: 24-01: BLOCKER — `GETVUL_DEV_ANTHROPIC_KEY` (plan's `user_setup`) was never provisioned in this environment; the Haiku `effort:'low'` live smoke-test (RESEARCH Pitfall 1) could not run. Confirmed via Docker Compose's own `.env` substitution (resolved to empty) that the key is genuinely absent, not merely blocked by tool permissions. Interim resolution: RESEARCH.md's live-docs-sourced finding (effort not listed as Haiku-supported) stands; Plan 04's request builder should omit `effort` when `model=="claude-haiku-4-5"` until live-reverified. See `24-01-SUMMARY.md` "Known Gaps".
 
 ---
-*Last updated: 2026-07-27 — **v3.0 AI-Assisted Triage ROADMAP CREATED** (Phases 23–28, continuing numbering from 22; 21/21 v1 requirements mapped with 100% coverage, no orphans). Added "v3.0 Phase Map" section with dependency chain + pitfall ownership. Awaiting user approval of the roadmap draft before `/gsd-plan-phase 23`. Prior: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
+*Last updated: 2026-07-29 — **Phase 24 Plan 01 complete** (SSE spike proven live through nginx; `ANTHROPIC` connector type registered end-to-end — backend tester/schema/category + generalized wizard field-metadata contract (field_specs) for select/optional-field/config-routing; zero migration). 8 backend + 3 frontend tests added, full existing suites green, tsc/build/ruff/mypy-baseline clean. Outstanding: Haiku effort live smoke-test (needs `GETVUL_DEV_ANTHROPIC_KEY`). Prior: 2026-07-27 — **v3.0 AI-Assisted Triage ROADMAP CREATED** (Phases 23–28, continuing numbering from 22; 21/21 v1 requirements mapped with 100% coverage, no orphans). Prior: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
 
 - [Phase ?]: 23-10: Reused existing sanitized binding for log.error_message instead of adding a second _sanitize_error() call (CR-03/REL-06 closure)
 - [Phase ?]: Mobile drill-panel confirm now mirrors desktop's ticketProvider gate — renderConfirm slot forwards ticketProvider/onProviderChange, closing the ASANA-fallback gap (REL-04/CR-01)
@@ -166,9 +171,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 |------|----------|-------|-------|
 | Phase 23 P10 | 15min | 2 tasks | 2 files |
 | Phase 23 P11 | 18min | 3 tasks | 3 files |
+| Phase 24 P01 | 50min | 2 tasks | 17 files |
 
 ## Session
 
-**Last session:** 2026-07-28T14:40:49.490Z
-**Stopped at:** Phase 24 UI-SPEC approved
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/24-ai-foundation-explain-this-vuln/24-UI-SPEC.md
+**Last session:** 2026-07-29T08:45:00.000Z
+**Stopped at:** Phase 24 Plan 01 complete (24-01-PLAN.md)
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/24-ai-foundation-explain-this-vuln/24-02-PLAN.md

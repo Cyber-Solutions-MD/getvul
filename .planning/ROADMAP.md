@@ -293,7 +293,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 24-01-PLAN.md — Foundations: anthropic dep + incremental-SSE spike (nginx) + ANTHROPIC connector type (wizard reuse, zero migration)
+- [x] 24-01-PLAN.md — Foundations: anthropic dep + incremental-SSE spike (nginx) + ANTHROPIC connector type (wizard reuse, zero migration)
 - [ ] 24-02-PLAN.md — Backend contracts (TDD): response schemas (validation gate) + untrusted-content-as-data prompt builder + AI audit writer
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -417,7 +417,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 21. Page-transition verification | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-21 |
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
-| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 1/9 | In Progress | - |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
