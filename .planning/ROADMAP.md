@@ -288,7 +288,7 @@ Plans:
   4. Untrusted scanner text (CVE descriptions, hostnames, finding titles) — including adversarially crafted text — is delivered to the model only as data (never as instructions), and every model response is schema-validated before it reaches the UI — AI-02
   5. Every AI call, including scheduler-originated ones, is audit-logged with model/tokens/cost-estimate/prompt provenance, and AI output cached for one tenant is never served to another tenant — AI-05, AI-06
 
-**Plans**: 7/9 plans executed
+**Plans**: 9 executed + 1 gap-closure (24-10)
 
 Plans:
 **Wave 1**
@@ -323,6 +323,10 @@ Plans:
 **Wave 8** *(blocked on Wave 7 completion)*
 
 - [x] 24-09-PLAN.md — Expansion frontend (TDD): generalize the AI Explanation section + mount on host (asset-detail) and remediation surfaces (D-15 complete)
+
+**Wave 9 — gap closure** *(closes verification truth #2: D-23 no-key role-gating)*
+
+- [ ] 24-10-PLAN.md — Gap closure: require_viewer GET /api/v1/ai/status boolean signal + useAiStatus hook replacing the isError optimistic guess, so the no-key state is correctly role-gated for Analyst/Viewer (AI-01)
 
 **UI hint**: yes
 **Pitfalls owned** (see research/PITFALLS.md): #1 prompt injection (headline threat — untrusted-content-as-data contract established here for reuse by every later phase), #3 PII/secret leakage (prompt-builder field allowlist), #4 cross-tenant cache/prompt bleed, #6 non-determinism breaking CI (schema/property-test convention established here), #9 drill-panel latency regression (Suspense-bounded async region).
