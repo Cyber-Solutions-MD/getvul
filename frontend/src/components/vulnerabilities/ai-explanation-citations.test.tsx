@@ -109,6 +109,18 @@ vi.mock('@/lib/queries/use-connectors-admin', () => ({ useConnectorsList: () => 
 const mockReducedMotion = vi.fn();
 vi.mock('@/hooks/use-prefers-reduced-motion', () => ({ usePrefersReducedMotion: () => mockReducedMotion() }));
 
+// 24-07: AiExplanationSection now renders AiFeedbackControl beneath a
+// validated explanation (section state 1). The real component calls
+// useAiFeedback() (a real useMutation), which throws without a
+// QueryClientProvider -- this file renders the bare component tree (no
+// provider), so it's stubbed here exactly like the other 4 hooks above
+// (same regression class Plan 05 hit and fixed for drill-panel.test.tsx).
+// A detectable marker (not `null`) lets the placement-contract assertions
+// below prove PRESENCE/ABSENCE per state, not just avoid a crash.
+vi.mock('./ai-feedback-control', () => ({
+  AiFeedbackControl: () => <div data-testid="ai-feedback-control-stub" />,
+}));
+
 // Static import -- vi.mock() calls above are hoisted by Vitest above every
 // import statement in this file (including this one), so by the time
 // ai-explanation-section.tsx (and its own imports of the 5 mocked modules)
@@ -163,6 +175,8 @@ describe('AiExplanationSection', () => {
     setDefaults({ role: 'ANALYST' });
     render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
     expect(screen.getByRole('button', { name: 'Explain this vuln' })).toBeInTheDocument();
+    // 24-07: no validated explanation yet -- feedback control must be absent.
+    expect(screen.queryByTestId('ai-feedback-control-stub')).toBeNull();
   });
 
   it('no-key + role=Admin renders the "Configure AI" CTA', () => {
@@ -170,6 +184,8 @@ describe('AiExplanationSection', () => {
     render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
     expect(screen.getByText("AI isn't set up yet")).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Configure AI' })).toHaveAttribute('href', '/dashboard/connectors');
+    // 24-07: onboarding card, not a validated explanation -- no feedback control.
+    expect(screen.queryByTestId('ai-feedback-control-stub')).toBeNull();
   });
 
   it('no-key + role=Analyst renders the "ask an admin" nudge with no CTA', () => {
@@ -199,6 +215,8 @@ describe('AiExplanationSection', () => {
     render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
     expect(screen.getByText('Not enough finding data to explain this reliably')).toBeInTheDocument();
     expect(screen.queryByText(VALIDATED_DATA.summary)).toBeNull();
+    // 24-07: grounded=false is never a "validated explanation" -- no feedback control.
+    expect(screen.queryByTestId('ai-feedback-control-stub')).toBeNull();
   });
 
   it('D-25: error kind=busy renders the amber "AI busy" card with a Try again button', () => {
@@ -245,6 +263,8 @@ describe('AiExplanationSection', () => {
     const { container } = render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
     expect(screen.getByText(VALIDATED_DATA.summary, { exact: false })).toBeInTheDocument();
     expect(container.querySelector('[style*="animation"]')).toBeNull();
+    // 24-07: a validated (grounded) explanation IS shown -- feedback control present.
+    expect(screen.getByTestId('ai-feedback-control-stub')).toBeInTheDocument();
   });
 
   it('without prefers-reduced-motion, a done state applies the token-by-token reveal animation (D-12)', () => {
@@ -265,6 +285,8 @@ describe('AiExplanationSection', () => {
     const { container } = render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
     expect(screen.getByText(VALIDATED_DATA.summary, { exact: false })).toBeInTheDocument();
     expect(container.querySelector('[style*="animation"]')).toBeNull();
+    // 24-07: a cache-hit validated explanation IS shown -- feedback control present.
+    expect(screen.getByTestId('ai-feedback-control-stub')).toBeInTheDocument();
   });
 
   it('never renders a red/--color-danger class anywhere, even across every state', () => {

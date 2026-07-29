@@ -9,6 +9,7 @@ import { useConnectorsList } from '@/lib/queries/use-connectors-admin';
 import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion';
 import { cn } from '@/lib/utils';
 import { AiExplanationCitations } from './ai-explanation-citations';
+import { AiFeedbackControl } from './ai-feedback-control';
 
 // Section Placement (UI-SPEC D-11): identical h4 chrome to every sibling
 // section in drill-content.tsx -- no new heading style.
@@ -120,7 +121,10 @@ export function AiExplanationSection({ resourceType, resourceId }: Props) {
         body="The correlated record is missing detail — CVE description, CVSS vector, or host context — the assistant needs to ground a faithful explanation. It declined to guess."
       />
     ) : (
-      <AiExplanationCitations data={state.data} animateReveal={!prefersReducedMotion} />
+      <>
+        <AiExplanationCitations data={state.data} animateReveal={!prefersReducedMotion} />
+        <AiFeedbackControl resourceType={resourceType} resourceId={resourceId} />
+      </>
     );
   } else if (state.phase === 'error' && (state.kind === 'busy' || state.kind === 'unknown')) {
     // D-25: 'unknown' is treated as transient/retryable, never a generic
@@ -163,7 +167,10 @@ export function AiExplanationSection({ resourceType, resourceId }: Props) {
       // D-09: a cache hit on mount renders immediately -- no replay
       // animation (that's reserved for the just-clicked -> analyzing ->
       // done transition, D-12).
-      <AiExplanationCitations data={cached} animateReveal={false} />
+      <>
+        <AiExplanationCitations data={cached} animateReveal={false} />
+        <AiFeedbackControl resourceType={resourceType} resourceId={resourceId} />
+      </>
     );
   } else if (!keyConfigured) {
     // D-23: never an error -- an onboarding-flavored, role-gated card.
