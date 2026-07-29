@@ -53,7 +53,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 **v3.0 AI-Assisted Triage ("Triage Copilot") (IN PROGRESS, opened 2026-07-25 — Phases 23–28):**
 
 - [ ] **Phase 23: Ingestion Reliability Precursor** — Fix Wiz/Rapid7 connector wiring, add scanner HTTP-layer integration tests, wire Jira ticket-create, finish-or-retire GitHub ticketing, surface per-connector sync health
-- [ ] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel (9/9 plans executed 2026-07-29; verification gaps_found — 1 code gap + 4 waived live items, gap-closure pending)
+- [ ] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel (10/10 plans executed 2026-07-29 — 9 original + gap-closure 24-10; the one code gap from verification is now closed, pending re-verification; 4 waived live items remain open per the 24-06 checkpoint decision)
 - [ ] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description
 - [ ] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API
 - [ ] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships
@@ -288,7 +288,7 @@ Plans:
   4. Untrusted scanner text (CVE descriptions, hostnames, finding titles) — including adversarially crafted text — is delivered to the model only as data (never as instructions), and every model response is schema-validated before it reaches the UI — AI-02
   5. Every AI call, including scheduler-originated ones, is audit-logged with model/tokens/cost-estimate/prompt provenance, and AI output cached for one tenant is never served to another tenant — AI-05, AI-06
 
-**Plans**: 9 executed + 1 gap-closure (24-10)
+**Plans**: 10 executed (9 original + 1 gap-closure, 24-10)
 
 Plans:
 **Wave 1**
@@ -326,7 +326,7 @@ Plans:
 
 **Wave 9 — gap closure** *(closes verification truth #2: D-23 no-key role-gating)*
 
-- [ ] 24-10-PLAN.md — Gap closure: require_viewer GET /api/v1/ai/status boolean signal + useAiStatus hook replacing the isError optimistic guess, so the no-key state is correctly role-gated for Analyst/Viewer (AI-01)
+- [x] 24-10-PLAN.md — Gap closure: require_viewer GET /api/v1/ai/status boolean signal + useAiStatus hook replacing the isError optimistic guess, so the no-key state is correctly role-gated for Analyst/Viewer (AI-01)
 
 **UI hint**: yes
 **Pitfalls owned** (see research/PITFALLS.md): #1 prompt injection (headline threat — untrusted-content-as-data contract established here for reuse by every later phase), #3 PII/secret leakage (prompt-builder field allowlist), #4 cross-tenant cache/prompt bleed, #6 non-determinism breaking CI (schema/property-test convention established here), #9 drill-panel latency regression (Suspense-bounded async region).

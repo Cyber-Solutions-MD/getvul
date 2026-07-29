@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Assisted Triage
-status: Gaps Found — gap-closure pending
-stopped_at: Phase 24 executed 9/9; verification gaps_found (1 code gap + 4 waived live items)
-last_updated: "2026-07-29T00:00:00.000Z"
+status: Gap closure complete — Phase 24 pending re-verification
+stopped_at: Phase 24 gap-closure plan 24-10 executed (D-23 no-key role-gating fixed for all 4 roles); 4 waived live-verification items remain open per the 24-06 checkpoint decision
+last_updated: "2026-07-29T14:34:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 21
+  completed_plans: 21
   percent: 25
 ---
 
@@ -26,17 +26,17 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 ## Current Position
 
 Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-29). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
-Phase: 24 (ai-foundation-explain-this-vuln) — ALL 9 PLANS EXECUTED, VERIFICATION gaps_found
-Next: Gap-closure. Run `/gsd-plan-phase 24 --gaps` (reads 24-VERIFICATION.md → creates gap_closure plan(s)) then `/gsd-execute-phase 24 --gaps-only`. The one code gap: no-key UI state is not role-gated for Analyst/Viewer (GET /api/v1/connectors is require_admin-only, so their query errors and ai-explanation-section.tsx treats the error as "assume configured" → unconfigured tenants show a live Explain button + the wrong "AI busy" card instead of the "ask an admin" nudge). Fix = a lightweight non-admin "AI configured" signal endpoint + correct the D-23 no-key branch. Separately, 4 live-verification items remain WAIVED (user chose proceed-on-trust at 24-06): AI-03 nginx anti-buffering (proxy_buffering off IS in nginx.conf, unobserved live), live wizard→explain→cache→audit flow, D-25 live 429 card, reduced-motion/contrast — addressable via `/gsd-verify-work 24`.
+Phase: 24 (ai-foundation-explain-this-vuln) — 10/10 PLANS EXECUTED (9 original + gap-closure 24-10); the one code gap from verification is now closed
+Next: Re-verify Phase 24 (`/gsd-verify-work 24` or equivalent) to confirm 24-VERIFICATION.md's truth #2 now passes for all 4 roles. Gap-closure plan 24-10 (2026-07-29) added `GET /api/v1/ai/status` (require_viewer, tenant-scoped, derived from get_tenant_anthropic_key) + a `useAiStatus()` hook, replacing the `connectorsQuery.isError ? true : ...` optimistic pass-through so Analyst/Viewer now get a real "is AI configured" signal instead of the admin-gated connectors query's 403 being misread as "assume configured". Separately, 4 live-verification items remain WAIVED (user chose proceed-on-trust at 24-06): AI-03 nginx anti-buffering (proxy_buffering off IS in nginx.conf, unobserved live), live wizard→explain→cache→audit flow, D-25 live 429 card, reduced-motion/contrast — these are unaffected by 24-10's scope and remain addressable via `/gsd-verify-work 24`.
 Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard). Plan 04 shipped (the real explain_vuln.py buffer-then-validate-then-replay streaming engine + per-vuln SSE endpoint, proven against the real installed Anthropic SDK). Plan 05 shipped (frontend: useExplainStream SSE hook + useExplainCache + the 8-state AiExplanationSection + AiExplanationCitations two-tier renderer, wired into drill-content.tsx — the end-to-end tracer is code-complete). Plan 06 (TRACER-gate checkpoint) resolved: live end-to-end verification EXPLICITLY WAIVED by the user ("skip live verify, proceed on trust") and D-16 recorded as Option A (Cross-asset CVE grouping) for Plan 08's per-remediation grounding contract. Plan 07 shipped (backend: `ai_feedback` table (migration 032) + `AiFeedback` model + `POST /feedback/{resource_type}/{resource_id}` idempotent per-user upsert via `on_conflict_do_update`, require_analyst-gated, audited; frontend: `useAiFeedback` mutation hook + `AiFeedbackControl` thumbs/note UI wired beneath both grounded rendering branches of `AiExplanationSection` — capture-only, D-21, seeding Phase 28's flywheel). Plan 08 shipped (backend: host + remediation D-15 widening — `ExplainHostResponse`/`ExplainRemediationResponse` schema variants; a re-audited 9-field `HOST_ALLOWLIST` + `build_explain_host_prompt()` proven to exclude AssetDetail's 5 owner-PII fields field-by-field; the D-16 Option A cross-asset-CVE-grouping shape (`REMEDIATION_ALLOWLIST` + `build_explain_remediation_prompt()`) implementing the 24-06 checkpoint decision; `app/ai/grounding.py`'s two NEW tenant-scoped queries (`get_asset_posture()` selecting only allowlisted columns off Asset/Vulnerability — never the owner-PII ones — and `get_remediation_group()`, the cross-asset-by-CVE aggregate the 24-06 decision flagged as not existing anywhere, with a deterministic KEV/exploit-escalated `priority`); thin `explain_host.py`/`explain_remediation.py` routes reusing `_run_explain_stream()` completely unchanged (zero diff in `explain.py` since Plan 04); `prompt_version()` generalized (backward-compatible) into per-view `host_prompt_version()`/`remediation_prompt_version()`. 41 new tests green, full `test_ai_*.py` wave-merge 117/117, ruff+mypy clean on every new/modified file; a pre-existing `mypy-baseline.txt` note-line-number-drift artifact was isolated (scratchpad move, never `git stash`) and confirmed unrelated, logged to `deferred-items.md`).
-Plan: 9 of 9 (24-08 complete; 24-09 next)
+Plan: 10 of 10 (24-09 complete; gap-closure 24-10 complete)
 
 | Field | Value |
 |-------|-------|
-| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 8/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
+| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executed 10/10 plans (9 original + gap-closure 24-10, 2026-07-29), pending re-verification. Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 = Phases 9–15. v2.2 = Phases 16–22. v3.0 = Phases 23–28 (continues numbering, does not reset). |
 | v3.0 phase map | See "v3.0 Phase Map" table below. |
-| Next action | Execute `24-09-PLAN.md` (Wave 8, frontend wiring: generalized AI Explanation section reused across host/remediation views). |
+| Next action | Re-verify Phase 24 (`/gsd-verify-work 24`) to confirm the 24-10 gap closure holds; 4 live-verification items remain explicitly waived. |
 | History (v1.0/v2.0/v2.2, retained) | Rows below the divider describe prior-milestone eras and are kept as accumulated context. |
 
 ## v3.0 Phase Map
@@ -196,6 +196,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24-09]: AiExplanationSection gained an optional headingId prop (default 'drill-ai-h') to prevent a duplicate-DOM-id collision once host + per-row remediation mounts coexist with the vuln drill on one page
 - [Phase 24-09]: remediation surface mounts one AiExplanationSection per ticket row (not once for the whole timeline) since list_tickets() groups by external_ticket_url and a group can span more than one CVE; gated off when a row's representative cve_id is null
 - [Phase 24-09]: list_tickets() gained a representative cve_id via func.min(Vulnerability.cve_id), mirroring its existing remediation_action/affected_product MIN-aggregate convention -- additive, not a new query shape
+- [Phase 24-10]: Gap closure for 24-VERIFICATION.md truth #2 (D-23 no-key role-gating). `GET /api/v1/ai/status` is require_viewer-gated (the floor, matching the existing explain-vuln GET cache-check precedent) since a boolean "is AI on" carries no sensitive data; it derives directly from get_tenant_anthropic_key -- never a second/parallel check that could drift from the engine's own enforcement
+- [Phase 24-10]: status.py's docstring deliberately avoids the literal substrings ConnectorConfig/api_key/credentials_secret_arn/decrypt_value so the task's own no-credential-handling grep gate holds without weakening the explanatory value
+- [Phase 24-10]: keyConfigured is now a direct Boolean(statusQuery.data?.configured) read -- the old isError-based optimistic pass-through and its explanatory comment were deleted outright, not left dormant alongside the fix
+- [Phase 24-10]: BLOCKER (Rule 1 auto-fix) -- drill-panel.test.tsx and drill-panel-mobile.test.tsx each pre-existingly mocked use-connectors-admin solely to avoid AiExplanationSection needing a QueryClientProvider; once the component stopped importing that module, 17 tests broke with "No QueryClient set" against the real useAiStatus() call. Fixed by swapping both files' mock target to use-ai-status (deterministic unconfigured/Viewer-default state) -- full suite reconfirmed 816/816
 
 ## Performance Metrics
 
@@ -211,9 +215,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 24 P07 | 21min | 2 tasks | 10 files |
 | Phase 24 P08 | 27min | 2 tasks | 8 files |
 | Phase 24 P09 | 29min | 2 tasks | 13 files |
+| Phase 24 P10 (gap closure) | 25min | 2 tasks | 9 files |
 
 ## Session
 
-**Last session:** 2026-07-29T13:00:29.493Z
-**Stopped at:** Completed 24-09-PLAN.md
+**Last session:** 2026-07-29T14:34:00.000Z
+**Stopped at:** Completed 24-10-PLAN.md (gap closure — D-23 no-key role-gating fixed)
 **Resume file:** None
