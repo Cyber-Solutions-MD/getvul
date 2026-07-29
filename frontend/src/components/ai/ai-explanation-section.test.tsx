@@ -73,6 +73,7 @@ vi.mock('@/components/vulnerabilities/ai-feedback-control', () => ({
 // is evaluated, the mock registry is already populated.
 import { AiExplanationSection } from './ai-explanation-section';
 import type { ExplainVulnResponse } from '@/lib/ai/use-explain-stream';
+import { queryKeys } from '@/lib/queries/keys';
 
 const VALIDATED_DATA: ExplainVulnResponse = {
   summary: 'Plain-English summary of the finding.',
@@ -342,4 +343,40 @@ describe('resourceType/resourceId prop-forwarding to the shared hooks (D-15)', (
       expect(mockUseExplainStream).toHaveBeenCalledWith(resourceType, resourceId);
     },
   );
+
+  it('the ai.explain query key namespaces by resourceType, so a host mount and a vuln mount sharing a coincidental id string never collide', () => {
+    // Pure function assertion (no render needed) -- proves the D-15 cache
+    // namespacing claim directly against the single source of query keys,
+    // composing with the forwarding proof above (the section passes
+    // resourceType straight into this same key builder via useExplainCache).
+    expect(queryKeys.ai.explain('vuln', 'shared-id')).not.toEqual(queryKeys.ai.explain('host', 'shared-id'));
+    expect(queryKeys.ai.explain('vuln', 'shared-id')).not.toEqual(queryKeys.ai.explain('remediation', 'shared-id'));
+    expect(queryKeys.ai.explain('host', 'shared-id')).not.toEqual(queryKeys.ai.explain('remediation', 'shared-id'));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// D-15 (Task 2): mounting the SAME shared component more than once on one
+// page (host mount + remediation mount both live on /assets/[id]) would
+// collide on a hardcoded DOM id -- the h4's id must be caller-overridable.
+// Default stays 'drill-ai-h' so drill-content.tsx's existing
+// aria-labelledby="drill-ai-h" wrapper needs zero changes.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('headingId prop (D-15 multi-mount DOM-id safety, Task 2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('defaults the heading id to "drill-ai-h" when no headingId prop is given (vuln view backward-compat)', () => {
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(document.getElementById('drill-ai-h')).toHaveTextContent('AI Explanation');
+  });
+
+  it('renders a caller-supplied headingId instead, so two mounts on one page never share a DOM id', () => {
+    render(<AiExplanationSection resourceType="host" resourceId="host-1" headingId="ai-explanation-h-host" />);
+    expect(document.getElementById('ai-explanation-h-host')).toHaveTextContent('AI Explanation');
+    expect(document.getElementById('drill-ai-h')).toBeNull();
+  });
 });

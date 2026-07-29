@@ -113,6 +113,32 @@ vi.mock('@/components/vulnerabilities/drill-panel-mobile', () => ({
   DrillPanelMobile: () => null,
 }));
 
+// 24-09 Task 2: the page mounts the shared AiExplanationSection
+// (resourceType="host"). Stubbed here the same way DrillPanel is stubbed
+// above -- this page's own test responsibility is proving the MOUNT
+// (right resourceType/resourceId/headingId), not re-verifying the
+// component's own 8-state matrix or three-view parity, which
+// ai-explanation-section.test.tsx already covers exhaustively for 'host'
+// alongside 'vuln'/'remediation'.
+vi.mock('@/components/ai/ai-explanation-section', () => ({
+  AiExplanationSection: ({
+    resourceType,
+    resourceId,
+    headingId,
+  }: {
+    resourceType: string;
+    resourceId: string;
+    headingId?: string;
+  }) => (
+    <div
+      data-testid="ai-explanation-section"
+      data-resource-type={resourceType}
+      data-resource-id={resourceId}
+      data-heading-id={headingId ?? ''}
+    />
+  ),
+}));
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -180,5 +206,17 @@ describe('/assets/[id] page', () => {
   it('renders empty state for remediations when list is empty', () => {
     renderPage();
     expect(screen.getByText('No remediation tickets')).toBeInTheDocument();
+  });
+
+  it('mounts the AI Explanation section for the host view (resourceType="host", resourceId=asset id, D-15)', () => {
+    renderPage();
+    const el = screen.getByTestId('ai-explanation-section');
+    expect(el).toHaveAttribute('data-resource-type', 'host');
+    expect(el).toHaveAttribute('data-resource-id', 'a1');
+    // Own unique headingId -- never the vuln drill's default 'drill-ai-h',
+    // since both can theoretically be reachable from the same page render
+    // tree in this test (no drill open here, but the id must be collision-
+    // safe by construction, not by the drill happening to be closed).
+    expect(el.getAttribute('data-heading-id')).toBe('ai-explanation-h-host');
   });
 });

@@ -112,6 +112,35 @@ async def test_tickets_asset_id_unknown_returns_empty(client):
 
 
 @pytest.mark.asyncio
+async def test_tickets_response_includes_representative_cve_id(client, db_session, tenant_a):
+    """24-09 (D-15 remediation-view grounding): the asset-detail remediation
+    timeline needs a real CVE string to wire `AiExplanationSection
+    resourceType="remediation"` per row — /explain-remediation/{cve_id} is
+    CVE-string-keyed (24-08). A ticket GROUP (rows share one
+    external_ticket_url) can span >1 Vulnerability, so `cve_id` is a
+    representative MIN aggregate mirroring this same function's existing
+    `remediation_action`/`affected_product` MIN-aggregate convention, not a
+    new query shape.
+    """
+    a = _seed_asset(tenant_a, "host-cve")
+    db_session.add(a)
+    await db_session.flush()
+
+    v = _seed_vuln(tenant_a, asset_id=a.id, cve_id="CVE-2026-D001")
+    db_session.add(v)
+    await db_session.flush()
+
+    db_session.add(_seed_ticket(tenant_a, vulnerability_id=v.id, external_ticket_url="https://jira/D-1"))
+    await db_session.commit()
+
+    r = await client.get(f"/api/v1/tickets?asset_id={a.id}")
+    assert r.status_code == 200, r.text
+    items = r.json()["items"]
+    assert len(items) == 1
+    assert items[0].get("cve_id") == "CVE-2026-D001"
+
+
+@pytest.mark.asyncio
 async def test_tickets_asset_id_excludes_other_assets_in_same_tenant(client, db_session, tenant_a):
     """Sanity check: tickets on sibling assets in the SAME tenant are excluded
     when asset_id is set. Guards against the subquery accidentally widening
