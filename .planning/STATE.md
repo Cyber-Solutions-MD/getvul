@@ -1,16 +1,18 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: AI-Assisted Triage
+milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
+current_phase: 24
+current_phase_name: ai-foundation-explain-this-vuln
 status: Ready to execute
-stopped_at: Phase 24 Plan 02 complete (24-02-PLAN.md)
-last_updated: "2026-07-29T09:11:41.630Z"
+stopped_at: Completed 24-03-PLAN.md
+last_updated: "2026-07-29T09:34:53.171Z"
 progress:
-  total_phases: 16
-  completed_phases: 8
-  total_plans: 41
-  completed_plans: 34
-  percent: 83
+  total_phases: 23
+  completed_phases: 22
+  total_plans: 112
+  completed_plans: 106
+  percent: 95
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -27,16 +29,16 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
 Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-29). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
 Phase: 24 (ai-foundation-explain-this-vuln) — EXECUTING
-Next: Execute `24-02-PLAN.md` (Wave 1, parallel with 24-01 per the wave plan — backend contracts: response schemas + prompt builder + AI audit writer, TDD).
-Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first).
-Plan: 3 of 9 (24-01 complete; 24-02 next)
+Next: Execute `24-04-PLAN.md` (Wave 3, depends_on [02, 03] — the real explain_vuln.py streaming engine: buffer-then-validate-then-replay against the tenant-scoped data layer, TDD).
+Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard).
+Plan: 4 of 9 (24-03 complete; 24-04 next)
 
 | Field | Value |
 |-------|-------|
-| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 1/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
+| Active milestone | v3.0 AI-Assisted Triage — Phase 23 shipped 2026-07-28; Phase 24 executing (Plan 3/9 done 2026-07-29). Prior: v2.2 Deferred UI Features — **SHIPPED & ARCHIVED 2026-07-22** (Phases 16–22). v1.0 (1–8), v2.0 (9–15), v2.1 (BL-01..05 backlog), v2.2 (16–22) all shipped. |
 | Phase numbering | v1.0 = Phases 1–8. v2.0 = Phases 9–15. v2.2 = Phases 16–22. v3.0 = Phases 23–28 (continues numbering, does not reset). |
 | v3.0 phase map | See "v3.0 Phase Map" table below. |
-| Next action | Execute `24-02-PLAN.md` (Wave 1). |
+| Next action | Execute `24-04-PLAN.md` (Wave 3). |
 | History (v1.0/v2.0/v2.2, retained) | Rows below the divider describe prior-milestone eras and are kept as accumulated context. |
 
 ## v3.0 Phase Map
@@ -158,7 +160,7 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24]: 24-01: BLOCKER — `GETVUL_DEV_ANTHROPIC_KEY` (plan's `user_setup`) was never provisioned in this environment; the Haiku `effort:'low'` live smoke-test (RESEARCH Pitfall 1) could not run. Confirmed via Docker Compose's own `.env` substitution (resolved to empty) that the key is genuinely absent, not merely blocked by tool permissions. Interim resolution: RESEARCH.md's live-docs-sourced finding (effort not listed as Haiku-supported) stands; Plan 04's request builder should omit `effort` when `model=="claude-haiku-4-5"` until live-reverified. See `24-01-SUMMARY.md` "Known Gaps".
 
 ---
-*Last updated: 2026-07-29 — **Phase 24 Plan 01 complete** (SSE spike proven live through nginx; `ANTHROPIC` connector type registered end-to-end — backend tester/schema/category + generalized wizard field-metadata contract (field_specs) for select/optional-field/config-routing; zero migration). 8 backend + 3 frontend tests added, full existing suites green, tsc/build/ruff/mypy-baseline clean. Outstanding: Haiku effort live smoke-test (needs `GETVUL_DEV_ANTHROPIC_KEY`). Prior: 2026-07-27 — **v3.0 AI-Assisted Triage ROADMAP CREATED** (Phases 23–28, continuing numbering from 22; 21/21 v1 requirements mapped with 100% coverage, no orphans). Prior: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
+*Last updated: 2026-07-29 — **Phase 24 Plan 03 complete** (tenant-scoped data layer: BYOK key resolution decrypted fresh per call with no shared/fallback key; Redis explanation cache with cross-tenant isolation proven against real flushed Redis + record_hash allowlist-scoping + ~30d TTL + per-tenant in-flight guard; fail-closed monthly budget guard derived from audit_logs + per-admin NOTIF-01 breach alert; migration 031 renames a pre-existing duplicate-shaped index rather than creating a wasteful second one). 18 new tests green (11+7), 54/54 regression pass, ruff+mypy clean, `alembic heads`==031. Prior: 2026-07-29 — **Phase 24 Plan 02 complete** (response-schema validation gate + untrusted-content-as-data prompt builder + AI audit writer — 35 tests). Prior: 2026-07-29 — **Phase 24 Plan 01 complete** (SSE spike proven live through nginx; `ANTHROPIC` connector type registered end-to-end — backend tester/schema/category + generalized wizard field-metadata contract (field_specs) for select/optional-field/config-routing; zero migration). 8 backend + 3 frontend tests added, full existing suites green, tsc/build/ruff/mypy-baseline clean. Outstanding: Haiku effort live smoke-test (needs `GETVUL_DEV_ANTHROPIC_KEY`). Prior: 2026-07-27 — **v3.0 AI-Assisted Triage ROADMAP CREATED** (Phases 23–28, continuing numbering from 22; 21/21 v1 requirements mapped with 100% coverage, no orphans). Prior: 2026-07-22 — **v2.2 Deferred UI Features milestone COMPLETE & ARCHIVED** (Phases 16–22, 23 plans; audit passed 22/22 UX-D requirements, 9/9 integration seams, 5/5 flows). Roadmap collapsed + requirements archived to `.planning/milestones/v2.2-*`; PROJECT.md full-review done; tagged `v2.2`. Prior: 2026-06-30 — Phase 15 COMPLETE & verified (7/7 SC); v2.0 UI/UX Redesign milestone COMPLETE (Phases 9–15).*
 
 - [Phase ?]: 23-10: Reused existing sanitized binding for log.error_message instead of adding a second _sanitize_error() call (CR-03/REL-06 closure)
 - [Phase ?]: Mobile drill-panel confirm now mirrors desktop's ticketProvider gate — renderConfirm slot forwards ticketProvider/onProviderChange, closing the ASANA-fallback gap (REL-04/CR-01)
@@ -168,6 +170,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24]: 24-02: audit_log_ai_call's usage param is typed Any (RESEARCH Pattern 5), not a custom Protocol -- keeps app/ai/audit.py decoupled from the anthropic SDK
 - [Phase 24]: 24-02: only vulnerability_name + remediation_info get the 4000-char truncation budget -- the other 14 VULN_ALLOWLIST fields are short bounded identifiers/enums/scores
 - [Phase 24]: 24-02: BLOCKER -- anthropic>=0.120.0 (declared in backend/pyproject.toml by Plan 01) is not installed in the local backend/.venv. mypy-baseline shows 4 new violations on app/connectors/tester.py:471 and 3/8 Plan 01 test_ai_tester.py tests fail at runtime with ModuleNotFoundError. Unrelated to any 24-02 file (app/ai/ deliberately imports no anthropic). Not fixed (out of scope -- unrelated file, pre-existing). Action for the next plan that runs backend tests locally: pip install -e . in backend/.venv first. See 24-02-SUMMARY.md Issues Encountered.
+- [Phase 24]: 24-03: migration renamed to 031_rename_audit_tenant_idx (27 chars) instead of the plan's 031_add_audit_logs_tenant_created_index (39 chars) -- alembic_version.version_num is varchar(32), confirmed empirically via a real StringDataRightTruncationError
+- [Phase 24]: 24-03: migration 031 RENAMES the pre-existing idx_audit_tenant_created index (created by 013_add_audit_log.py, identical columns tenant_id+created_at) to ix_audit_logs_tenant_created instead of creating a duplicate -- RESEARCH.md's "only new index needed" claim was wrong, found via direct read_first inspection
+- [Phase 24]: 24-03: notify_admins_budget_exceeded() calls create_notification once PER active OWNER/ADMIN user (not a single broadcast row) so send_email_flag=True actually reaches every admin's inbox
+- [Phase 24]: 24-03: get_tenant_anthropic_key wraps json.loads+decrypt_value in one broad try/except returning None on any failure, mirroring get_decrypted_credentials' exact defensive shape
+- [Phase 24]: 24-03: record_hash() hashes exactly what it's given (sha256 over sorted JSON) -- the D-18 allowlist-only guarantee is a caller contract (tested for determinism/sensitivity/order-independence), not re-implemented inside cache.py
 
 ## Performance Metrics
 
@@ -177,9 +184,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 23 P11 | 18min | 3 tasks | 3 files |
 | Phase 24 P01 | 50min | 2 tasks | 17 files |
 | Phase 24 P02 | 24min | 3 tasks | 7 files |
+| Phase 24 P03 | 19min | 2 tasks | 6 files |
 
 ## Session
 
-**Last session:** 2026-07-29T09:11:41.625Z
-**Stopped at:** Phase 24 Plan 02 complete (24-02-PLAN.md)
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/24-ai-foundation-explain-this-vuln/24-03-PLAN.md
+**Last session:** 2026-07-29T09:34:21.943Z
+**Stopped at:** Completed 24-03-PLAN.md
+**Resume file:** .planning/phases/24-ai-foundation-explain-this-vuln/24-04-PLAN.md
