@@ -21,15 +21,20 @@ ai_router = APIRouter(prefix="/api/v1/ai", tags=["AI"])
 #   summary (host) and cross-asset-CVE-grouping (remediation, D-16 Option A)
 #   views, both thin wrappers reusing _run_explain_stream() unchanged.
 # feedback: Plan 07's capture-only thumbs+note upsert endpoint (D-21/D-22).
+# status: Plan 10's gap-closure require_viewer "is AI configured" boolean
+#   signal (D-23) -- replaces the frontend's admin-gated-connectors-isError
+#   optimistic guess with a real, non-admin-safe signal.
 from app.api.v1.ai import (
     explain_host,  # noqa: E402
     explain_remediation,  # noqa: E402
     explain_vuln,  # noqa: E402
     feedback,  # noqa: E402
     spike,  # noqa: F401
+    status,  # noqa: E402
 )
 
 ai_router.include_router(explain_vuln.router)
 ai_router.include_router(explain_host.router)
 ai_router.include_router(explain_remediation.router)
 ai_router.include_router(feedback.router)
+ai_router.include_router(status.router)
