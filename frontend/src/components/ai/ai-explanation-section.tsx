@@ -9,7 +9,11 @@ import { useConnectorsList } from '@/lib/queries/use-connectors-admin';
 import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion';
 import { cn } from '@/lib/utils';
 import { AiExplanationCitations } from './ai-explanation-citations';
-import { AiFeedbackControl } from './ai-feedback-control';
+// ai-feedback-control.tsx stays in components/vulnerabilities/ (24-09 Task 1
+// moves only the section + citations components) -- it is already fully
+// resourceType/resourceId-generalized (24-07), so a cross-directory alias
+// import is the only change needed here.
+import { AiFeedbackControl } from '@/components/vulnerabilities/ai-feedback-control';
 
 // Section Placement (UI-SPEC D-11): identical h4 chrome to every sibling
 // section in drill-content.tsx -- no new heading style.

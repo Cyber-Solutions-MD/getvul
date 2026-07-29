@@ -10,7 +10,10 @@ import { TicketProviderPicker } from './ticket-provider-picker';
 import type { TicketProvider } from '@/lib/ticketing/providers';
 import { microcopy } from './microcopy';
 import { cn } from '@/lib/utils';
-import { AiExplanationSection } from './ai-explanation-section';
+// 24-09 Task 1: AiExplanationSection moved to the shared, view-agnostic
+// components/ai/ directory (D-15) so the host/remediation views can mount
+// it verbatim alongside this vuln drill.
+import { AiExplanationSection } from '@/components/ai/ai-explanation-section';
 
 // D-P-05 — shared section order: Header → CVSS → Affected hosts →
 // Description → Remediation → Activity → Actions. Used by both desktop
