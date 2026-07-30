@@ -345,7 +345,7 @@ Plans:
 **Plans**: 7 plans (7 waves — strict sequential chain; tracer-first, gate at wave 5)
 - [x] 25-01-PLAN.md — Backend: dangerous-command denylist (safety.py) + refuse predicate + tenant-scoped/PII-excluding grounding query [wave 1]
 - [x] 25-02-PLAN.md — Backend: remediation-guidance schema variant + allowlist/prompt-builder quadruplet [wave 2]
-- [ ] 25-03-PLAN.md — Backend: engine dangerous_pattern_check param (before set_cached) + new explain-remediation-guidance route (D-01 gate + groundable) [wave 3]
+- [x] 25-03-PLAN.md — Backend: engine dangerous_pattern_check param (before set_cached) + new explain-remediation-guidance route (D-01 gate + groundable) [wave 3]
 - [ ] 25-04-PLAN.md — Frontend tracer: unsafe/groundable types + safety-refusal + insufficient-evidence cards + drill-panel section mount [wave 4]
 - [ ] 25-05-PLAN.md — TRACER GATE (checkpoint): verify the end-to-end per-vuln slice before AIR-02 expansion [wave 5]
 - [ ] 25-06-PLAN.md — AIR-02 backend: TicketCreateRequest.description field + create_tickets() WYSIWYG override [wave 6]
