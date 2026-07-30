@@ -10,6 +10,7 @@ import { TicketProviderPicker } from './ticket-provider-picker';
 import type { TicketProvider } from '@/lib/ticketing/providers';
 import { microcopy } from './microcopy';
 import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
 // 24-09 Task 1: AiExplanationSection moved to the shared, view-agnostic
 // components/ai/ directory (D-15) so the host/remediation views can mount
 // it verbatim alongside this vuln drill.
@@ -63,6 +64,13 @@ type Props = {
     cveLabel: string;
     ticketProvider: TicketProvider | null;
     onProviderChange: (p: TicketProvider) => void;
+    // Phase 25 (AIR-02, Plan 07): analyst-reviewed ticket description,
+    // pre-filled from the "Copy into ticket description" affordance,
+    // freely editable/clearable, threaded into fireTicket()'s mutation
+    // body. Mirrors the ticketProvider/onProviderChange controlled-prop
+    // shape above (D-09 scope fence: description-only).
+    description: string;
+    onDescriptionChange: (v: string) => void;
   }) => React.ReactNode;
 };
 
@@ -79,6 +87,11 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // hardcoded 'ASANA'. TicketProviderPicker default-selects the first
   // tenant-configured provider once its query loads.
   const [ticketProvider, setTicketProvider] = useState<TicketProvider | null>(null);
+  // Phase 25 (AIR-02, Plan 07): analyst-reviewed ticket description. Starts
+  // empty; pre-filled via onCopyToDescription from the remediation-guidance
+  // AiExplanationSection mount below. Freely editable/clearable before the
+  // existing "Create ticket" confirm click (D-08). Never a required field.
+  const [description, setDescription] = useState('');
 
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const panelInteractivesRef = useRef<HTMLDivElement>(null);
@@ -132,7 +145,11 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
 
   const v = q.data as unknown as FlexibleDetail;
   const cveLabel = v.cve_id ?? v.id ?? idOrCve;
-  const description =
+  // Renamed from `description` (Phase 25 Plan 07): the vuln's own CVE
+  // description text, unrelated to the new ticket-description state below
+  // -- the two shared the same identifier before this plan, which is now a
+  // name collision (Rule 1 auto-fix).
+  const vulnDescriptionText =
     v.description ?? v.vulnerability_name ?? v.title ?? '—';
   const remediation = v.remediation ?? v.remediation_info ?? '—';
   const hostsLine =
@@ -155,6 +172,11 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
         // default-selects the first configured provider on load and the
         // Confirm action is disabled while ticketProvider is still null.
         provider: ticketProvider ?? 'ASANA',
+        // Phase 25 (AIR-02): analyst-reviewed description, threaded to the
+        // Plan 06 backend contract. Blank/whitespace-only collapses to
+        // undefined so the backend's own fallback (_build_task_description)
+        // applies unchanged -- never sends an empty-string description.
+        description: description || undefined,
       })) as { tickets?: Array<{ external_ticket_id: string; external_ticket_url: string }> };
       const first = result.tickets?.[0];
       if (first) {
@@ -261,7 +283,7 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
           >
             {microcopy.drill.sections.description}
           </h4>
-          <p className="text-sm text-text">{description}</p>
+          <p className="text-sm text-text">{vulnDescriptionText}</p>
         </section>
 
         {/* Section Placement (UI-SPEC D-11): AI Explanation sits between
@@ -295,6 +317,7 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             resourceType="remediation-guidance"
             resourceId={v.id ?? idOrCve}
             headingId="drill-remediation-guidance-h"
+            onCopyToDescription={setDescription}
           />
         </section>
 
@@ -349,6 +372,8 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             cveLabel,
             ticketProvider,
             onProviderChange: setTicketProvider,
+            description,
+            onDescriptionChange: setDescription,
           })
         : (
           <ConfirmModal
@@ -361,6 +386,22 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             onCancel={cancelConfirm}
           >
             <TicketProviderPicker value={ticketProvider} onChange={setTicketProvider} />
+            {/* Phase 25 (AIR-02): description pre-fill field, subordinate to
+                the provider picker above (UI-SPEC visual hierarchy). Empty
+                and freely editable if the analyst never used "Copy into
+                ticket description"; never a required field (D-09). */}
+            <div className="mt-4">
+              <label htmlFor="ticket-description-textarea" className="mb-1 block text-xs font-medium text-text-muted">
+                Pre-filled from remediation guidance — review and edit before creating.
+              </label>
+              <Textarea
+                id="ticket-description-textarea"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="No remediation guidance yet — add a description or leave blank."
+                rows={4}
+              />
+            </div>
           </ConfirmModal>
         )}
     </div>
