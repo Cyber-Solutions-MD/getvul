@@ -5,8 +5,8 @@ milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 25
 current_phase_name: Asset-Aware Remediation Guidance
 status: Gap closure complete — Phase 24 pending re-verification
-stopped_at: Phase 25 context gathered
-last_updated: "2026-07-30T07:37:33.226Z"
+stopped_at: Phase 25 UI-SPEC approved
+last_updated: "2026-07-30T07:47:18.364Z"
 progress:
   total_phases: 24
   completed_phases: 23
@@ -221,6 +221,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-07-30T07:37:33.185Z
-**Stopped at:** Phase 25 context gathered
-**Resume file:** .planning/phases/25-asset-aware-remediation-guidance/25-CONTEXT.md
+**Last session:** 2026-07-30T07:47:18.318Z
+**Stopped at:** Phase 25 UI-SPEC approved
+**Resume file:** .planning/phases/25-asset-aware-remediation-guidance/25-UI-SPEC.md
