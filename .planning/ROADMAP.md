@@ -346,7 +346,7 @@ Plans:
 - [x] 25-01-PLAN.md — Backend: dangerous-command denylist (safety.py) + refuse predicate + tenant-scoped/PII-excluding grounding query [wave 1]
 - [x] 25-02-PLAN.md — Backend: remediation-guidance schema variant + allowlist/prompt-builder quadruplet [wave 2]
 - [x] 25-03-PLAN.md — Backend: engine dangerous_pattern_check param (before set_cached) + new explain-remediation-guidance route (D-01 gate + groundable) [wave 3]
-- [ ] 25-04-PLAN.md — Frontend tracer: unsafe/groundable types + safety-refusal + insufficient-evidence cards + drill-panel section mount [wave 4]
+- [x] 25-04-PLAN.md — Frontend tracer: unsafe/groundable types + safety-refusal + insufficient-evidence cards + drill-panel section mount [wave 4]
 - [ ] 25-05-PLAN.md — TRACER GATE (checkpoint): verify the end-to-end per-vuln slice before AIR-02 expansion [wave 5]
 - [ ] 25-06-PLAN.md — AIR-02 backend: TicketCreateRequest.description field + create_tickets() WYSIWYG override [wave 6]
 - [ ] 25-07-PLAN.md — AIR-02 frontend: copy-in affordance + description Textarea (desktop ConfirmModal + mobile renderConfirm) [wave 7]
@@ -429,7 +429,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 10/10 | Complete    | 2026-07-29 |
-| 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 2/7 | In Progress|  |
+| 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 4/7 | In Progress|  |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
