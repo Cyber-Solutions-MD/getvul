@@ -32,7 +32,7 @@ key-decisions:
 
 patterns-established: []
 
-requirements-completed: [AIR-02]
+requirements-completed: []  # AIR-02 is only half-delivered here (backend contract). Plan 07 (also requirements:[AIR-02]) delivers the frontend pre-fill wiring that actually satisfies "populate a draft ticket description for the analyst to review". Mark AIR-02 complete when 25-07 ships, not here.
 
 # Metrics
 duration: 9min
