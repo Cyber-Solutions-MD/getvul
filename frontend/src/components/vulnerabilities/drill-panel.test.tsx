@@ -74,18 +74,21 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     } as unknown as ReturnType<typeof useVulnerabilityDetail>);
   });
 
-  it('renders 8 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Remediation / Activity / Actions)', () => {
+  it('renders 9 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Remediation / Remediation guidance / Activity / Actions)', () => {
     render(<DrillPanel cveId="CVE-2024-3094" />);
     const headings = screen.getAllByRole('heading').map((h) => h.textContent ?? '');
-    // 8 named sections, in the documented order (Phase 24-05 / UI-SPEC D-11
-    // inserts AI Explanation between Description and Remediation).
+    // 9 named sections, in the documented order (Phase 24-05 / UI-SPEC D-11
+    // inserts AI Explanation between Description and Remediation; Phase 25
+    // Plan 04 D-06 inserts the NEW "Remediation guidance" section between
+    // the raw Remediation text and Activity).
     const expectedOrder = [
       /CVE-2024-3094|Drill|Header/i,
       /CVSS/i,
       /Affected hosts/i,
       /Description/i,
       /AI Explanation/i,
-      /Remediation/i,
+      /Remediation$/i,
+      /Remediation guidance/i,
       /Activity/i,
       /Actions/i,
     ];
@@ -180,5 +183,26 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     render(<DrillPanel cveId="CVE-2024-3094" />);
     // Panel content reflects detail.cve_id
     expect(screen.getByText(/CVE-2024-3094/)).toBeInTheDocument();
+  });
+
+  // Phase 25 Plan 04 Task 2 (D-06): the new "Remediation guidance" section
+  // mounts AiExplanationSection with resourceType="remediation-guidance",
+  // positioned after the raw Remediation section and before Activity.
+  it('mounts the "Remediation guidance" section between raw Remediation and Activity, with its own aria-labelledby', () => {
+    const { container } = render(<DrillPanel cveId="CVE-2024-3094" />);
+    const guidanceSection = container.querySelector<HTMLElement>('section[aria-labelledby="drill-remediation-guidance-h"]');
+    const remedSection = container.querySelector<HTMLElement>('section[aria-labelledby="drill-remed-h"]');
+    const activitySection = container.querySelector<HTMLElement>('section[aria-labelledby="drill-activity-h"]');
+    expect(guidanceSection).not.toBeNull();
+    expect(document.getElementById('drill-remediation-guidance-h')).toHaveTextContent('Remediation guidance');
+
+    // Document-order check: remed < guidance < activity.
+    const sections = Array.from(container.querySelectorAll<HTMLElement>('section'));
+    const remedIdx = sections.indexOf(remedSection!);
+    const guidanceIdx = sections.indexOf(guidanceSection!);
+    const activityIdx = sections.indexOf(activitySection!);
+    expect(remedIdx).toBeGreaterThanOrEqual(0);
+    expect(guidanceIdx).toBeGreaterThan(remedIdx);
+    expect(activityIdx).toBeGreaterThan(guidanceIdx);
   });
 });

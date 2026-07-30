@@ -282,6 +282,22 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
           <p className="text-sm text-text">{remediation}</p>
         </section>
 
+        {/* Phase 25 D-06 placement: "Remediation guidance" sits AFTER the
+            raw scanner Remediation text and BEFORE Activity -- the analyst
+            reads the vendor text first, then requests the OS/package-aware
+            actionable interpretation of exactly that text ("cite before
+            interpret", D-03). drill-panel-mobile.tsx renders DrillContent
+            directly, so this one insertion covers both desktop and mobile.
+            AIR-02's onCopyToDescription callback is intentionally NOT wired
+            here -- that is Plans 06/07, after this tracer plan. */}
+        <section aria-labelledby="drill-remediation-guidance-h">
+          <AiExplanationSection
+            resourceType="remediation-guidance"
+            resourceId={v.id ?? idOrCve}
+            headingId="drill-remediation-guidance-h"
+          />
+        </section>
+
         <section aria-labelledby="drill-activity-h">
           <h4
             id="drill-activity-h"
