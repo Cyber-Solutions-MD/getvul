@@ -33,7 +33,7 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 
 ### AI Remediation Guidance (AIR)
 
-- [ ] **AIR-01**: An analyst can get asset-aware remediation guidance that cites the scanner's own solution text and **refuses (cites insufficient evidence) rather than inventing** an ungrounded fix
+- [x] **AIR-01**: An analyst can get asset-aware remediation guidance that cites the scanner's own solution text and **refuses (cites insufficient evidence) rather than inventing** an ungrounded fix
 - [ ] **AIR-02**: Remediation guidance can populate a draft ticket description for the analyst to review
 
 ### AI Prioritization (AIP)
@@ -88,7 +88,7 @@ Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no 
 | AI-04 | 24 (AI Foundation + Explain-this-vuln) | Complete |
 | AI-05 | 24 (AI Foundation + Explain-this-vuln) | Complete |
 | AI-06 | 24 (AI Foundation + Explain-this-vuln) | Complete |
-| AIR-01 | 25 (Asset-Aware Remediation Guidance) | Pending |
+| AIR-01 | 25 (Asset-Aware Remediation Guidance) | Complete |
 | AIR-02 | 25 (Asset-Aware Remediation Guidance) | Pending |
 | AIP-01 | 26 (Prioritization Narrative) | Pending |
 | AIP-02 | 26 (Prioritization Narrative) | Pending |
