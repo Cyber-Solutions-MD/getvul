@@ -26,7 +26,13 @@ from app.encryption import encrypt_value
 from app.ticketing.models import ConnectorConfig, Ticket, TicketRule
 from app.ticketing.providers import TicketProvider
 from app.ticketing.schemas import HostTicketCreateRequest, TicketCreateRequest
-from app.ticketing.service import close_ticket, create_host_ticket, create_remediation_ticket, create_tickets
+from app.ticketing.service import (
+    _build_task_description,
+    close_ticket,
+    create_host_ticket,
+    create_remediation_ticket,
+    create_tickets,
+)
 from app.vulnerabilities.models import Vulnerability
 
 _FAKE_URL_BASE = {
@@ -240,6 +246,53 @@ async def test_create_remediation_ticket_dispatches_to_the_requested_provider(db
     assert len(fake.created) == 1
     row = (await db_session.execute(select(Ticket).where(Ticket.vulnerability_id == vuln.id))).scalar_one()
     assert row.provider == provider
+
+
+# ── Task 2: create_tickets() WYSIWYG description override (AIR-02) ──────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["ASANA", "JIRA", "GITHUB"])
+async def test_create_tickets_uses_request_description_when_supplied(db_session, tenant_a, provider):
+    """When request.description is non-empty, client.create() receives it
+    VERBATIM as the notes body — replacing the auto-built block (WYSIWYG,
+    RESEARCH Assumptions A3). Asserted on the client.create() call args, not
+    the DOM (Pitfall 4)."""
+    vuln = _seed_vuln(tenant_a)
+    db_session.add(vuln)
+    await db_session.commit()
+
+    fake = FakeTicketingClient(provider)
+    supplied_text = "Patch widget to 2.3.1 on this host by Friday."
+    request = TicketCreateRequest(
+        vulnerability_ids=[vuln.id], provider=provider, project_key="PROJ", description=supplied_text
+    )
+
+    await create_tickets(db=db_session, tenant_id=tenant_a, user_id=None, request=request, client=fake)
+    await db_session.commit()
+
+    assert len(fake.created) == 1
+    assert fake.created[0][1] == supplied_text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["ASANA", "JIRA", "GITHUB"])
+async def test_create_tickets_falls_back_to_built_description_when_omitted(db_session, tenant_a, provider):
+    """When request.description is None/omitted, client.create() still
+    receives the unchanged auto-built description (fallback, existing
+    behavior preserved)."""
+    vuln = _seed_vuln(tenant_a)
+    db_session.add(vuln)
+    await db_session.commit()
+
+    fake = FakeTicketingClient(provider)
+    request = TicketCreateRequest(vulnerability_ids=[vuln.id], provider=provider, project_key="PROJ")
+
+    await create_tickets(db=db_session, tenant_id=tenant_a, user_id=None, request=request, client=fake)
+    await db_session.commit()
+
+    assert len(fake.created) == 1
+    assert fake.created[0][1] == _build_task_description(vuln, hostname=None)
 
 
 # ── Task 1: sync_ticket_status / close_ticket dispatch by ticket's own provider ──
