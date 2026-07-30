@@ -440,6 +440,81 @@ async def test_leak_marker_output_is_injection_flagged_and_blocked(db_session, t
     assert rows[0].details["status"] == "injection_flagged"
 
 
+async def test_dangerous_pattern_check_hit_is_unsafe_denylisted_and_never_cached(db_session, tenant_a, flushed_redis):
+    """Phase 25 D-04/T-25-02: a `dangerous_pattern_check` hit on a validated
+    candidate refuses the ENTIRE guidance BEFORE `set_cached()` ever runs --
+    the load-bearing backstop is that `set_cached` itself is never invoked
+    (spied), not merely that the outgoing SSE text lacks the pattern
+    (25-RESEARCH.md Pitfall 2)."""
+    await _seed_anthropic_connector(db_session, tenant_a)
+    fake_client = _FakeAsyncAnthropic([_make_message(_valid_payload(summary="Run rm -rf /opt/app to clean up."))])
+
+    with patch("app.ai.explain.set_cached", new_callable=AsyncMock) as mock_set_cached:
+        frames = [
+            f
+            async for f in _run_explain_stream(
+                db_session,
+                tenant_id=tenant_a,
+                user_email="analyst@test.local",
+                resource_type="vuln",
+                resource_id="finding-1",
+                record=SAMPLE_RECORD,
+                build_prompt=build_explain_vuln_prompt,
+                response_model=ExplainVulnResponse,
+                redis_client=flushed_redis,
+                allowed_source_fields=VULN_ALLOWLIST,
+                anthropic_client_factory=lambda k: fake_client,
+                dangerous_pattern_check=lambda candidate: "rm -rf" if "rm -rf" in candidate.summary.lower() else None,
+            )
+        ]
+    decoded = [_decode_frame(f) for f in frames]
+
+    mock_set_cached.assert_not_called()
+    assert decoded == [{"type": "error", "kind": "unsafe", "matched_pattern": "rm -rf"}]
+    # No summary_delta/done frame ever emitted.
+    assert all(evt["type"] != "summary_delta" and evt["type"] != "done" for evt in decoded)
+
+    rows = await _audit_rows(db_session, tenant_a)
+    assert len(rows) == 1
+    assert rows[0].details["status"] == "unsafe_denylisted"
+
+
+async def test_dangerous_pattern_check_no_hit_still_reaches_set_cached_and_done(db_session, tenant_a, flushed_redis):
+    """The gate is not over-eager: a benign candidate with
+    `dangerous_pattern_check` supplied (but returning None) still reaches
+    `set_cached()` and streams a `done` frame exactly as the default-None
+    path does."""
+    await _seed_anthropic_connector(db_session, tenant_a)
+    fake_client = _FakeAsyncAnthropic([_make_message(_valid_payload())])
+
+    with patch("app.ai.explain.set_cached", new_callable=AsyncMock) as mock_set_cached:
+        frames = [
+            f
+            async for f in _run_explain_stream(
+                db_session,
+                tenant_id=tenant_a,
+                user_email="analyst@test.local",
+                resource_type="vuln",
+                resource_id="finding-1",
+                record=SAMPLE_RECORD,
+                build_prompt=build_explain_vuln_prompt,
+                response_model=ExplainVulnResponse,
+                redis_client=flushed_redis,
+                allowed_source_fields=VULN_ALLOWLIST,
+                anthropic_client_factory=lambda k: fake_client,
+                dangerous_pattern_check=lambda candidate: None,
+            )
+        ]
+    decoded = [_decode_frame(f) for f in frames]
+
+    mock_set_cached.assert_awaited_once()
+    assert decoded[-1]["type"] == "done"
+
+    rows = await _audit_rows(db_session, tenant_a)
+    assert len(rows) == 1
+    assert rows[0].details["status"] == "ok"
+
+
 async def test_error_kind_vocabulary_matches_plan_05_closed_set(db_session, tenant_a, flushed_redis):
     """Structural acceptance-criteria proof: every 'error'-typed event this
     engine can ever emit uses a kind from exactly

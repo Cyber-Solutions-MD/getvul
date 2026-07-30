@@ -269,6 +269,7 @@ async def _run_explain_stream(
     allowed_source_fields: frozenset[str] | None = None,
     get_prompt_version: Callable[[], str] = prompt_version,
     anthropic_client_factory: Callable[[str], AsyncAnthropic] | None = None,
+    dangerous_pattern_check: Callable[[ExplainResponseBase], str | None] | None = None,
 ) -> AsyncIterator[bytes]:
     """SHARED buffer-then-validate-then-replay core. Parameterized by
     `build_prompt` + `response_model` (and `allowed_source_fields` /
@@ -280,6 +281,18 @@ async def _run_explain_stream(
     it (the real per-request `AsyncAnthropic(api_key=...)` is used);
     tests inject a fake client/transport here instead of monkeypatching
     module globals.
+
+    `dangerous_pattern_check` (Phase 25 D-04/D-05, additive, default None --
+    a provable no-op for the vuln/host/remediation-posture views, mirroring
+    how `allowed_source_fields=None` was Plan 04's own no-op extension
+    point before Plan 08 gave it real teeth) is the post-generation safety
+    gate: when supplied and it returns a non-None label for the validated
+    `candidate`, the ENTIRE guidance is refused -- audited
+    `status="unsafe_denylisted"`, a single `{"type":"error","kind":"unsafe"}`
+    SSE frame is yielded, and the function returns BEFORE the SUCCESS
+    block's `set_cached()` ever runs (25-RESEARCH.md Pattern 3 / Pitfall 2:
+    a route-layer-only filter would leave the dangerous payload sitting in
+    a real, GET-retrievable cache key).
     """
     model, monthly_cap_usd = await get_model_and_budget(db, tenant_id)
 
@@ -431,6 +444,27 @@ async def _run_explain_stream(
                 )
                 yield _sse_event({"type": "error", "kind": "grounded_false"})
                 return
+
+            if dangerous_pattern_check is not None:
+                matched = dangerous_pattern_check(candidate)
+                if matched is not None:
+                    # D-04: refuse the ENTIRE guidance on any denylist hit --
+                    # terminal, no retry, its own audit status. Runs BEFORE
+                    # set_cached()/the "ok" audit below, so a dangerous
+                    # payload is NEVER written to Redis and NEVER retrievable
+                    # via the GET cache-check (T-25-02, Pitfall 2).
+                    await _audit(
+                        db,
+                        tenant_id=tenant_id,
+                        user_email=user_email,
+                        model=model,
+                        usage=raw_message.usage,
+                        resource_type=resource_type,
+                        resource_id=resource_id,
+                        status="unsafe_denylisted",
+                    )
+                    yield _sse_event({"type": "error", "kind": "unsafe", "matched_pattern": matched})
+                    return
 
             # SUCCESS: schema-valid, business-rules-valid, grounded, no leak
             # marker. Cache + audit BEFORE any byte reaches the browser
