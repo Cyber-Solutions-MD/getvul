@@ -85,6 +85,14 @@ class ExplainRemediationResponse(ExplainResponseBase):
     additional fields — the shared base fully covers this view."""
 
 
+class ExplainRemediationGuidanceResponse(ExplainResponseBase):
+    """The 'remediation guidance' response (AIR-01, Phase 25 Plan 02). No
+    additional fields — cited remediation steps live as prose inside
+    `summary`, exactly as the `ExplainHostResponse`/`ExplainRemediationResponse`
+    variants above already prove is sufficient (D-03: cite-verbatim-first is
+    a citation-ordering/tagging convention, not a new schema field)."""
+
+
 # ── Business-rule re-check gate (AI-SPEC Section 4b Pitfall 4) ──
 #
 # Per-field character ceilings and citation source_field allowlist
