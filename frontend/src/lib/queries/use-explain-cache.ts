@@ -7,7 +7,16 @@ import type { ExplainVulnResponse } from '@/lib/ai/use-explain-stream';
 // use-vulnerability-detail.ts analog: the simplest existing single-GET
 // useQuery shape in the codebase. Unlike use-explain-stream.ts, this one
 // genuinely is a fast, non-streaming GET -- api() is the right tool here.
-export type ExplainCacheResult = { cached: false } | ({ cached: true } & ExplainVulnResponse);
+// Phase 25 (D-01): the /explain-remediation-guidance GET route additively
+// returns `groundable` on a cache miss (the D-01 deterministic pre-
+// generation-gate pre-signal, so the client can render the
+// insufficient-evidence card before any click) -- every OTHER existing GET
+// route still returns exactly `{ cached: false }` with no `groundable` key,
+// so this field stays optional and the component must check `=== false`
+// explicitly, never treat a missing field as falsy-refusal.
+export type ExplainCacheResult =
+  | { cached: false; groundable?: boolean }
+  | ({ cached: true } & ExplainVulnResponse);
 
 /**
  * useExplainCache(resourceType, resourceId) -- the cheap cache-check (D-09):

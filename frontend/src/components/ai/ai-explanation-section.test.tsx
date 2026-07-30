@@ -444,3 +444,129 @@ describe('headingId prop (D-15 multi-mount DOM-id safety, Task 2)', () => {
     expect(document.getElementById('drill-ai-h')).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 25 Plan 04 Task 1: the two NEW typed states (danger safety-refusal
+// + neutral insufficient-evidence) and the groundable pre-refusal branch,
+// all scoped to resourceType='remediation-guidance' per 25-UI-SPEC.md.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('resourceType="remediation-guidance": danger safety-refusal card (D-04/T-25-02)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('kind=unsafe renders the danger card with LOCKED copy and no action button', () => {
+    setDefaults({ stream: { state: { phase: 'error', kind: 'unsafe' }, start: mockStart } });
+    const { container } = render(
+      <AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" headingId="drill-remediation-guidance-h" />,
+    );
+    expect(screen.getByText('This guidance was withheld for safety')).toBeInTheDocument();
+    expect(
+      screen.getByText(/The generated steps included a pattern GetVul treats as too risky/),
+    ).toBeInTheDocument();
+    expect(container.querySelector('[class*="danger"]')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /withheld|safety/i })).toBeNull();
+  });
+
+  it('the danger card is visually distinct from the neutral insufficient-evidence card (Pitfall 3 -- never conflated)', () => {
+    setDefaults({ stream: { state: { phase: 'error', kind: 'unsafe' }, start: mockStart } });
+    const { container: dangerContainer, unmount: unmountDanger } = render(
+      <AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" />,
+    );
+    expect(dangerContainer.querySelector('[class*="danger"]')).not.toBeNull();
+    expect(dangerContainer.querySelector('.bg-violet-soft')).toBeNull();
+    expect(screen.queryByText('Not enough vendor guidance to recommend a fix')).toBeNull();
+    unmountDanger();
+
+    setDefaults({
+      cache: { data: { cached: false, groundable: false }, isPending: false, isError: false },
+    });
+    const { container: neutralContainer, unmount: unmountNeutral } = render(
+      <AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" />,
+    );
+    expect(neutralContainer.querySelector('[class*="danger"]')).toBeNull();
+    expect(neutralContainer.querySelector('.bg-violet-soft')).not.toBeNull();
+    expect(screen.getByText('Not enough vendor guidance to recommend a fix')).toBeInTheDocument();
+    expect(screen.queryByText('This guidance was withheld for safety')).toBeNull();
+    unmountNeutral();
+  });
+});
+
+describe('resourceType="remediation-guidance": groundable pre-refusal branch (D-01/UI-SPEC state 3)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('cache-miss + groundable=== false renders the insufficient-evidence card with NO trigger button, before any click', () => {
+    setDefaults({
+      cache: { data: { cached: false, groundable: false }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" />);
+    expect(screen.getByText('Not enough vendor guidance to recommend a fix')).toBeInTheDocument();
+    expect(
+      screen.getByText(/The scanner didn't provide usable solution text for this finding/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Get remediation guidance' })).toBeNull();
+  });
+
+  it('cache-miss + groundable=== undefined (vuln/host/remediation GET routes never return it) still shows the trigger', () => {
+    setDefaults({
+      role: 'ANALYST',
+      cache: { data: { cached: false }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" />);
+    expect(screen.getByRole('button', { name: 'Get remediation guidance' })).toBeInTheDocument();
+    expect(screen.queryByText('Not enough vendor guidance to recommend a fix')).toBeNull();
+  });
+
+  it('cache-miss + groundable=== true still shows the trigger (only === false suppresses it)', () => {
+    setDefaults({
+      role: 'ANALYST',
+      cache: { data: { cached: false, groundable: true }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" />);
+    expect(screen.getByRole('button', { name: 'Get remediation guidance' })).toBeInTheDocument();
+  });
+});
+
+describe('resourceType="remediation-guidance": locked copy (section header + CTA + viewer text, D-06)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('renders "Remediation guidance" as the section header (distinct from "AI Explanation")', () => {
+    render(<AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" headingId="drill-remediation-guidance-h" />);
+    expect(document.getElementById('drill-remediation-guidance-h')).toHaveTextContent('Remediation guidance');
+    expect(screen.queryByText('AI Explanation')).toBeNull();
+  });
+
+  it('role=Analyst, cache-miss, groundable known-true renders the "Get remediation guidance" trigger, not "Explain this vuln"', () => {
+    setDefaults({
+      role: 'ANALYST',
+      cache: { data: { cached: false, groundable: true }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" />);
+    expect(screen.getByRole('button', { name: 'Get remediation guidance' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Explain this vuln' })).toBeNull();
+  });
+
+  it('role=Viewer, cache-miss renders "No remediation guidance generated yet." (noun swapped, D-17 inherited)', () => {
+    setDefaults({ role: 'VIEWER' });
+    render(<AiExplanationSection resourceType="remediation-guidance" resourceId="finding-1" />);
+    expect(screen.getByText('No remediation guidance generated yet.')).toBeInTheDocument();
+    expect(screen.queryByText('No AI explanation generated yet.')).toBeNull();
+  });
+
+  it('vuln/host/remediation views are unaffected: still "AI Explanation" / "Explain this vuln" / "No AI explanation generated yet."', () => {
+    const first = render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(document.getElementById('drill-ai-h')).toHaveTextContent('AI Explanation');
+    first.unmount();
+    setDefaults({ role: 'ANALYST' });
+    render(<AiExplanationSection resourceType="host" resourceId="host-1" headingId="h2" />);
+    expect(screen.getByRole('button', { name: 'Explain this vuln' })).toBeInTheDocument();
+  });
+});

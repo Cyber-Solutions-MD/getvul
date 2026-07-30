@@ -36,10 +36,14 @@ export type ExplainStreamState =
   | { phase: 'idle' }
   | { phase: 'analyzing' }
   | { phase: 'done'; data: ExplainVulnResponse }
-  | { phase: 'error'; kind: 'busy' | 'grounded_false' | 'budget_exceeded' | 'unknown' };
+  | { phase: 'error'; kind: 'busy' | 'grounded_false' | 'budget_exceeded' | 'unknown' | 'unsafe' };
 
 type DoneEvent = { type: 'done' } & ExplainVulnResponse;
-type ErrorEvent = { type: 'error'; kind: 'busy' | 'grounded_false' | 'budget_exceeded' | 'unknown' };
+// Phase 25 (D-04): 'unsafe' is the dangerous-pattern-denylist-hit SSE kind
+// emitted by explain.py's dangerous_pattern_check gate (25-03) -- both this
+// standalone type AND ExplainStreamState's error branch above are
+// hand-synced (no shared alias), so an additive kind must touch both.
+type ErrorEvent = { type: 'error'; kind: 'busy' | 'grounded_false' | 'budget_exceeded' | 'unknown' | 'unsafe' };
 type SummaryDeltaEvent = { type: 'summary_delta'; text: string };
 type NoKeyEvent = { type: 'no_key' };
 type RawSseEvent = DoneEvent | ErrorEvent | SummaryDeltaEvent | NoKeyEvent;

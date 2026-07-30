@@ -28,19 +28,30 @@ const SECONDARY_BTN_CLASS =
   'inline-flex w-fit items-center justify-center gap-1.5 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet';
 
 type DegradedCardProps = {
-  variant: 'neutral' | 'amber';
+  variant: 'neutral' | 'amber' | 'danger';
   heading: string;
   body: string;
   action?: { label: string; onClick?: () => void; href?: string };
 };
 
 function DegradedCard({ variant, heading, body, action }: DegradedCardProps) {
+  // Phase 25 UI-SPEC §Color: the `danger` variant reuses the EXACT
+  // `border-danger bg-danger-soft text-danger` token combo already
+  // established in ticket-provider-picker.tsx's error alert -- no new hex,
+  // no new utility class. This is the ONE new color usage this phase
+  // introduces, deliberately reserved for the safety-refusal card (Pitfall
+  // 3: must never be visually confusable with the neutral/violet
+  // insufficient-evidence card).
   const chipClass =
-    variant === 'amber' ? 'bg-amber-soft text-[var(--color-amber-on-soft)]' : 'bg-violet-soft text-[var(--color-violet-on-soft)]';
+    variant === 'amber'
+      ? 'bg-amber-soft text-[var(--color-amber-on-soft)]'
+      : variant === 'danger'
+        ? 'border border-danger bg-danger-soft text-danger'
+        : 'bg-violet-soft text-[var(--color-violet-on-soft)]';
   return (
     <div role="status" className="rounded-lg border border-border-subtle bg-surface-2 p-5">
       <div className={cn('mb-3 flex h-8 w-8 items-center justify-center rounded-full', chipClass)}>
-        {variant === 'amber' ? (
+        {variant === 'amber' || variant === 'danger' ? (
           <AlertTriangle className="h-4 w-4" aria-hidden="true" />
         ) : (
           <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -109,6 +120,37 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
 
   const prereqsPending = cacheQuery.isPending || statusQuery.isPending;
 
+  // Phase 25 (D-06): "Remediation guidance" is a genuinely distinct
+  // affordance from "Explain this vuln"/host/remediation-posture -- its own
+  // trigger and its own cite-or-refuse output (CONTEXT D-06) -- so its
+  // header/CTA/viewer-empty copy is locked verbatim in 25-UI-SPEC.md's
+  // Copywriting Contract, distinct from the three original resourceTypes
+  // this component already serves identically (D-15 three-view parity is
+  // unaffected: it only ever governed vuln/host/remediation, never this 4th,
+  // categorically different view). Every other card (no-key D-23, busy/
+  // unknown D-25, budget-exceeded) stays byte-identical across all views.
+  const isRemediationGuidance = resourceType === 'remediation-guidance';
+  const heading = isRemediationGuidance ? 'Remediation guidance' : 'AI Explanation';
+  const triggerLabel = isRemediationGuidance ? 'Get remediation guidance' : 'Explain this vuln';
+  const viewerEmptyText = isRemediationGuidance
+    ? 'No remediation guidance generated yet.'
+    : 'No AI explanation generated yet.';
+  // UI-SPEC state 8 renders the SAME card as state 3 (the model's own
+  // grounded=false judgment and the deterministic pre-generation gate both
+  // refuse into one honest card, D-02) -- this single copy source backs
+  // every "insufficient evidence" render site below (done+!grounded,
+  // kind===grounded_false, cached+!grounded, AND the new groundable===false
+  // pre-refusal branch), so all four stay in lockstep for this resourceType.
+  const insufficientEvidenceCopy = isRemediationGuidance
+    ? {
+        heading: 'Not enough vendor guidance to recommend a fix',
+        body: "The scanner didn't provide usable solution text for this finding — the assistant needs the vendor's own remediation text to ground safe, actionable steps. It declined to guess rather than invent one.",
+      }
+    : {
+        heading: 'Not enough finding data to explain this reliably',
+        body: 'The correlated record is missing detail — CVE description, CVSS vector, or host context — the assistant needs to ground a faithful explanation. It declined to guess.',
+      };
+
   let body: ReactNode;
 
   if (prereqsPending) {
@@ -124,11 +166,7 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
     // grounded=false here -- the real engine never emits 'done' for an
     // ungrounded response, but this never trusts that invariant blindly.
     body = !state.data.grounded ? (
-      <DegradedCard
-        variant="neutral"
-        heading="Not enough finding data to explain this reliably"
-        body="The correlated record is missing detail — CVE description, CVSS vector, or host context — the assistant needs to ground a faithful explanation. It declined to guess."
-      />
+      <DegradedCard variant="neutral" heading={insufficientEvidenceCopy.heading} body={insufficientEvidenceCopy.body} />
     ) : (
       <>
         <AiExplanationCitations data={state.data} animateReveal={!prefersReducedMotion} />
@@ -157,21 +195,25 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
     );
   } else if (state.phase === 'error' && state.kind === 'grounded_false') {
     // D-24: a feature, not an error -- neutral/violet, never amber/red.
+    body = <DegradedCard variant="neutral" heading={insufficientEvidenceCopy.heading} body={insufficientEvidenceCopy.body} />;
+  } else if (state.phase === 'error' && state.kind === 'unsafe') {
+    // Phase 25 D-04/T-25-02: a dangerous-pattern denylist hit refuses the
+    // ENTIRE guidance -- danger/red, the ONE new color usage this phase
+    // introduces, deliberately never confusable with the neutral
+    // insufficient-evidence card above (Pitfall 3). The engine (25-03)
+    // never cached or streamed the dangerous payload -- this branch never
+    // receives or renders it, only the refusal.
     body = (
       <DegradedCard
-        variant="neutral"
-        heading="Not enough finding data to explain this reliably"
-        body="The correlated record is missing detail — CVE description, CVSS vector, or host context — the assistant needs to ground a faithful explanation. It declined to guess."
+        variant="danger"
+        heading="This guidance was withheld for safety"
+        body="The generated steps included a pattern GetVul treats as too risky to surface automatically (for example, a destructive command or disabling a security control). Nothing was shown — see the Remediation section above for the scanner's own solution text."
       />
     );
   } else if (cacheQuery.data?.cached === true) {
     const cached = cacheQuery.data;
     body = !cached.grounded ? (
-      <DegradedCard
-        variant="neutral"
-        heading="Not enough finding data to explain this reliably"
-        body="The correlated record is missing detail — CVE description, CVSS vector, or host context — the assistant needs to ground a faithful explanation. It declined to guess."
-      />
+      <DegradedCard variant="neutral" heading={insufficientEvidenceCopy.heading} body={insufficientEvidenceCopy.body} />
     ) : (
       // D-09: a cache hit on mount renders immediately -- no replay
       // animation (that's reserved for the just-clicked -> analyzing ->
@@ -195,16 +237,26 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
         action={isAdminOrOwner ? { label: 'Configure AI', href: '/dashboard/connectors' } : undefined}
       />
     );
+  } else if (cacheQuery.data?.cached === false && cacheQuery.data?.groundable === false) {
+    // Phase 25 D-01/UI-SPEC state 3: the deterministic pre-generation gate
+    // already knows this finding has no usable vendor guidance -- the
+    // client never offers an action that's already known to be
+    // unsatisfiable, so no button ever renders here and no model call is
+    // spent (T-25-09). Checked `=== false` explicitly, not falsy: the
+    // vuln/host/remediation-posture GET routes never return `groundable` at
+    // all, so their cache-miss mounts fall through to the trigger below
+    // completely unaffected.
+    body = <DegradedCard variant="neutral" heading={insufficientEvidenceCopy.heading} body={insufficientEvidenceCopy.body} />;
   } else if (isAnalystOrAbove) {
     // D-17: only Analyst+ ever sees the paid-call trigger.
     body = (
       <button type="button" onClick={() => void start()} className={SECONDARY_BTN_CLASS}>
-        Explain this vuln
+        {triggerLabel}
       </button>
     );
   } else {
     // D-17: Viewers never trigger a paid call -- muted text, no button.
-    body = <p className="text-sm text-text-muted">No AI explanation generated yet.</p>;
+    body = <p className="text-sm text-text-muted">{viewerEmptyText}</p>;
   }
 
   // The wrapping <section aria-labelledby={headingId}> landmark is owned by
@@ -216,7 +268,7 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
   return (
     <>
       <h4 id={headingId} className={H4_CLASS}>
-        AI Explanation
+        {heading}
       </h4>
       {body}
     </>
