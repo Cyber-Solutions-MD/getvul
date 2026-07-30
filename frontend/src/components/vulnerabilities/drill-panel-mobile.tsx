@@ -6,6 +6,7 @@ import { DrillContent } from './drill-content';
 import { TicketProviderPicker } from './ticket-provider-picker';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { microcopy } from './microcopy';
+import { Textarea } from '@/components/ui/textarea';
 
 // UX-03-06 + D-P-03 — mobile bottom-sheet variant of the drill panel.
 // Renders ONLY at <900px (Pitfall 3 — desktop branch covers >=900px).
@@ -106,6 +107,8 @@ export function DrillPanelMobile({ cveId, id, idKey, renderContent, ariaLabel }:
                     cveLabel,
                     ticketProvider,
                     onProviderChange,
+                    description,
+                    onDescriptionChange,
                   }) => {
                     if (!confirmOpen) return null;
                     // Pitfall 7 — nested confirmation inside the drawer. Vaul's
@@ -140,6 +143,27 @@ export function DrillPanelMobile({ cveId, id, idKey, renderContent, ariaLabel }:
                             <TicketProviderPicker
                               value={ticketProvider}
                               onChange={onProviderChange}
+                            />
+                          </div>
+                          {/* Phase 25 (AIR-02): mirrors the desktop
+                              ConfirmModal insertion -- same relative
+                              position (between the provider picker and the
+                              action row), same LOCKED caption/placeholder.
+                              Mobile builds its own Drawer.NestedRoot markup
+                              (Pitfall 5), never imports ConfirmModal. */}
+                          <div className="mt-4">
+                            <label
+                              htmlFor="ticket-description-textarea-mobile"
+                              className="mb-1 block text-xs font-medium text-text-muted"
+                            >
+                              Pre-filled from remediation guidance — review and edit before creating.
+                            </label>
+                            <Textarea
+                              id="ticket-description-textarea-mobile"
+                              value={description}
+                              onChange={(e) => onDescriptionChange(e.target.value)}
+                              placeholder="No remediation guidance yet — add a description or leave blank."
+                              rows={4}
                             />
                           </div>
                           <div className="mt-4 flex justify-end gap-2">

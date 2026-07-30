@@ -208,4 +208,71 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
     fireEvent.click(confirmBtn);
     expect(mockMutateAsync).not.toHaveBeenCalled();
   });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 25 Plan 07 Task 3 (AIR-02, Pitfall 5): the mobile renderConfirm
+  // path is a SEPARATE code path from desktop's ConfirmModal -- proving the
+  // desktop textarea threads correctly (drill-panel.test.tsx) says nothing
+  // about mobile. These tests mirror the desktop mutation-boundary proof
+  // for this divergent path.
+  // ───────────────────────────────────────────────────────────────────────
+
+  it('renders the description Textarea between the TicketProviderPicker and the Cancel/Confirm row, with LOCKED caption + placeholder, starting empty', () => {
+    setMatchMedia(true);
+    render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+    fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+    const dialogs = screen.getAllByRole('dialog');
+    const nestedConfirm = dialogs[dialogs.length - 1];
+
+    expect(
+      within(nestedConfirm).getByText('Pre-filled from remediation guidance — review and edit before creating.'),
+    ).toBeInTheDocument();
+    const textarea = within(nestedConfirm).getByPlaceholderText(
+      'No remediation guidance yet — add a description or leave blank.',
+    ) as HTMLTextAreaElement;
+    expect(textarea.value).toBe('');
+
+    // Document-order: picker < textarea < Cancel/Confirm row.
+    const picker = within(nestedConfirm).getByRole('radiogroup', { name: 'Ticketing provider' });
+    const cancelBtn = within(nestedConfirm).getByRole('button', { name: 'Cancel' });
+    const positions = [picker, textarea, cancelBtn].map((el) =>
+      Array.from(nestedConfirm.querySelectorAll('*')).indexOf(el),
+    );
+    expect(positions[0]).toBeLessThan(positions[1]);
+    expect(positions[1]).toBeLessThan(positions[2]);
+  });
+
+  it('typing into the mobile textarea and confirming threads the description into createTicket.mutateAsync body', () => {
+    setMatchMedia(true);
+    render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+    fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+    const dialogs = screen.getAllByRole('dialog');
+    const nestedConfirm = dialogs[dialogs.length - 1];
+    const textarea = within(nestedConfirm).getByPlaceholderText(
+      'No remediation guidance yet — add a description or leave blank.',
+    );
+    fireEvent.change(textarea, { target: { value: 'Patch xz to 5.4.x per vendor advisory.' } });
+
+    const confirmBtn = within(nestedConfirm).getByRole('button', { name: /create ticket/i });
+    fireEvent.click(confirmBtn);
+
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'Patch xz to 5.4.x per vendor advisory.' }),
+    );
+  });
+
+  it('leaving the mobile textarea blank threads description: undefined into the mutation body (mobile mirrors desktop, never a silent skip)', () => {
+    setMatchMedia(true);
+    render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+    fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+    const dialogs = screen.getAllByRole('dialog');
+    const nestedConfirm = dialogs[dialogs.length - 1];
+    const confirmBtn = within(nestedConfirm).getByRole('button', { name: /create ticket/i });
+    fireEvent.click(confirmBtn);
+
+    expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ description: undefined }));
+  });
 });
