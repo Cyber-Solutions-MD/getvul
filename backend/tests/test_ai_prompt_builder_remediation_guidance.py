@@ -68,21 +68,24 @@ def test_remediation_guidance_allowlist_has_12_fields_no_owner_pii() -> None:
         "department",
     }
     assert REMEDIATION_GUIDANCE_ALLOWLIST.isdisjoint(owner_pii_fields)
-    assert REMEDIATION_GUIDANCE_ALLOWLIST == frozenset(
-        {
-            "cve_id",
-            "severity",
-            "exploit_available",
-            "cisa_kev",
-            "remediation_action",
-            "remediation_info",
-            "affected_product",
-            "affected_version",
-            "fixed_version",
-            "asset_hostname",
-            "os_name",
-            "os_version",
-        }
+    assert (
+        frozenset(
+            {
+                "cve_id",
+                "severity",
+                "exploit_available",
+                "cisa_kev",
+                "remediation_action",
+                "remediation_info",
+                "affected_product",
+                "affected_version",
+                "fixed_version",
+                "asset_hostname",
+                "os_name",
+                "os_version",
+            }
+        )
+        == REMEDIATION_GUIDANCE_ALLOWLIST
     )
 
 
