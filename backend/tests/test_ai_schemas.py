@@ -21,7 +21,10 @@ from app.ai.schemas import (
     MAX_BUSINESS_RISK_CHARS,
     MAX_SUMMARY_CHARS,
     BusinessRuleError,
+    Citation,
     CitationSource,
+    ExplainRemediationGuidanceResponse,
+    ExplainResponseBase,
     ExplainVulnResponse,
     recheck_business_rules,
 )
@@ -166,3 +169,45 @@ def test_recheck_business_rules_allows_source_field_without_allowlist_param() ->
     check runs — the char-budget checks still apply regardless."""
     resp = ExplainVulnResponse.model_validate(_valid_payload())
     recheck_business_rules(resp)  # must not raise; no allowlist was supplied
+
+
+# ── ExplainRemediationGuidanceResponse (25-02 Task 1): zero-new-fields
+# variant + D4 substring-provenance property test (25-AI-SPEC.md Section 5,
+# 25-RESEARCH.md Pattern 6) ──
+
+
+def test_remediation_guidance_response_has_zero_new_fields() -> None:
+    """ExplainRemediationGuidanceResponse mirrors ExplainHostResponse's
+    zero-new-fields shape (D-03) — cited steps live as prose inside
+    `summary`, never a new dedicated field."""
+    assert set(ExplainRemediationGuidanceResponse.model_fields.keys()) == set(
+        ExplainResponseBase.model_fields.keys()
+    )
+    resp = ExplainRemediationGuidanceResponse.model_validate(_valid_payload())
+    assert resp.grounded is True
+
+
+def test_scanner_verbatim_citation_is_substring_of_source_field() -> None:
+    """D4 (24-AI-SPEC.md Section 5): a scanner_verbatim citation's text must
+    actually appear in the grounding record field it claims to cite — the
+    concrete 'don't drift from the scanner source' check (25-RESEARCH.md
+    Pattern 6)."""
+    record = {
+        "remediation_action": "Upgrade OpenSSL to 3.0.14 or later.",
+        "cve_id": "CVE-2024-12345",
+    }
+    resp = ExplainRemediationGuidanceResponse(
+        summary="Upgrade OpenSSL to 3.0.14 or later.",
+        business_risk="Patch this to close the exposure window.",
+        citations=[
+            Citation(
+                text="Upgrade OpenSSL to 3.0.14 or later.",
+                source=CitationSource.SCANNER_VERBATIM,
+                source_field="remediation_action",
+            ),
+        ],
+        grounded=True,
+    )
+    for citation in resp.citations:
+        if citation.source == CitationSource.SCANNER_VERBATIM and citation.source_field is not None:
+            assert citation.text in str(record[citation.source_field])
