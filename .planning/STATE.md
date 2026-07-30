@@ -5,14 +5,14 @@ milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 25
 current_phase_name: Asset-Aware Remediation Guidance
 status: Gap closure complete — Phase 24 pending re-verification
-stopped_at: Completed 24-10-PLAN.md (gap closure — D-23 no-key role-gating fixed)
-last_updated: "2026-07-29T14:54:53.154Z"
+stopped_at: Phase 25 context gathered
+last_updated: "2026-07-30T07:37:33.226Z"
 progress:
-  total_phases: 23
+  total_phases: 24
   completed_phases: 23
   total_plans: 113
   completed_plans: 113
-  percent: 100
+  percent: 96
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -221,6 +221,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-07-29T14:34:00.000Z
-**Stopped at:** Completed 24-10-PLAN.md (gap closure — D-23 no-key role-gating fixed)
-**Resume file:** None
+**Last session:** 2026-07-30T07:37:33.185Z
+**Stopped at:** Phase 25 context gathered
+**Resume file:** .planning/phases/25-asset-aware-remediation-guidance/25-CONTEXT.md
