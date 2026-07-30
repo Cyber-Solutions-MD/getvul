@@ -73,6 +73,22 @@ function DegradedCard({ variant, heading, body, action }: DegradedCardProps) {
   );
 }
 
+// Phase 25 (AIR-02) UI-SPEC §Interaction Contract "Remediation guidance"
+// section, Visual hierarchy: the cited prose is the focal read; this
+// text-button is deliberately subordinate (12px label weight, no fill) --
+// beneath the citations, above AiFeedbackControl.
+function CopyToDescriptionButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-3 block text-xs font-medium text-text-muted underline-offset-2 hover:text-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+    >
+      Copy into ticket description
+    </button>
+  );
+}
+
 function AnalyzingIndicator() {
   return (
     <div className="flex items-center gap-2 text-sm text-text-muted">
@@ -98,9 +114,25 @@ type Props = {
    * mount site must pass its own unique id.
    */
   headingId?: string;
+  /**
+   * Phase 25 (AIR-02): fires the plain-text-flattened `summary` string
+   * (never tinted/citation HTML, T-25-11) up to the caller when the
+   * analyst clicks "Copy into ticket description" -- rendered ONLY in the
+   * grounded-done/cache-hit branches (state 1/7), never in any degraded/
+   * refuse/loading state. Omitted by every mount except drill-content.tsx's
+   * resourceType="remediation-guidance" mount, so vuln/host/remediation
+   * mounts render no button (D-09 scope fence: this affordance is specific
+   * to the remediation-guidance view).
+   */
+  onCopyToDescription?: (text: string) => void;
 };
 
-export function AiExplanationSection({ resourceType, resourceId, headingId = 'drill-ai-h' }: Props) {
+export function AiExplanationSection({
+  resourceType,
+  resourceId,
+  headingId = 'drill-ai-h',
+  onCopyToDescription,
+}: Props) {
   const { user } = useAuth();
   const role = user?.role ?? 'VIEWER';
   const isAdminOrOwner = role === 'OWNER' || role === 'ADMIN';
@@ -170,6 +202,9 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
     ) : (
       <>
         <AiExplanationCitations data={state.data} animateReveal={!prefersReducedMotion} />
+        {onCopyToDescription && (
+          <CopyToDescriptionButton onClick={() => onCopyToDescription(state.data.summary)} />
+        )}
         <AiFeedbackControl resourceType={resourceType} resourceId={resourceId} />
       </>
     );
@@ -220,6 +255,9 @@ export function AiExplanationSection({ resourceType, resourceId, headingId = 'dr
       // done transition, D-12).
       <>
         <AiExplanationCitations data={cached} animateReveal={false} />
+        {onCopyToDescription && (
+          <CopyToDescriptionButton onClick={() => onCopyToDescription(cached.summary)} />
+        )}
         <AiFeedbackControl resourceType={resourceType} resourceId={resourceId} />
       </>
     );

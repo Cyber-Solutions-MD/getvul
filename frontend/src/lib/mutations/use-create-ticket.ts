@@ -10,6 +10,12 @@ export type CreateTicketRequest = {
   project_key?: string;
   assignee?: string;
   due_days?: number;
+  // Phase 25 (AIR-02, Plan 06 backend contract): analyst-reviewed
+  // description, threaded verbatim into TicketCreateRequest.description
+  // (≤10000 chars, whitespace-coerces-to-None server-side). Omitted or
+  // undefined preserves the existing auto-built ticket body unchanged
+  // (D-09 scope fence -- description-only, no title/asset-context here).
+  description?: string;
 };
 
 export type CreateTicketResponse = {

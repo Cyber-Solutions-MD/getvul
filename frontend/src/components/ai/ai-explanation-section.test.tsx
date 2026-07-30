@@ -570,3 +570,95 @@ describe('resourceType="remediation-guidance": locked copy (section header + CTA
     expect(screen.getByRole('button', { name: 'Explain this vuln' })).toBeInTheDocument();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 25 Plan 07 Task 1 (AIR-02): the "Copy into ticket description"
+// text-button. Renders ONLY in the grounded-done and cache-hit branches
+// (state 1/7), calls onCopyToDescription with the plain-text `summary`
+// string, and is absent whenever the prop is omitted or the section is in
+// any degraded/refuse/loading state.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('"Copy into ticket description" affordance (Plan 07 Task 1, AIR-02)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('grounded-done branch: renders the button and calls onCopyToDescription with the plain-text summary', () => {
+    const onCopyToDescription = vi.fn();
+    setDefaults({ stream: { state: { phase: 'done', data: VALIDATED_DATA }, start: mockStart } });
+    render(
+      <AiExplanationSection
+        resourceType="remediation-guidance"
+        resourceId="finding-1"
+        onCopyToDescription={onCopyToDescription}
+      />,
+    );
+    const btn = screen.getByRole('button', { name: 'Copy into ticket description' });
+    btn.click();
+    expect(onCopyToDescription).toHaveBeenCalledWith(VALIDATED_DATA.summary);
+  });
+
+  it('cache-hit branch: renders the button and calls onCopyToDescription with the cached plain-text summary', () => {
+    const onCopyToDescription = vi.fn();
+    setDefaults({
+      cache: { data: { cached: true, ...VALIDATED_DATA }, isPending: false, isError: false },
+    });
+    render(
+      <AiExplanationSection
+        resourceType="remediation-guidance"
+        resourceId="finding-1"
+        onCopyToDescription={onCopyToDescription}
+      />,
+    );
+    const btn = screen.getByRole('button', { name: 'Copy into ticket description' });
+    btn.click();
+    expect(onCopyToDescription).toHaveBeenCalledWith(VALIDATED_DATA.summary);
+  });
+
+  it('is absent when onCopyToDescription is omitted, even in the grounded-done branch (e.g. the vuln/host/remediation-posture mounts)', () => {
+    setDefaults({ stream: { state: { phase: 'done', data: VALIDATED_DATA }, start: mockStart } });
+    render(<AiExplanationSection resourceType="vuln" resourceId="abc-123" />);
+    expect(screen.queryByRole('button', { name: 'Copy into ticket description' })).toBeNull();
+  });
+
+  it('is absent in the safety-refusal (unsafe) degraded state, even when the prop is passed', () => {
+    const onCopyToDescription = vi.fn();
+    setDefaults({ stream: { state: { phase: 'error', kind: 'unsafe' }, start: mockStart } });
+    render(
+      <AiExplanationSection
+        resourceType="remediation-guidance"
+        resourceId="finding-1"
+        onCopyToDescription={onCopyToDescription}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Copy into ticket description' })).toBeNull();
+  });
+
+  it('is absent in the insufficient-evidence (grounded_false) degraded state, even when the prop is passed', () => {
+    const onCopyToDescription = vi.fn();
+    setDefaults({ stream: { state: { phase: 'error', kind: 'grounded_false' }, start: mockStart } });
+    render(
+      <AiExplanationSection
+        resourceType="remediation-guidance"
+        resourceId="finding-1"
+        onCopyToDescription={onCopyToDescription}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Copy into ticket description' })).toBeNull();
+  });
+
+  it('is absent while loading/analyzing, even when the prop is passed', () => {
+    const onCopyToDescription = vi.fn();
+    setDefaults({ stream: { state: { phase: 'analyzing' }, start: mockStart } });
+    render(
+      <AiExplanationSection
+        resourceType="remediation-guidance"
+        resourceId="finding-1"
+        onCopyToDescription={onCopyToDescription}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Copy into ticket description' })).toBeNull();
+  });
+});
