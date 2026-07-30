@@ -18,6 +18,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.assets.models import Asset
@@ -107,6 +108,45 @@ def _seed_connector(tenant_id, provider: str, *, enabled: bool = True) -> Connec
         credentials_secret_arn=__import__("json").dumps({k: encrypt_value(v) for k, v in creds.items()}),
         config=config,
     )
+
+
+# ── Task 1: TicketCreateRequest.description field (AIR-02, T-25-06) ─────────
+
+
+def test_ticket_create_request_description_whitespace_only_coerces_to_none():
+    """A whitespace-only description never raises — the field is optional
+    (D-08) — it simply normalizes to None."""
+    request = TicketCreateRequest(
+        vulnerability_ids=[uuid.uuid4()], provider="ASANA", description="   \n\t  "
+    )
+    assert request.description is None
+
+
+def test_ticket_create_request_description_over_max_length_raises():
+    with pytest.raises(ValidationError):
+        TicketCreateRequest(
+            vulnerability_ids=[uuid.uuid4()], provider="ASANA", description="x" * 10001
+        )
+
+
+def test_ticket_create_request_description_omitted_is_valid():
+    request = TicketCreateRequest(vulnerability_ids=[uuid.uuid4()], provider="ASANA")
+    assert request.description is None
+
+
+def test_ticket_create_request_description_valid_text_is_kept_verbatim_after_strip():
+    request = TicketCreateRequest(
+        vulnerability_ids=[uuid.uuid4()], provider="ASANA", description="  Do the fix  "
+    )
+    assert request.description == "Do the fix"
+
+
+def test_ticket_create_request_description_unknown_field_rejected():
+    """extra='forbid' mass-assignment defense (T-25-06, ASVS V5)."""
+    with pytest.raises(ValidationError):
+        TicketCreateRequest(
+            vulnerability_ids=[uuid.uuid4()], provider="ASANA", not_a_real_field="x"
+        )
 
 
 # ── Task 1: service.py create-path dispatch (D-07) ───────────────────────────
