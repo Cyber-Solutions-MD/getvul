@@ -1,18 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
-current_phase: 25
-current_phase_name: Asset-Aware Remediation Guidance
+milestone_name: AI-Assisted Triage (\"Triage Copilot\")
 status: Gap closure complete — Phase 24 pending re-verification
-stopped_at: Phase 25 UI-SPEC approved
-last_updated: "2026-07-30T07:47:18.364Z"
+stopped_at: Completed 25-01-PLAN.md
+last_updated: "2026-07-30T09:34:59.514Z"
 progress:
-  total_phases: 24
-  completed_phases: 23
-  total_plans: 113
-  completed_plans: 113
-  percent: 96
+  total_phases: 8
+  completed_phases: 2
+  total_plans: 28
+  completed_plans: 22
+  percent: 25
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -23,15 +21,15 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 adds AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 24 — ai-foundation-explain-this-vuln
+**Current focus:** Phase 25 — asset-aware-remediation-guidance
 
 ## Current Position
 
 Milestone: v3.0 AI-Assisted Triage — 🚧 EXECUTING Phase 24 (started 2026-07-29). Model: Claude (Haiku 4.5 / Sonnet 5 / Opus 4.8 — re-check Models API at Phase 24/26 execution time per research/SUMMARY.md's currency flag), per-tenant configurable.
-Phase: 25 — Asset-Aware Remediation Guidance
+Phase: 25 (asset-aware-remediation-guidance) — EXECUTING
 Next: Re-verify Phase 24 (`/gsd-verify-work 24` or equivalent) to confirm 24-VERIFICATION.md's truth #2 now passes for all 4 roles. Gap-closure plan 24-10 (2026-07-29) added `GET /api/v1/ai/status` (require_viewer, tenant-scoped, derived from get_tenant_anthropic_key) + a `useAiStatus()` hook, replacing the `connectorsQuery.isError ? true : ...` optimistic pass-through so Analyst/Viewer now get a real "is AI configured" signal instead of the admin-gated connectors query's 403 being misread as "assume configured". Separately, 4 live-verification items remain WAIVED (user chose proceed-on-trust at 24-06): AI-03 nginx anti-buffering (proxy_buffering off IS in nginx.conf, unobserved live), live wizard→explain→cache→audit flow, D-25 live 429 card, reduced-motion/contrast — these are unaffected by 24-10's scope and remain addressable via `/gsd-verify-work 24`.
 Prior: v2.2 Deferred UI Features — ✅ SHIPPED & ARCHIVED 2026-07-22 (Phases 16–22). All of v1.0, v2.0, v2.1, v2.2 shipped. 2026-07-25: local `main` pushed to origin (CI green); code-review-fix reconciliation of stale phase reviews 01–22 landed; SSH-hardening draft PR #29 open (gated on GCE_KNOWN_HOSTS); Dependabot 11 alerts cleared. 2026-07-25: v3.0 requirements defined (`.planning/REQUIREMENTS.md`) + research completed (`.planning/research/SUMMARY.md`, confidence MEDIUM-HIGH). 2026-07-27: roadmap defined — 21/21 v1 requirements mapped to Phases 23–28. 2026-07-28: Phase 23 (Ingestion Reliability Precursor) shipped 11/11 plans; Phase 24 planned (9 plans, 8 waves, tracer-first). 2026-07-29: Phase 24 Plans 01-03 shipped (SSE spike + ANTHROPIC connector type; schema/prompt/audit contracts; tenant-scoped BYOK keys + cross-tenant-isolated cache + fail-closed budget guard). Plan 04 shipped (the real explain_vuln.py buffer-then-validate-then-replay streaming engine + per-vuln SSE endpoint, proven against the real installed Anthropic SDK). Plan 05 shipped (frontend: useExplainStream SSE hook + useExplainCache + the 8-state AiExplanationSection + AiExplanationCitations two-tier renderer, wired into drill-content.tsx — the end-to-end tracer is code-complete). Plan 06 (TRACER-gate checkpoint) resolved: live end-to-end verification EXPLICITLY WAIVED by the user ("skip live verify, proceed on trust") and D-16 recorded as Option A (Cross-asset CVE grouping) for Plan 08's per-remediation grounding contract. Plan 07 shipped (backend: `ai_feedback` table (migration 032) + `AiFeedback` model + `POST /feedback/{resource_type}/{resource_id}` idempotent per-user upsert via `on_conflict_do_update`, require_analyst-gated, audited; frontend: `useAiFeedback` mutation hook + `AiFeedbackControl` thumbs/note UI wired beneath both grounded rendering branches of `AiExplanationSection` — capture-only, D-21, seeding Phase 28's flywheel). Plan 08 shipped (backend: host + remediation D-15 widening — `ExplainHostResponse`/`ExplainRemediationResponse` schema variants; a re-audited 9-field `HOST_ALLOWLIST` + `build_explain_host_prompt()` proven to exclude AssetDetail's 5 owner-PII fields field-by-field; the D-16 Option A cross-asset-CVE-grouping shape (`REMEDIATION_ALLOWLIST` + `build_explain_remediation_prompt()`) implementing the 24-06 checkpoint decision; `app/ai/grounding.py`'s two NEW tenant-scoped queries (`get_asset_posture()` selecting only allowlisted columns off Asset/Vulnerability — never the owner-PII ones — and `get_remediation_group()`, the cross-asset-by-CVE aggregate the 24-06 decision flagged as not existing anywhere, with a deterministic KEV/exploit-escalated `priority`); thin `explain_host.py`/`explain_remediation.py` routes reusing `_run_explain_stream()` completely unchanged (zero diff in `explain.py` since Plan 04); `prompt_version()` generalized (backward-compatible) into per-view `host_prompt_version()`/`remediation_prompt_version()`. 41 new tests green, full `test_ai_*.py` wave-merge 117/117, ruff+mypy clean on every new/modified file; a pre-existing `mypy-baseline.txt` note-line-number-drift artifact was isolated (scratchpad move, never `git stash`) and confirmed unrelated, logged to `deferred-items.md`).
-Plan: Not started
+Plan: 2 of 7
 
 | Field | Value |
 |-------|-------|
@@ -202,6 +200,8 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 24-10]: status.py's docstring deliberately avoids the literal substrings ConnectorConfig/api_key/credentials_secret_arn/decrypt_value so the task's own no-credential-handling grep gate holds without weakening the explanatory value
 - [Phase 24-10]: keyConfigured is now a direct Boolean(statusQuery.data?.configured) read -- the old isError-based optimistic pass-through and its explanatory comment were deleted outright, not left dormant alongside the fix
 - [Phase 24-10]: BLOCKER (Rule 1 auto-fix) -- drill-panel.test.tsx and drill-panel-mobile.test.tsx each pre-existingly mocked use-connectors-admin solely to avoid AiExplanationSection needing a QueryClientProvider; once the component stopped importing that module, 17 tests broke with "No QueryClient set" against the real useAiStatus() call. Fixed by swapping both files' mock target to use-ai-status (deterministic unconfigured/Viewer-default state) -- full suite reconfirmed 816/816
+- [Phase 25-01]: Denylist scoped to 8 D-04 categories; 9th credential-rotation category explicitly deferred (trivial one-line follow-up)
+- [Phase 25-01]: MIN_REMEDIATION_CHARS=15 + 6-entry casefolded placeholder frozenset; CrowdStrike synthesized 'Update {product}...' text counts as actionable per RESEARCH A1
 
 ## Performance Metrics
 
@@ -218,9 +218,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 24 P08 | 27min | 2 tasks | 8 files |
 | Phase 24 P09 | 29min | 2 tasks | 13 files |
 | Phase 24 P10 (gap closure) | 25min | 2 tasks | 9 files |
+| Phase 25 P01 | 21min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-07-30T07:47:18.318Z
-**Stopped at:** Phase 25 UI-SPEC approved
-**Resume file:** .planning/phases/25-asset-aware-remediation-guidance/25-UI-SPEC.md
+**Last session:** 2026-07-30T09:34:59.507Z
+**Stopped at:** Completed 25-01-PLAN.md
+**Resume file:** None

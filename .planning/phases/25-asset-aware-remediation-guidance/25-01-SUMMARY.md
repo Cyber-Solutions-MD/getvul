@@ -103,3 +103,7 @@ None - no external service configuration required.
 ---
 *Phase: 25-asset-aware-remediation-guidance*
 *Completed: 2026-07-30*
+
+## Self-Check: PASSED
+
+All 5 claimed files found on disk; all 5 claimed commit hashes found in git log.
