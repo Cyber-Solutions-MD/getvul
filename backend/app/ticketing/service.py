@@ -219,7 +219,15 @@ async def create_tickets(
                 if humaans_email:
                     assignee = humaans_email
 
-        notes = _build_task_description(vuln, hostname)
+        # AIR-02 (Phase 25 Plan 06): an analyst-supplied description WYSIWYG-
+        # replaces the auto-built one (RESEARCH Assumptions A3) — what the
+        # analyst reviewed/edited in the textarea is exactly what ships, with
+        # no hidden server-side content silently appended.
+        notes = (
+            request.description.strip()
+            if request.description and request.description.strip()
+            else _build_task_description(vuln, hostname)
+        )
 
         # Create via the dispatched provider client (D-07: destination now
         # matches request.provider, not always Asana).
