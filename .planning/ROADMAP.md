@@ -54,7 +54,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 
 - [ ] **Phase 23: Ingestion Reliability Precursor** — Fix Wiz/Rapid7 connector wiring, add scanner HTTP-layer integration tests, wire Jira ticket-create, finish-or-retire GitHub ticketing, surface per-connector sync health
 - [x] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel (completed 2026-07-29 — 10/10 plans; 9 original + gap-closure 24-10 closing the D-23 no-key role-gating gap; re-verification passed 12/14 with 4 live-verification items accepted as tracked debt per the 24-06 proceed-on-trust decision — see 24-UAT.md / close via /gsd-verify-work 24)
-- [ ] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description
+- [x] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description (completed 2026-07-30)
 - [ ] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API
 - [ ] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships
 - [ ] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI
@@ -350,7 +350,7 @@ Plans:
 - [x] 25-04-PLAN.md — Frontend tracer: unsafe/groundable types + safety-refusal + insufficient-evidence cards + drill-panel section mount [wave 4]
 - [x] 25-05-PLAN.md — TRACER GATE (checkpoint): verify the end-to-end per-vuln slice before AIR-02 expansion [wave 5]
 - [x] 25-06-PLAN.md — AIR-02 backend: TicketCreateRequest.description field + create_tickets() WYSIWYG override [wave 6]
-- [ ] 25-07-PLAN.md — AIR-02 frontend: copy-in affordance + description Textarea (desktop ConfirmModal + mobile renderConfirm) [wave 7]
+- [x] 25-07-PLAN.md — AIR-02 frontend: copy-in affordance + description Textarea (desktop ConfirmModal + mobile renderConfirm) [wave 7]
 
 **UI hint**: yes
 **Pitfalls owned**: #2 hallucinated/unsafe remediation guidance — enforced via "cite or refuse" as an output-schema contract (not prompt wording) plus a post-generation dangerous-pattern regex (`rm -rf`, `DROP TABLE`, "disable firewall/EDR").
@@ -431,7 +431,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 22. Kanban + wizard test-coverage hardening | v2.2 Deferred UI Features | 2/2 | Complete | 2026-07-22 |
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 10/10 | Complete    | 2026-07-29 |
-| 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 6/7 | In Progress|  |
+| 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 7/7 | Complete   | 2026-07-30 |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
