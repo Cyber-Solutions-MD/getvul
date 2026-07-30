@@ -22,6 +22,25 @@ Both functions are tenant-scoped identically to `get_asset`/`get_vulnerability`
 (app.assets.service / app.vulnerabilities.service): a foreign-tenant id (or a
 CVE with zero vulnerabilities in this tenant) returns None, never partial or
 cross-tenant data.
+
+`get_remediation_guidance_context()` (D-01/D-10, Plan 01 Task 2) produces the
+Phase 25 "asset-aware remediation guidance" grounding record -- a NEW,
+narrow, single-row `Vulnerability` outer-joined to `Asset`, keyed on
+`finding_id` (UUID). It is neither `get_vulnerability()`
+(app.vulnerabilities.service -- has no `os_name`/`os_version` columns, so it
+cannot ground "OS/package-aware" guidance) nor `get_remediation_group()`
+above (a cross-asset CVE aggregate -- the wrong scope for a single finding's
+drill-panel action, D-06). Tenant-scoped identically to every other function
+in this module: a foreign-tenant `finding_id` returns None. Owner-PII columns
+(assigned_user/directory_user/managed_by/building/serial_number/department)
+are never named in its SELECT -- mirrors `get_asset_posture()`'s "never even
+fetched" discipline (Phase 24 D-15 defense-in-depth, T-25-01).
+
+`has_actionable_remediation_text()` is the D-01 deterministic pre-generation
+refuse predicate: `Vulnerability.remediation_action`/`remediation_info` must
+be treated as ABSENT when empty-string, a generic placeholder, or below a
+small minimum length -- never just `is not None` (Rapid7's own
+fetch-failure path persists a literal `""`; 25-RESEARCH.md Pattern 1).
 """
 
 from __future__ import annotations
@@ -191,4 +210,104 @@ async def get_remediation_group(
         "fix": fix,
         "affected_assets": affected_assets,
         "priority": priority,
+    }
+
+
+# ── D-01 refuse predicate + per-finding remediation-guidance grounding ──
+
+# Casefolded generic placeholders that must be treated as ABSENT even though
+# they are non-null, non-empty strings (25-RESEARCH.md Pattern 1). The
+# ticketing layer's own read-time fallback ("No remediation info available",
+# app.ticketing.service.py:135) is never persisted back into this column,
+# but connector-authored placeholders below DO reach the DB via other paths
+# and must be denylisted here.
+_GENERIC_REMEDIATION_PLACEHOLDERS: frozenset[str] = frozenset(
+    {
+        "no remediation info available",
+        "no remediation info",
+        "no remediation available",
+        "unknown",
+        "n/a",
+        "none",
+    }
+)
+
+# Excludes "Unknown"/"N/A"/"-" (already sub-minimum length) while passing a
+# real short fix like "Upgrade to 1.3.2." (25-RESEARCH.md Pattern 1).
+MIN_REMEDIATION_CHARS = 15
+
+
+def has_actionable_remediation_text(remediation_action: str | None, remediation_info: str | None) -> bool:
+    """D-01's deterministic pre-generation refuse predicate. Checks
+    `remediation_action` (primary) then `remediation_info` (fallback); a
+    candidate counts as actionable only when, after `.strip()`, it is at
+    least `MIN_REMEDIATION_CHARS` long AND its `.casefold()` is not a member
+    of `_GENERIC_REMEDIATION_PLACEHOLDERS`. Deliberately NEVER `is not None`
+    (Pitfall 1) -- Rapid7's own fetch-failure path persists a literal `""`,
+    and `sync.py`'s upsert `or`-chain makes `remediation_action` collapse to
+    `remediation_info`'s exact value for 5 of 6 connectors, so an
+    `is not None` check alone would wrongly treat an empty-string row as
+    present.
+    """
+    for raw in (remediation_action, remediation_info):
+        if raw is None:
+            continue
+        text = raw.strip()
+        if len(text) < MIN_REMEDIATION_CHARS:
+            continue
+        if text.casefold() in _GENERIC_REMEDIATION_PLACEHOLDERS:
+            continue
+        return True
+    return False
+
+
+async def get_remediation_guidance_context(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    finding_id: uuid.UUID,
+) -> dict[str, Any] | None:
+    """Assemble the per-finding remediation-guidance grounding record
+    (D-01/D-10). Returns None (tenant-scoped, exactly like `get_vulnerability`)
+    when `finding_id` does not belong to `tenant_id`.
+
+    Only these 12 columns are ever selected -- owner PII (assigned_user,
+    directory_user, managed_by, building, serial_number, department) is
+    never queried here, let alone passed through (T-25-01 defense-in-depth,
+    mirroring `get_asset_posture()`'s "never even fetched" discipline).
+    """
+    result = await db.execute(
+        select(
+            Vulnerability.cve_id,
+            Vulnerability.remediation_action,
+            Vulnerability.remediation_info,
+            Vulnerability.affected_product,
+            Vulnerability.affected_version,
+            Vulnerability.fixed_version,
+            Vulnerability.severity,
+            Vulnerability.exploit_available,
+            Vulnerability.cisa_kev,
+            Asset.hostname,
+            Asset.os_name,
+            Asset.os_version,
+        )
+        .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
+        .where(Vulnerability.id == finding_id, Vulnerability.tenant_id == tenant_id)
+    )
+    row = result.one_or_none()
+    if row is None:
+        return None
+
+    return {
+        "cve_id": row.cve_id,
+        "remediation_action": row.remediation_action,
+        "remediation_info": row.remediation_info,
+        "affected_product": row.affected_product,
+        "affected_version": row.affected_version,
+        "fixed_version": row.fixed_version,
+        "severity": row.severity,
+        "exploit_available": row.exploit_available,
+        "cisa_kev": row.cisa_kev,
+        "asset_hostname": row.hostname,
+        "os_name": row.os_name,
+        "os_version": row.os_version,
     }
