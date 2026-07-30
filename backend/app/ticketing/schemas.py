@@ -51,11 +51,33 @@ class TicketSummary(BaseModel):
 
 
 class TicketCreateRequest(BaseModel):
+    """Create-ticket request body.
+
+    description (AIR-02, Phase 25 Plan 06): optional analyst-authored ticket
+    body. Whitespace-only is coerced to None (never rejected — not every
+    ticket flows through remediation guidance, D-08). extra="forbid" is a
+    deliberate mass-assignment defense (T-25-06, ASVS V5) added alongside
+    this new free-text field.
+    """
+
+    model_config = {"extra": "forbid"}
+
     vulnerability_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=50)
     provider: str = Field(..., pattern="^(ASANA|JIRA|GITHUB)$")
     project_key: str = Field("", description="Asana project GID or Jira project key")
     assignee: str | None = Field(None, description="Email or user ID to assign the ticket to")
     due_days: int | None = Field(None, ge=1, le=365, description="Days from now for due date")
+    description: str | None = Field(
+        None, max_length=10000, description="Analyst-supplied ticket description (WYSIWYG override)"
+    )
+
+    @field_validator("description")
+    @classmethod
+    def _no_ws_only(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
 
 
 class HostTicketCreateRequest(BaseModel):
