@@ -41,6 +41,17 @@ refuse predicate: `Vulnerability.remediation_action`/`remediation_info` must
 be treated as ABSENT when empty-string, a generic placeholder, or below a
 small minimum length -- never just `is not None` (Rapid7's own
 fetch-failure path persists a literal `""`; 25-RESEARCH.md Pattern 1).
+
+`get_prioritization_context()` (D-04, Phase 26 Plan 01) produces the
+per-finding prioritization-narrative grounding record: exactly D-04's 8
+factor columns plus `cve_id` plus `Asset.department` -- the ONE allowed
+owner factor (D-04's "owner is expressed as the non-PII Asset.department"
+contract). `assigned_user`/`managed_by`/`building`/`serial_number` are
+DELIBERATELY never selected here, one level further than
+`get_remediation_guidance_context()`'s own "never even fetched" discipline
+above (T-26-01) -- this is the one function in this module that DOES
+deliberately read `department`. Tenant-scoped identically to every other
+function above: a foreign-tenant `finding_id` returns None.
 """
 
 from __future__ import annotations
@@ -310,4 +321,67 @@ async def get_remediation_guidance_context(
         "asset_hostname": row.hostname,
         "os_name": row.os_name,
         "os_version": row.os_version,
+    }
+
+
+# ── D-04 prioritization-narrative grounding (Phase 26 Plan 01 Task 1) ──
+
+
+async def get_prioritization_context(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    finding_id: uuid.UUID,
+) -> dict[str, Any] | None:
+    """Assemble the per-finding prioritization-narrative grounding record
+    (AIP-01/D-04). Returns None (tenant-scoped, exactly like
+    `get_vulnerability`) when `finding_id` does not belong to `tenant_id`.
+
+    Only these 10 columns are ever selected: D-04's 8 factor columns
+    (`cvss_v3_score`, `epss_score`, `exploit_available`, `cisa_kev`,
+    `exploit_status_name`, `severity`, `sla_due_at`, `sla_breached`) plus
+    `cve_id` (Assumption A4, so the narrative can name the CVE) plus
+    `Asset.department` -- the ONE allowed owner factor. Owner PII
+    (`assigned_user`, `managed_by`, `building`, `serial_number`) is
+    DELIBERATELY never queried here, let alone passed through -- mirroring
+    `get_remediation_guidance_context()`'s "never even fetched" discipline
+    (T-26-01 defense-in-depth). `department` is the one column this
+    function DOES deliberately read, per D-04's non-PII owner contract.
+
+    No deterministic pre-generation refuse predicate is needed here (unlike
+    `has_actionable_remediation_text()`) -- D-04's factor fields are
+    structured scanner/scoring columns, not free text with a generic-
+    placeholder failure mode; the model's own `grounded=false` judgment is
+    the backstop.
+    """
+    result = await db.execute(
+        select(
+            Vulnerability.cve_id,
+            Vulnerability.cvss_v3_score,
+            Vulnerability.epss_score,
+            Vulnerability.exploit_available,
+            Vulnerability.cisa_kev,
+            Vulnerability.exploit_status_name,
+            Vulnerability.severity,
+            Vulnerability.sla_due_at,
+            Vulnerability.sla_breached,
+            Asset.department,
+        )
+        .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
+        .where(Vulnerability.id == finding_id, Vulnerability.tenant_id == tenant_id)
+    )
+    row = result.one_or_none()
+    if row is None:
+        return None
+
+    return {
+        "cve_id": row.cve_id,
+        "cvss_v3_score": row.cvss_v3_score,
+        "epss_score": row.epss_score,
+        "exploit_available": row.exploit_available,
+        "cisa_kev": row.cisa_kev,
+        "exploit_status_name": row.exploit_status_name,
+        "severity": row.severity,
+        "sla_due_at": row.sla_due_at,
+        "sla_breached": row.sla_breached,
+        "department": row.department,
     }
