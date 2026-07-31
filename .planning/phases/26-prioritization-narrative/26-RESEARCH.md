@@ -666,14 +666,16 @@ type DegradedCardProps = {
 | A4 | `cve_id` should be added to `PRIORITIZATION_ALLOWLIST` even though it is not literally in D-04's 8-field factor list, mirroring the precedent that every other finding-level allowlist (`VULN_ALLOWLIST`, `REMEDIATION_GUIDANCE_ALLOWLIST`) includes it so citations can name which CVE is being discussed | Pattern 7 | If D-04's factor list is meant to be exhaustive and closed, this is a one-field scope creep beyond the locked grounding contract (D-04 is explicitly flagged "costly to reverse" in CONTEXT.md). Trivial to remove at plan/review time if the planner wants D-04 read as a hard, closed set. |
 | A5 | A default N (e.g. 50) per tenant per night is a reasonable starting point (well under every API size/count limit, large enough to cover a typical tenant's active triage queue) — CONTEXT.md explicitly leaves the exact value to plan time | Pattern 3 / Standard Stack | No correctness risk — purely a cost/coverage tuning knob the planner or a config value can adjust freely; flagged only so the plan doesn't need to re-derive "is 50 sane" from scratch. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact Redis client access pattern from a non-request scheduler context**
+   - **RESOLVED:** Closed by Plan 07's `get_redis_client()` factory (`backend/app/redis_client.py`) — a plain, non-request `redis.Redis` builder that both `main.py`'s lifespan and `batch.py` call (single construction site); `batch.py`'s `run_batch_prewarm()`/`poll_pending_batches()` obtain their Redis client from it.
    - What we know: `cache.py`'s functions all take an already-built `redis.Redis` client as a plain parameter (never construct their own) — this is Pattern 5's confirmed reusability. `scheduler.py` currently has zero Redis usage anywhere in the file.
    - What's unclear: the exact importable factory function/module (`app/redis_client.py` was not read this session) that constructs a `redis.Redis` instance outside of FastAPI's `get_redis(request)` dependency-injection path.
    - Recommendation: read `app/redis_client.py` at plan time (one file, low risk) to confirm whether a plain `get_redis_client()`-style callable already exists (mirroring `async_session_factory()`'s pattern) or needs a two-line addition.
 
 2. **Whether a per-asset cap (e.g. "at most K findings from any single asset") is needed inside the D-01 top-N query**
+   - **RESOLVED:** Plan 07 ships without a per-asset cap, per this section's recommendation — `get_top_findings_for_ai_batch()` has no cap in the first cut; revisit as a fast follow-up only if Phase 28 observability shows crowding materializes.
    - What we know: Pattern 3's recommended query has no such cap; Pattern 1 (Pitfall) flags the crowding risk explicitly.
    - What's unclear: whether N (Assumption A5, likely ~50) is small enough in practice that this risk rarely materializes, or whether a real GetVul tenant's data would trigger it regularly.
    - Recommendation: ship without a cap for the tracer/first plan (simpler, and Phase 28's eventual observability work would surface the problem empirically if it's real); treat as a fast, cheap follow-up if evidence shows it matters.
