@@ -1,7 +1,7 @@
 'use client';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Sparkles } from 'lucide-react';
+import { AlertTriangle, Clock, Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useExplainCache } from '@/lib/queries/use-explain-cache';
 import { useExplainStream } from '@/lib/ai/use-explain-stream';
@@ -32,9 +32,19 @@ type DegradedCardProps = {
   heading: string;
   body: string;
   action?: { label: string; onClick?: () => void; href?: string };
+  /**
+   * Phase 26 (D-02/UI-SPEC §Color): additive icon override for the
+   * `neutral` variant only -- defaults to 'sparkles' so every existing call
+   * site (insufficient-evidence, no-key-configured) renders byte-identical.
+   * 'clock' is reserved for the NEW queued/being-prepared card: same
+   * violet-soft chip family as insufficient-evidence (deliberately not a
+   * new hue), but a distinct glyph so the analyst can tell at a glance that
+   * this state resolves on its own rather than being a terminal refusal.
+   */
+  icon?: 'sparkles' | 'clock';
 };
 
-function DegradedCard({ variant, heading, body, action }: DegradedCardProps) {
+function DegradedCard({ variant, heading, body, action, icon = 'sparkles' }: DegradedCardProps) {
   // Phase 25 UI-SPEC §Color: the `danger` variant reuses the EXACT
   // `border-danger bg-danger-soft text-danger` token combo already
   // established in ticket-provider-picker.tsx's error alert -- no new hex,
@@ -53,6 +63,8 @@ function DegradedCard({ variant, heading, body, action }: DegradedCardProps) {
       <div className={cn('mb-3 flex h-8 w-8 items-center justify-center rounded-full', chipClass)}>
         {variant === 'amber' || variant === 'danger' ? (
           <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+        ) : icon === 'clock' ? (
+          <Clock className="h-4 w-4" aria-hidden="true" />
         ) : (
           <Sparkles className="h-4 w-4" aria-hidden="true" />
         )}
@@ -162,26 +174,46 @@ export function AiExplanationSection({
   // categorically different view). Every other card (no-key D-23, busy/
   // unknown D-25, budget-exceeded) stays byte-identical across all views.
   const isRemediationGuidance = resourceType === 'remediation-guidance';
-  const heading = isRemediationGuidance ? 'Remediation guidance' : 'AI Explanation';
-  const triggerLabel = isRemediationGuidance ? 'Get remediation guidance' : 'Explain this vuln';
-  const viewerEmptyText = isRemediationGuidance
-    ? 'No remediation guidance generated yet.'
-    : 'No AI explanation generated yet.';
+  // Phase 26 (D-03/D-09, 26-UI-SPEC.md Copywriting Contract): a 5th
+  // resourceType value, mirroring exactly how Phase 25 added
+  // 'remediation-guidance' -- its own locked heading/trigger/viewer-empty/
+  // insufficient-evidence copy, no other branch in this component touched.
+  const isPrioritization = resourceType === 'prioritization';
+  const heading = isPrioritization
+    ? 'Prioritization'
+    : isRemediationGuidance
+      ? 'Remediation guidance'
+      : 'AI Explanation';
+  const triggerLabel = isPrioritization
+    ? 'Explain the priority'
+    : isRemediationGuidance
+      ? 'Get remediation guidance'
+      : 'Explain this vuln';
+  const viewerEmptyText = isPrioritization
+    ? 'No prioritization narrative generated yet.'
+    : isRemediationGuidance
+      ? 'No remediation guidance generated yet.'
+      : 'No AI explanation generated yet.';
   // UI-SPEC state 8 renders the SAME card as state 3 (the model's own
   // grounded=false judgment and the deterministic pre-generation gate both
   // refuse into one honest card, D-02) -- this single copy source backs
   // every "insufficient evidence" render site below (done+!grounded,
   // kind===grounded_false, cached+!grounded, AND the new groundable===false
   // pre-refusal branch), so all four stay in lockstep for this resourceType.
-  const insufficientEvidenceCopy = isRemediationGuidance
+  const insufficientEvidenceCopy = isPrioritization
     ? {
-        heading: 'Not enough vendor guidance to recommend a fix',
-        body: "The scanner didn't provide usable solution text for this finding — the assistant needs the vendor's own remediation text to ground safe, actionable steps. It declined to guess rather than invent one.",
+        heading: 'Not enough signal to explain priority reliably',
+        body: "The correlated record is missing exploit, KEV, SLA, or severity signal — the assistant needs these facts to explain what's driving priority. It declined to guess.",
       }
-    : {
-        heading: 'Not enough finding data to explain this reliably',
-        body: 'The correlated record is missing detail — CVE description, CVSS vector, or host context — the assistant needs to ground a faithful explanation. It declined to guess.',
-      };
+    : isRemediationGuidance
+      ? {
+          heading: 'Not enough vendor guidance to recommend a fix',
+          body: "The scanner didn't provide usable solution text for this finding — the assistant needs the vendor's own remediation text to ground safe, actionable steps. It declined to guess rather than invent one.",
+        }
+      : {
+          heading: 'Not enough finding data to explain this reliably',
+          body: 'The correlated record is missing detail — CVE description, CVSS vector, or host context — the assistant needs to ground a faithful explanation. It declined to guess.',
+        };
 
   let body: ReactNode;
 
@@ -285,6 +317,29 @@ export function AiExplanationSection({
     // all, so their cache-miss mounts fall through to the trigger below
     // completely unaffected.
     body = <DegradedCard variant="neutral" heading={insufficientEvidenceCopy.heading} body={insufficientEvidenceCopy.body} />;
+  } else if (cacheQuery.data?.cached === false && cacheQuery.data?.queued === true) {
+    // Phase 26 D-02/UI-SPEC states 3/4: this finding is part of the
+    // tenant's currently-in-flight or upcoming Message Batches submission
+    // (Plan 06 populates `queued`; this branch stays structurally in place
+    // but dark until then). The SAME neutral/violet card family as
+    // insufficient-evidence -- deliberately not a new hue -- but the Clock
+    // icon (not Sparkles) signals "this resolves on its own," never a
+    // terminal refusal. Driven ENTIRELY by the backend boolean, checked
+    // `=== true` explicitly: every OTHER resourceType's GET route never
+    // returns `queued` at all, so this branch must never match `undefined`
+    // (UI-SPEC "partial" backstop -- never a client-side timing heuristic).
+    // Analyst+ gets the subordinate on-demand escape hatch; Viewer gets the
+    // identical card with no action (D-17 -- Viewers never trigger a paid
+    // call, even this one).
+    body = (
+      <DegradedCard
+        variant="neutral"
+        icon="clock"
+        heading="Prioritization narrative is being prepared"
+        body="This finding is in the next scheduled batch — narratives typically land within 24h."
+        action={isAnalystOrAbove ? { label: 'Generate it now', onClick: () => void start() } : undefined}
+      />
+    );
   } else if (isAnalystOrAbove) {
     // D-17: only Analyst+ ever sees the paid-call trigger.
     body = (

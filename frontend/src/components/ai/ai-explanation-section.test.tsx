@@ -662,3 +662,113 @@ describe('"Copy into ticket description" affordance (Plan 07 Task 1, AIR-02)', (
     expect(screen.queryByRole('button', { name: 'Copy into ticket description' })).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 26 Plan 04 Task 1 (AIP-01): resourceType='prioritization' -- the 5th
+// value, its own LOCKED copy (26-UI-SPEC.md Copywriting Contract), and the
+// ONE genuinely new state this phase adds: the signal-driven queued/
+// being-prepared card (D-02/UI-SPEC states 3/4). Plan 06 is what actually
+// starts returning `queued` from the real GET route -- these fixtures prove
+// the branch is already correct and dark-safe ahead of that wiring.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('resourceType="prioritization": locked copy (section header + CTA + viewer text, D-03/D-09)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('renders "Prioritization" as the section header (distinct from "AI Explanation")', () => {
+    render(
+      <AiExplanationSection resourceType="prioritization" resourceId="finding-1" headingId="drill-prioritization-h" />,
+    );
+    expect(document.getElementById('drill-prioritization-h')).toHaveTextContent('Prioritization');
+    expect(screen.queryByText('AI Explanation')).toBeNull();
+  });
+
+  it('role=Analyst, cache-miss, not queued renders the "Explain the priority" trigger, not "Explain this vuln"', () => {
+    setDefaults({ role: 'ANALYST' });
+    render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    expect(screen.getByRole('button', { name: 'Explain the priority' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Explain this vuln' })).toBeNull();
+  });
+
+  it('role=Viewer, cache-miss, not queued renders "No prioritization narrative generated yet." (D-17 inherited)', () => {
+    setDefaults({ role: 'VIEWER' });
+    render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    expect(screen.getByText('No prioritization narrative generated yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Explain the priority' })).toBeNull();
+  });
+
+  it('kind=grounded_false renders the prioritization-specific insufficient-signal card (naming exploit/KEV/SLA/severity)', () => {
+    setDefaults({ stream: { state: { phase: 'error', kind: 'grounded_false' }, start: mockStart } });
+    render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    expect(screen.getByText('Not enough signal to explain priority reliably')).toBeInTheDocument();
+    expect(screen.getByText(/missing exploit, KEV, SLA, or severity signal/)).toBeInTheDocument();
+  });
+});
+
+describe('resourceType="prioritization": queued/being-prepared card (D-02/UI-SPEC states 3/4, "partial" backstop)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it('cache-miss + queued=true renders the pending card even though the cache-check resolved instantly (signal-driven, not a timing heuristic)', () => {
+    setDefaults({
+      role: 'ANALYST',
+      cache: { data: { cached: false, queued: true }, isPending: false, isError: false },
+    });
+    const { container } = render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    expect(screen.getByText('Prioritization narrative is being prepared')).toBeInTheDocument();
+    expect(
+      screen.getByText('This finding is in the next scheduled batch — narratives typically land within 24h.'),
+    ).toBeInTheDocument();
+    // Clock icon (not Sparkles) visually distinguishes this from the
+    // insufficient-evidence card, per 26-UI-SPEC.md's Color table.
+    expect(container.querySelector('.lucide-clock')).not.toBeNull();
+    expect(container.querySelector('.lucide-sparkles')).toBeNull();
+  });
+
+  it('queued=true + role=Analyst renders the subordinate "Generate it now" action, which fires the on-demand fallback', () => {
+    setDefaults({
+      role: 'ANALYST',
+      cache: { data: { cached: false, queued: true }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    const action = screen.getByRole('button', { name: 'Generate it now' });
+    expect(action).toBeInTheDocument();
+    action.click();
+    expect(mockStart).toHaveBeenCalled();
+  });
+
+  it('queued=true + role=Viewer renders the IDENTICAL pending card with NO action (D-17 -- Viewers never trigger a paid call)', () => {
+    setDefaults({
+      role: 'VIEWER',
+      cache: { data: { cached: false, queued: true }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    expect(screen.getByText('Prioritization narrative is being prepared')).toBeInTheDocument();
+    expect(screen.queryByText('Generate it now')).toBeNull();
+  });
+
+  it('queued===undefined (every other resourceType\'s GET route never returns it) falls through to the ordinary trigger, never the pending card', () => {
+    setDefaults({
+      role: 'ANALYST',
+      cache: { data: { cached: false }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    expect(screen.getByRole('button', { name: 'Explain the priority' })).toBeInTheDocument();
+    expect(screen.queryByText('Prioritization narrative is being prepared')).toBeNull();
+  });
+
+  it('queued===false still falls through to the ordinary trigger (only === true renders the pending card)', () => {
+    setDefaults({
+      role: 'ANALYST',
+      cache: { data: { cached: false, queued: false }, isPending: false, isError: false },
+    });
+    render(<AiExplanationSection resourceType="prioritization" resourceId="finding-1" />);
+    expect(screen.getByRole('button', { name: 'Explain the priority' })).toBeInTheDocument();
+    expect(screen.queryByText('Prioritization narrative is being prepared')).toBeNull();
+  });
+});
