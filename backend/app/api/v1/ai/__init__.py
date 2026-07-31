@@ -25,12 +25,18 @@ ai_router = APIRouter(prefix="/api/v1/ai", tags=["AI"])
 #   from explain_remediation's cross-asset posture summary; adds the D-01
 #   route-level pre-generation gate and the dangerous_pattern_check engine
 #   kwarg (D-04), both new to this router.
+# explain_prioritization: Phase 26 Plan 03's AIP-01 on-demand prioritization-
+#   narrative view (D-02/D-09 cache-miss fallback) — mirrors explain_host.py
+#   exactly: no dangerous_pattern_check, no pre-generation refuse gate
+#   (prioritization narratives explain drivers, they recommend nothing to
+#   execute).
 # feedback: Plan 07's capture-only thumbs+note upsert endpoint (D-21/D-22).
 # status: Plan 10's gap-closure require_viewer "is AI configured" boolean
 #   signal (D-23) -- replaces the frontend's admin-gated-connectors-isError
 #   optimistic guess with a real, non-admin-safe signal.
 from app.api.v1.ai import (
     explain_host,  # noqa: E402
+    explain_prioritization,  # noqa: E402
     explain_remediation,  # noqa: E402
     explain_remediation_guidance,  # noqa: E402
     explain_vuln,  # noqa: E402
@@ -43,5 +49,6 @@ ai_router.include_router(explain_vuln.router)
 ai_router.include_router(explain_host.router)
 ai_router.include_router(explain_remediation.router)
 ai_router.include_router(explain_remediation_guidance.router)
+ai_router.include_router(explain_prioritization.router)
 ai_router.include_router(feedback.router)
 ai_router.include_router(status.router)
