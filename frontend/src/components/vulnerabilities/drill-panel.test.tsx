@@ -113,19 +113,22 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     mockUseAiStatus.mockReturnValue({ data: { configured: false }, isPending: false, isError: false });
   });
 
-  it('renders 9 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Remediation / Remediation guidance / Activity / Actions)', () => {
+  it('renders 10 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Prioritization / Remediation / Remediation guidance / Activity / Actions)', () => {
     render(<DrillPanel cveId="CVE-2024-3094" />);
     const headings = screen.getAllByRole('heading').map((h) => h.textContent ?? '');
-    // 9 named sections, in the documented order (Phase 24-05 / UI-SPEC D-11
+    // 10 named sections, in the documented order (Phase 24-05 / UI-SPEC D-11
     // inserts AI Explanation between Description and Remediation; Phase 25
-    // Plan 04 D-06 inserts the NEW "Remediation guidance" section between
-    // the raw Remediation text and Activity).
+    // Plan 04 D-06 inserts "Remediation guidance" between the raw
+    // Remediation text and Activity; Phase 26 Plan 04 (D-03/D-09) inserts
+    // the NEW "Prioritization" section between AI Explanation and the raw
+    // Remediation text).
     const expectedOrder = [
       /CVE-2024-3094|Drill|Header/i,
       /CVSS/i,
       /Affected hosts/i,
       /Description/i,
       /AI Explanation/i,
+      /^Prioritization$/i,
       /Remediation$/i,
       /Remediation guidance/i,
       /Activity/i,
@@ -222,6 +225,29 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     render(<DrillPanel cveId="CVE-2024-3094" />);
     // Panel content reflects detail.cve_id
     expect(screen.getByText(/CVE-2024-3094/)).toBeInTheDocument();
+  });
+
+  // Phase 26 Plan 04 Task 2 (D-03/D-09): the new "Prioritization" section
+  // mounts AiExplanationSection with resourceType="prioritization",
+  // positioned after AI Explanation and before the raw Remediation section.
+  it('mounts the "Prioritization" section between AI Explanation and raw Remediation, with its own aria-labelledby', () => {
+    const { container } = render(<DrillPanel cveId="CVE-2024-3094" />);
+    const aiSection = container.querySelector<HTMLElement>('section[aria-labelledby="drill-ai-h"]');
+    const prioritizationSection = container.querySelector<HTMLElement>(
+      'section[aria-labelledby="drill-prioritization-h"]',
+    );
+    const remedSection = container.querySelector<HTMLElement>('section[aria-labelledby="drill-remed-h"]');
+    expect(prioritizationSection).not.toBeNull();
+    expect(document.getElementById('drill-prioritization-h')).toHaveTextContent('Prioritization');
+
+    // Document-order check: AI Explanation < Prioritization < raw Remediation.
+    const sections = Array.from(container.querySelectorAll<HTMLElement>('section'));
+    const aiIdx = sections.indexOf(aiSection!);
+    const prioritizationIdx = sections.indexOf(prioritizationSection!);
+    const remedIdx = sections.indexOf(remedSection!);
+    expect(aiIdx).toBeGreaterThanOrEqual(0);
+    expect(prioritizationIdx).toBeGreaterThan(aiIdx);
+    expect(remedIdx).toBeGreaterThan(prioritizationIdx);
   });
 
   // Phase 25 Plan 04 Task 2 (D-06): the new "Remediation guidance" section

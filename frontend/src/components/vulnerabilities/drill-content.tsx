@@ -294,6 +294,23 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
           <AiExplanationSection resourceType="vuln" resourceId={v.id ?? idOrCve} />
         </section>
 
+        {/* Phase 26 (D-03/D-09, 26-UI-SPEC.md locked placement): "Prioritization"
+            sits AFTER "AI Explanation" and BEFORE the raw scanner Remediation
+            text -- the analyst reads what this vuln IS, then why it should
+            jump the queue, before reading what the vendor says to do about
+            it. Exactly 3 props (resourceType/resourceId/headingId) --
+            onCopyToDescription is deliberately omitted (that affordance is
+            scoped to the remediation-guidance mount only). drill-panel-
+            mobile.tsx renders DrillContent directly, so this one insertion
+            covers both desktop and mobile. */}
+        <section aria-labelledby="drill-prioritization-h">
+          <AiExplanationSection
+            resourceType="prioritization"
+            resourceId={v.id ?? idOrCve}
+            headingId="drill-prioritization-h"
+          />
+        </section>
+
         <section aria-labelledby="drill-remed-h">
           <h4
             id="drill-remed-h"
