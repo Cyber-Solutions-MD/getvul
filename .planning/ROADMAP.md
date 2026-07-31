@@ -376,7 +376,7 @@ Plans:
 - [x] 26-05-PLAN.md (wave 5) — TRACER GATE: verify the on-demand slice (cited narrative, no AI rank) before batch expansion [checkpoint]
 - [x] 26-06-PLAN.md (wave 6) — durable `AiBatchJob` table + migration 033 + the `queued` GET cache-check signal
 - [x] 26-07-PLAN.md (wave 7) — batch submitter `batch.py`: D-01 top-N query, budget pre-estimate (50%), Redis factory, submit + single-pass validator
-- [ ] 26-08-PLAN.md (wave 8) — scheduler integration: `poll_pending_batches()` + nightly/poll dispatch via `asyncio.create_task` (batch goes live)
+- [x] 26-08-PLAN.md (wave 8) — scheduler integration: `poll_pending_batches()` + nightly/poll dispatch via `asyncio.create_task` (batch goes live)
 
 **UI hint**: yes
 **Pitfalls owned**: #7 over-trusting AI over the deterministic score — "augment, never replace" enforced as a literal output-schema/prompt constraint and a UI constraint (no AI-rank sort control), not just a design intention.
@@ -443,7 +443,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 10/10 | Complete    | 2026-07-29 |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 7/7 | Complete    | 2026-07-30 |
-| 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 7/8 | In Progress | - |
+| 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | In Progress | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 

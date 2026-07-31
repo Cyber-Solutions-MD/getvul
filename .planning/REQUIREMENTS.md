@@ -39,7 +39,7 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 ### AI Prioritization (AIP)
 
 - [ ] **AIP-01**: An analyst can see a "what to fix first and why" narrative that **augments and explains — never replaces** — the deterministic risk score, using exploit/KEV/owner/SLA factors
-- [ ] **AIP-02**: Prioritization/triage suggestions are generated in bulk via the scheduler using the Message Batches API (cost-efficient), respecting the tenant's key
+- [x] **AIP-02**: Prioritization/triage suggestions are generated in bulk via the scheduler using the Message Batches API (cost-efficient), respecting the tenant's key
 
 ### AI Ticket Drafting (AID)
 
@@ -91,7 +91,7 @@ Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no 
 | AIR-01 | 25 (Asset-Aware Remediation Guidance) | Complete |
 | AIR-02 | 25 (Asset-Aware Remediation Guidance) | Complete |
 | AIP-01 | 26 (Prioritization Narrative) | Pending |
-| AIP-02 | 26 (Prioritization Narrative) | Pending |
+| AIP-02 | 26 (Prioritization Narrative) | Complete |
 | AID-01 | 27 (Ticket Auto-Drafting) | Pending |
 | AIE-01 | 28 (Eval + Cost + Observability Gate) | Pending |
 | AIE-02 | 28 (Eval + Cost + Observability Gate) | Pending |

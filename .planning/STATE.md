@@ -4,15 +4,15 @@ milestone: v3.0
 milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 26
 current_phase_name: prioritization-narrative
-status: Executing Phase 26 (prioritization-narrative) — plan 7/8 complete
-stopped_at: Completed 26-07-PLAN.md
-last_updated: "2026-07-31T14:56:02.000Z"
+status: Executing Phase 26 (prioritization-narrative) — plan 8/8 complete
+stopped_at: Completed 26-08-PLAN.md
+last_updated: "2026-07-31T15:27:58.000Z"
 progress:
   total_phases: 25
   completed_phases: 24
   total_plans: 128
-  completed_plans: 127
-  percent: 99
+  completed_plans: 128
+  percent: 100
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -234,6 +234,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 26-07]: run_batch_prewarm()'s budget-skip audit call uses a local _ZERO_USAGE sentinel (SimpleNamespace(input_tokens=0, output_tokens=0)) instead of the plan's literal usage=None -- audit_log_ai_call() has no null-guard and unconditionally reads usage.input_tokens/output_tokens, so None crashes with AttributeError
 - [Phase 26-07]: run_batch_prewarm() selects Tenant.id (a plain scalar column) not Tenant (the ORM object), so the new per-tenant try/except containment can safely call await db.rollback() without a LATER iteration's tenant.id access raising sqlalchemy.exc.MissingGreenlet on an expired object (AsyncSession.rollback() expires every object in the session's identity map, not just the failed tenant's)
 - [Phase 26-07]: validate_and_cache_batch_result() commits its own audit row immediately, mirroring explain.py::_audit()'s wrapper convention, so the row is durable/provable in a genuinely fresh session without depending on a not-yet-existing Plan 08 caller to commit
+- [Phase 26-08]: poll_pending_batches() re-selects each AiBatchJob by scalar id inside the per-job try (not the initially-loaded ORM object) -- mirrors 26-07's Tenant.id-not-Tenant fix; a rollback() in one job's except block would otherwise expire a LATER job's already-loaded ORM attributes and raise sqlalchemy.exc.MissingGreenlet
+- [Phase 26-08]: errored/canceled/expired audit branches use literal per-case status strings (batch_errored/batch_canceled/batch_expired) via match/case, not the plan's literal status=f"batch_{line.result.type}" f-string -- the plan's own grep-based acceptance criteria checks for the three literal substrings in the source, which an f-string's interpolation never produces
+- [Phase 26-08]: _audit_non_succeeded_batch_result() uses the module's _ZERO_USAGE sentinel not usage=None -- the identical Rule 1 bug 26-07 already fixed for run_batch_prewarm()'s budget-skip audit call, explicitly flagged by that plan as likely to recur here
+- [Phase 26-08]: scheduler dispatch logic extracted into top-level _dispatch_ai_batch_prewarm()/_dispatch_ai_batch_poll() functions (not inlined directly in _scheduler_loop()'s body) so they are directly unit-testable via the established scheduler_module.<fn>(...) direct-await convention -- _scheduler_loop()'s own infinite while-loop cannot be awaited to completion in a test
+- [Phase 26-08]: AIP-02 marked complete in REQUIREMENTS.md (both backend halves -- submitter 26-07 + scheduler wiring 26-08 -- now land); AIP-01's checkbox and the Phase 26 roadmap/milestone checkboxes deliberately left untouched, per this plan's own explicit scope, pending phase verification's own review
 
 ## Performance Metrics
 
@@ -262,9 +267,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 26 P04 | 25min | 2 tasks | 6 files |
 | Phase 26 P06 | 17min | 2 tasks | 5 files |
 | Phase 26 P07 | 30min | 3 tasks | 9 files |
+| Phase 26 P08 | 22min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-07-31T14:56:02.000Z
-**Stopped at:** Completed 26-07-PLAN.md
+**Last session:** 2026-07-31T15:27:58.000Z
+**Stopped at:** Completed 26-08-PLAN.md
 **Resume file:** None
