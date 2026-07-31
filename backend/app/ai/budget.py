@@ -38,20 +38,12 @@ AI_BUDGET_EXCEEDED_MESSAGE = (
 )
 
 
-async def check_tenant_budget(
-    db: AsyncSession,
-    tenant_id: uuid.UUID,
-    monthly_cap_usd: float | None,
-) -> bool:
-    """Return True if the tenant is under its monthly AI spend cap.
-
-    Fail-closed (D-06): once `monthly_cap_usd` is configured, month-to-date
-    spend >= cap returns False. `monthly_cap_usd=None` (no cap configured)
-    is the tenant's own explicit choice and returns True unconditionally.
-    """
-    if monthly_cap_usd is None:
-        return True
-
+async def get_month_to_date_spend(db: AsyncSession, tenant_id: uuid.UUID) -> float:
+    """Sum this month's `ai.%`-namespaced `AuditLog.details['cost_estimate_usd']`
+    for `tenant_id` (Phase 26 Plan 07) -- extracted from `check_tenant_budget()`
+    so a batch pre-submission estimate (`would_exceed_budget_for_batch`) can
+    add its own projected cost to the SAME already-spent figure without a
+    second, duplicated SUM query."""
     month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     spent = (
         await db.execute(
@@ -62,7 +54,56 @@ async def check_tenant_budget(
             )
         )
     ).scalar_one_or_none() or 0.0
+    return spent
+
+
+async def check_tenant_budget(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    monthly_cap_usd: float | None,
+) -> bool:
+    """Return True if the tenant is under its monthly AI spend cap.
+
+    Fail-closed (D-06): once `monthly_cap_usd` is configured, month-to-date
+    spend >= cap returns False. `monthly_cap_usd=None` (no cap configured)
+    is the tenant's own explicit choice and returns True unconditionally.
+
+    Delegates to `get_month_to_date_spend()` (Phase 26 Plan 07 extraction) --
+    the public signature and fail-closed comparison are UNCHANGED, so every
+    existing caller (`explain.py::_run_explain_stream()` and every
+    `explain_*.py` route that transitively calls it) needs zero edits.
+    """
+    if monthly_cap_usd is None:
+        return True
+
+    spent = await get_month_to_date_spend(db, tenant_id)
     return spent < monthly_cap_usd
+
+
+async def would_exceed_budget_for_batch(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    monthly_cap_usd: float | None,
+    estimated_batch_cost_usd: float,
+) -> bool:
+    """D-07: fail-closed pre-submission check for a Message Batch's
+    ESTIMATED cost (Phase 26 Plan 07) -- called BEFORE
+    `client.messages.batches.create()`, never after. Returns True (the
+    caller must SKIP the batch -- notify admins, audit
+    `batch_skipped_budget_exceeded`, insert NO `AiBatchJob` row, never a
+    silent partial) iff a cap IS configured and month-to-date spend PLUS
+    the projected batch cost would meet or exceed it.
+
+    `monthly_cap_usd=None` (no cap configured) never skips -- mirrors
+    `check_tenant_budget()`'s own unconditional-True precedent for the
+    identical input, so a tenant who has explicitly chosen "unlimited"
+    is treated identically on both the interactive and batch paths.
+    """
+    if monthly_cap_usd is None:
+        return False
+
+    spent = await get_month_to_date_spend(db, tenant_id)
+    return (spent + estimated_batch_cost_usd) >= monthly_cap_usd
 
 
 async def notify_admins_budget_exceeded(db: AsyncSession, tenant_id: uuid.UUID) -> None:

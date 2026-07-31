@@ -13,7 +13,12 @@ import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
-from app.ai.budget import check_tenant_budget, notify_admins_budget_exceeded
+from app.ai.budget import (
+    check_tenant_budget,
+    get_month_to_date_spend,
+    notify_admins_budget_exceeded,
+    would_exceed_budget_for_batch,
+)
 from app.audit import AuditLog
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -90,6 +95,68 @@ async def test_non_ai_spend_is_not_counted(db_session, tenant_a):
 
     result = await check_tenant_budget(db_session, tenant_a, monthly_cap_usd=50.0)
     assert result is True
+
+
+# ── get_month_to_date_spend + would_exceed_budget_for_batch (Phase 26 Plan 07, D-07) ──
+
+
+async def test_get_month_to_date_spend_sums_ai_rows(db_session, tenant_a):
+    await _seed_ai_spend(db_session, tenant_a, 5.0)
+    await _seed_ai_spend(db_session, tenant_a, 7.5)
+
+    spend = await get_month_to_date_spend(db_session, tenant_a)
+
+    assert spend == 12.5
+
+
+async def test_get_month_to_date_spend_zero_when_no_rows(db_session, tenant_a):
+    spend = await get_month_to_date_spend(db_session, tenant_a)
+
+    assert spend == 0.0
+
+
+async def test_check_tenant_budget_unchanged_behavior(db_session, tenant_a):
+    """Regression: check_tenant_budget()'s public contract (delegates to
+    get_month_to_date_spend(), same fail-closed 'spend < cap' comparison)
+    is unchanged after the Phase 26 Plan 07 extraction -- every existing
+    caller (explain.py::_run_explain_stream() and every explain_*.py route
+    that transitively calls it) needs zero edits."""
+    await _seed_ai_spend(db_session, tenant_a, 49.99)
+    assert await check_tenant_budget(db_session, tenant_a, monthly_cap_usd=50.0) is True
+
+    await _seed_ai_spend(db_session, tenant_a, 0.02)
+    assert await check_tenant_budget(db_session, tenant_a, monthly_cap_usd=50.0) is False
+
+
+async def test_would_exceed_budget_for_batch_none_cap_never_skips(db_session, tenant_a):
+    await _seed_ai_spend(db_session, tenant_a, 100_000.0)
+
+    result = await would_exceed_budget_for_batch(
+        db_session, tenant_a, monthly_cap_usd=None, estimated_batch_cost_usd=1.0
+    )
+
+    assert result is False
+
+
+async def test_would_exceed_budget_for_batch_skips_when_projected_over_cap(db_session, tenant_a):
+    await _seed_ai_spend(db_session, tenant_a, 45.0)
+
+    # 45.0 spent + 5.0 estimated == 50.0 cap -> spent+est >= cap -> True (skip)
+    result = await would_exceed_budget_for_batch(
+        db_session, tenant_a, monthly_cap_usd=50.0, estimated_batch_cost_usd=5.0
+    )
+
+    assert result is True
+
+
+async def test_would_exceed_budget_for_batch_under_cap_does_not_skip(db_session, tenant_a):
+    await _seed_ai_spend(db_session, tenant_a, 10.0)
+
+    result = await would_exceed_budget_for_batch(
+        db_session, tenant_a, monthly_cap_usd=50.0, estimated_batch_cost_usd=5.0
+    )
+
+    assert result is False
 
 
 # ── notify_admins_budget_exceeded — NOTIF-01 path (D-08) ──────────────────

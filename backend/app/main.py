@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timezone
 from typing import Any
 
-import redis.asyncio as redis
 import structlog
 from cryptography.fernet import Fernet
 from fastapi import Depends, FastAPI, Query
@@ -34,6 +33,7 @@ from app.cspm.router import router as cspm_router
 from app.db.session import get_db
 from app.logging import configure_logging
 from app.notifications.router import router as notifications_router
+from app.redis_client import get_redis_client
 from app.search import search_router
 from app.tenants.router import router as tenant_router
 from app.ticketing.router import router as tickets_router
@@ -109,22 +109,13 @@ async def lifespan(app: FastAPI):
 
         start_scheduler()
 
-    # BlockingConnectionPool (not the default pool): under a concurrent burst the
-    # default pool raises MaxConnectionsError once exhausted — a RedisError that
-    # makes the rate limiter fail OPEN, silently disabling the cap under exactly
-    # the load it exists for (PROD-01-02). A blocking pool queues briefly for a
-    # free connection instead, so the limiter enforces correctly under burst.
-    # Genuine Redis outages still fail fast (socket_connect_timeout) → fail open.
-    app.state.redis = redis.Redis(
-        connection_pool=redis.BlockingConnectionPool.from_url(
-            settings.redis_url,
-            decode_responses=True,
-            socket_timeout=2.0,
-            socket_connect_timeout=2.0,
-            max_connections=50,
-            timeout=5,
-        )
-    )
+    # Single construction site (Phase 26 Plan 07): app.redis_client.get_redis_client()
+    # builds the SAME BlockingConnectionPool-backed client this lifespan used to
+    # construct inline — see that function's docstring for the PROD-01-02
+    # rationale. The connector scheduler's batch pre-warm/poll tasks (app.ai.batch,
+    # Plan 08) call the identical factory to obtain their own client outside any
+    # FastAPI request.
+    app.state.redis = get_redis_client()
 
     # Load syslog config from first tenant (if configured)
     try:
