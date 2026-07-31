@@ -30,3 +30,23 @@ changes; pre-existing issues in unrelated code are logged, not fixed).
   (empty output). Same phenomenon STATE.md already documents for Phase
   24-02 ("a pre-existing mypy-baseline.txt note-line-number-drift artifact
   ... confirmed unrelated"); not caused by, or fixable within, this plan.
+
+## Plan 26-06
+
+- **`mypy-baseline.txt` note-line-number-drift artifact (recurrence, 3rd occurrence this phase).**
+  `mypy app/ | mypy-baseline filter --allow-unsynced` reports "3 new / 3
+  fixed" after adding `AiBatchJob` to `backend/app/ai/models.py`. Isolated:
+  all 3 changed lines are `note:` lines (stub-install hints for
+  `types-python-jose`) attributed to `app/auth/dependencies.py:10` on this
+  run vs. `app/connectors/google_workspace.py:0` in the baseline -- a file
+  neither this plan nor its diff touches. Reproduced deterministically with
+  a fully-cleared `.mypy_cache/` (ruling out stale-cache causation) and
+  confirmed present even with zero code changes between two consecutive
+  runs. `mypy app/ | grep '^app/ai/models.py'` returns empty (zero errors
+  of any kind in the file this plan actually modified) -- direct proof the
+  new `AiBatchJob` model/column additions introduce no real mypy debt.
+  Same class as 26-01's and Phase 24-02's prior occurrences (missing local
+  `types-python-jose` stub package; mypy's single "install this stub"
+  hint attaches to whichever `jose`-importing file it happens to visit
+  first in a given run, which drifts across environment states). Not
+  caused by, or fixable within, this plan.
