@@ -1009,3 +1009,90 @@ def remediation_guidance_prompt_version() -> str:
     return prompt_version(
         SYSTEM_PROMPT_REMEDIATION_GUIDANCE, FEW_SHOT_REMEDIATION_GUIDANCE, ExplainRemediationGuidanceResponse
     )
+
+
+# ── Prioritization-narrative allowlist (AIP-01, Phase 26 Plan 02) ──
+#
+# T-26-01: the per-finding `get_prioritization_context()` grounding record
+# (app/ai/grounding.py, Plan 01) already excludes owner-identity/inventory
+# columns -- the analyst-assignment column, the manager column, the physical
+# building, and the hardware serial number -- at the query layer -- never
+# even SELECTed. This allowlist is the SECOND, independent line of defense
+# (mirrors HOST_ALLOWLIST/T-24-32's defense-in-depth discipline): only the 10
+# names below are ever read off `record` by `_to_allowlisted_prioritization`,
+# so even if a caller someday hands this function a raw, PII-bearing row,
+# none of those excluded columns can reach the prompt. `department` is the
+# ONE deliberately-included owner signal (D-04) -- unlike every other
+# allowlist in this module, this is the one place the module intentionally
+# reads an owner-adjacent field, because it is non-PII (a team name, not an
+# identity). Every other name here is already precedented verbatim
+# elsewhere in this module (VULN_ALLOWLIST or REMEDIATION_GUIDANCE_ALLOWLIST
+# above).
+PRIORITIZATION_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "cve_id",
+        "cvss_v3_score",
+        "epss_score",
+        "exploit_available",
+        "cisa_kev",
+        "exploit_status_name",
+        "severity",
+        "sla_due_at",
+        "sla_breached",
+        "department",
+    }
+)
+
+
+class AllowlistedPrioritization(BaseModel):
+    """The ONLY shape a per-finding prioritization grounding record may take
+    before it reaches the model. Every field name here is a
+    PRIORITIZATION_ALLOWLIST member; there is no field for any owner-
+    identity or inventory-PII column, so those are structurally impossible
+    to carry on this type (T-26-01). `sla_due_at` is deliberately typed
+    `str | None` (not a raw `datetime`), mirroring `AllowlistedHostPosture.
+    last_checkin_at`'s exact precedent in this same module -- a Pydantic
+    `datetime` field round-trips through `model_dump()` as a live Python
+    `datetime` object (mode='python' is the default), which `json.dumps()`
+    cannot serialize; stringifying at construction time (see
+    `_to_allowlisted_prioritization`) is what actually makes the
+    `<scanner_data>` JSON encoding in `build_explain_prioritization_prompt`
+    safe against a real, non-null SLA-deadline value from the database."""
+
+    model_config = {"extra": "forbid"}
+
+    cve_id: str | None = None
+    cvss_v3_score: float | None = None
+    epss_score: float | None = None
+    exploit_available: bool | None = None
+    cisa_kev: bool | None = None
+    exploit_status_name: str | None = None
+    severity: str | None = None
+    sla_due_at: str | None = None
+    sla_breached: bool | None = None
+    department: str | None = None
+
+
+def _to_allowlisted_prioritization(record: Any) -> AllowlistedPrioritization:
+    """Construct the narrow, allowlisted prioritization view field-by-field
+    -- mirrors `_to_allowlisted_finding`/`_to_allowlisted_host_posture`/
+    `_to_allowlisted_remediation_guidance`'s discipline. NEVER
+    `AllowlistedPrioritization(**record.__dict__)` or any other passthrough:
+    only PRIORITIZATION_ALLOWLIST names are read off `record`, one at a
+    time, by name -- the owner-identity/inventory-PII columns excluded from
+    this allowlist are never even looked at, let alone copied (T-26-01).
+    None of these 10 fields is unbounded free text (unlike
+    `remediation_action`/`remediation_info`), so no `_truncate()` call is
+    needed here."""
+    return AllowlistedPrioritization(
+        cve_id=_get_field(record, "cve_id"),
+        cvss_v3_score=_get_field(record, "cvss_v3_score"),
+        epss_score=_get_field(record, "epss_score"),
+        exploit_available=_get_field(record, "exploit_available"),
+        cisa_kev=_get_field(record, "cisa_kev"),
+        exploit_status_name=_get_field(record, "exploit_status_name"),
+        severity=_get_field(record, "severity"),
+        sla_due_at=_stringify(_get_field(record, "sla_due_at")),
+        sla_breached=_get_field(record, "sla_breached"),
+        department=_get_field(record, "department"),
+    )

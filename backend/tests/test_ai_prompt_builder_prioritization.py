@@ -3,13 +3,13 @@
 discipline `test_ai_prompt_builder.py` already proves for the vuln view.
 
 Three things this file exists to prove, mirroring the existing house style
-exactly (`test_ai_prompt_builder_remediation_guidance.py`):
+(`test_ai_prompt_builder_remediation_guidance.py`):
 
 1. Owner PII (the analyst-assignment column, the manager column, the
-   physical building, the hardware serial number) never reaches the built
-   prompt, whether `record` is a dict or an attribute-bearing object
-   (T-26-01) — `department` is the one deliberately-included non-PII owner
-   signal (D-04) and DOES appear.
+   physical building, the hardware serial number) never reaches the
+   allowlisted model, whether `record` is a dict or an attribute-bearing
+   object (T-26-01) — `department` is the one deliberately-included
+   non-PII owner signal (D-04) and DOES appear.
 2. The system prompt text forbids the model from asserting an independent
    priority verdict or inventing a rank/number (D-08/D-03 as prompt text,
    threat T-26-02).
@@ -25,10 +25,7 @@ from typing import Any
 from app.ai.prompt_builder import (
     PRIORITIZATION_ALLOWLIST,
     AllowlistedPrioritization,
-    build_explain_prioritization_prompt,
-    host_prompt_version,
-    prioritization_prompt_version,
-    remediation_guidance_prompt_version,
+    _to_allowlisted_prioritization,
 )
 
 
@@ -47,13 +44,6 @@ def _record(**overrides: Any) -> dict[str, Any]:
     }
     base.update(overrides)
     return base
-
-
-def _user_text(system_and_blocks: tuple[str, list[dict[str, str]]]) -> str:
-    _, blocks = system_and_blocks
-    assert len(blocks) == 1
-    assert blocks[0]["type"] == "text"
-    return blocks[0]["text"]
 
 
 # ── PRIORITIZATION_ALLOWLIST shape (T-26-01) ──
@@ -90,9 +80,10 @@ def test_allowlisted_prioritization_fields_match_allowlist() -> None:
 
 
 def test_allowlist_enforcement_excludes_owner_pii_from_dict() -> None:
-    """An input dict carrying owner PII alongside the allowlisted grounding
-    fields must never leak those keys/values into the serialized
-    <scanner_data> block — only PRIORITIZATION_ALLOWLIST names are read.
+    """A dict carrying owner PII alongside the allowlisted grounding fields
+    must never leak those keys/values onto the constructed
+    `AllowlistedPrioritization` model — only PRIORITIZATION_ALLOWLIST names
+    are read (extra='forbid' + field-by-field `_get_field` construction).
     `department` DOES appear — it is the one deliberately-included non-PII
     owner signal (D-04), not owner PII."""
     record = _record(
@@ -102,17 +93,15 @@ def test_allowlist_enforcement_excludes_owner_pii_from_dict() -> None:
         serial_number="SN-998877",
     )
 
-    _, blocks = build_explain_prioritization_prompt(record)
-    user_text = _user_text(("", blocks))
+    allowlisted = _to_allowlisted_prioritization(record)
+    dumped = allowlisted.model_dump()
 
     for field in ("assigned_user", "managed_by", "building", "serial_number"):
-        assert field not in user_text
-    assert "alice@example.com" not in user_text
-    assert "Bob Manager" not in user_text
-    assert "HQ-3" not in user_text
-    assert "SN-998877" not in user_text
+        assert field not in dumped
+    for pii_value in ("alice@example.com", "Bob Manager", "HQ-3", "SN-998877"):
+        assert pii_value not in dumped.values()
     # `department` is the allowed non-PII owner signal — it DOES appear.
-    assert "Finance" in user_text
+    assert dumped["department"] == "Finance"
 
 
 def test_allowlist_enforcement_excludes_owner_pii_from_attribute_object() -> None:
@@ -146,13 +135,11 @@ def test_allowlist_enforcement_excludes_owner_pii_from_attribute_object() -> Non
         serial_number="SN-998877",
     )
 
-    _, blocks = build_explain_prioritization_prompt(row)
-    user_text = _user_text(("", blocks))
+    allowlisted = _to_allowlisted_prioritization(row)
+    dumped = allowlisted.model_dump()
 
     for field in ("assigned_user", "managed_by", "building", "serial_number"):
-        assert field not in user_text
-    assert "alice@example.com" not in user_text
-    assert "Bob Manager" not in user_text
-    assert "HQ-3" not in user_text
-    assert "SN-998877" not in user_text
-    assert "Finance" in user_text
+        assert field not in dumped
+    for pii_value in ("alice@example.com", "Bob Manager", "HQ-3", "SN-998877"):
+        assert pii_value not in dumped.values()
+    assert dumped["department"] == "Finance"
