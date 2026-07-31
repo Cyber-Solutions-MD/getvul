@@ -23,6 +23,7 @@ from app.ai.schemas import (
     BusinessRuleError,
     Citation,
     CitationSource,
+    ExplainPrioritizationResponse,
     ExplainRemediationGuidanceResponse,
     ExplainResponseBase,
     ExplainVulnResponse,
@@ -185,6 +186,32 @@ def test_remediation_guidance_response_has_zero_new_fields() -> None:
     )
     resp = ExplainRemediationGuidanceResponse.model_validate(_valid_payload())
     assert resp.grounded is True
+
+
+# ── ExplainPrioritizationResponse (26-01 Task 2): the schema-side half of
+# the D-03/Pitfall #7/SC2 "no AI rank" contract (the UI-side grep lives in
+# Plan 04) — a zero-new-fields subclass of a base with no numeric field, so
+# a rank number has structurally nowhere to live (26-PATTERNS.md "add
+# ExplainPrioritizationResponse") ──
+
+
+def test_prioritization_no_rank_field() -> None:
+    """ExplainPrioritizationResponse has EXACTLY the 4 ExplainResponseBase
+    field names, and none of them — nor any additional field — is a
+    numeric rank/priority/score verdict (the literal SC2 schema
+    guarantee)."""
+    field_names = set(ExplainPrioritizationResponse.model_fields.keys())
+    assert field_names == {"summary", "business_risk", "citations", "grounded"}
+    forbidden_identifiers = {"priority", "rank", "score", "ai_priority", "ai_rank"}
+    assert not (field_names & forbidden_identifiers)
+
+
+def test_recheck_business_rules_accepts_prioritization_response_unchanged() -> None:
+    """recheck_business_rules() needs zero changes for the 5th view — it is
+    already parameterized by allowed_source_fields, exactly as every prior
+    route passes its own *_ALLOWLIST."""
+    resp = ExplainPrioritizationResponse.model_validate(_valid_payload())
+    recheck_business_rules(resp, allowed_source_fields=frozenset({"cve_id", "severity"}))  # must not raise
 
 
 def test_scanner_verbatim_citation_is_substring_of_source_field() -> None:

@@ -93,6 +93,18 @@ class ExplainRemediationGuidanceResponse(ExplainResponseBase):
     a citation-ordering/tagging convention, not a new schema field)."""
 
 
+class ExplainPrioritizationResponse(ExplainResponseBase):
+    """The prioritization-narrative response (AIP-01, Phase 26 Plan 01). No
+    additional fields — the narrative lives as prose in `summary`/
+    `business_risk`, exactly as `ExplainHostResponse`/`ExplainRemediationResponse`/
+    `ExplainRemediationGuidanceResponse` above already prove is sufficient.
+    The DELIBERATE absence of any additional numeric field on this class is
+    the D-03/Pitfall-7/SC2 augment-never-replace enforcement (threat
+    T-26-02): `ExplainResponseBase` has no numeric field anywhere, so a
+    competing verdict number has structurally nowhere to live without a
+    reviewable diff to this shared base class."""
+
+
 # ── Business-rule re-check gate (AI-SPEC Section 4b Pitfall 4) ──
 #
 # Per-field character ceilings and citation source_field allowlist
