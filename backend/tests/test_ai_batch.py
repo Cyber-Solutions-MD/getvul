@@ -24,7 +24,12 @@ from anthropic.types.message_create_params import MessageCreateParamsNonStreamin
 from anthropic.types.messages.batch_create_params import Request
 from sqlalchemy import select
 
-from app.ai.batch import estimate_batch_cost_usd, run_batch_prewarm, validate_and_cache_batch_result
+from app.ai.batch import (
+    estimate_batch_cost_usd,
+    poll_pending_batches,
+    run_batch_prewarm,
+    validate_and_cache_batch_result,
+)
 from app.ai.cache import build_cache_key, get_cached, record_hash
 from app.ai.explain import DEFAULT_MODEL, MAX_TOKENS, _estimate_cost_usd, _extract_scanner_data
 from app.ai.grounding import get_prioritization_context
@@ -62,6 +67,18 @@ class _FakeBatches:
         self._client.batches_created += 1
         return _FakeBatch(f"batch-for-{self._client.api_key}")
 
+    async def retrieve(self, batch_id: str) -> Any:
+        """Poll-side (Plan 08): idempotent, safe to call every tick."""
+        self._client.retrieve_calls.append(batch_id)
+        return self._client.retrieve_response
+
+    async def results(self, batch_id: str) -> _FakeResultsStream:
+        """Poll-side (Plan 08): must only be reached once `retrieve()`
+        reports `processing_status == "ended"` (Pitfall 6) -- the poller
+        under test is what enforces that gate, not this fake."""
+        self._client.results_calls.append(batch_id)
+        return _FakeResultsStream(self._client.result_lines)
+
 
 class _FakeBatchMessages:
     def __init__(self, client: _FakeBatchAnthropic) -> None:
@@ -75,25 +92,123 @@ class _FakeBatchMessages:
 
 class _FakeBatchAnthropic:
     """Records which api_key constructed this instance -- the per-tenant
-    BYOK isolation regression guard (T-24-19)."""
+    BYOK isolation regression guard (T-24-19). `retrieve_response`/
+    `result_lines` are poll-side (Plan 08) canned data -- unused by any
+    Plan 07 submit-side test."""
 
-    def __init__(self, api_key: str, *, input_tokens_per_request: int = 1000) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        input_tokens_per_request: int = 1000,
+        retrieve_response: Any = None,
+        result_lines: list[_FakeResultLine] | None = None,
+    ) -> None:
         self.api_key = api_key
         self.input_tokens_per_request = input_tokens_per_request
         self.messages = _FakeBatchMessages(self)
         self.create_calls: list[list[Request]] = []
         self.count_tokens_calls: list[dict[str, Any]] = []
         self.batches_created = 0
+        self.retrieve_calls: list[str] = []
+        self.results_calls: list[str] = []
+        self.retrieve_response = retrieve_response if retrieve_response is not None else _FakeRetrieveResponse("ended")
+        self.result_lines = result_lines if result_lines is not None else []
+
+
+# ── Poll-side fakes (Plan 08): `retrieve()`'s return value + the async
+# `results()` stream's individual lines. Duck-typed (matching the file's own
+# `_FakeBatch`/`_FakeTokensCount` convention) rather than real anthropic SDK
+# Pydantic instances -- `poll_pending_batches()` reads `.processing_status`,
+# `.custom_id`, `.result.type`, `.result.message`/`.result.error` via plain
+# attribute access, never `isinstance()`, so a duck-typed stand-in is
+# indistinguishable from the real SDK response shape to the code under test.
+
+
+class _FakeRetrieveResponse:
+    def __init__(self, processing_status: str) -> None:
+        self.processing_status = processing_status
+
+
+class _FakeSucceededResult:
+    """A `succeeded` batch-result-line payload -- `.type` + `.message`
+    (itself duck-typed with `.content` + `.usage`, matching a real
+    anthropic `Message`)."""
+
+    def __init__(self, raw_text: str, *, input_tokens: int = 500, output_tokens: int = 100) -> None:
+        self.type = "succeeded"
+        self.message = SimpleNamespace(
+            content=[SimpleNamespace(type="text", text=raw_text)],
+            usage=SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens),
+        )
+
+
+class _FakeNonSucceededResult:
+    """An `errored`/`canceled`/`expired` batch-result-line payload -- no
+    payload beyond `.type` (RESEARCH Pattern 1: none of the three carry a
+    usable message)."""
+
+    def __init__(self, result_type: str) -> None:
+        self.type = result_type
+
+
+class _FakeResultLine:
+    def __init__(self, custom_id: str, result: Any) -> None:
+        self.custom_id = custom_id
+        self.result = result
+
+
+class _FakeResultsStream:
+    """`client.messages.batches.results(batch_id)` returns an async
+    iterator of `MessageBatchIndividualResponse`-shaped lines (order never
+    guaranteed by the real API) -- this fake mirrors that async-iterable
+    contract over a plain in-memory list."""
+
+    def __init__(self, lines: list[_FakeResultLine]) -> None:
+        self._lines = lines
+
+    def __aiter__(self):  # noqa: ANN204
+        return self._agen()
+
+    async def _agen(self):  # noqa: ANN202
+        for line in self._lines:
+            yield line
 
 
 def _make_recording_factory():
-    """Returns (factory, constructed_keys, clients_by_key)."""
+    """Returns (factory, constructed_keys, clients_by_key). Submit-side
+    (Plan 07) convention -- every constructed client gets the SAME default
+    poll-side canned data (an already-`"ended"` batch with zero result
+    lines), since no submit-side test ever calls `retrieve()`/`results()`."""
     constructed_keys: list[str] = []
     clients_by_key: dict[str, _FakeBatchAnthropic] = {}
 
     def factory(api_key: str) -> _FakeBatchAnthropic:
         constructed_keys.append(api_key)
         client = _FakeBatchAnthropic(api_key)
+        clients_by_key[api_key] = client
+        return client
+
+    return factory, constructed_keys, clients_by_key
+
+
+def _make_poll_recording_factory(configs_by_key: dict[str, dict[str, Any]]):
+    """Poll-side (Plan 08) recording factory: unlike `_make_recording_factory()`,
+    each constructed client's canned `retrieve()`/`results()` data is looked
+    up by the SAME api_key the poller resolved for that job's owning tenant
+    -- `configs_by_key = {api_key: {"retrieve_response": ..., "result_lines": [...]}}`.
+    Returns (factory, constructed_keys, clients_by_key)."""
+    constructed_keys: list[str] = []
+    clients_by_key: dict[str, _FakeBatchAnthropic] = {}
+
+    def factory(api_key: str) -> _FakeBatchAnthropic:
+        constructed_keys.append(api_key)
+        cfg = configs_by_key.get(api_key, {})
+        client = _FakeBatchAnthropic(
+            api_key,
+            retrieve_response=cfg.get("retrieve_response"),
+            result_lines=cfg.get("result_lines"),
+        )
         clients_by_key[api_key] = client
         return client
 
@@ -141,6 +256,34 @@ async def _seed_finding(db_session, tenant_id: uuid.UUID, *, cve_id: str) -> uui
     db_session.add(vuln)
     await db_session.flush()
     return vuln.id
+
+
+async def _seed_batch_job(
+    db_session,
+    tenant_id: uuid.UUID,
+    *,
+    anthropic_batch_id: str,
+    custom_id_hash_map: dict[str, str],
+    model: str = DEFAULT_MODEL,
+    prompt_version: str | None = None,
+    status: str = "in_progress",
+) -> AiBatchJob:
+    """Poll-side (Plan 08) seed helper: inserts an `AiBatchJob` row DIRECTLY
+    -- never via `run_batch_prewarm()` -- simulating a batch submitted
+    before a (simulated) process restart, so `poll_pending_batches()`'s
+    resume-from-Postgres contract is exercised genuinely (T-26-08)."""
+    job = AiBatchJob(
+        tenant_id=tenant_id,
+        anthropic_batch_id=anthropic_batch_id,
+        status=status,
+        model=model,
+        prompt_version=prompt_version or prioritization_prompt_version(),
+        custom_id_hash_map=custom_id_hash_map,
+        submitted_at=datetime.now(UTC),
+    )
+    db_session.add(job)
+    await db_session.flush()
+    return job
 
 
 async def _fetch_audit_rows_fresh_session(action: str, resource_id: str) -> list[AuditLog]:
@@ -468,3 +611,222 @@ async def test_validate_and_cache_leak_marker_flagged(db_session, tenant_a, flus
     rows = await _fetch_audit_rows_fresh_session("ai.explain.prioritization", finding_id)
     assert len(rows) == 1
     assert rows[0].details["cost_estimate_usd"] == 0.0
+
+
+# ── poll_pending_batches() (Plan 08) ─────────────────────────────────────────
+
+
+async def _fetch_batch_job_fresh_session(job_id: uuid.UUID) -> AiBatchJob | None:
+    """Fresh session -- proves the row's status/ended_at transition was
+    actually committed by the poller's OWN session, not merely mutated on
+    the test's in-memory `db_session`-bound object."""
+    async with async_session_factory() as fresh:
+        return await fresh.get(AiBatchJob, job_id)
+
+
+async def test_poll_uses_per_tenant_key(db_session, tenant_a, tenant_b, flushed_redis):
+    """T-24-19: two in_progress jobs, two tenants, two DISTINCT keys -- each
+    job is retrieved via a client built from ITS OWN owning tenant's key,
+    never the other tenant's (the poll-side isolation guard)."""
+    await _seed_anthropic_connector(db_session, tenant_a, api_key="sk-ant-poll-key-a")
+    await _seed_anthropic_connector(db_session, tenant_b, api_key="sk-ant-poll-key-b")
+    await _seed_batch_job(db_session, tenant_a, anthropic_batch_id="batch-poll-a", custom_id_hash_map={})
+    await _seed_batch_job(db_session, tenant_b, anthropic_batch_id="batch-poll-b", custom_id_hash_map={})
+    await db_session.commit()
+
+    factory, constructed_keys, clients_by_key = _make_poll_recording_factory(
+        {
+            "sk-ant-poll-key-a": {"retrieve_response": _FakeRetrieveResponse("in_progress")},
+            "sk-ant-poll-key-b": {"retrieve_response": _FakeRetrieveResponse("in_progress")},
+        }
+    )
+
+    await poll_pending_batches(anthropic_client_factory=factory)
+
+    assert sorted(constructed_keys) == ["sk-ant-poll-key-a", "sk-ant-poll-key-b"]
+    # Each job's retrieve() call was made via the client built from ITS OWN
+    # tenant's key -- never the other tenant's client.
+    assert clients_by_key["sk-ant-poll-key-a"].retrieve_calls == ["batch-poll-a"]
+    assert clients_by_key["sk-ant-poll-key-b"].retrieve_calls == ["batch-poll-b"]
+    # Both fakes report "in_progress" -- results() must never be called.
+    assert clients_by_key["sk-ant-poll-key-a"].results_calls == []
+    assert clients_by_key["sk-ant-poll-key-b"].results_calls == []
+
+
+async def test_poll_skips_key_rotated_away(db_session, tenant_a, flushed_redis):
+    """A job whose owning tenant's key has since been rotated away (no
+    ANTHROPIC ConnectorConfig row) is skipped -- no client is EVER
+    constructed for it, and the row stays in_progress."""
+    job = await _seed_batch_job(db_session, tenant_a, anthropic_batch_id="batch-poll-rotated", custom_id_hash_map={})
+    await db_session.commit()
+
+    def _factory(api_key: str):
+        raise AssertionError("a client must never be constructed for a keyless tenant")
+
+    await poll_pending_batches(anthropic_client_factory=_factory)
+
+    refreshed = await _fetch_batch_job_fresh_session(job.id)
+    assert refreshed is not None
+    assert refreshed.status == "in_progress"
+
+
+async def test_poll_skips_still_processing(db_session, tenant_a, flushed_redis):
+    """`processing_status != "ended"` is a no-op: the row stays in_progress,
+    and `results()` (Pitfall 6) must never be called."""
+    await _seed_anthropic_connector(db_session, tenant_a, api_key="sk-ant-poll-processing")
+    job = await _seed_batch_job(
+        db_session, tenant_a, anthropic_batch_id="batch-poll-processing", custom_id_hash_map={"finding-x": "hash-x"}
+    )
+    await db_session.commit()
+
+    factory, _constructed_keys, clients_by_key = _make_poll_recording_factory(
+        {"sk-ant-poll-processing": {"retrieve_response": _FakeRetrieveResponse("in_progress")}}
+    )
+
+    await poll_pending_batches(anthropic_client_factory=factory)
+
+    client = clients_by_key["sk-ant-poll-processing"]
+    assert client.retrieve_calls == ["batch-poll-processing"]
+    assert client.results_calls == []
+
+    refreshed = await _fetch_batch_job_fresh_session(job.id)
+    assert refreshed is not None
+    assert refreshed.status == "in_progress"
+
+
+async def test_poll_succeeded_caches_and_completes(db_session, tenant_a, flushed_redis):
+    """succeeded -> cached under the SAME cache key the GET route would
+    compute (D-06), audited 'ok', and the row transitions to completed."""
+    await _seed_anthropic_connector(db_session, tenant_a, api_key="sk-ant-poll-succeed")
+    finding_id = await _seed_finding(db_session, tenant_a, cve_id="CVE-POLL-SUCCEED")
+    await db_session.commit()
+
+    expected_cache_key = await _expected_cache_key(db_session, tenant_a, finding_id)
+    record = await get_prioritization_context(db_session, tenant_a, finding_id)
+    _system, user_blocks = build_explain_prioritization_prompt(record)
+    the_hash = record_hash(_extract_scanner_data(user_blocks))
+
+    job = await _seed_batch_job(
+        db_session,
+        tenant_a,
+        anthropic_batch_id="batch-poll-succeed",
+        custom_id_hash_map={str(finding_id): the_hash},
+    )
+    await db_session.commit()
+
+    result_line = _FakeResultLine(str(finding_id), _FakeSucceededResult(json.dumps(_valid_payload())))
+    factory, _constructed_keys, _clients_by_key = _make_poll_recording_factory(
+        {
+            "sk-ant-poll-succeed": {
+                "retrieve_response": _FakeRetrieveResponse("ended"),
+                "result_lines": [result_line],
+            }
+        }
+    )
+
+    await poll_pending_batches(anthropic_client_factory=factory)
+
+    cached = await get_cached(flushed_redis, expected_cache_key)
+    assert cached is not None
+    assert cached["summary"] == _valid_payload()["summary"]
+
+    audit_rows = await _fetch_audit_rows_fresh_session("ai.explain.prioritization", str(finding_id))
+    assert len(audit_rows) == 1
+    assert audit_rows[0].details["status"] == "ok"
+    assert audit_rows[0].user_email == "system:scheduler"
+
+    refreshed = await _fetch_batch_job_fresh_session(job.id)
+    assert refreshed is not None
+    assert refreshed.status == "completed"
+    assert refreshed.ended_at is not None
+
+
+async def test_poll_result_types_errored_canceled_expired(db_session, tenant_a, flushed_redis):
+    """errored/canceled/expired each get their OWN distinct audit status,
+    cost 0.0, and are NEVER written to the cache -- none reaches
+    validate_and_cache_batch_result() (no payload exists to validate)."""
+    await _seed_anthropic_connector(db_session, tenant_a, api_key="sk-ant-poll-mixed")
+    await db_session.commit()
+
+    lines = [
+        _FakeResultLine("finding-errored", _FakeNonSucceededResult("errored")),
+        _FakeResultLine("finding-canceled", _FakeNonSucceededResult("canceled")),
+        _FakeResultLine("finding-expired", _FakeNonSucceededResult("expired")),
+    ]
+    job = await _seed_batch_job(
+        db_session,
+        tenant_a,
+        anthropic_batch_id="batch-poll-mixed",
+        custom_id_hash_map={
+            "finding-errored": "hash-errored",
+            "finding-canceled": "hash-canceled",
+            "finding-expired": "hash-expired",
+        },
+    )
+    await db_session.commit()
+
+    factory, _constructed_keys, _clients_by_key = _make_poll_recording_factory(
+        {"sk-ant-poll-mixed": {"retrieve_response": _FakeRetrieveResponse("ended"), "result_lines": lines}}
+    )
+
+    await poll_pending_batches(anthropic_client_factory=factory)
+
+    for finding_id, the_hash, expected_status in [
+        ("finding-errored", "hash-errored", "batch_errored"),
+        ("finding-canceled", "hash-canceled", "batch_canceled"),
+        ("finding-expired", "hash-expired", "batch_expired"),
+    ]:
+        rows = await _fetch_audit_rows_fresh_session("ai.explain.prioritization", finding_id)
+        assert len(rows) == 1
+        assert rows[0].details["status"] == expected_status
+        assert rows[0].details["cost_estimate_usd"] == 0.0
+
+        cache_key = build_cache_key(tenant_a, "prioritization", finding_id, the_hash, job.model, job.prompt_version)
+        assert await get_cached(flushed_redis, cache_key) is None
+
+    refreshed = await _fetch_batch_job_fresh_session(job.id)
+    assert refreshed is not None
+    assert refreshed.status == "completed"
+
+
+async def test_poll_resumes_seeded_in_progress_row(db_session, tenant_a, flushed_redis):
+    """T-26-08/RESEARCH #2: a row seeded DIRECTLY into Postgres -- never via
+    run_batch_prewarm() in this test -- simulating a batch submitted before
+    a (simulated) process restart, is still found and completed by
+    poll_pending_batches(), proving genuine resume-from-Postgres (there is
+    no in-memory registry linking the two functions -- only this row)."""
+    await _seed_anthropic_connector(db_session, tenant_a, api_key="sk-ant-poll-resume")
+    finding_id = await _seed_finding(db_session, tenant_a, cve_id="CVE-POLL-RESUME")
+    await db_session.commit()
+
+    expected_cache_key = await _expected_cache_key(db_session, tenant_a, finding_id)
+    record = await get_prioritization_context(db_session, tenant_a, finding_id)
+    _system, user_blocks = build_explain_prioritization_prompt(record)
+    the_hash = record_hash(_extract_scanner_data(user_blocks))
+
+    job = await _seed_batch_job(
+        db_session,
+        tenant_a,
+        anthropic_batch_id="batch-poll-resume",
+        custom_id_hash_map={str(finding_id): the_hash},
+    )
+    await db_session.commit()
+
+    result_line = _FakeResultLine(str(finding_id), _FakeSucceededResult(json.dumps(_valid_payload())))
+    factory, _constructed_keys, _clients_by_key = _make_poll_recording_factory(
+        {
+            "sk-ant-poll-resume": {
+                "retrieve_response": _FakeRetrieveResponse("ended"),
+                "result_lines": [result_line],
+            }
+        }
+    )
+
+    await poll_pending_batches(anthropic_client_factory=factory)
+
+    cached = await get_cached(flushed_redis, expected_cache_key)
+    assert cached is not None
+
+    refreshed = await _fetch_batch_job_fresh_session(job.id)
+    assert refreshed is not None
+    assert refreshed.status == "completed"

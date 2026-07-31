@@ -1,17 +1,19 @@
-"""The batch submitter + single-pass result validator (AIP-02, Phase 26
-Plan 07) -- the nightly Message Batches API pre-warm job. A composite new
-module: no single existing file plays this whole role, so its three
-functions each borrow a different existing shape (26-PATTERNS.md):
-`validate_and_cache_batch_result()` mirrors `explain.py::_run_explain_stream()`'s
-SUCCESS-path validation chain minus the retry loop (there is no live
-conversation to retry within for a completed batch item);
-`run_batch_prewarm()` mirrors `scheduler.py::_run_single_sync()`'s
-own-session background-task shape plus the SLA-check block's active-tenant
-loop; the budget-skip path mirrors
+"""The batch submitter/poller + single-pass result validator (AIP-02, Phase
+26 Plans 07-08) -- the nightly Message Batches API pre-warm job and its
+every-tick poller. A composite module: no single existing file plays this
+whole role, so its functions each borrow a different existing shape
+(26-PATTERNS.md): `validate_and_cache_batch_result()` mirrors
+`explain.py::_run_explain_stream()`'s SUCCESS-path validation chain minus
+the retry loop (there is no live conversation to retry within for a
+completed batch item); `run_batch_prewarm()` and `poll_pending_batches()`
+both mirror `scheduler.py::_run_single_sync()`'s own-session background-task
+shape (`run_batch_prewarm()` additionally borrows the SLA-check block's
+active-tenant loop); the budget-skip path and the poller's
+errored/canceled/expired handling both mirror
 `explain_remediation_guidance.py::_refuse_ungroundable()`'s audit-only,
 zero-dispatch refusal shape.
 
-Two Critical properties enforced here, mirroring explain.py's own module
+Three Critical properties enforced here, mirroring explain.py's own module
 docstring:
 
 1. **Per-tenant BYOK client, never shared (T-24-19/D-05/SC3).**
@@ -28,6 +30,17 @@ docstring:
    `client.messages.batches.create()` ever runs. A would-breach batch is
    skipped + admin-alerted + audited `batch_skipped_budget_exceeded` --
    never submitted, never partially submitted.
+3. **Resume-from-Postgres, never in-memory (T-26-08, RESEARCH #2).**
+   `poll_pending_batches()` selects EVERY `AiBatchJob` row with
+   `status == "in_progress"` directly from Postgres on every call -- a
+   batch submitted before a process restart is still found and retrieved
+   on the very next call, exactly as if the process had never restarted.
+   Per job it resolves THAT job's OWNING tenant's own key fresh
+   (`get_tenant_anthropic_key(db, job.tenant_id)`) and builds a FRESH
+   per-tenant client before that job's `retrieve()`/`results()` -- the
+   SAME per-tenant-fresh-client contract as property 1, extended to the
+   poll side (a key rotated away since submission skips the job, leaving
+   it `in_progress`, never retrieved with any other tenant's key).
 
 The 50% batch discount (RESEARCH Pitfall 4) is applied at BOTH cost sites:
 `estimate_batch_cost_usd()`'s pre-submission estimate, and
@@ -35,10 +48,14 @@ The 50% batch discount (RESEARCH Pitfall 4) is applied at BOTH cost sites:
 either one would make `check_tenant_budget()`'s month-to-date SUM
 systematically over-count real spend by 2x.
 
-Nothing in this module is wired into the scheduler yet (Plan 08) --
-`run_batch_prewarm()`/`validate_and_cache_batch_result()` are directly
-test-invoked here, with a fake Anthropic client injected via the
-`anthropic_client_factory` seam.
+Both `run_batch_prewarm()` and `poll_pending_batches()` are now dispatched
+from `backend/app/connectors/scheduler.py`'s `_scheduler_loop()` (via its
+own `_dispatch_ai_batch_prewarm()`/`_dispatch_ai_batch_poll()` helpers,
+each an `asyncio.create_task` call) -- the batch feature is live: nightly
+submit + every-tick poll, each resolving its own per-tenant keys
+internally, the scheduler itself building no client. Every function here
+remains directly test-invokable too, with a fake Anthropic client injected
+via the `anthropic_client_factory` seam.
 """
 
 from __future__ import annotations
@@ -277,6 +294,170 @@ async def run_batch_prewarm(
                 # iteration left pending, log, and continue.
                 await db.rollback()
                 _logger.exception("ai_batch_prewarm_tenant_error", extra={"tenant_id": str(tenant_id)})
+
+
+async def _audit_non_succeeded_batch_result(
+    db: AsyncSession, *, tenant_id: uuid.UUID, model: str, finding_id: str, status: str
+) -> None:
+    """RESEARCH Pattern 8: an `errored`/`canceled`/`expired` batch result
+    never reaches `validate_and_cache_batch_result()` at all -- there is no
+    payload to validate. Audited directly under its OWN distinct status
+    (`batch_errored`/`batch_canceled`/`batch_expired`), cost always 0.0
+    (none of the three are billed per the official Batches API docs), and
+    the cache is NEVER touched for these three outcomes.
+
+    Uses the module's `_ZERO_USAGE` sentinel, NOT `usage=None` -- the same
+    Rule 1 fix 26-07-SUMMARY.md already made for `run_batch_prewarm()`'s
+    structurally identical budget-skip audit call applies here too:
+    `audit_log_ai_call()` unconditionally reads `usage.input_tokens`/
+    `usage.output_tokens` with no null-guard.
+    """
+    await audit_log_ai_call(
+        db,
+        tenant_id=tenant_id,
+        user_email="system:scheduler",
+        model=model,
+        usage=_ZERO_USAGE,
+        resource_type="prioritization",
+        resource_id=finding_id,
+        status=status,
+        cost_estimate_usd=0.0,
+    )
+    await db.commit()
+
+
+async def poll_pending_batches(
+    *,
+    anthropic_client_factory: Callable[[str], AsyncAnthropic] | None = None,
+) -> None:
+    """Resume-from-Postgres batch poller (D-05/D-06/T-26-08, AIP-02). Opens
+    its OWN `async with async_session_factory() as db:` and its OWN Redis
+    client (via `get_redis_client()`) -- the same own-session/own-client
+    shape `run_batch_prewarm()` already establishes, needed because Plan 08
+    dispatches this via `asyncio.create_task`, detaching it from the
+    scheduler loop's own `db` variable.
+
+    RESUME-FROM-POSTGRES (RESEARCH #2, T-26-08): selects EVERY `AiBatchJob`
+    row with `status == "in_progress"` from the DURABLE table -- never an
+    in-memory registry -- so a batch submitted before a restart (a row
+    seeded directly into Postgres, simulating a pre-restart submit) is
+    still found and retrieved on the very next call, exactly as if the
+    process had never restarted.
+
+    T-24-19/D-05/SC3: takes NO externally-injected shared client.
+    `anthropic_client_factory` is ONLY a test seam (mirrors
+    `run_batch_prewarm()`'s own seam) -- inside EVERY job iteration, a FRESH
+    per-tenant client is built from THAT job's OWNING tenant's own resolved
+    key: `key = await get_tenant_anthropic_key(db, job.tenant_id)` (skip
+    silently, leave `in_progress`, if None -- the key was rotated away
+    since submission), then `client = (anthropic_client_factory or
+    _default_client_factory)(key)`. A job is NEVER retrieved with any
+    tenant's key other than its own owning tenant's.
+
+    Re-selects each job BY ID (a plain scalar `uuid.UUID`, never carried as
+    a live ORM reference across a rollback) rather than looping over the
+    initially-loaded ORM objects directly -- mirrors `run_batch_prewarm()`'s
+    OWN `Tenant.id`-not-`Tenant` fix (26-07-SUMMARY.md Deviations):
+    `AsyncSession.rollback()` (needed in this function's own per-job except
+    block to recover from one job's failure) expires EVERY object in the
+    session's identity map, so a LATER job's already-loaded ORM object would
+    otherwise attempt a synchronous lazy-reload on next attribute access and
+    raise `sqlalchemy.exc.MissingGreenlet`. A bare `uuid.UUID` has no such
+    expiration/lazy-load behavior, so re-querying fresh per job (inside the
+    SAME per-job try) is immune to a prior job's rollback.
+
+    Per-job processing is wrapped in its own try/except: one job's failure
+    (a transient Anthropic error, a malformed result line) must not abort
+    every OTHER in-flight job's poll in the same tick.
+    """
+    async with async_session_factory() as db:
+        redis_client = get_redis_client()
+        job_ids = (await db.execute(select(AiBatchJob.id).where(AiBatchJob.status == "in_progress"))).scalars().all()
+
+        for job_id in job_ids:
+            try:
+                job = (await db.execute(select(AiBatchJob).where(AiBatchJob.id == job_id))).scalar_one_or_none()
+                if job is None:
+                    continue  # completed/removed concurrently -- nothing to do
+
+                key = await get_tenant_anthropic_key(db, job.tenant_id)
+                if key is None:
+                    # T-24-19: the owning tenant's key was rotated away since
+                    # submission -- skip, leave in_progress, NEVER retrieve
+                    # with any other tenant's key.
+                    continue
+
+                client = (anthropic_client_factory or _default_client_factory)(key)
+                refreshed = await client.messages.batches.retrieve(job.anthropic_batch_id)
+                if refreshed.processing_status != "ended":
+                    # Pitfall 6: results() must never be called before the
+                    # batch has fully ended -- no-op, retry next tick.
+                    continue
+
+                tenant_id = job.tenant_id
+                model = job.model
+                prompt_version_value = job.prompt_version
+                custom_id_hash_map = job.custom_id_hash_map
+
+                async for line in await client.messages.batches.results(job.anthropic_batch_id):
+                    custom_id = line.custom_id
+                    the_hash = custom_id_hash_map.get(custom_id)
+                    if the_hash is None:
+                        _logger.warning(
+                            "ai_batch_poll_missing_hash",
+                            extra={"job_id": str(job_id), "custom_id": custom_id},
+                        )
+                        continue
+                    cache_key = build_cache_key(
+                        tenant_id, "prioritization", custom_id, the_hash, model, prompt_version_value
+                    )
+
+                    match line.result.type:
+                        case "succeeded":
+                            message = line.result.message
+                            raw_text = "".join(
+                                getattr(block, "text", "")
+                                for block in message.content
+                                if getattr(block, "type", None) == "text"
+                            )
+                            await validate_and_cache_batch_result(
+                                db,
+                                redis_client,
+                                tenant_id=tenant_id,
+                                finding_id=custom_id,
+                                raw_text=raw_text,
+                                model=model,
+                                usage=message.usage,
+                                cache_key=cache_key,
+                            )
+                        case "errored":
+                            await _audit_non_succeeded_batch_result(
+                                db, tenant_id=tenant_id, model=model, finding_id=custom_id, status="batch_errored"
+                            )
+                        case "canceled":
+                            await _audit_non_succeeded_batch_result(
+                                db, tenant_id=tenant_id, model=model, finding_id=custom_id, status="batch_canceled"
+                            )
+                        case "expired":
+                            await _audit_non_succeeded_batch_result(
+                                db, tenant_id=tenant_id, model=model, finding_id=custom_id, status="batch_expired"
+                            )
+                        case _:
+                            _logger.warning(
+                                "ai_batch_poll_unknown_result_type",
+                                extra={"job_id": str(job_id), "custom_id": custom_id, "type": line.result.type},
+                            )
+
+                job.status = "completed"
+                job.ended_at = datetime.now(UTC)
+                await db.commit()
+            except Exception:
+                # One job's failure must not abort every OTHER in-flight
+                # job's poll in the same tick. `job_id` is a plain scalar
+                # captured from the outer select -- never an expired ORM
+                # attribute -- so logging it after rollback() is always safe.
+                await db.rollback()
+                _logger.exception("ai_batch_poll_job_error", extra={"job_id": str(job_id)})
 
 
 async def validate_and_cache_batch_result(
