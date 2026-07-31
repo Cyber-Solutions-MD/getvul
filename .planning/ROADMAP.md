@@ -371,7 +371,7 @@ Plans:
 Plans:
 - [x] 26-01-PLAN.md (wave 1) — grounding query `get_prioritization_context()` (owner-PII excluded) + the no-rank `ExplainPrioritizationResponse` schema
 - [x] 26-02-PLAN.md (wave 2) — the prioritization prompt-builder quadruplet (allowlist, Allowlisted model, system prompt, few-shot, builder, version hash)
-- [ ] 26-03-PLAN.md (wave 3) — on-demand `explain-prioritization/{finding_id}` route (POST require_analyst SSE + GET require_viewer cache-check)
+- [x] 26-03-PLAN.md (wave 3) — on-demand `explain-prioritization/{finding_id}` route (POST require_analyst SSE + GET require_viewer cache-check)
 - [ ] 26-04-PLAN.md (wave 4) — frontend Prioritization drill section + signal-driven queued card + the no-ai-rank CI check
 - [ ] 26-05-PLAN.md (wave 5) — TRACER GATE: verify the on-demand slice (cited narrative, no AI rank) before batch expansion [checkpoint]
 - [ ] 26-06-PLAN.md (wave 6) — durable `AiBatchJob` table + migration 033 + the `queued` GET cache-check signal
@@ -443,7 +443,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 10/10 | Complete    | 2026-07-29 |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 7/7 | Complete    | 2026-07-30 |
-| 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 2/8 | In Progress | - |
+| 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 3/8 | In Progress | - |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 
