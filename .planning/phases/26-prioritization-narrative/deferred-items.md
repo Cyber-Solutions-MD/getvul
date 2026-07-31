@@ -50,3 +50,26 @@ changes; pre-existing issues in unrelated code are logged, not fixed).
   hint attaches to whichever `jose`-importing file it happens to visit
   first in a given run, which drifts across environment states). Not
   caused by, or fixable within, this plan.
+
+## Plan 26-07
+
+- **Pre-existing untracked `scratchpad/roadmap_patch.py` at the repo root
+  (timestamped 2026-07-29, predates this session).** `git status --short`
+  shows `scratchpad/` as untracked at the start of this plan's execution —
+  not created by this plan (no task in 26-07 writes to a `scratchpad/`
+  directory), not referenced by anything this plan touches. Left as-is;
+  not staged, not deleted, not added to `.gitignore` — out of scope, likely
+  a leftover working file from an earlier plan's execution in this same
+  phase. Flagged rather than silently ignored per the executor's untracked-
+  files protocol.
+- **`mypy app/vulnerabilities/service.py` in isolation surfaces 9
+  pre-existing errors, none in `get_top_findings_for_ai_batch()`.** All 9
+  (`Select` missing type-arg line 33; two `InstrumentedAttribute`
+  assignment mismatches lines 109/114; `dict` missing type-arg lines
+  239/256; `Result[Any]` has no `rowcount` + `no-any-return` pairs lines
+  246/268) are already present verbatim in `mypy-baseline.txt` (grep
+  `^app/vulnerabilities/service.py` — 9 matching entries, all pre-existing
+  `list_vulnerabilities`/`update_vulnerability_status`/`bulk_update_status`
+  code this plan's diff never touches). The new function (added at line
+  524+) introduces zero new mypy errors. Not caused by, or fixable within,
+  this plan.

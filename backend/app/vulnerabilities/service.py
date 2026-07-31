@@ -519,3 +519,53 @@ async def get_dashboard_stats(
         ticket_open_count=nav_counts["ticket_open_count"],
         onboarding_state=onboarding_state,
     )
+
+
+# ── Phase 26 Plan 07 / D-01: AI batch-scope top-N selector ──────────────────
+
+
+async def get_top_findings_for_ai_batch(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    limit: int,
+) -> list[uuid.UUID]:
+    """D-01 batch-scope query (AIP-02): the tenant's top-N findings for the
+    nightly Message Batch pre-warm (`app.ai.batch.run_batch_prewarm`).
+
+    Ranked by the ASSET-02 per-asset `Asset.risk_score` (PRIMARY sort key —
+    Assumption A1: "the existing deterministic ASSET-02 score" is a
+    per-asset aggregate computed by `assets/risk_score.py`, not a
+    per-finding column; `Vulnerability` has no `risk_score` field at all),
+    with a KEV desc -> CVSS desc -> SLA-due asc per-finding tiebreak
+    (mirrors this file's own `sort="triage"` idiom above) so two findings
+    on the SAME asset are still ordered sensibly. An asset-less finding
+    (`asset_id IS NULL` -> `Asset.risk_score` NULL) sorts LAST via
+    `nulls_last`, never crowding out a scored finding.
+
+    'OPEN' is interpreted as status IN ('OPEN', 'IN_PROGRESS') — matching
+    `risk_score.py::compute_risk_scores()`'s own scoring input (D-01,
+    threat T-26-03): a finding an analyst has already started triaging is
+    still counted in the asset's `risk_score` sum, so it must not be
+    silently excluded from its own priority batch. REMEDIATED / SUPPRESSED
+    / FALSE_POSITIVE are excluded.
+
+    No per-asset cap in this cut (RESEARCH Open Question #2, resolved:
+    deferred — revisit only if Phase 28 observability shows crowding from
+    one asset materializes in practice).
+    """
+    result = await db.execute(
+        select(Vulnerability.id)
+        .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
+        .where(
+            Vulnerability.tenant_id == tenant_id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        )
+        .order_by(
+            nulls_last(desc(Asset.risk_score)),
+            desc(Vulnerability.cisa_kev),
+            nulls_last(desc(Vulnerability.cvss_v3_score)),
+            nulls_last(asc(Vulnerability.sla_due_at)),
+        )
+        .limit(limit)
+    )
+    return [row[0] for row in result.all()]
