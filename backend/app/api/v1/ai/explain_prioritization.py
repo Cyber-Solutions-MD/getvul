@@ -27,9 +27,13 @@ risk class here (26-PATTERNS.md "No Analog Found"). Consequently:
    text with a generic-placeholder failure mode. The model's own
    `grounded=false` judgment is the sole backstop.
 
-The `queued` GET-response field (D-02's async-batch cache-miss UX seam) is
-deliberately NOT added here -- it arrives in Plan 06 once the `AiBatchJob`
-registry exists to answer "is this finding queued for tonight's batch".
+The `queued` GET-response field (D-02's async-batch cache-miss UX seam,
+Plan 04's frontend signal) is wired in below via `_is_finding_queued()` --
+a tenant-scoped JSONB containment query against the `AiBatchJob` durable
+registry (Plan 06). It answers ONLY "is this finding in an
+already-submitted in_progress batch" -- never a live re-run of the D-01
+top-N query (Assumption A3): a not-yet-submitted finding correctly shows
+queued=False and gets the ordinary on-demand trigger.
 """
 
 from __future__ import annotations
@@ -41,10 +45,13 @@ from typing import Annotated, Any
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.cache import build_cache_key, get_cached, record_hash
 from app.ai.explain import _run_explain_stream, get_model_and_budget
 from app.ai.grounding import get_prioritization_context
+from app.ai.models import AiBatchJob
 from app.ai.prompt_builder import (
     PRIORITIZATION_ALLOWLIST,
     build_explain_prioritization_prompt,
@@ -57,6 +64,29 @@ from app.dependencies import DBSession
 from app.redis_client import get_redis
 
 router = APIRouter()
+
+
+async def _is_finding_queued(db: AsyncSession, tenant_id: uuid.UUID, finding_id: uuid.UUID) -> bool:
+    """D-02's async-batch cache-miss UX seam: does an already-submitted,
+    still `in_progress` `AiBatchJob` (Plan 06) for THIS tenant contain
+    `finding_id` as one of its batch items?
+
+    A JSONB containment query (`custom_id_hash_map ? :finding_id`),
+    tenant-scoped and status-scoped -- never a live re-run of the D-01
+    top-N query (RESEARCH.md Pattern 4 final paragraph, Assumption A3): a
+    finding that hasn't been submitted yet correctly returns False and the
+    caller falls through to the ordinary on-demand trigger.
+    """
+    result = await db.execute(
+        select(AiBatchJob.id)
+        .where(
+            AiBatchJob.tenant_id == tenant_id,
+            AiBatchJob.status == "in_progress",
+            AiBatchJob.custom_id_hash_map.has_key(str(finding_id)),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
 
 
 def _allowlisted_hash_fields(record: Any) -> dict[str, Any]:
@@ -127,8 +157,8 @@ async def get_explain_prioritization_cache(
 
     cached = await get_cached(redis_client, cache_key)
     if cached is None:
-        # NO `queued` field this plan (Plan 06 adds it once AiBatchJob
-        # exists) -- every existing GET route's miss shape is the baseline
-        # `{"cached": False}`, exactly as `explain_host.py`'s GET returns.
-        return {"cached": False}
+        # queued (D-02): tenant-scoped, in_progress-batch-derived signal --
+        # Plan 04's frontend already consumes this on the cached:false arm.
+        queued = await _is_finding_queued(db, user.tenant_id, finding_id)
+        return {"cached": False, "queued": queued}
     return {"cached": True, **cached}
