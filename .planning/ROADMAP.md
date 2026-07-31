@@ -55,7 +55,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [ ] **Phase 23: Ingestion Reliability Precursor** — Fix Wiz/Rapid7 connector wiring, add scanner HTTP-layer integration tests, wire Jira ticket-create, finish-or-retire GitHub ticketing, surface per-connector sync health
 - [x] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel (completed 2026-07-29 — 10/10 plans; 9 original + gap-closure 24-10 closing the D-23 no-key role-gating gap; re-verification passed 12/14 with 4 live-verification items accepted as tracked debt per the 24-06 proceed-on-trust decision — see 24-UAT.md / close via /gsd-verify-work 24)
 - [x] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description (completed 2026-07-30)
-- [ ] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API
+- [x] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API (completed 2026-07-31 — 8/8 plans; verification passed 10/10 with 4 live-verification items accepted as tracked debt per the 26-05 proceed-on-trust decision — see 26-UAT.md / close via /gsd-verify-work 26)
 - [ ] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships
 - [ ] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI
 
@@ -369,6 +369,7 @@ Plans:
 **Plans**: 8 plans in 8 waves (strict chain — executes sequentially on main; worktrees auto-disabled)
 
 Plans:
+
 - [x] 26-01-PLAN.md (wave 1) — grounding query `get_prioritization_context()` (owner-PII excluded) + the no-rank `ExplainPrioritizationResponse` schema
 - [x] 26-02-PLAN.md (wave 2) — the prioritization prompt-builder quadruplet (allowlist, Allowlisted model, system prompt, few-shot, builder, version hash)
 - [x] 26-03-PLAN.md (wave 3) — on-demand `explain-prioritization/{finding_id}` route (POST require_analyst SSE + GET require_viewer cache-check)
@@ -443,7 +444,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 23. Ingestion Reliability Precursor | v3.0 AI-Assisted Triage | 11/11 | Complete    | 2026-07-28 |
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 10/10 | Complete    | 2026-07-29 |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 7/7 | Complete    | 2026-07-30 |
-| 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | In Progress | - |
+| 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | Complete    | 2026-07-31 |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 
