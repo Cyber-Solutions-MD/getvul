@@ -366,7 +366,18 @@ Plans:
   2. The deterministic risk score (ASSET-02) remains the one sortable/authoritative number in every list and view; there is no independently-sortable AI-generated rank anywhere in the UI — AIP-01
   3. Prioritization narratives for a tenant's backlog are pre-generated in bulk on a schedule via the Message Batches API, dispatched via `asyncio.create_task` (never inline, never stalling a connector-sync tick), using only that tenant's own configured key — AIP-02
 
-**Plans**: TBD
+**Plans**: 8 plans in 8 waves (strict chain — executes sequentially on main; worktrees auto-disabled)
+
+Plans:
+- [ ] 26-01-PLAN.md (wave 1) — grounding query `get_prioritization_context()` (owner-PII excluded) + the no-rank `ExplainPrioritizationResponse` schema
+- [ ] 26-02-PLAN.md (wave 2) — the prioritization prompt-builder quadruplet (allowlist, Allowlisted model, system prompt, few-shot, builder, version hash)
+- [ ] 26-03-PLAN.md (wave 3) — on-demand `explain-prioritization/{finding_id}` route (POST require_analyst SSE + GET require_viewer cache-check)
+- [ ] 26-04-PLAN.md (wave 4) — frontend Prioritization drill section + signal-driven queued card + the no-ai-rank CI check
+- [ ] 26-05-PLAN.md (wave 5) — TRACER GATE: verify the on-demand slice (cited narrative, no AI rank) before batch expansion [checkpoint]
+- [ ] 26-06-PLAN.md (wave 6) — durable `AiBatchJob` table + migration 033 + the `queued` GET cache-check signal
+- [ ] 26-07-PLAN.md (wave 7) — batch submitter `batch.py`: D-01 top-N query, budget pre-estimate (50%), Redis factory, submit + single-pass validator
+- [ ] 26-08-PLAN.md (wave 8) — scheduler integration: `poll_pending_batches()` + nightly/poll dispatch via `asyncio.create_task` (batch goes live)
+
 **UI hint**: yes
 **Pitfalls owned**: #7 over-trusting AI over the deterministic score — "augment, never replace" enforced as a literal output-schema/prompt constraint and a UI constraint (no AI-rank sort control), not just a design intention.
 
