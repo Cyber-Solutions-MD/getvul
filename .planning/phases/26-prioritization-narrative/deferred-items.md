@@ -73,3 +73,23 @@ changes; pre-existing issues in unrelated code are logged, not fixed).
   code this plan's diff never touches). The new function (added at line
   524+) introduces zero new mypy errors. Not caused by, or fixable within,
   this plan.
+
+## Plan 26-08
+
+- **`mypy-baseline.txt` note-line-number-drift artifact (recurrence, 4th
+  occurrence this phase).** `mypy app/ | mypy-baseline filter --allow-unsynced`
+  reports "3 new / 3 fixed" after adding `poll_pending_batches()` to
+  `backend/app/ai/batch.py` and the two scheduler dispatch blocks to
+  `backend/app/connectors/scheduler.py`. Isolated: all 3 changed lines are
+  the SAME `note:` lines (stub-install hints for `types-python-jose`)
+  attributed to `app/auth/dependencies.py:10` -- a file neither this plan
+  nor its diff touches. `mypy app/ | grep '^app/ai/batch.py\|^app/connectors/scheduler.py'`
+  returns empty (zero errors of any kind in either file this plan actually
+  modified) -- direct proof this plan's own diff introduces no real mypy
+  debt. Same class as 26-01/26-06/26-07's prior occurrences. Not caused by,
+  or fixable within, this plan.
+- **Pre-existing untracked `scratchpad/` directory at the repo root, still
+  present.** Confirmed via `git status --short` at the start of this
+  plan's execution -- not created by this plan (no task in 26-08 writes to
+  a `scratchpad/` directory). Already flagged by 26-07's own entry above;
+  re-confirmed still present and still out of scope.

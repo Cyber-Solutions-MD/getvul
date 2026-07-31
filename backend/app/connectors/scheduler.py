@@ -18,6 +18,7 @@ logger = structlog.get_logger()
 _running_syncs: dict[str, asyncio.Task] = {}
 _scheduler_task: asyncio.Task | None = None
 _last_ticket_sync: datetime | None = None
+_last_ai_batch_prewarm: datetime | None = None
 
 
 async def _run_single_sync(connector_id: str, tenant_id: str) -> None:
@@ -66,6 +67,63 @@ def is_sync_running(connector_id: str) -> bool:
     """Check if a sync is currently running for a connector."""
     task = _running_syncs.get(connector_id)
     return task is not None and not task.done()
+
+
+async def _dispatch_ai_batch_prewarm() -> None:
+    """AIP-02/D-05 (RESEARCH Pattern 2): nightly, 24h-gated dispatch of the
+    Message Batches nightly submitter. Mirrors THIS file's own
+    `_last_ticket_sync` 24h-gate TIMING idiom (below, in `_scheduler_loop()`)
+    combined with `trigger_background_sync()`'s non-blocking `asyncio.
+    create_task` DISPATCH idiom (above) -- explicitly NOT the ticket-sync/
+    snapshot blocks' own inline `await`, which is the WRONG idiom to copy
+    for dispatch even though it is the more superficially similar "runs
+    once per 24h" pattern already in this file.
+
+    `run_batch_prewarm()` opens its OWN db session + Redis client and
+    resolves every active tenant's OWN Anthropic key internally (T-24-19) --
+    this dispatcher passes NO client and holds no per-tenant state; it is a
+    thin gate-check-then-`create_task` call, safe to `await` inline here
+    since it never waits for the dispatched batch work itself to finish.
+
+    Extracted to its own top-level function (rather than inlined directly
+    in `_scheduler_loop()`'s body) so it is directly unit-testable via the
+    established `from app.connectors import scheduler as scheduler_module;
+    await scheduler_module.<fn>(...)` convention
+    (test_connector_health.py::test_scheduler_path_failure_parity) --
+    `_scheduler_loop()`'s own infinite `while True:` loop cannot be awaited
+    to completion in a test.
+    """
+    global _last_ai_batch_prewarm
+    try:
+        now = datetime.now(UTC)
+        if _last_ai_batch_prewarm is None or (now - _last_ai_batch_prewarm).total_seconds() >= 86400:
+            from app.ai.batch import run_batch_prewarm
+
+            asyncio.create_task(run_batch_prewarm())
+            _last_ai_batch_prewarm = now
+    except Exception as e:
+        logger.error("ai_batch_prewarm_dispatch_error", error=str(e))
+
+
+async def _dispatch_ai_batch_poll() -> None:
+    """AIP-02/D-05/RESEARCH Pitfall 3: every-tick (no 24h gate -- a
+    submitted batch can end at any point within its up-to-24h window, so
+    every tick must check) dispatch of the Message Batches poller. ALSO
+    `asyncio.create_task`-dispatched: Pitfall 3 warns explicitly that
+    leaving JUST the poll side as an inline `await` reintroduces the exact
+    tick-stall D-05 exists to forbid, even though D-05's own wording names
+    submission specifically.
+
+    `poll_pending_batches()` opens its OWN db session + Redis client and
+    resolves each in-flight job's OWNING tenant's key internally
+    (T-24-19) -- this dispatcher passes NO client.
+    """
+    try:
+        from app.ai.batch import poll_pending_batches
+
+        asyncio.create_task(poll_pending_batches())
+    except Exception as e:
+        logger.error("ai_batch_poll_dispatch_error", error=str(e))
 
 
 async def _scheduler_loop() -> None:
@@ -187,6 +245,14 @@ async def _scheduler_loop() -> None:
                         logger.info("alerts_created", **alert_result)
         except Exception as e:
             logger.error("alert_check_error", error=str(e))
+
+        # AI batch prewarm (nightly, 24h-gated) + poll (every tick) --
+        # AIP-02/D-05: both non-blocking asyncio.create_task dispatches;
+        # neither dispatcher itself performs any I/O beyond a datetime
+        # comparison + `create_task`, so awaiting them inline here never
+        # stalls this tick (the batch work they dispatch runs detached).
+        await _dispatch_ai_batch_prewarm()
+        await _dispatch_ai_batch_poll()
 
         _loop_count += 1
 
