@@ -4,8 +4,8 @@ milestone: v3.0
 milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 27
 current_phase_name: Ticket Auto-Drafting
-status: Phase 27 (ticket-auto-drafting) context gathered — ready for UI-SPEC + planning
-stopped_at: Phase 27 context gathered
+status: Phase 27 UI-SPEC approved — ready for planning
+stopped_at: Phase 27 UI-SPEC approved
 last_updated: "2026-07-31T15:46:00.369Z"
 progress:
   total_phases: 25
