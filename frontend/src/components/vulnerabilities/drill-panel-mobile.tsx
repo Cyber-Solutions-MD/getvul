@@ -1,12 +1,78 @@
 'use client';
 import { useEffect } from 'react';
 import { Drawer } from 'vaul';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DrillContent } from './drill-content';
+import type { GapFillDescriptor } from './drill-content';
 import { TicketProviderPicker } from './ticket-provider-picker';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { microcopy } from './microcopy';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+// Phase 27 (AID-01, Plan 03): the gap-fill row's in-flight state reuses the
+// exact exported AnalyzingIndicator pulsing-dot (D-12) -- never a second
+// spinner. Same import drill-content.tsx uses.
+import { AnalyzingIndicator } from '@/components/ai/ai-explanation-section';
+
+// Phase 27 (AID-01, Plan 03, 27-UI-SPEC.md §4): renders ONE gap-fill row
+// item from its threaded descriptor. This is a DUPLICATE of
+// drill-content.tsx's own renderGapFillItem (not an import) -- mobile is a
+// genuinely separate render path (Pitfall 5, never imports the desktop
+// confirm-dialog primitive), and the locked caption/trigger strings must
+// appear literally in THIS file's source (matches the established Pitfall
+// 6 precedent: hardcode inline, duplicated in both files, rather than
+// share JSX cross-file). Only the STATE (visible/phase/onClick/canRaiseCap)
+// is shared, via the
+// threaded `gapFill` descriptor computed once in DrillContent.
+function renderGapFillItem(
+  item: GapFillDescriptor['description'],
+  kind: 'description' | 'remediation',
+) {
+  if (!item.visible) return null;
+  if (item.phase === 'analyzing') return <AnalyzingIndicator />;
+  if (item.phase === 'refused') {
+    return (
+      <p className="text-xs font-medium text-text-muted">
+        {kind === 'description'
+          ? 'Not enough finding data to explain this reliably'
+          : 'Not enough vendor guidance to recommend a fix'}
+      </p>
+    );
+  }
+  if (item.phase === 'unsafe') {
+    return <p className="text-xs font-medium text-danger">This guidance was withheld for safety</p>;
+  }
+  if (item.phase === 'budget_exceeded') {
+    return (
+      <p className="text-xs font-medium text-amber">
+        AI budget exceeded
+        {item.canRaiseCap && (
+          <>
+            {' '}
+            <Link href="/dashboard/connectors" className="underline underline-offset-2 hover:text-text">
+              Raise the cap
+            </Link>
+          </>
+        )}
+      </p>
+    );
+  }
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={item.onClick}
+        className="text-xs font-medium text-text-muted underline-offset-2 hover:text-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+      >
+        {kind === 'description' ? 'Draft description with AI' : 'Draft remediation with AI'}
+      </button>
+      {item.phase === 'busy' && (
+        <p className="mt-1 text-xs font-medium text-amber">AI busy — try again in a moment</p>
+      )}
+    </div>
+  );
+}
 
 // UX-03-06 + D-P-03 — mobile bottom-sheet variant of the drill panel.
 // Renders ONLY at <900px (Pitfall 3 — desktop branch covers >=900px).
@@ -109,6 +175,9 @@ export function DrillPanelMobile({ cveId, id, idKey, renderContent, ariaLabel }:
                     onProviderChange,
                     description,
                     onDescriptionChange,
+                    title,
+                    onTitleChange,
+                    gapFill,
                   }) => {
                     if (!confirmOpen) return null;
                     // Pitfall 7 — nested confirmation inside the drawer. Vaul's
@@ -145,24 +214,52 @@ export function DrillPanelMobile({ cveId, id, idKey, renderContent, ariaLabel }:
                               onChange={onProviderChange}
                             />
                           </div>
-                          {/* Phase 25 (AIR-02): mirrors the desktop
-                              ConfirmModal insertion -- same relative
-                              position (between the provider picker and the
-                              action row), same LOCKED caption/placeholder.
-                              Mobile builds its own Drawer.NestedRoot markup
-                              (Pitfall 5), never imports ConfirmModal. */}
+                          {/* Phase 27 (AID-01, Plan 03): mirrors the
+                              desktop confirm dialog's Phase 27 insertion
+                              exactly -- shared "AI-drafted" caption
+                              (supersedes Phase 25's field-scoped caption
+                              below), editable Title Input, the gap-fill row
+                              (rendered from the threaded descriptor -- same
+                              gating/copy/append behavior as desktop, no
+                              separate logic), then the composed Description
+                              Textarea (updated label/placeholder). Mobile
+                              builds its own Drawer.NestedRoot markup
+                              (Pitfall 5), never imports the desktop
+                              confirm-dialog primitive. */}
+                          <p className="mt-4 text-xs font-medium text-text-muted">
+                            AI-drafted — review before creating.
+                          </p>
+                          <div className="mt-4">
+                            <label
+                              htmlFor="ticket-title-input-mobile"
+                              className="mb-1 block text-xs font-medium text-text-muted"
+                            >
+                              Title
+                            </label>
+                            <Input
+                              id="ticket-title-input-mobile"
+                              value={title}
+                              onChange={(e) => onTitleChange(e.target.value)}
+                            />
+                          </div>
+                          {gapFill.rowVisible && (
+                            <div className="mt-4 flex flex-wrap items-start gap-2">
+                              {renderGapFillItem(gapFill.description, 'description')}
+                              {renderGapFillItem(gapFill.remediation, 'remediation')}
+                            </div>
+                          )}
                           <div className="mt-4">
                             <label
                               htmlFor="ticket-description-textarea-mobile"
                               className="mb-1 block text-xs font-medium text-text-muted"
                             >
-                              Pre-filled from remediation guidance — review and edit before creating.
+                              Description
                             </label>
                             <Textarea
                               id="ticket-description-textarea-mobile"
                               value={description}
                               onChange={(e) => onDescriptionChange(e.target.value)}
-                              placeholder="No remediation guidance yet — add a description or leave blank."
+                              placeholder="No AI draft available yet — add a description or leave blank."
                               rows={4}
                             />
                           </div>
