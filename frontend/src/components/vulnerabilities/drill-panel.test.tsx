@@ -58,6 +58,28 @@ vi.mock('@/lib/queries/use-ai-status', () => ({
   useAiStatus: (...args: unknown[]) => mockUseAiStatus(...args),
 }));
 
+// Phase 27 (AID-01, Plan 03): the desktop gap-fill row is role/key-gated
+// (D-17 inherited) -- no mock existed for @/lib/auth before this plan, so
+// every pre-existing test ran against the REAL useAuth() context default
+// (`user: null` -> role 'VIEWER'). Mocked here with the SAME default so
+// every pre-existing assertion is unaffected; new gap-fill tests override
+// the role per-test.
+const mockUseAuth = vi.fn();
+vi.mock('@/lib/auth', () => ({ useAuth: () => mockUseAuth() }));
+
+// Phase 27 (AID-01, Plan 03): the gap-fill row calls useExplainStream
+// DIRECTLY (bypassing AiExplanationSection) for 'vuln'/'remediation-guidance'
+// -- forwarding call args (resourceType) so gap-fill tests can drive a
+// specific state per section. Defaults to 'idle' for every resourceType,
+// matching the REAL hook's initial state, so the 3 pre-existing
+// AiExplanationSection mounts (vuln/prioritization/remediation-guidance)
+// are unaffected by this mock's introduction.
+const mockStart = vi.fn();
+const mockUseExplainStream = vi.fn();
+vi.mock('@/lib/ai/use-explain-stream', () => ({
+  useExplainStream: (...args: unknown[]) => mockUseExplainStream(...args),
+}));
+
 // Phase 25 Plan 07 Task 2: a cache-hit/grounded mock (needed to unlock the
 // "Copy into ticket description" button) renders <AiFeedbackControl>, which
 // calls the REAL useAiFeedback() mutation -- requires a QueryClientProvider
@@ -111,6 +133,11 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     mockUseExplainCache.mockReturnValue({ data: { cached: false }, isPending: false, isError: false });
     mockUseAiStatus.mockReset();
     mockUseAiStatus.mockReturnValue({ data: { configured: false }, isPending: false, isError: false });
+    mockUseAuth.mockReset();
+    mockUseAuth.mockReturnValue({ user: { role: 'VIEWER' } });
+    mockStart.mockReset();
+    mockUseExplainStream.mockReset();
+    mockUseExplainStream.mockReturnValue({ state: { phase: 'idle' }, start: mockStart });
   });
 
   it('renders 10 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Prioritization / Remediation / Remediation guidance / Activity / Actions)', () => {
@@ -450,6 +477,179 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       // Compose-on-open has already run (a real effect fired, populating
       // both fields) -- yet the mutation itself must not have fired.
       expect((screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value).not.toBe('');
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 27 Plan 03 (AID-01): the "Draft with AI" gap-fill row. Two
+  // role/key-gated text-buttons that trigger useExplainStream('vuln' |
+  // 'remediation-guidance', id).start() DIRECTLY (bypassing
+  // AiExplanationSection) and append the labeled section on a grounded
+  // 'done', with the full typed degradation matrix. Never a submit path.
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('"Draft with AI" gap-fill row (AID-01, Plan 03)', () => {
+    it('renders no gap-fill buttons for Viewer role, even with an AI key configured (D-17)', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'VIEWER' } });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      expect(screen.queryByRole('button', { name: 'Draft description with AI' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Draft remediation with AI' })).toBeNull();
+    });
+
+    it('renders no gap-fill buttons when no AI key is configured, even for Analyst+ (D-23 parity)', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: false }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      expect(screen.queryByRole('button', { name: 'Draft description with AI' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Draft remediation with AI' })).toBeNull();
+    });
+
+    it('renders both gap-fill buttons for Analyst+ with a key configured, when both Description and Remediation are missing from the composed body', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).getByRole('button', { name: 'Draft description with AI' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Draft remediation with AI' })).toBeInTheDocument();
+    });
+
+    it('while phase is "analyzing", the trigger is replaced by the shared AnalyzingIndicator pulsing-dot (D-12), not a second spinner', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      mockUseExplainStream.mockImplementation((resourceType: string) =>
+        resourceType === 'vuln'
+          ? { state: { phase: 'analyzing' }, start: mockStart }
+          : { state: { phase: 'idle' }, start: mockStart },
+      );
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).queryByRole('button', { name: 'Draft description with AI' })).toBeNull();
+      expect(within(dialog).getByText('Analyzing this finding…')).toBeInTheDocument();
+    });
+
+    it('on a grounded "done", appends "Description:\\n{summary}" to the CURRENT description without overwriting prior content, then hides the button', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      mockUseExplainStream.mockImplementation((resourceType: string) =>
+        resourceType === 'vuln'
+          ? {
+              state: {
+                phase: 'done',
+                data: { summary: 'Freshly generated explanation.', business_risk: 'n/a', citations: [], grounded: true },
+              },
+              start: mockStart,
+            }
+          : { state: { phase: 'idle' }, start: mockStart },
+      );
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const textarea = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement;
+      // Prior composed content (Asset context, always present, D-04) is
+      // preserved -- the new section is APPENDED, never a wholesale replace.
+      expect(textarea.value).toContain('Asset context:');
+      expect(textarea.value).toContain('Description:\nFreshly generated explanation.');
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).queryByRole('button', { name: 'Draft description with AI' })).toBeNull();
+    });
+
+    it('a mocked busy error keeps the trigger clickable and shows the amber retry caption verbatim (retryable, D-25)', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      mockUseExplainStream.mockImplementation((resourceType: string) =>
+        resourceType === 'vuln'
+          ? { state: { phase: 'error', kind: 'busy' }, start: mockStart }
+          : { state: { phase: 'idle' }, start: mockStart },
+      );
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).getByRole('button', { name: 'Draft description with AI' })).toBeInTheDocument();
+      expect(within(dialog).getByText('AI busy — try again in a moment')).toBeInTheDocument();
+    });
+
+    it('a mocked grounded_false error renders the terminal insufficient-evidence caption verbatim, with no retry button (D-10)', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      mockUseExplainStream.mockImplementation((resourceType: string) =>
+        resourceType === 'vuln'
+          ? { state: { phase: 'error', kind: 'grounded_false' }, start: mockStart }
+          : { state: { phase: 'idle' }, start: mockStart },
+      );
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).getByText('Not enough finding data to explain this reliably')).toBeInTheDocument();
+      expect(within(dialog).queryByRole('button', { name: 'Draft description with AI' })).toBeNull();
+    });
+
+    it('a mocked unsafe error on remediation renders the danger terminal caption verbatim, with no partial content, no retry (T-25-02)', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      mockUseExplainStream.mockImplementation((resourceType: string) =>
+        resourceType === 'remediation-guidance'
+          ? { state: { phase: 'error', kind: 'unsafe' }, start: mockStart }
+          : { state: { phase: 'idle' }, start: mockStart },
+      );
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).getByText('This guidance was withheld for safety')).toBeInTheDocument();
+      expect(within(dialog).queryByRole('button', { name: 'Draft remediation with AI' })).toBeNull();
+    });
+
+    it('a mocked budget_exceeded error shows the amber caption for every role, but "Raise the cap" only for Admin/Owner (role-differentiated)', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseExplainStream.mockImplementation((resourceType: string) =>
+        resourceType === 'vuln'
+          ? { state: { phase: 'error', kind: 'budget_exceeded' }, start: mockStart }
+          : { state: { phase: 'idle' }, start: mockStart },
+      );
+
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      const { unmount } = render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+      let dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).getByText('AI budget exceeded')).toBeInTheDocument();
+      expect(within(dialog).queryByRole('link', { name: 'Raise the cap' })).toBeNull();
+      unmount();
+
+      mockUseAuth.mockReturnValue({ user: { role: 'ADMIN' } });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+      dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      expect(within(dialog).getByText('AI budget exceeded')).toBeInTheDocument();
+      expect(within(dialog).getByRole('link', { name: 'Raise the cap' })).toHaveAttribute(
+        'href',
+        '/dashboard/connectors',
+      );
+    });
+
+    it('gap-fill interactions (clicking both triggers) never call createTicket.mutateAsync (SC3)', () => {
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Draft description with AI' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Draft remediation with AI' }));
+
+      expect(mockStart).toHaveBeenCalledTimes(2);
       expect(mockMutateAsync).not.toHaveBeenCalled();
     });
   });
