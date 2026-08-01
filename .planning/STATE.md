@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 28
 current_phase_name: Eval + Cost + Observability Gate
-status: Phase 28 (eval-cost-observability-gate) context gathered — the v3.0 milestone-closing gate
+status: Phase 28 UI-SPEC approved — ready for planning (final v3.0 phase)
 stopped_at: Phase 28 context gathered
 last_updated: "2026-08-01T13:43:44.871Z"
 progress:
