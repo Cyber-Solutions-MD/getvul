@@ -21,7 +21,7 @@ created: 2026-08-01
 |----------|-------|
 | Tool | shadcn (already initialized project-wide — `components.json` present) |
 | Preset | `style: new-york`, `base: radix`, `baseColor: zinc`, `cssVariables: true` — production visually consumes `sketch-findings-getvul`'s sunset palette layered over these shadcn CSS variables |
-| Component library | Radix primitives via shadcn (`@radix-ui/react-*`); the project's own hand-rolled `Input`/`Textarea` (not shadcn-registry-generated, restyled to sunset tokens — see Registry Safety) |
+| Component library | Radix primitives via shadcn (`@radix-ui/react-*`); the existing `Input`/`Textarea` (both shadcn-official-generated — `input` via `npx shadcn add` in Phase 9, `textarea` via `npx shadcn add` in Phase 25 — then restyled to sunset tokens; see Registry Safety) |
 | Icon library | `lucide-react` |
 | Font | `Inter` (`--font-sans`) + `JetBrains Mono` (`--font-mono`, CVE IDs/hostnames/scores/durations only) — **locked, no substitution** |
 
@@ -104,7 +104,9 @@ Identical to Phase 24/25's declared scale — no new size/weight introduced:
 
 ### 2. Title field (NEW, D-01/D-03)
 
-- A new editable `Input` (the project's existing `components/ui/input.tsx`, not a new registry addition) labeled **"Title"**, positioned directly beneath `TicketProviderPicker` and above the shared "AI-drafted" caption.
+- A new editable `Input` (the existing `components/ui/input.tsx`, not a new registry addition) labeled **"Title"**, positioned directly beneath `TicketProviderPicker` and above the shared "AI-drafted" caption.
+
+**Visual hierarchy / focal point (Dimension 2):** `TicketProviderPicker` remains the dialog's primary anchor and the single sunset-gradient **"Create ticket"** button its one primary action. The new Title `Input`, the "AI-drafted" caption, the gap-fill text-button row, and the composed Description `Textarea` are all **subordinate** form controls beneath the picker — none competes with the Create CTA (the gap-fill affordances are text-buttons, never button-shaped CTAs). Reading order top-to-bottom: provider picker → Title → caption → (gap-fill row when applicable) → Description → Create.
 - **Always** auto-populated, **regardless of AI key configuration** — the title is derived **deterministically**, with **zero AI dependency**, mirroring the backend's own existing per-vuln task-name convention (`app/ticketing/service.py`'s `f"[{sev}] {cve} on {hostname or 'unknown host'}"`) so an unedited draft matches what the server would otherwise auto-build:
 
   ```
@@ -187,7 +189,7 @@ _State-coverage axis, applying the same probe discipline as `24-UI-SPEC.md`/`25-
 
 | Registry | Blocks Used | Safety Gate |
 |----------|-------------|-------------|
-| shadcn official | none new — the Title field reuses the project's existing hand-rolled `components/ui/input.tsx` (predates shadcn `add`, restyled to sunset tokens, same precedent as `components/ui/textarea.tsx`'s own restyle note); the Description field reuses the existing `textarea` (added Phase 25) unchanged | not required |
+| shadcn official | none new — the Title field reuses the existing `components/ui/input.tsx` (shadcn-official-generated via `npx shadcn add` in Phase 9, restyled to sunset tokens); the Description field reuses the existing `components/ui/textarea.tsx` (shadcn-official-generated via `npx shadcn add` in Phase 25, restyled) unchanged | not required |
 | third-party | none | not applicable |
 
 ---
