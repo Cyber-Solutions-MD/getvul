@@ -2,7 +2,7 @@
 phase: 28
 slug: eval-cost-observability-gate
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-08-01
 ---

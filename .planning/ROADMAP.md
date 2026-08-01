@@ -57,7 +57,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description (completed 2026-07-30)
 - [x] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API (completed 2026-07-31 — 8/8 plans; verification passed 10/10 with 4 live-verification items accepted as tracked debt per the 26-05 proceed-on-trust decision — see 26-UAT.md / close via /gsd-verify-work 26)
 - [x] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships (completed 2026-08-01 — 3/3 plans; verification passed 12/12 with 1 live-browser item accepted as tracked debt — see 27-UAT.md / close via /gsd-verify-work 27)
-- [ ] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI
+- [ ] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI (5 plans, waves 1–2)
 
 ## Phase Details
 
@@ -413,7 +413,14 @@ Plans:
   3. When a tenant exceeds their configured token/cost budget, further AI calls for that tenant halt immediately (fail-closed) and the product degrades to deterministic-score-only — never silently overspending — AIE-03
   4. A tenant admin can view their AI usage and cost, and manage their key/model/budget settings, in the UI — AIE-04
 
-**Plans**: TBD
+**Plans**: 5 plans (waves 1–2, sequential on main; no human checkpoint — tests + read-only admin pane + CI config)
+
+Plans:
+- [ ] 28-01-PLAN.md — AIE-01: DeepEval keyless structural eval harness (5 non-LLM metrics calling production gates) + one-time dev-key capture script + 10 committed synthetic golden fixtures
+- [ ] 28-02-PLAN.md — AIE-02 + AIE-03: consolidated keyless prompt-injection red-team suite (~15-25 payloads × 5 capabilities) + no-bypass budget coverage test (SDK-level patch, batch billing-gate nuance)
+- [ ] 28-03-PLAN.md — AIE-04 (backend) + AIE-03 exposure: GET /api/v1/ai/usage require_admin aggregation (6-row user_email batch split, derived breaker_tripped) + tests
+- [ ] 28-04-PLAN.md — AIE-04 (frontend): admin "AI usage & settings" pane (4 cards, restyled shadcn progress meter, inherited chrome) + useAiUsage hook + registration
+- [ ] 28-05-PLAN.md — AIE-01/02/03 (CI wiring): ci.yml +3 jobs (2 blocking keyless + 1 opt-in non-blocking fork-guarded) + branch-protection.json required-check registration
 **UI hint**: yes
 **Pitfalls owned**: #5 cost blowup at scale (fail-closed circuit breaker + cheap-model-first routing already established, hard budget enforced here as a release gate), #6 non-determinism (nightly golden-dataset re-run policy), #8 shipping without evals (evals are the arbiter, matching this codebase's "the sweep, not the file list, is the arbiter" discipline).
 
