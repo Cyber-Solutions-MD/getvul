@@ -282,7 +282,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      const textarea = screen.getByLabelText('Description') as HTMLTextAreaElement;
+      const textarea = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement;
       expect(textarea).toBeInTheDocument();
       expect(textarea.placeholder).toBe(
         'No AI draft available yet — add a description or leave blank.',
@@ -297,7 +297,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      const textarea = screen.getByLabelText('Description');
+      const textarea = screen.getByRole('textbox', { name: 'Description' });
       fireEvent.change(textarea, { target: { value: 'Patch xz to 5.4.x per vendor advisory.' } });
 
       const dialog = screen.getAllByRole('dialog').slice(-1)[0];
@@ -317,8 +317,8 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       // blank" no longer happens by default. The analyst can still clear
       // them explicitly (SC2); this proves that path still threads
       // `undefined` (never an empty string) into the mutation.
-      fireEvent.change(screen.getByLabelText('Title'), { target: { value: '' } });
-      fireEvent.change(screen.getByLabelText('Description'), { target: { value: '' } });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), { target: { value: '' } });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Description' }), { target: { value: '' } });
 
       const dialog = screen.getAllByRole('dialog').slice(-1)[0];
       const confirmBtn = within(dialog).getByRole('button', { name: /create ticket/i });
@@ -348,10 +348,10 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       // the guard governs the whole draft, not per-field.
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      const textarea = screen.getByLabelText('Description') as HTMLTextAreaElement;
+      const textarea = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement;
       expect(textarea.value).toContain(`Remediation:\n${summary}`);
       expect(textarea.value).toContain('Asset context:');
-      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      const titleInput = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement;
       expect(titleInput.value).toBe('[Critical] CVE-2024-3094 on prod-01');
     });
   });
@@ -369,7 +369,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
       expect(screen.getByText('AI-drafted — review before creating.')).toBeInTheDocument();
-      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      const titleInput = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement;
       expect(titleInput).toBeInTheDocument();
       // Deterministic D-01 format: "[{sevLabel}] {cveLabel} on {hostsLine}"
       // -- true even though this suite's default mocks have no AI key
@@ -381,7 +381,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      fireEvent.change(screen.getByLabelText('Title'), {
+      fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), {
         target: { value: 'Patch the xz backdoor now' },
       });
 
@@ -397,7 +397,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      fireEvent.change(screen.getByLabelText('Title'), {
+      fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), {
         target: { value: 'My own edited title' },
       });
 
@@ -406,14 +406,14 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
 
       // Re-open the SAME vuln's dialog -- the guard must NOT recompose.
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
-      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      const titleInput = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement;
       expect(titleInput.value).toBe('My own edited title');
     });
 
     it('switching to a DIFFERENT vuln recomposes the Title -- vuln A never carries onto a ticket for vuln B (Pitfall 3)', () => {
       const { rerender } = render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
-      expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+      expect((screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value).toBe(
         '[Critical] CVE-2024-3094 on prod-01',
       );
       const dialogA = screen.getAllByRole('dialog').slice(-1)[0];
@@ -437,7 +437,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       rerender(<DrillPanel cveId="CVE-2024-1000" />);
 
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
-      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      const titleInput = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement;
       // Must be vuln B's own composed title, never vuln A's edited value.
       expect(titleInput.value).toBe('[Medium] CVE-2024-1000 on staging-02');
       expect(titleInput.value).not.toContain('CVE-2024-3094');
@@ -449,7 +449,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
 
       // Compose-on-open has already run (a real effect fired, populating
       // both fields) -- yet the mutation itself must not have fired.
-      expect((screen.getByLabelText('Title') as HTMLInputElement).value).not.toBe('');
+      expect((screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value).not.toBe('');
       expect(mockMutateAsync).not.toHaveBeenCalled();
     });
   });

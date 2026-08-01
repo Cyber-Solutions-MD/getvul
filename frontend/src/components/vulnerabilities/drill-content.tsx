@@ -11,10 +11,20 @@ import type { TicketProvider } from '@/lib/ticketing/providers';
 import { microcopy } from './microcopy';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 // 24-09 Task 1: AiExplanationSection moved to the shared, view-agnostic
 // components/ai/ directory (D-15) so the host/remediation views can mount
 // it verbatim alongside this vuln drill.
 import { AiExplanationSection } from '@/components/ai/ai-explanation-section';
+// Phase 27 (AID-01, Plan 02): the three GET cache-check reads the ticket
+// draft composer needs (D-02: free, zero model call) + the pure
+// composition functions themselves (RESEARCH Pattern 1).
+import { useExplainCache } from '@/lib/queries/use-explain-cache';
+import {
+  composeTicketTitle,
+  composeTicketDescription,
+  type CacheSection,
+} from '@/lib/tickets/compose-ticket-draft';
 
 // D-P-05 — shared section order: Header → CVSS → Affected hosts →
 // Description → Remediation → Activity → Actions. Used by both desktop
@@ -71,6 +81,13 @@ type Props = {
     // shape above (D-09 scope fence: description-only).
     description: string;
     onDescriptionChange: (v: string) => void;
+    // Phase 27 (AID-01, Plan 02): analyst-reviewed ticket title, auto-
+    // composed DETERMINISTICALLY (D-01, zero AI call) the first time the
+    // confirm dialog opens for a given vuln. Freely editable/clearable,
+    // threaded into fireTicket()'s mutation body. Mirrors the
+    // description/onDescriptionChange controlled-prop shape above.
+    title: string;
+    onTitleChange: (v: string) => void;
   }) => React.ReactNode;
 };
 
@@ -92,9 +109,22 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // AiExplanationSection mount below. Freely editable/clearable before the
   // existing "Create ticket" confirm click (D-08). Never a required field.
   const [description, setDescription] = useState('');
+  // Phase 27 (AID-01, Plan 02): analyst-reviewed ticket title. Starts
+  // empty; auto-composed DETERMINISTICALLY (D-01, zero AI call) the first
+  // time the confirm dialog opens for a given vuln -- see the compose-on-
+  // open effect below. Freely editable/clearable, never a required field.
+  const [title, setTitle] = useState('');
 
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const panelInteractivesRef = useRef<HTMLDivElement>(null);
+  // Phase 27 (AID-01, Plan 02, RESEARCH Pattern 4): the resourceId the
+  // compose-on-open effect below last composed a draft for. A ref KEYED TO
+  // resourceId -- not a blank-string check -- so (a) an analyst's edits (or
+  // a deliberately-cleared field) survive re-opening the SAME vuln's
+  // dialog, and (b) switching to a DIFFERENT vuln while the panel stays
+  // mounted (idOrCve changes, no remount) still recomposes, closing
+  // Pitfall 3 (cross-vuln carryover).
+  const composedForId = useRef<string | null>(null);
 
   // D-P-06 — focus moves to the close button on mount. Using a ref +
   // useEffect rather than the `autoFocus` JSX prop so the focus call
@@ -103,6 +133,95 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   useEffect(() => {
     closeBtnRef.current?.focus();
   }, [idOrCve]);
+
+  // Phase 27 (AID-01, Plan 02): `v` and its cache-read/compose-relevant
+  // derived fields are computed here -- unconditionally, BEFORE the
+  // pending/error early returns below -- because Rules of Hooks requires
+  // the cache reads + compose-on-open effect (both hooks) to run on every
+  // render regardless of loading state. `q.data ?? {}` defends against `v`
+  // being read while the detail query is still pending; once `q.data`
+  // resolves, `v` reflects it exactly as it did before this restructure.
+  const v = (q.data ?? {}) as unknown as FlexibleDetail;
+  const cveLabel = v.cve_id ?? v.id ?? idOrCve;
+  const hostsLine =
+    v.affected_hosts && v.affected_hosts.length > 0
+      ? v.affected_hosts.map((h) => h.host ?? h.ip ?? '—').join(', ')
+      : (v.asset_hostname ?? '—');
+  const sevLower = (v.severity ?? '').toString().toLowerCase();
+  const sevLabel =
+    sevLower.length > 0
+      ? sevLower.charAt(0).toUpperCase() + sevLower.slice(1)
+      : '—';
+
+  // Phase 27 (AID-01, Plan 02): the three cache-check reads the composer
+  // needs -- cheap, non-streaming GETs (D-09), never a model call. Reading
+  // them here (rather than only inside AiExplanationSection's own mounts)
+  // lets the compose-on-open effect below build the full multi-section
+  // description without waiting for those sections to render.
+  const explainCacheQuery = useExplainCache('vuln', v.id ?? idOrCve);
+  const remediationGuidanceCacheQuery = useExplainCache('remediation-guidance', v.id ?? idOrCve);
+  const prioritizationCacheQuery = useExplainCache('prioritization', v.id ?? idOrCve);
+
+  // Phase 27 (AID-01, Plan 02, D-02/D-04): compose-on-open. Runs once per
+  // resourceId, the first time the confirm dialog transitions open --
+  // reads only already-cached GET results + already-loaded local fields,
+  // zero network calls. Never re-composes over an analyst's edits on a
+  // same-vuln re-open (Pitfall 2: the pre-existing "Copy into ticket
+  // description" button writes the SAME `description` state, but the
+  // guard is keyed on "have I composed for THIS id," not "is description
+  // empty," so the first genuine dialog open always composes the full
+  // Title + body regardless of what the copy button already wrote). DOES
+  // recompose when `v.id ?? idOrCve` changes to a different vuln while the
+  // panel stays mounted (Pitfall 3).
+  useEffect(() => {
+    if (!confirmOpen) return;
+    const id = v.id ?? idOrCve;
+    if (composedForId.current === id) return;
+    composedForId.current = id;
+
+    const explainSection: CacheSection =
+      explainCacheQuery.data?.cached === true
+        ? { grounded: explainCacheQuery.data.grounded, summary: explainCacheQuery.data.summary }
+        : null;
+    const remediationGuidanceSection: CacheSection =
+      remediationGuidanceCacheQuery.data?.cached === true
+        ? {
+            grounded: remediationGuidanceCacheQuery.data.grounded,
+            summary: remediationGuidanceCacheQuery.data.summary,
+          }
+        : null;
+    const prioritizationSection: CacheSection =
+      prioritizationCacheQuery.data?.cached === true
+        ? { grounded: prioritizationCacheQuery.data.grounded, summary: prioritizationCacheQuery.data.summary }
+        : null;
+
+    setTitle(composeTicketTitle({ sevLabel, cveLabel, hostsLine }));
+    setDescription(
+      composeTicketDescription({
+        explain: explainSection,
+        remediationGuidance: remediationGuidanceSection,
+        prioritization: prioritizationSection,
+        hostsLine,
+        affectedProduct: v.affected_product ?? null,
+        sevLabel,
+        cisaKev: Boolean(v.cisa_kev),
+        exploitAvailable: Boolean(v.exploit_available),
+      }),
+    );
+  }, [
+    confirmOpen,
+    v.id,
+    idOrCve,
+    sevLabel,
+    cveLabel,
+    hostsLine,
+    v.affected_product,
+    v.cisa_kev,
+    v.exploit_available,
+    explainCacheQuery.data,
+    remediationGuidanceCacheQuery.data,
+    prioritizationCacheQuery.data,
+  ]);
 
   // D-P-06 (focus trap): Tab on the close button moves focus to the next
   // interactive element inside the panel. Shift-Tab cycles backward.
@@ -143,8 +262,9 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
     );
   }
 
-  const v = q.data as unknown as FlexibleDetail;
-  const cveLabel = v.cve_id ?? v.id ?? idOrCve;
+  // `v`, `cveLabel`, `hostsLine`, and `sevLabel` are already computed above
+  // (unconditionally, before the pending/error early returns, so the cache
+  // reads + compose-on-open effect can use them) -- reused here unchanged.
   // Renamed from `description` (Phase 25 Plan 07): the vuln's own CVE
   // description text, unrelated to the new ticket-description state below
   // -- the two shared the same identifier before this plan, which is now a
@@ -152,15 +272,6 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   const vulnDescriptionText =
     v.description ?? v.vulnerability_name ?? v.title ?? '—';
   const remediation = v.remediation ?? v.remediation_info ?? '—';
-  const hostsLine =
-    v.affected_hosts && v.affected_hosts.length > 0
-      ? v.affected_hosts.map((h) => h.host ?? h.ip ?? '—').join(', ')
-      : (v.asset_hostname ?? '—');
-  const sevLower = (v.severity ?? '').toString().toLowerCase();
-  const sevLabel =
-    sevLower.length > 0
-      ? sevLower.charAt(0).toUpperCase() + sevLower.slice(1)
-      : '—';
 
   const fireTicket = async () => {
     try {
@@ -172,6 +283,12 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
         // default-selects the first configured provider on load and the
         // Confirm action is disabled while ticketProvider is still null.
         provider: ticketProvider ?? 'ASANA',
+        // Phase 27 (AID-01, Plan 02): analyst-reviewed title, threaded to
+        // the Plan 01 backend contract. Blank/whitespace-only collapses to
+        // undefined so the backend's own fallback (the deterministic
+        // "[sev] cve on host" auto-build) applies unchanged -- never sends
+        // an empty-string title.
+        title: title || undefined,
         // Phase 25 (AIR-02): analyst-reviewed description, threaded to the
         // Plan 06 backend contract. Blank/whitespace-only collapses to
         // undefined so the backend's own fallback (_build_task_description)
@@ -391,6 +508,8 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             onProviderChange: setTicketProvider,
             description,
             onDescriptionChange: setDescription,
+            title,
+            onTitleChange: setTitle,
           })
         : (
           <ConfirmModal
@@ -403,19 +522,46 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             onCancel={cancelConfirm}
           >
             <TicketProviderPicker value={ticketProvider} onChange={setTicketProvider} />
-            {/* Phase 25 (AIR-02): description pre-fill field, subordinate to
-                the provider picker above (UI-SPEC visual hierarchy). Empty
-                and freely editable if the analyst never used "Copy into
-                ticket description"; never a required field (D-09). */}
+            {/* Phase 27 (AID-01, Plan 02): shared "AI-drafted" caption,
+                covering both the Title and Description fields below
+                (27-UI-SPEC.md Copywriting Contract + Spacing Scale --
+                sits once, above the Title field) -- supersedes Phase 25's
+                field-scoped caption, now stale since Description composes
+                from more than remediation guidance alone. */}
+            <p className="mt-4 text-xs font-medium text-text-muted">
+              AI-drafted — review before creating.
+            </p>
+            {/* Phase 27 (AID-01, Plan 02): editable Title, auto-composed
+                DETERMINISTICALLY (D-01, zero AI call) on first open --
+                27-UI-SPEC.md section 2. Subordinate to the provider picker
+                above (UI-SPEC visual hierarchy); never a required field. */}
+            <div className="mt-4">
+              <label htmlFor="ticket-title-input" className="mb-1 block text-xs font-medium text-text-muted">
+                Title
+              </label>
+              <Input
+                id="ticket-title-input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+            {/* Phase 25 (AIR-02): composed description body, subordinate to
+                the provider picker + Title above (UI-SPEC visual
+                hierarchy). Phase 27 (AID-01, Plan 02) widens the pre-fill
+                from remediation-guidance-only to the full multi-section
+                compose (Description / Remediation / Asset context /
+                Prioritization) -- label + placeholder updated per the
+                27-UI-SPEC.md Copywriting Contract (supersedes the stale
+                Phase 25 copy). Never a required field (D-09). */}
             <div className="mt-4">
               <label htmlFor="ticket-description-textarea" className="mb-1 block text-xs font-medium text-text-muted">
-                Pre-filled from remediation guidance — review and edit before creating.
+                Description
               </label>
               <Textarea
                 id="ticket-description-textarea"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="No remediation guidance yet — add a description or leave blank."
+                placeholder="No AI draft available yet — add a description or leave blank."
                 rows={4}
               />
             </div>

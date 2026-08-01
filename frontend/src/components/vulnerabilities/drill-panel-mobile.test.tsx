@@ -217,7 +217,18 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
   // for this divergent path.
   // ───────────────────────────────────────────────────────────────────────
 
-  it('renders the description Textarea between the TicketProviderPicker and the Cancel/Confirm row, with LOCKED caption + placeholder, starting empty', () => {
+  // Phase 27 (AID-01, Plan 02): DrillContent's compose-on-open effect
+  // (title/description state + the resourceId-keyed guard) lives INSIDE
+  // the shared DrillContent component that drill-panel-mobile.tsx renders
+  // directly (27-RESEARCH.md Pattern 4 -- "no separate state needed there
+  // ... exactly as description already does today") -- so the field
+  // auto-composes here too, even though the mobile UI's OWN Title Input +
+  // updated caption/placeholder are Plan 03's explicit scope ("mobile
+  // Title Input mirror"), not this plan's. The caption/placeholder text
+  // below is intentionally still Phase 25's (drill-panel-mobile.tsx's own
+  // JSX is untouched by this plan); only the "starting empty" assumption
+  // is now false and is updated to match reality.
+  it('renders the description Textarea between the TicketProviderPicker and the Cancel/Confirm row, auto-composed on first open (Asset context always present, D-04)', () => {
     setMatchMedia(true);
     render(<DrillPanelMobile cveId="CVE-2024-3094" />);
     fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
@@ -231,7 +242,7 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
     const textarea = within(nestedConfirm).getByPlaceholderText(
       'No remediation guidance yet — add a description or leave blank.',
     ) as HTMLTextAreaElement;
-    expect(textarea.value).toBe('');
+    expect(textarea.value).toContain('Asset context:');
 
     // Document-order: picker < textarea < Cancel/Confirm row.
     const picker = within(nestedConfirm).getByRole('radiogroup', { name: 'Ticketing provider' });
@@ -263,13 +274,22 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
     );
   });
 
-  it('leaving the mobile textarea blank threads description: undefined into the mutation body (mobile mirrors desktop, never a silent skip)', () => {
+  it('clearing the auto-composed description before confirming threads description: undefined (never an empty string) into the mutation body (mobile mirrors desktop, never a silent skip)', () => {
     setMatchMedia(true);
     render(<DrillPanelMobile cveId="CVE-2024-3094" />);
     fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
     const dialogs = screen.getAllByRole('dialog');
     const nestedConfirm = dialogs[dialogs.length - 1];
+    // Phase 27 (AID-01, Plan 02): the shared DrillContent effect auto-
+    // composes on open -- "leaving it blank" no longer happens by default.
+    // The analyst can still clear it explicitly (SC2); this proves that
+    // path still threads `undefined` (never an empty string).
+    const textarea = within(nestedConfirm).getByPlaceholderText(
+      'No remediation guidance yet — add a description or leave blank.',
+    );
+    fireEvent.change(textarea, { target: { value: '' } });
+
     const confirmBtn = within(nestedConfirm).getByRole('button', { name: /create ticket/i });
     fireEvent.click(confirmBtn);
 
