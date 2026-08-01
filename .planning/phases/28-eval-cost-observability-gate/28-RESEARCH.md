@@ -467,8 +467,8 @@ async def test_batch_prewarm_never_constructs_anthropic_client_over_budget(db_se
 
 **What goes wrong:** `app.ai.batch` imports its own reference to `_default_client_factory` via `from app.ai.explain import ... _default_client_factory` at import time. Patching `app.ai.explain._default_client_factory` via `unittest.mock.patch` does NOT retroactively change the name already bound inside `app.ai.batch`'s own module namespace.
 **Why it happens:** Standard Python `from module import name` binding semantics — a very common testing footgun, not specific to this codebase.
-**How to avoid:** Patch `anthropic.AsyncAnthropic` (the SDK class itself) rather than the application's factory function, so every current AND future call site is caught regardless of which module holds which reference.
-**Warning signs:** A coverage test that passes for the 5 explain routes but was never actually exercised against the batch path (or vice versa) because the patch target didn't cover both modules.
+**How to avoid:** Patch the module-local bound name `app.ai.explain.AsyncAnthropic` — the exact name `_default_client_factory` (explain.py:121) constructs, matching 6 existing repo precedents (e.g. `patch("app.ai.explain.AsyncAnthropic")` in test_ai_explain_prioritization.py:146). Do NOT patch the top-level `anthropic.AsyncAnthropic`: both explain.py:54 and batch.py:71 do `from anthropic import AsyncAnthropic`, binding the name in their OWN module namespace at import time, so the top-level package attribute is never consulted at call time — the patch intercepts nothing, making a `call_count == 0` assertion tautologically true AND (on the batch path) letting a real AsyncAnthropic get constructed + call count_tokens() → a real outbound HTTPS call from the keyless CI job. A single patch at `app.ai.explain.AsyncAnthropic` covers the 5 explain routes and the batch path's default factory; for the batch path itself, PREFER injecting a fake via the `anthropic_client_factory=` DI seam on `run_batch_prewarm()` (test_ai_batch.py's `_FakeBatchAnthropic`) so the billed `.batches.create` gate is asserted with zero real network calls.
+**Warning signs:** A coverage test that patches the top-level `anthropic.AsyncAnthropic` and asserts `call_count == 0` — tautologically green (the patch target is never the name the code binds), so it cannot fail even if the budget guard is deleted; or a batch-path test that constructs a real client instead of injecting the `anthropic_client_factory=` fake.
 
 ### Pitfall 7: mypy-strict friction with a third-party eval library's type stubs
 
@@ -643,22 +643,25 @@ Add `usage: () => ['ai', 'usage'] as const` to `queryKeys.ai` in `frontend/src/l
 
 **If this table is empty:** N/A — see entries above. All four are flagged for planner awareness but are LOW-MEDIUM risk; none are hard blockers to planning.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the CI-blocking AIE-02 gate literally invoke the `promptfoo` binary, or is a consolidated pytest suite an acceptable interpretation of "a promptfoo red-team job"?**
    - What we know: `REQUIREMENTS.md` and `ROADMAP.md` both name "promptfoo" explicitly for AIE-02. `28-CONTEXT.md`'s D-01/Claude's-Discretion section explicitly grants the researcher latitude on "promptfoo proper vs a lighter static-assertion harness for the CI-blocking tier." Verified this session: promptfoo's actual red-teaming pipeline (`redteam generate`/`redteam eval`) cannot run keylessly under any documented configuration.
    - What's unclear: Whether the requirement's literal tool name is a hard compliance/audit constraint (e.g., "we must be able to say we use promptfoo") or was written before this keylessness conflict was known.
    - Recommendation: Default to the plain-pytest consolidated suite (this research's primary recommendation) for the reasons in "AIE-02 Recommendation" above. If the planner or user considers the literal tool name non-negotiable, the documented alternative (real `promptfoo eval` + a static JS provider reading pre-dumped, pytest-freshness-checked fixtures — see Alternatives Considered) is a fully worked-out fallback that still achieves keylessness, at the cost of a new Node.js toolchain dependency in CI.
+   - **RESOLVED:** Plan 28-02 adopts the consolidated plain-pytest CI-blocking tier and documents the promptfoo-vs-pytest divergence in its objective + the new suite's module docstring; real `promptfoo redteam` is reserved for the opt-in key-gated tier (Plan 05).
 
 2. **Exact adversarial payload corpus for the consolidated red-team suite.**
    - What we know: The existing 4 test files each use exactly ONE payload ("IGNORE ALL PREVIOUS INSTRUCTIONS..."). PITFALLS.md's Pitfall 1 and the OWASP LLM Top 10 (2025) both describe the injection pattern space more broadly (role-play jailbreaks, system-prompt extraction phrasing, tag/delimiter breakout attempts, obfuscation).
    - What's unclear: The exact target corpus size the planner wants to commit to as a locked test fixture (this research suggests 15-25 as a reasonable starting point per Assumption A3, but doesn't lock a specific list).
    - Recommendation: The planner should size this at plan time; a reasonable starting corpus is: 3-4 canonical "ignore instructions" variants, 2-3 system-prompt-extraction attempts, 2-3 tag/delimiter-breakout attempts (including a literal `</scanner_data>` substring), 2-3 role-play/jailbreak framings, and 1-2 obfuscation/unicode attempts — applied across all 5 capabilities' free-text allowlisted fields.
+   - **RESOLVED:** Plan 28-02 locks a >=15-payload corpus floor (15-25 across the 5 categories), enforced via the `len(ADVERSARIAL_PAYLOADS) >= 15` acceptance criterion, applied across all 5 capabilities.
 
 3. **Does the golden-fixture capture script need to exercise the REAL streaming/retry engine (`_run_explain_stream`), or is a simpler direct-Anthropic-call script sufficient?**
    - What we know: `_run_explain_stream` includes retry, leak-marker, and dangerous-pattern logic beyond a bare model call. The captured fixture only needs to represent the FINAL validated response, not the intermediate retry mechanics.
    - What's unclear: Whether capturing via the full production code path (more faithful, but requires a running app + DB + Redis for the capture session) or a minimal standalone script calling `build_prompt()` + a raw Anthropic client + `response_model.model_validate_json()` (simpler, faster to write, slightly less faithful) is preferred.
    - Recommendation: Use the minimal standalone script — it exercises the SAME prompt-builder and SAME response-schema validation production code actually uses (the parts that matter for what's being asserted), without needing a live app/DB/Redis session for a one-time, offline capture. Document this scoping choice in the capture script's own docstring.
+   - **RESOLVED:** Plan 28-01 uses the minimal standalone capture script (`build_explain_*_prompt()` + a raw AsyncAnthropic call + `model_validate_json()`/`recheck_business_rules()`), with the scoping choice documented in the script's docstring — no live app/DB/Redis session.
 
 ## Golden-Fixture Capture (AIE-01/D-02/D-07)
 
@@ -696,7 +699,7 @@ Add `usage: () => ['ai', 'usage'] as const` to `queryKeys.ai` in `frontend/src/l
 - It is already effectively **persistent**: `get_month_to_date_spend()` SUMs `AuditLog` rows, which are never deleted and only accumulate within a month — so once tripped, every subsequent call this month re-derives the same "over cap" answer, with zero additional state needed.
 
 **The actual delta this phase adds:**
-1. **A coverage test** (Architecture Patterns, Pattern 4 / Code Example) proving, for all 5 explain routes + the batch prewarm path, that an over-budget tenant NEVER reaches `AsyncAnthropic(...)` construction — patch the SDK class itself, not the per-module factory reference (Pitfall 6).
+1. **A coverage test** (Architecture Patterns, Pattern 4 / Code Example) proving no over-budget tenant reaches a BILLED Anthropic dispatch: for the 5 explain routes, the budget short-circuit runs BEFORE `AsyncAnthropic(...)` construction (assert zero construction by patching the module-local `app.ai.explain.AsyncAnthropic` — NOT the top-level `anthropic.AsyncAnthropic`, which binds nothing at call time; Pitfall 6); for the batch prewarm path, the client is constructed and count_tokens() runs pre-gate BY DESIGN, so assert zero billed `.batches.create` calls via a fake injected through the `anthropic_client_factory=` DI seam (test_ai_batch.py precedent) — see PATTERNS.md AIE-03 CRITICAL CORRECTION.
 2. **Exposing the SAME derived boolean to the frontend** via the new `GET /api/v1/ai/usage` endpoint's `breaker_tripped` field, computed with the IDENTICAL comparison `check_tenant_budget()` uses (`monthly_cap_usd is not None and spent >= monthly_cap_usd`) — never a second, independently-authored comparison in TypeScript, per the UI-SPEC's own explicit mandate ("the pane must never compute this with a different comparison than the backend guard uses").
 3. **Nothing else changes** — no new column, no new table, no new state machine. This is the D-09 "derived, to avoid a stateful sync bug" lean, now concretely justified by the evidence that the existing mechanism already IS persistent by construction.
 
