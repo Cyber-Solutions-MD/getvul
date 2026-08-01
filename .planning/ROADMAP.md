@@ -393,7 +393,10 @@ Plans:
   2. An analyst can edit every drafted field before submission — AID-01
   3. No ticket is ever created without an explicit human click on Create/Submit — the draft never auto-submits — AID-01
 
-**Plans**: TBD
+**Plans**: 3 plans (3 waves, tracer-first, strict sequential)
+- [ ] 27-01-PLAN.md — backend title override + create_tickets() fallback + mutation type + tests (255-cap anti-silent-fail)
+- [ ] 27-02-PLAN.md — compose-ticket-draft.ts + desktop Title field + resourceId-keyed compose-on-open guard (the tracer)
+- [ ] 27-03-PLAN.md — export AnalyzingIndicator + gap-fill row (desktop) + mobile mirror (Title + gap-fill)
 **UI hint**: yes
 
 ### Phase 28: Eval + Cost + Observability Gate
