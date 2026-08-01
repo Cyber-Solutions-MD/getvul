@@ -43,7 +43,7 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 
 ### AI Ticket Drafting (AID)
 
-- [ ] **AID-01**: When creating a Jira/Asana ticket, an analyst gets an AI-drafted title/description/remediation/asset-context that they edit before shipping (never auto-submitted)
+- [x] **AID-01**: When creating a Jira/Asana ticket, an analyst gets an AI-drafted title/description/remediation/asset-context that they edit before shipping (never auto-submitted)
 
 ### AI Evals, Cost & Observability Gate (AIE)
 
@@ -92,7 +92,7 @@ Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no 
 | AIR-02 | 25 (Asset-Aware Remediation Guidance) | Complete |
 | AIP-01 | 26 (Prioritization Narrative) | Complete |
 | AIP-02 | 26 (Prioritization Narrative) | Complete |
-| AID-01 | 27 (Ticket Auto-Drafting) | Pending |
+| AID-01 | 27 (Ticket Auto-Drafting) | Complete |
 | AIE-01 | 28 (Eval + Cost + Observability Gate) | Pending |
 | AIE-02 | 28 (Eval + Cost + Observability Gate) | Pending |
 | AIE-03 | 28 (Eval + Cost + Observability Gate) | Pending |

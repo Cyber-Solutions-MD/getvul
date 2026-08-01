@@ -396,7 +396,7 @@ Plans:
 **Plans**: 3 plans (3 waves, tracer-first, strict sequential)
 - [x] 27-01-PLAN.md — backend title override + create_tickets() fallback + mutation type + tests (255-cap anti-silent-fail)
 - [x] 27-02-PLAN.md — compose-ticket-draft.ts + desktop Title field + resourceId-keyed compose-on-open guard (the tracer)
-- [ ] 27-03-PLAN.md — export AnalyzingIndicator + gap-fill row (desktop) + mobile mirror (Title + gap-fill)
+- [x] 27-03-PLAN.md — export AnalyzingIndicator + gap-fill row (desktop) + mobile mirror (Title + gap-fill)
 **UI hint**: yes
 
 ### Phase 28: Eval + Cost + Observability Gate
@@ -448,7 +448,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 10/10 | Complete    | 2026-07-29 |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 7/7 | Complete    | 2026-07-30 |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | Complete    | 2026-07-31 |
-| 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 2/3 | In Progress | - |
+| 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 3/3 | In Progress | - |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 
 ## Backlog
