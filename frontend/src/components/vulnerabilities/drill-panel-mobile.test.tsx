@@ -38,11 +38,33 @@ vi.mock('@/lib/mutations/use-snooze', () => ({
 // drill-panel.test.tsx for the identical rationale.
 // (24-10) use-ai-status replaces use-connectors-admin as the section's key-
 // configured signal (D-23 gap closure) -- mocked the same way.
+// Phase 27 (AID-01, Plan 03): converted to forwarding vi.fn()s (mirroring
+// drill-panel.test.tsx's own Plan 03 upgrade) so the new gap-fill tests can
+// drive an Analyst+/key-configured/missing-section scenario per-test, while
+// every pre-existing test keeps the SAME default return values as before.
+const mockUseExplainCache = vi.fn();
 vi.mock('@/lib/queries/use-explain-cache', () => ({
-  useExplainCache: () => ({ data: { cached: false }, isPending: false, isError: false }),
+  useExplainCache: (...args: unknown[]) => mockUseExplainCache(...args),
 }));
+const mockUseAiStatus = vi.fn();
 vi.mock('@/lib/queries/use-ai-status', () => ({
-  useAiStatus: () => ({ data: { configured: false }, isPending: false, isError: false }),
+  useAiStatus: (...args: unknown[]) => mockUseAiStatus(...args),
+}));
+// Phase 27 (AID-01, Plan 03): no mock existed for @/lib/auth before this
+// plan -- every pre-existing test ran against the REAL useAuth() context
+// default (`user: null` -> role 'VIEWER'). Mocked here with the SAME
+// default so every pre-existing assertion is unaffected.
+const mockUseAuth = vi.fn();
+vi.mock('@/lib/auth', () => ({ useAuth: () => mockUseAuth() }));
+// Phase 27 (AID-01, Plan 03): the gap-fill row calls useExplainStream
+// DIRECTLY (bypassing AiExplanationSection) -- forwarding call args so
+// gap-fill tests can drive a specific state. Defaults to 'idle' for every
+// resourceType, matching the REAL hook's initial state, so the 3
+// pre-existing AiExplanationSection mounts are unaffected.
+const mockStart = vi.fn();
+const mockUseExplainStream = vi.fn();
+vi.mock('@/lib/ai/use-explain-stream', () => ({
+  useExplainStream: (...args: unknown[]) => mockUseExplainStream(...args),
 }));
 
 // The mobile nested confirm now renders TicketProviderPicker, which calls
@@ -92,6 +114,17 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
       isError: false,
       data: [{ provider: 'JIRA', enabled: true }],
     } as unknown as ReturnType<typeof useTicketingProviders>);
+    // Phase 27 (AID-01, Plan 03): SAME defaults the hardcoded mocks always
+    // returned before this plan -- every pre-existing test is unaffected.
+    mockUseExplainCache.mockReset();
+    mockUseExplainCache.mockReturnValue({ data: { cached: false }, isPending: false, isError: false });
+    mockUseAiStatus.mockReset();
+    mockUseAiStatus.mockReturnValue({ data: { configured: false }, isPending: false, isError: false });
+    mockUseAuth.mockReset();
+    mockUseAuth.mockReturnValue({ user: { role: 'VIEWER' } });
+    mockStart.mockReset();
+    mockUseExplainStream.mockReset();
+    mockUseExplainStream.mockReturnValue({ state: { phase: 'idle' }, start: mockStart });
   });
 
   afterEach(() => {
@@ -228,7 +261,7 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
   // below is intentionally still Phase 25's (drill-panel-mobile.tsx's own
   // JSX is untouched by this plan); only the "starting empty" assumption
   // is now false and is updated to match reality.
-  it('renders the description Textarea between the TicketProviderPicker and the Cancel/Confirm row, auto-composed on first open (Asset context always present, D-04)', () => {
+  it('renders the description Textarea between the gap-fill row and the Cancel/Confirm row, auto-composed on first open (Asset context always present, D-04)', () => {
     setMatchMedia(true);
     render(<DrillPanelMobile cveId="CVE-2024-3094" />);
     fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
@@ -236,11 +269,13 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
     const dialogs = screen.getAllByRole('dialog');
     const nestedConfirm = dialogs[dialogs.length - 1];
 
-    expect(
-      within(nestedConfirm).getByText('Pre-filled from remediation guidance — review and edit before creating.'),
-    ).toBeInTheDocument();
+    // Phase 27 (AID-01, Plan 03): the OLD field-scoped caption is
+    // superseded by the shared "AI-drafted" caption (mirrors the desktop
+    // ConfirmModal's own Plan 02 change) -- sits once, above the Title
+    // field, covering both Title and Description.
+    expect(within(nestedConfirm).getByText('AI-drafted — review before creating.')).toBeInTheDocument();
     const textarea = within(nestedConfirm).getByPlaceholderText(
-      'No remediation guidance yet — add a description or leave blank.',
+      'No AI draft available yet — add a description or leave blank.',
     ) as HTMLTextAreaElement;
     expect(textarea.value).toContain('Asset context:');
 
@@ -262,7 +297,7 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
     const dialogs = screen.getAllByRole('dialog');
     const nestedConfirm = dialogs[dialogs.length - 1];
     const textarea = within(nestedConfirm).getByPlaceholderText(
-      'No remediation guidance yet — add a description or leave blank.',
+      'No AI draft available yet — add a description or leave blank.',
     );
     fireEvent.change(textarea, { target: { value: 'Patch xz to 5.4.x per vendor advisory.' } });
 
@@ -286,7 +321,7 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
     // The analyst can still clear it explicitly (SC2); this proves that
     // path still threads `undefined` (never an empty string).
     const textarea = within(nestedConfirm).getByPlaceholderText(
-      'No remediation guidance yet — add a description or leave blank.',
+      'No AI draft available yet — add a description or leave blank.',
     );
     fireEvent.change(textarea, { target: { value: '' } });
 
@@ -294,5 +329,114 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
     fireEvent.click(confirmBtn);
 
     expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ description: undefined }));
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 27 Plan 03 (AID-01): mirrors drill-panel.test.tsx's Title Input
+  // tests for the divergent mobile Drawer.NestedRoot renderConfirm path
+  // (Pitfall 5 -- never imports ConfirmModal, builds its own markup).
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('mobile Title Input (AID-01, Plan 03)', () => {
+    it('renders the Title Input with the shared LOCKED caption, deterministically composed on first open', () => {
+      setMatchMedia(true);
+      render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialogs = screen.getAllByRole('dialog');
+      const nestedConfirm = dialogs[dialogs.length - 1];
+
+      expect(within(nestedConfirm).getByText('AI-drafted — review before creating.')).toBeInTheDocument();
+      const titleInput = within(nestedConfirm).getByRole('textbox', { name: 'Title' }) as HTMLInputElement;
+      expect(titleInput).toBeInTheDocument();
+      // Deterministic D-01 format -- this file's mocked detail has no
+      // affected_hosts/asset_hostname, so hostsLine falls back to '—'.
+      expect(titleInput.value).toBe('[Critical] CVE-2024-3094 on —');
+    });
+
+    it('typing into the mobile Title Input and confirming threads the title into createTicket.mutateAsync body', () => {
+      setMatchMedia(true);
+      render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialogs = screen.getAllByRole('dialog');
+      const nestedConfirm = dialogs[dialogs.length - 1];
+      fireEvent.change(within(nestedConfirm).getByRole('textbox', { name: 'Title' }), {
+        target: { value: 'Patch the xz backdoor now' },
+      });
+
+      const confirmBtn = within(nestedConfirm).getByRole('button', { name: /create ticket/i });
+      fireEvent.click(confirmBtn);
+
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Patch the xz backdoor now' }),
+      );
+    });
+
+    it('clearing the auto-composed Title before confirming threads title: undefined (never an empty string) into the mutation body', () => {
+      setMatchMedia(true);
+      render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialogs = screen.getAllByRole('dialog');
+      const nestedConfirm = dialogs[dialogs.length - 1];
+      fireEvent.change(within(nestedConfirm).getByRole('textbox', { name: 'Title' }), {
+        target: { value: '' },
+      });
+
+      const confirmBtn = within(nestedConfirm).getByRole('button', { name: /create ticket/i });
+      fireEvent.click(confirmBtn);
+
+      expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ title: undefined }));
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 27 Plan 03 (AID-01): the mobile mirror of the "Draft with AI"
+  // gap-fill row -- identical descriptor-driven rendering to desktop,
+  // never a separate logic path (D-05 divergence lesson).
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('mobile gap-fill row (AID-01, Plan 03)', () => {
+    it('gap-fill interactions (clicking a trigger) never call createTicket.mutateAsync -- SC3 holds on the mobile surface independently, not only by desktop inference', () => {
+      setMatchMedia(true);
+      mockUseAuth.mockReturnValue({ user: { role: 'ANALYST' } });
+      mockUseAiStatus.mockReturnValue({ data: { configured: true }, isPending: false, isError: false });
+      // mockUseExplainCache stays at the default {cached:false} -- both
+      // Description and Remediation are "missing," so both buttons render.
+
+      render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialogs = screen.getAllByRole('dialog');
+      const nestedConfirm = dialogs[dialogs.length - 1];
+
+      const draftDescriptionBtn = within(nestedConfirm).getByRole('button', {
+        name: 'Draft description with AI',
+      });
+      const draftRemediationBtn = within(nestedConfirm).getByRole('button', {
+        name: 'Draft remediation with AI',
+      });
+      fireEvent.click(draftDescriptionBtn);
+      fireEvent.click(draftRemediationBtn);
+
+      expect(mockStart).toHaveBeenCalledTimes(2);
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('renders no gap-fill buttons for Viewer role / no key configured (default fixture state), even though the descriptor is threaded', () => {
+      setMatchMedia(true);
+      render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      const dialogs = screen.getAllByRole('dialog');
+      const nestedConfirm = dialogs[dialogs.length - 1];
+      expect(
+        within(nestedConfirm).queryByRole('button', { name: 'Draft description with AI' }),
+      ).toBeNull();
+      expect(
+        within(nestedConfirm).queryByRole('button', { name: 'Draft remediation with AI' }),
+      ).toBeNull();
+    });
   });
 });
