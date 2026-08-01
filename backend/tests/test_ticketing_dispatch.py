@@ -147,6 +147,38 @@ def test_ticket_create_request_description_unknown_field_rejected():
         TicketCreateRequest(vulnerability_ids=[uuid.uuid4()], provider="ASANA", not_a_real_field="x")
 
 
+# ── Task 2 (AID-01): TicketCreateRequest.title field mirror ──────────────────
+# Mirrors the 4 description schema tests above (the unknown-field-rejected
+# test is class-level extra="forbid" and needs no title-specific duplicate),
+# plus a title-only 255-cap test (description's ceiling is 10000).
+
+
+def test_ticket_create_request_title_whitespace_only_coerces_to_none():
+    """A whitespace-only title never raises — mirrors description's coercion."""
+    request = TicketCreateRequest(vulnerability_ids=[uuid.uuid4()], provider="ASANA", title="   \n\t  ")
+    assert request.title is None
+
+
+def test_ticket_create_request_title_omitted_is_valid():
+    request = TicketCreateRequest(vulnerability_ids=[uuid.uuid4()], provider="ASANA")
+    assert request.title is None
+
+
+def test_ticket_create_request_title_valid_text_is_kept_verbatim_after_strip():
+    request = TicketCreateRequest(vulnerability_ids=[uuid.uuid4()], provider="ASANA", title="  Fix it  ")
+    assert request.title == "Fix it"
+
+
+def test_ticket_create_request_title_over_255_raises():
+    """The 255 cap (Jira's hard summary ceiling) is the ONE deliberate
+    deviation from description's max_length=10000 — converts an over-length
+    title into a visible 422 instead of create_tickets()'s silent
+    `if url is None: ... continue` skip when Jira rejects an oversized
+    summary (RESEARCH Pitfall 1)."""
+    with pytest.raises(ValidationError):
+        TicketCreateRequest(vulnerability_ids=[uuid.uuid4()], provider="ASANA", title="x" * 256)
+
+
 # ── Task 1: service.py create-path dispatch (D-07) ───────────────────────────
 
 
@@ -285,6 +317,56 @@ async def test_create_tickets_falls_back_to_built_description_when_omitted(db_se
 
     assert len(fake.created) == 1
     assert fake.created[0][1] == _build_task_description(vuln, hostname=None)
+
+
+# ── Task 2 (AID-01): create_tickets() title fallback dispatch mirror ────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["ASANA", "JIRA", "GITHUB"])
+async def test_create_tickets_uses_request_title_when_supplied(db_session, tenant_a, provider):
+    """When request.title is non-empty, client.create() receives it VERBATIM
+    as the title arg (index [0], not [1] which is body/notes) — replacing
+    the auto-built "[sev] cve on host" convention."""
+    vuln = _seed_vuln(tenant_a)
+    db_session.add(vuln)
+    await db_session.commit()
+
+    fake = FakeTicketingClient(provider)
+    request = TicketCreateRequest(
+        vulnerability_ids=[vuln.id], provider=provider, project_key="PROJ", title="Custom title"
+    )
+
+    await create_tickets(db=db_session, tenant_id=tenant_a, user_id=None, request=request, client=fake)
+    await db_session.commit()
+
+    assert len(fake.created) == 1
+    assert fake.created[0][0] == "Custom title"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["ASANA", "JIRA", "GITHUB"])
+async def test_create_tickets_falls_back_to_built_title_when_omitted(db_session, tenant_a, provider):
+    """When request.title is None/omitted, client.create() still receives the
+    unchanged auto-built "[sev] cve on host" title (fallback preserved).
+
+    Computed from the seeded vuln's own severity/cve_id — mirroring the
+    same sev/cve fallback expressions create_tickets() itself uses — rather
+    than a hardcoded literal, since _seed_vuln sets severity="CRITICAL"
+    (not an unset/None severity that would fall back to "MEDIUM")."""
+    vuln = _seed_vuln(tenant_a)
+    db_session.add(vuln)
+    await db_session.commit()
+
+    fake = FakeTicketingClient(provider)
+    request = TicketCreateRequest(vulnerability_ids=[vuln.id], provider=provider, project_key="PROJ")
+
+    await create_tickets(db=db_session, tenant_id=tenant_a, user_id=None, request=request, client=fake)
+    await db_session.commit()
+
+    assert len(fake.created) == 1
+    expected_title = f"[{vuln.severity or 'MEDIUM'}] {vuln.cve_id or 'Unknown vulnerability'} on unknown host"
+    assert fake.created[0][0] == expected_title
 
 
 # ── Task 1: sync_ticket_status / close_ticket dispatch by ticket's own provider ──
