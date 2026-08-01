@@ -509,7 +509,7 @@ This is an internal, single-project architecture evolution, not an external ecos
 | A2 | Asana's task `name` field has no hard character limit strict enough to matter here | Common Pitfall 1 | WebSearch found only a generic, unconfirmed "1024 chars for text fields" reference, not specifically the task-name field — LOW confidence, unverified against Asana's own current API reference. Recommend verifying directly against `developers.asana.com`'s task resource docs at plan time if a title anywhere near that length is expected in practice; otherwise moot since the 255-char Jira-driven cap (A1) is stricter and applies uniformly regardless of provider. |
 | A3 | The composed-once guard should key on `resourceId` via a `ref`, not a blank-string check, and should NOT treat the pre-existing main-panel "Copy into ticket description" click as having "already composed" | Pattern 4, Common Pitfalls 2 & 3 | This is this research's own synthesized recommendation, not something either CONTEXT.md or 27-UI-SPEC.md states explicitly. If the planner adopts a simpler blank-string guard instead, the specific cross-vuln (Pitfall 3) and copy-button-interaction (Pitfall 2) failure modes documented above will reproduce. Recommend confirming this approach during planning/discuss-phase rather than treating it as already locked. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the pre-existing main-panel "Copy into ticket description" button change behavior once the confirm dialog auto-composes on open?**
    - What we know: it currently calls `setDescription(text)` (a full replace), sharing state with the new confirm-dialog compose logic (Pitfall 2).
