@@ -1,6 +1,7 @@
 'use client';
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import Link from 'next/link';
 import { useVulnerabilityDetail } from '@/lib/queries/use-vulnerability-detail';
 import { useCreateTicketMutation } from '@/lib/mutations/use-create-ticket';
 import { useSnoozeMutation } from '@/lib/mutations/use-snooze';
@@ -14,8 +15,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 // 24-09 Task 1: AiExplanationSection moved to the shared, view-agnostic
 // components/ai/ directory (D-15) so the host/remediation views can mount
-// it verbatim alongside this vuln drill.
-import { AiExplanationSection } from '@/components/ai/ai-explanation-section';
+// it verbatim alongside this vuln drill. Phase 27 (AID-01, Plan 03): the
+// gap-fill row's "Analyzing…" state reuses the exact exported
+// AnalyzingIndicator pulsing-dot (D-12) -- never a second spinner.
+import { AiExplanationSection, AnalyzingIndicator } from '@/components/ai/ai-explanation-section';
 // Phase 27 (AID-01, Plan 02): the three GET cache-check reads the ticket
 // draft composer needs (D-02: free, zero model call) + the pure
 // composition functions themselves (RESEARCH Pattern 1).
@@ -25,6 +28,16 @@ import {
   composeTicketDescription,
   type CacheSection,
 } from '@/lib/tickets/compose-ticket-draft';
+// Phase 27 (AID-01, Plan 03): the gap-fill row's role/key gating source --
+// reused verbatim from ai-explanation-section.tsx (RESEARCH "Don't
+// Hand-Roll" -- never re-derive this check).
+import { useAuth } from '@/lib/auth';
+import { useAiStatus } from '@/lib/queries/use-ai-status';
+// Phase 27 (AID-01, Plan 03): the gap-fill row calls useExplainStream
+// DIRECTLY (bypassing AiExplanationSection entirely, 27-PATTERNS.md Analog
+// 4) -- the same per-resource SSE trigger the drill panel's own sections
+// already use, no new endpoint.
+import { useExplainStream, type ExplainStreamState } from '@/lib/ai/use-explain-stream';
 
 // D-P-05 — shared section order: Header → CVSS → Affected hosts →
 // Description → Remediation → Activity → Actions. Used by both desktop
@@ -61,6 +74,110 @@ type FlexibleDetail = {
   last_seen_at?: string;
 };
 
+// Phase 27 (AID-01, Plan 03): the gap-fill row's per-section render state.
+// 'trigger' covers both the true-idle case and the one-render window right
+// after a grounded 'done' resolves (before `visible` flips false via the
+// gapFillAppended guard below) -- see the GapFillDescriptor construction
+// inside DrillContent for why 'done' itself never needs its own branch here.
+type GapFillPhase = 'trigger' | 'analyzing' | 'busy' | 'budget_exceeded' | 'refused' | 'unsafe';
+
+type GapFillItemState = {
+  visible: boolean;
+  phase: GapFillPhase;
+  onClick: () => void;
+  // Admin/Owner-only "Raise the cap" link (mirrors the existing budget
+  // card's role-gated action, ai-explanation-section.tsx:260).
+  canRaiseCap: boolean;
+};
+
+export type GapFillDescriptor = {
+  rowVisible: boolean;
+  description: GapFillItemState;
+  remediation: GapFillItemState;
+};
+
+// Maps a raw useExplainStream() state onto the gap-fill row's own 6-state
+// vocabulary. 'done' with grounded=false is a defensive backstop (the real
+// engine never emits it, mirroring ai-explanation-section.tsx's own
+// UI-SPEC-backstop comment) -- treated the same as the terminal
+// grounded_false refusal.
+function gapFillPhaseFrom(state: ExplainStreamState): GapFillPhase {
+  if (state.phase === 'analyzing') return 'analyzing';
+  if (state.phase === 'done') return state.data.grounded ? 'trigger' : 'refused';
+  if (state.phase === 'error') {
+    switch (state.kind) {
+      case 'busy':
+      case 'unknown':
+        return 'busy';
+      case 'budget_exceeded':
+        return 'budget_exceeded';
+      case 'grounded_false':
+        return 'refused';
+      case 'unsafe':
+        return 'unsafe';
+    }
+  }
+  return 'trigger'; // 'idle'
+}
+
+// Phase 27 (AID-01, Plan 03, 27-UI-SPEC.md §4): renders ONE gap-fill row
+// item from its descriptor. Module-level (not a hook, no closure over
+// component state) so drill-panel-mobile.tsx defines an IDENTICAL copy for
+// its own divergent render path (Pitfall 6 precedent: hardcode/duplicate
+// copy across the two files rather than share JSX cross-file) -- the
+// LOCKED caption/trigger strings are literal here (grep-provable), driven
+// only by the threaded descriptor's mechanical state (visible/phase/
+// onClick/canRaiseCap). Uses the exact CopyToDescriptionButton text-button
+// chrome (ai-explanation-section.tsx:92-102) -- never a button-shaped CTA.
+function renderGapFillItem(item: GapFillItemState, kind: 'description' | 'remediation') {
+  if (!item.visible) return null;
+  if (item.phase === 'analyzing') return <AnalyzingIndicator />;
+  if (item.phase === 'refused') {
+    return (
+      <p className="text-xs font-medium text-text-muted">
+        {kind === 'description'
+          ? 'Not enough finding data to explain this reliably'
+          : 'Not enough vendor guidance to recommend a fix'}
+      </p>
+    );
+  }
+  if (item.phase === 'unsafe') {
+    return <p className="text-xs font-medium text-danger">This guidance was withheld for safety</p>;
+  }
+  if (item.phase === 'budget_exceeded') {
+    return (
+      <p className="text-xs font-medium text-amber">
+        AI budget exceeded
+        {item.canRaiseCap && (
+          <>
+            {' '}
+            <Link href="/dashboard/connectors" className="underline underline-offset-2 hover:text-text">
+              Raise the cap
+            </Link>
+          </>
+        )}
+      </p>
+    );
+  }
+  // 'trigger' or 'busy' -- both render the clickable button; busy
+  // additionally shows the amber retry caption beneath it (D-25: retry
+  // stays allowed, never a terminal state).
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={item.onClick}
+        className="text-xs font-medium text-text-muted underline-offset-2 hover:text-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+      >
+        {kind === 'description' ? 'Draft description with AI' : 'Draft remediation with AI'}
+      </button>
+      {item.phase === 'busy' && (
+        <p className="mt-1 text-xs font-medium text-amber">AI busy — try again in a moment</p>
+      )}
+    </div>
+  );
+}
+
 type Props = {
   idOrCve: string;
   onClose: () => void;
@@ -88,6 +205,15 @@ type Props = {
     // description/onDescriptionChange controlled-prop shape above.
     title: string;
     onTitleChange: (v: string) => void;
+    // Phase 27 (AID-01, Plan 03): the gap-fill row descriptor -- computed
+    // here (hooks run in DrillContent's body: useAuth/useAiStatus/
+    // useExplainStream x2) and threaded through so mobile's renderConfirm
+    // can render an IDENTICAL row from the same data without duplicating
+    // the role/key-gating or stream-triggering logic (D-05 divergence
+    // lesson). Mobile's OWN JSX still literally contains the locked copy
+    // strings (renderGapFillItem is duplicated, not imported, per Pitfall
+    // 6's established precedent) -- only the STATE is shared.
+    gapFill: GapFillDescriptor;
   }) => React.ReactNode;
 };
 
@@ -114,6 +240,15 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // time the confirm dialog opens for a given vuln -- see the compose-on-
   // open effect below. Freely editable/clearable, never a required field.
   const [title, setTitle] = useState('');
+  // Phase 27 (AID-01, Plan 03): tracks whether THIS dialog-life has already
+  // successfully gap-filled each section -- the authoritative "hide the
+  // button" signal (independent of the cache-derived `missing` check, which
+  // never updates just because a local append happened). Reset inside the
+  // SAME compose-on-open effect that resets `composedForId`, so a genuine
+  // vuln switch (Pitfall 3) makes the row reconsider both sections fresh,
+  // rather than staying permanently hidden because of a DIFFERENT vuln's
+  // stale useExplainStream state.
+  const [gapFillAppended, setGapFillAppended] = useState({ description: false, remediation: false });
 
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const panelInteractivesRef = useRef<HTMLDivElement>(null);
@@ -162,6 +297,60 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   const remediationGuidanceCacheQuery = useExplainCache('remediation-guidance', v.id ?? idOrCve);
   const prioritizationCacheQuery = useExplainCache('prioritization', v.id ?? idOrCve);
 
+  // Phase 27 (AID-01, Plan 03): hoisted OUT of the compose-on-open effect
+  // (Plan 02 had these as effect-local consts) so the gap-fill row's
+  // "missing" detection below can reuse the IDENTICAL grounded-cache-hit
+  // derivation the composer itself uses -- one source of truth for "is
+  // this section present in the composed body." `prioritizationSection`
+  // has no gap-fill trigger of its own (D-02 discretion: "include when
+  // cached" only) but stays alongside its siblings for the compose effect.
+  // Memoized (keyed on the underlying TanStack Query `.data` reference,
+  // which is itself stable across re-renders until the query result
+  // actually changes) so the compose-on-open effect's dependency array
+  // below can depend on these directly -- satisfies exhaustive-deps
+  // without re-running compose logic on every unrelated render.
+  const explainSection: CacheSection = useMemo(
+    () =>
+      explainCacheQuery.data?.cached === true
+        ? { grounded: explainCacheQuery.data.grounded, summary: explainCacheQuery.data.summary }
+        : null,
+    [explainCacheQuery.data],
+  );
+  const remediationGuidanceSection: CacheSection = useMemo(
+    () =>
+      remediationGuidanceCacheQuery.data?.cached === true
+        ? {
+            grounded: remediationGuidanceCacheQuery.data.grounded,
+            summary: remediationGuidanceCacheQuery.data.summary,
+          }
+        : null,
+    [remediationGuidanceCacheQuery.data],
+  );
+  const prioritizationSection: CacheSection = useMemo(
+    () =>
+      prioritizationCacheQuery.data?.cached === true
+        ? { grounded: prioritizationCacheQuery.data.grounded, summary: prioritizationCacheQuery.data.summary }
+        : null,
+    [prioritizationCacheQuery.data],
+  );
+
+  // Phase 27 (AID-01, Plan 03): role/key gating source for the gap-fill row
+  // -- reused verbatim from ai-explanation-section.tsx (RESEARCH "Don't
+  // Hand-Roll"), never re-derived.
+  const { user } = useAuth();
+  const role = user?.role ?? 'VIEWER';
+  const isAdminOrOwner = role === 'OWNER' || role === 'ADMIN';
+  const isAnalystOrAbove = isAdminOrOwner || role === 'ANALYST';
+  const aiStatusQuery = useAiStatus();
+  const keyConfigured = Boolean(aiStatusQuery.data?.configured);
+
+  // Phase 27 (AID-01, Plan 03): the gap-fill row's two direct triggers --
+  // bypassing AiExplanationSection entirely (27-PATTERNS.md Analog 4). Each
+  // is the SAME per-resource useExplainStream(resourceType, resourceId)
+  // the drill panel's own sections already use; no new endpoint.
+  const explainGapFill = useExplainStream('vuln', v.id ?? idOrCve);
+  const remediationGapFill = useExplainStream('remediation-guidance', v.id ?? idOrCve);
+
   // Phase 27 (AID-01, Plan 02, D-02/D-04): compose-on-open. Runs once per
   // resourceId, the first time the confirm dialog transitions open --
   // reads only already-cached GET results + already-loaded local fields,
@@ -172,28 +361,17 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // empty," so the first genuine dialog open always composes the full
   // Title + body regardless of what the copy button already wrote). DOES
   // recompose when `v.id ?? idOrCve` changes to a different vuln while the
-  // panel stays mounted (Pitfall 3).
+  // panel stays mounted (Pitfall 3) -- and (Plan 03) resets the gap-fill
+  // row's own "already filled this dialog-life" tracking at the same
+  // moment, so a genuine vuln switch makes both gap-fill buttons reconsider
+  // fresh instead of staying hidden because of a DIFFERENT vuln's stale
+  // useExplainStream state.
   useEffect(() => {
     if (!confirmOpen) return;
     const id = v.id ?? idOrCve;
     if (composedForId.current === id) return;
     composedForId.current = id;
-
-    const explainSection: CacheSection =
-      explainCacheQuery.data?.cached === true
-        ? { grounded: explainCacheQuery.data.grounded, summary: explainCacheQuery.data.summary }
-        : null;
-    const remediationGuidanceSection: CacheSection =
-      remediationGuidanceCacheQuery.data?.cached === true
-        ? {
-            grounded: remediationGuidanceCacheQuery.data.grounded,
-            summary: remediationGuidanceCacheQuery.data.summary,
-          }
-        : null;
-    const prioritizationSection: CacheSection =
-      prioritizationCacheQuery.data?.cached === true
-        ? { grounded: prioritizationCacheQuery.data.grounded, summary: prioritizationCacheQuery.data.summary }
-        : null;
+    setGapFillAppended({ description: false, remediation: false });
 
     setTitle(composeTicketTitle({ sevLabel, cveLabel, hostsLine }));
     setDescription(
@@ -218,10 +396,43 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
     v.affected_product,
     v.cisa_kev,
     v.exploit_available,
-    explainCacheQuery.data,
-    remediationGuidanceCacheQuery.data,
-    prioritizationCacheQuery.data,
+    explainSection,
+    remediationGuidanceSection,
+    prioritizationSection,
   ]);
+
+  // Phase 27 (AID-01, Plan 03): on a grounded 'done', append the labeled
+  // section to the CURRENT description (blank line first, only if
+  // non-empty) -- never overwriting an analyst's edits, and never firing
+  // while the dialog is closed (avoids appending onto the pristine '' state
+  // before compose-on-open has ever run, which the next genuine open would
+  // otherwise silently discard). Guarded on !gapFillAppended.description so
+  // this fires exactly once per successful fill.
+  useEffect(() => {
+    if (!confirmOpen) return;
+    if (
+      explainGapFill.state.phase === 'done' &&
+      explainGapFill.state.data.grounded &&
+      !gapFillAppended.description
+    ) {
+      setGapFillAppended((prev) => ({ ...prev, description: true }));
+      const section = `Description:\n${explainGapFill.state.data.summary}`;
+      setDescription((prev) => (prev ? `${prev}\n\n${section}` : section));
+    }
+  }, [confirmOpen, explainGapFill.state, gapFillAppended.description]);
+
+  useEffect(() => {
+    if (!confirmOpen) return;
+    if (
+      remediationGapFill.state.phase === 'done' &&
+      remediationGapFill.state.data.grounded &&
+      !gapFillAppended.remediation
+    ) {
+      setGapFillAppended((prev) => ({ ...prev, remediation: true }));
+      const section = `Remediation:\n${remediationGapFill.state.data.summary}`;
+      setDescription((prev) => (prev ? `${prev}\n\n${section}` : section));
+    }
+  }, [confirmOpen, remediationGapFill.state, gapFillAppended.remediation]);
 
   // D-P-06 (focus trap): Tab on the close button moves focus to the next
   // interactive element inside the panel. Shift-Tab cycles backward.
@@ -272,6 +483,33 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   const vulnDescriptionText =
     v.description ?? v.vulnerability_name ?? v.title ?? '—';
   const remediation = v.remediation ?? v.remediation_info ?? '—';
+
+  // Phase 27 (AID-01, Plan 03): the gap-fill row descriptor. "missing" =
+  // the section is not a grounded cache hit (the SAME derivation
+  // composeTicketDescription uses to decide whether to include it) --
+  // zero missing sections renders no buttons at all (27-UI-SPEC.md §4).
+  // The whole row is gated on keyConfigured && isAnalystOrAbove (D-17): no
+  // key OR Viewer role -> both items stay invisible regardless of what's
+  // missing.
+  const gateOpen = keyConfigured && isAnalystOrAbove;
+  const descriptionGapFillVisible = gateOpen && !explainSection?.grounded && !gapFillAppended.description;
+  const remediationGapFillVisible =
+    gateOpen && !remediationGuidanceSection?.grounded && !gapFillAppended.remediation;
+  const gapFill: GapFillDescriptor = {
+    rowVisible: descriptionGapFillVisible || remediationGapFillVisible,
+    description: {
+      visible: descriptionGapFillVisible,
+      phase: gapFillPhaseFrom(explainGapFill.state),
+      onClick: () => void explainGapFill.start(),
+      canRaiseCap: isAdminOrOwner,
+    },
+    remediation: {
+      visible: remediationGapFillVisible,
+      phase: gapFillPhaseFrom(remediationGapFill.state),
+      onClick: () => void remediationGapFill.start(),
+      canRaiseCap: isAdminOrOwner,
+    },
+  };
 
   const fireTicket = async () => {
     try {
@@ -510,6 +748,7 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             onDescriptionChange: setDescription,
             title,
             onTitleChange: setTitle,
+            gapFill,
           })
         : (
           <ConfirmModal
@@ -545,6 +784,19 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
+            {/* Phase 27 (AID-01, Plan 03): the compact "Draft with AI"
+                gap-fill row -- at most two subordinate text-buttons (one per
+                AI-sourced section currently missing from the composed body),
+                role/key-gated (D-17), 8px gap when both render together
+                (27-UI-SPEC.md §4). Renders NOTHING (not even the wrapper)
+                when zero items are visible -- never an empty-looking
+                placeholder row. */}
+            {gapFill.rowVisible && (
+              <div className="mt-4 flex flex-wrap items-start gap-2">
+                {renderGapFillItem(gapFill.description, 'description')}
+                {renderGapFillItem(gapFill.remediation, 'remediation')}
+              </div>
+            )}
             {/* Phase 25 (AIR-02): composed description body, subordinate to
                 the provider picker + Title above (UI-SPEC visual
                 hierarchy). Phase 27 (AID-01, Plan 02) widens the pre-fill

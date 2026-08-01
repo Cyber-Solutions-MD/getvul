@@ -101,7 +101,11 @@ function CopyToDescriptionButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function AnalyzingIndicator() {
+// Phase 27 (AID-01, Plan 03): exported so drill-content.tsx's gap-fill row
+// can reuse this exact pulsing-dot verbatim (D-12) -- no props, no closure
+// over module-private state, so this is a safe, zero-risk export. Its own
+// internal call site below (state.phase === 'analyzing') is unaffected.
+export function AnalyzingIndicator() {
   return (
     <div className="flex items-center gap-2 text-sm text-text-muted">
       {/* D-12: reuses the app's one sanctioned pulsing-dot affordance
