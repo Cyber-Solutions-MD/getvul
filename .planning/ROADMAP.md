@@ -56,7 +56,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 24: AI Foundation + "Explain This Vuln"** — BYOK key config, grounding/cache/client/guardrail/cost scaffold, streamed plain-English + business-risk summary in the drill panel (completed 2026-07-29 — 10/10 plans; 9 original + gap-closure 24-10 closing the D-23 no-key role-gating gap; re-verification passed 12/14 with 4 live-verification items accepted as tracked debt per the 24-06 proceed-on-trust decision — see 24-UAT.md / close via /gsd-verify-work 24)
 - [x] **Phase 25: Asset-Aware Remediation Guidance** — OS/package-aware remediation citing the scanner's own solution text, cite-or-refuse, populates ticket-draft description (completed 2026-07-30)
 - [x] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API (completed 2026-07-31 — 8/8 plans; verification passed 10/10 with 4 live-verification items accepted as tracked debt per the 26-05 proceed-on-trust decision — see 26-UAT.md / close via /gsd-verify-work 26)
-- [ ] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships
+- [x] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships (completed 2026-08-01 — 3/3 plans; verification passed 12/12 with 1 live-browser item accepted as tracked debt — see 27-UAT.md / close via /gsd-verify-work 27)
 - [ ] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI
 
 ## Phase Details
@@ -394,9 +394,11 @@ Plans:
   3. No ticket is ever created without an explicit human click on Create/Submit — the draft never auto-submits — AID-01
 
 **Plans**: 3 plans (3 waves, tracer-first, strict sequential)
+
 - [x] 27-01-PLAN.md — backend title override + create_tickets() fallback + mutation type + tests (255-cap anti-silent-fail)
 - [x] 27-02-PLAN.md — compose-ticket-draft.ts + desktop Title field + resourceId-keyed compose-on-open guard (the tracer)
 - [x] 27-03-PLAN.md — export AnalyzingIndicator + gap-fill row (desktop) + mobile mirror (Title + gap-fill)
+
 **UI hint**: yes
 
 ### Phase 28: Eval + Cost + Observability Gate
@@ -448,7 +450,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 24. AI Foundation + "Explain This Vuln" | v3.0 AI-Assisted Triage | 10/10 | Complete    | 2026-07-29 |
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 7/7 | Complete    | 2026-07-30 |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | Complete    | 2026-07-31 |
-| 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 3/3 | In Progress | - |
+| 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 3/3 | Complete    | 2026-08-01 |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
 
 ## Backlog
