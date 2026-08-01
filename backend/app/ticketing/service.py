@@ -199,7 +199,16 @@ async def create_tickets(
         # Build task
         sev = vuln.severity or "MEDIUM"
         cve = vuln.cve_id or vuln.vulnerability_name or "Unknown vulnerability"
-        task_name = f"[{sev}] {cve} on {hostname or 'unknown host'}"
+
+        # AID-01 (Phase 27 Plan 01): an analyst-supplied title WYSIWYG-
+        # replaces the auto-built one (mirrors the `notes`/description
+        # fallback below) — falls back unchanged to the existing
+        # "[sev] cve on host" convention when omitted.
+        task_name = (
+            request.title.strip()
+            if request.title and request.title.strip()
+            else f"[{sev}] {cve} on {hostname or 'unknown host'}"
+        )
 
         # Determine due date
         if request.due_days:

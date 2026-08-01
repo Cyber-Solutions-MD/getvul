@@ -58,6 +58,14 @@ class TicketCreateRequest(BaseModel):
     ticket flows through remediation guidance, D-08). extra="forbid" is a
     deliberate mass-assignment defense (T-25-06, ASVS V5) added alongside
     this new free-text field.
+
+    title (AID-01, Phase 27 Plan 01): optional analyst-authored ticket
+    title, mirroring `description` exactly (whitespace-only coerces to
+    None, extra="forbid" already covers it). Deliberately capped at 255 —
+    Jira's hard summary ceiling — not `description`'s 10000, so an
+    over-length title is rejected with a visible 422 instead of Jira
+    silently failing the create (create_tickets()'s `if url is None: ...
+    continue` path).
     """
 
     model_config = {"extra": "forbid"}
@@ -70,10 +78,19 @@ class TicketCreateRequest(BaseModel):
     description: str | None = Field(
         None, max_length=10000, description="Analyst-supplied ticket description (WYSIWYG override)"
     )
+    title: str | None = Field(None, max_length=255, description="Analyst-supplied ticket title (WYSIWYG override)")
 
     @field_validator("description")
     @classmethod
     def _no_ws_only(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
+    @field_validator("title")
+    @classmethod
+    def _title_no_ws_only(cls, v: str | None) -> str | None:
         if v is None:
             return None
         s = v.strip()

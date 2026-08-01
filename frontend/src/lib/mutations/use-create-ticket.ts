@@ -13,9 +13,14 @@ export type CreateTicketRequest = {
   // Phase 25 (AIR-02, Plan 06 backend contract): analyst-reviewed
   // description, threaded verbatim into TicketCreateRequest.description
   // (≤10000 chars, whitespace-coerces-to-None server-side). Omitted or
-  // undefined preserves the existing auto-built ticket body unchanged
-  // (D-09 scope fence -- description-only, no title/asset-context here).
+  // undefined preserves the existing auto-built ticket body unchanged.
   description?: string;
+  // Phase 27 (AID-01, Plan 01 backend contract): analyst-reviewed title,
+  // threaded verbatim into TicketCreateRequest.title (≤255 chars — Jira's
+  // hard summary limit, whitespace-coerces-to-None server-side). Omitted
+  // or undefined preserves the existing auto-built "[sev] cve on host"
+  // title unchanged.
+  title?: string;
 };
 
 export type CreateTicketResponse = {
