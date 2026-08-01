@@ -13,6 +13,8 @@ created: 2026-08-01
 
 > **Scope note:** This phase does not introduce a new screen or route. It adds one new **admin-only category ("AI usage & settings")** to the existing `/dashboard/settings` sidebar-of-categories shell (`SettingsSidebarShell`, `frontend/src/components/settings/settings-sidebar-shell.tsx` + `.../microcopy.ts` + the page's `CATEGORY_ALLOW_LIST`/`ADMIN_ONLY` sets), rendered by a new pane component (`ai-usage-pane.tsx`, mirroring `audit-log-pane.tsx`'s structure/RBAC precedent byte-for-byte). Every token, card chrome, table chrome, pill chrome, and status vocabulary below is inherited — this contract composes existing primitives (`Stat`/`StatStrip`, the audit-log-pane table recipe, `SyncStatusPill`'s pill recipe, the Phase 24 `DegradedCard` amber/neutral card recipe) and adds exactly ONE new shadcn primitive (`progress`) for the budget meter. Nothing new is introduced at the foundation layer.
 
+> **Visual focal point (Dimension 2):** When the cost-breaker is tripped, the **"AI paused — budget exceeded" banner** is the pane's primary visual anchor — it renders above everything else, full-width, amber-chip'd, and is the first thing the eye lands on. Otherwise (breaker not tripped), the anchor is the **budget meter / month-to-date cost `Stat` figure** (the large mono `text-4xl` number) at the top of the `StatStrip` row. The usage-by-capability table and the key & model card are always subordinate — supporting detail the analyst drills into after registering the anchor, never competing with it for first-glance attention.
+
 ---
 
 ## Design System
@@ -54,6 +56,15 @@ Exceptions: **20px** (`--space-5`) — inner padding of all 4 cards, matching th
 | Heading | 16px (`text-base`) | 600 (semibold) | 1.3 (`leading-snug`) |
 | Display | 40px (`text-4xl`) | 700 (bold) | 1.1 (`leading-none`) |
 
+**Weight exception (mirrors the Spacing section's 20px exception above):** this table declares 4 weights (400/500/600/700), exceeding the design system's normal 2-weight-per-spec cap. This is a deliberate, documented exception, not an oversight: every one of the 4 weights is an **unchanged reuse of an already-shipped sibling component's exact treatment**, not a new typographic decision authored by this phase —
+
+- `700` (Display) — the `Stat` component's existing `font-mono text-4xl font-bold leading-none tabular-nums` numeral treatment, verbatim, unchanged.
+- `600` (Heading) — `workspace-pane.tsx`/`notifications-pane.tsx`'s existing `text-base font-semibold text-text` `<h2>` card-title convention, verbatim, unchanged.
+- `500` (Label) — `audit-log-pane`'s existing `<th>` treatment and the `Stat` tile's existing label row, verbatim, unchanged.
+- `400` (Body) — the universal body-copy weight used everywhere else in the app, verbatim, unchanged.
+
+Zero new weights are introduced anywhere in this contract. The cap exists to stop a spec from *inventing* new typographic scales; this spec instead composes 4 pre-existing, already-approved components as-is. Forcing an artificial reduction (e.g. demoting the `Stat`'s 700 numerals or the shared `<h2>` convention's 600 weight to fit a 2-weight ceiling) would break visual parity with the exact sibling panes this contract is contractually mirroring, for no design benefit. This exception is scoped to composition-only reuse — any NEW typographic treatment introduced by a future phase must still hold to the 2-weight cap.
+
 Only 4 sizes are needed — all 4 are **reused, not new**:
 
 - **Display (40px/700/1.1, mono, tabular-nums):** the month-to-date spend figure and the "AI calls this month" count, rendered via the existing `Stat` component's exact number treatment (`font-mono text-4xl font-bold leading-none tabular-nums`) — this pane's `StatStrip` row is a direct reuse of the dashboard's own stat-tile component, not a new numeral scale.
@@ -67,7 +78,7 @@ Only 4 sizes are needed — all 4 are **reused, not new**:
 ## Color
 
 | Role | Value | Usage |
-|------|-------|-------|
+|------|------|-------|
 | Dominant (60%) | `--color-surface` `#1A1430` | Pane background (inherited from `SettingsSidebarShell`'s right pane, unchanged); all 4 cards' base background AND the `Stat`/breakdown-table row backgrounds — matches the existing `Stat` component (`bg-surface`) and `audit-log-pane` table row (`bg-surface hover:bg-surface-2`) precedents exactly |
 | Secondary (30%) | `--color-surface-2` `#241B40` | Table row hover state (reused verbatim from `audit-log-pane`); the breaker-tripped banner card (reuses the Phase 24 `DegradedCard` `bg-surface-2` card chrome exactly) |
 | Accent (10%) | `--color-violet` `#A78BFA` (+ `-soft`/`-on-soft`) | **Reserved for exactly:** focus rings on the "Manage in Connectors" link (existing universal violet-focus-ring convention, unchanged). This pane has a deliberately **minimal violet footprint** — its status semantics (Active/Paused/Not-configured) reuse the green/amber/faint `SyncStatusPill` family, not violet, so violet never competes with those pills for meaning. |
@@ -101,7 +112,7 @@ Only 4 sizes are needed — all 4 are **reused, not new**:
 | Budget card caption (cap set, under 100%) | **"$X.XX of $Y.YY used this month (Z%)"** |
 | Budget card caption (cap set, at/over 100%) | **"$X.XX of $Y.YY used this month — cap reached"** |
 | Usage-by-capability table columns | **Capability** · **Calls** · **Cost** · **Tokens** |
-| Capability row labels (locked, see Meter/Table Contract for the exact `resource_type`/`status` filter each maps to) | "Explain — vulnerability" · "Explain — host posture" · "Explain — remediation impact" · "Remediation guidance" · "Prioritization — on demand" · "Prioritization — batch" |
+| Capability row labels (locked, see Meter/Table Contract for the exact `resource_type`/discriminator filter each maps to) | "Explain — vulnerability" · "Explain — host posture" · "Explain — remediation impact" · "Remediation guidance" · "Prioritization — on demand" · "Prioritization — batch" |
 | Table degraded-calls footnote (only rendered when count > 0) | **"{N} calls degraded this month (busy, insufficient evidence, or retried) — see the audit log for detail."** |
 | Key & model card fields | **Model:** "{Sonnet 5 \| Opus 5 \| Haiku}" · **Monthly budget:** "$Y.YY" or "No cap set" · **Connector:** "Enabled"/"Disabled" (reuses the connector's own `is_enabled` switch semantics, read-only here) |
 | Error state (any query 403/500) | Reuses `PartialFailureBanner` verbatim (same component/copy as every sibling admin pane — `audit-log-pane`, `workspace-pane`) — no new error copy invented |
@@ -126,14 +137,16 @@ Only 4 sizes are needed — all 4 are **reused, not new**:
 - Visual chrome is a **verbatim reuse of `audit-log-pane.tsx`'s `<table>`** (`overflow-x-auto rounded-lg border border-border-subtle`, `<thead className="border-b border-border-subtle bg-surface">` with `text-xs font-medium uppercase tracking-wide text-text-faint` `<th>`s, `<tbody className="divide-y divide-border-subtle">` with `bg-surface hover:bg-surface-2` rows) — same component family, not a new table style.
 - **Exactly 6 fixed rows, always rendered** (even at 0 calls — show literal `0`, `$0.00`, `0` rather than omitting the row; "zero" must be visible, not hidden, per `state-patterns.md`'s "always show what data you DO have"):
 
-  | Row | `resource_type` filter | `status` filter | Label |
+  | Row | `resource_type` filter | Discriminator filter | Label |
   |---|---|---|---|
-  | 1 | `vuln` | any | Explain — vulnerability |
-  | 2 | `host` | any | Explain — host posture |
-  | 3 | `remediation` | any | Explain — remediation impact |
-  | 4 | `remediation-guidance` | any | Remediation guidance |
-  | 5 | `prioritization` | NOT LIKE `batch_%` | Prioritization — on demand |
-  | 6 | `prioritization` | LIKE `batch_%` | Prioritization — batch |
+  | 1 | `vuln` | none | Explain — vulnerability |
+  | 2 | `host` | none | Explain — host posture |
+  | 3 | `remediation` | none | Explain — remediation impact |
+  | 4 | `remediation-guidance` | none | Remediation guidance |
+  | 5 | `prioritization` | `user_email != 'system:scheduler'` | Prioritization — on demand |
+  | 6 | `prioritization` | `user_email = 'system:scheduler'` | Prioritization — batch |
+
+  **Rows 5/6 discriminator is `user_email`, not `status`.** A successful batch call is audited with `status="ok"` — identical to an on-demand call (`backend/app/ai/batch.py:502-517`) — so splitting rows 5/6 on `status LIKE 'batch_%'` would misattribute nearly all real batch spend (the common, billing-relevant case) into row 5, defeating D-08's per-capability cost observability. Every batch-originated `audit_log_ai_call()` sets `user_email = 'system:scheduler'` (`batch.py:267,318,511`), and every on-demand call sets the real analyst's email (`explain_prioritization.py:122`) — this signal reliably discriminates batch vs. on-demand across BOTH success and failure paths, unlike `status`.
 
 - **Research finding — "ticket-draft" is NOT a separately attributable capability.** Per the CONTEXT phase summary, "ticket-draft" was named as a 5th capability bucket, but Phase 27's AID-01 gap-fill/compose flow (`drill-content.tsx` / `drill-panel-mobile.tsx`) calls `useExplainStream('vuln' | 'remediation-guidance', id)` **directly**, reusing the existing per-vuln/per-remediation-guidance endpoints with no distinguishing `resource_type`, audit action, or any other signal that a given call originated from the ticket-create flow versus a plain drill-panel view (confirmed via `grep` across `backend/app/ai/audit.py`, `backend/app/api/v1/ai/*.py`: the only `resource_type` values ever written are `vuln` / `host` / `remediation` / `remediation-guidance` / `prioritization`). **Do not fabricate a 7th "ticket-draft" row or a new `resource_type`** — those calls are correctly counted inside rows 1 and 4 above. This is a genuine instrumentation gap the planner should carry forward as a known limitation, not silently invent data to paper over.
 - Cost/tokens aggregation per row: `Calls` = `COUNT(*)`, `Cost` = `SUM(details['cost_estimate_usd'])` formatted `$X.XX`, `Tokens` = `SUM(details['input_tokens'] + details['output_tokens'])` formatted with thousands separators (`1,234`).
@@ -141,7 +154,7 @@ Only 4 sizes are needed — all 4 are **reused, not new**:
 
 ### Status card / breaker banner
 - The **StatStrip status tile** (compact, always visible) shows the 3-state pill (Active/Paused/Not configured) — quick-glance only.
-- The **breaker-tripped banner** (a full card, same chrome as the Phase 24 `DegradedCard` `amber` variant: `rounded-lg border border-border-subtle bg-surface-2 p-5` + `AlertTriangle` icon in an `amber-soft` chip) renders **only when the breaker is tripped** — conditionally, not always-present dead space — positioned above the `StatStrip` row, functioning as the actionable follow-through to the compact pill.
+- The **breaker-tripped banner** (a full card, same chrome as the Phase 24 `DegradedCard` `amber` variant: `rounded-lg border border-border-subtle bg-surface-2 p-5` + `AlertTriangle` icon in an `amber-soft` chip) renders **only when the breaker is tripped** — conditionally, not always-present dead space — positioned above the `StatStrip` row, functioning as the actionable follow-through to the compact pill, and is the pane's primary visual anchor while tripped (see Visual focal point, above).
 - Breaker-tripped state is **derived**, not a separate persisted flag the pane reads independently: `spent_this_month >= monthly_cap_usd` (mirrors `check_tenant_budget()`'s own fail-closed comparison exactly — D-09's "derived, to avoid a stateful sync bug" discretion call). The pane must never compute this with a different comparison than the backend guard uses.
 
 ### Key & model summary card
