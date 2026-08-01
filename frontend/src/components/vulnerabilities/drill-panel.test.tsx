@@ -278,27 +278,26 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
   // ───────────────────────────────────────────────────────────────────────
 
   describe('ticket-create dialog description textarea (AIR-02)', () => {
-    it('renders the Textarea in the confirm dialog with the LOCKED caption + placeholder, starting empty', () => {
+    it('renders the Textarea in the confirm dialog with the LOCKED "Description" label + placeholder, auto-composed on first open (Asset context always present, D-04)', () => {
       render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      expect(
-        screen.getByText('Pre-filled from remediation guidance — review and edit before creating.'),
-      ).toBeInTheDocument();
-      const textarea = screen.getByPlaceholderText(
-        'No remediation guidance yet — add a description or leave blank.',
-      ) as HTMLTextAreaElement;
+      const textarea = screen.getByLabelText('Description') as HTMLTextAreaElement;
       expect(textarea).toBeInTheDocument();
-      expect(textarea.value).toBe('');
+      expect(textarea.placeholder).toBe(
+        'No AI draft available yet — add a description or leave blank.',
+      );
+      // Phase 27 (AID-01): auto-composed on open (D-02) -- never hard-empty
+      // even with nothing AI-cached (this suite's default mock state).
+      // Asset context needs no AI call, so it always renders (D-04).
+      expect(textarea.value).toContain('Asset context:');
     });
 
     it('typing into the textarea and confirming threads the description into createTicket.mutateAsync body (not only the DOM)', async () => {
       render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      const textarea = screen.getByPlaceholderText(
-        'No remediation guidance yet — add a description or leave blank.',
-      );
+      const textarea = screen.getByLabelText('Description');
       fireEvent.change(textarea, { target: { value: 'Patch xz to 5.4.x per vendor advisory.' } });
 
       const dialog = screen.getAllByRole('dialog').slice(-1)[0];
@@ -310,18 +309,27 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       );
     });
 
-    it('leaving the textarea blank threads description: undefined (never an empty string) into the mutation body', () => {
+    it('clearing the auto-composed Title/Description before confirming threads title: undefined, description: undefined (never empty strings) into the mutation body', () => {
       render(<DrillPanel cveId="CVE-2024-3094" />);
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      // Phase 27 (AID-01): both fields auto-compose on open -- "leaving them
+      // blank" no longer happens by default. The analyst can still clear
+      // them explicitly (SC2); this proves that path still threads
+      // `undefined` (never an empty string) into the mutation.
+      fireEvent.change(screen.getByLabelText('Title'), { target: { value: '' } });
+      fireEvent.change(screen.getByLabelText('Description'), { target: { value: '' } });
 
       const dialog = screen.getAllByRole('dialog').slice(-1)[0];
       const confirmBtn = within(dialog).getByRole('button', { name: /create ticket/i });
       fireEvent.click(confirmBtn);
 
-      expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ description: undefined }));
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ title: undefined, description: undefined }),
+      );
     });
 
-    it('copying remediation guidance in via "Copy into ticket description" pre-fills the dialog textarea', () => {
+    it('opening the confirm dialog composes the full body even after "Copy into ticket description" was used first (Pitfall 2 -- the resourceId guard, not a blank-string check, governs)', () => {
       const summary = 'Cited remediation steps, plain text.';
       mockUseExplainCache.mockImplementation((resourceType: string) =>
         resourceType === 'remediation-guidance'
@@ -330,13 +338,119 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       );
 
       render(<DrillPanel cveId="CVE-2024-3094" />);
+      // Analyst uses the pre-existing main-panel copy button BEFORE ever
+      // opening the confirm dialog for this vuln.
       fireEvent.click(screen.getByRole('button', { name: 'Copy into ticket description' }));
+      // First genuine open of the confirm dialog for this vuln -- compose
+      // runs unconditionally (the resourceId guard has not fired for this
+      // id yet), overwriting the bare copied summary with the full
+      // composed body. Both Title AND Description populate together --
+      // the guard governs the whole draft, not per-field.
       fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
 
-      const textarea = screen.getByPlaceholderText(
-        'No remediation guidance yet — add a description or leave blank.',
-      ) as HTMLTextAreaElement;
-      expect(textarea.value).toBe(summary);
+      const textarea = screen.getByLabelText('Description') as HTMLTextAreaElement;
+      expect(textarea.value).toContain(`Remediation:\n${summary}`);
+      expect(textarea.value).toContain('Asset context:');
+      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      expect(titleInput.value).toBe('[Critical] CVE-2024-3094 on prod-01');
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 27 Plan 02 (AID-01): the ticket-create ConfirmModal gains an
+  // editable Title Input, deterministically composed (D-01) alongside the
+  // widened multi-section Description above, via a resourceId-keyed
+  // composed-once guard (RESEARCH Pattern 4, closing Pitfalls 2 & 3).
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('ticket-create dialog title input + compose-on-open guard (AID-01)', () => {
+    it('renders the Title Input with the shared LOCKED caption, deterministically composed on first open regardless of AI cache state', () => {
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      expect(screen.getByText('AI-drafted — review before creating.')).toBeInTheDocument();
+      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      expect(titleInput).toBeInTheDocument();
+      // Deterministic D-01 format: "[{sevLabel}] {cveLabel} on {hostsLine}"
+      // -- true even though this suite's default mocks have no AI key
+      // configured (severity: 'critical' -> 'Critical'; host: 'prod-01').
+      expect(titleInput.value).toBe('[Critical] CVE-2024-3094 on prod-01');
+    });
+
+    it('typing into the Title Input and confirming threads the title into createTicket.mutateAsync body', () => {
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'Patch the xz backdoor now' },
+      });
+
+      const dialog = screen.getAllByRole('dialog').slice(-1)[0];
+      fireEvent.click(within(dialog).getByRole('button', { name: /create ticket/i }));
+
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Patch the xz backdoor now' }),
+      );
+    });
+
+    it('editing the Title, cancelling, and re-opening the SAME vuln preserves the edit (composed-once guard, not a recompose)', () => {
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'My own edited title' },
+      });
+
+      const dialogBeforeCancel = screen.getAllByRole('dialog').slice(-1)[0];
+      fireEvent.click(within(dialogBeforeCancel).getByRole('button', { name: /cancel/i }));
+
+      // Re-open the SAME vuln's dialog -- the guard must NOT recompose.
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      expect(titleInput.value).toBe('My own edited title');
+    });
+
+    it('switching to a DIFFERENT vuln recomposes the Title -- vuln A never carries onto a ticket for vuln B (Pitfall 3)', () => {
+      const { rerender } = render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+      expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+        '[Critical] CVE-2024-3094 on prod-01',
+      );
+      const dialogA = screen.getAllByRole('dialog').slice(-1)[0];
+      fireEvent.click(within(dialogA).getByRole('button', { name: /cancel/i }));
+
+      // Simulate a row-switch to a different vuln with no remount --
+      // Pitfall 3's exact reproduction path (idOrCve changes, DrillContent
+      // is not unmounted).
+      useDetailMock.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: {
+          ...detail,
+          id: '2',
+          cve_id: 'CVE-2024-1000',
+          severity: 'medium',
+          cisa_kev: false,
+          affected_hosts: [{ host: 'staging-02' }],
+        },
+      } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+      rerender(<DrillPanel cveId="CVE-2024-1000" />);
+
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+      const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+      // Must be vuln B's own composed title, never vuln A's edited value.
+      expect(titleInput.value).toBe('[Medium] CVE-2024-1000 on staging-02');
+      expect(titleInput.value).not.toContain('CVE-2024-3094');
+    });
+
+    it('never auto-submits: opening the dialog and letting it compose does NOT call createTicket.mutateAsync until Create is clicked (SC3)', () => {
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+      fireEvent.click(screen.getByRole('button', { name: /create ticket/i }));
+
+      // Compose-on-open has already run (a real effect fired, populating
+      // both fields) -- yet the mutation itself must not have fired.
+      expect((screen.getByLabelText('Title') as HTMLInputElement).value).not.toBe('');
+      expect(mockMutateAsync).not.toHaveBeenCalled();
     });
   });
 });
