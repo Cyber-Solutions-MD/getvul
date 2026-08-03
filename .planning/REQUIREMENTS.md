@@ -47,9 +47,9 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 
 ### AI Evals, Cost & Observability Gate (AIE)
 
-- [ ] **AIE-01**: A DeepEval pytest-native eval harness runs in CI against golden sets seeded from real outputs, asserting on schema/grounding/citation (not brittle prose snapshots)
-- [ ] **AIE-02**: A promptfoo red-team job (prompt-injection resistance over adversarial scanner text) runs as a separate CI check, alongside semgrep/ZAP
-- [ ] **AIE-03**: A **fail-closed** per-tenant token-cost budget / circuit breaker halts AI calls when the tenant's configured budget is exceeded
+- [x] **AIE-01**: A DeepEval pytest-native eval harness runs in CI against golden sets seeded from real outputs, asserting on schema/grounding/citation (not brittle prose snapshots)
+- [x] **AIE-02**: A promptfoo red-team job (prompt-injection resistance over adversarial scanner text) runs as a separate CI check, alongside semgrep/ZAP
+- [x] **AIE-03**: A **fail-closed** per-tenant token-cost budget / circuit breaker halts AI calls when the tenant's configured budget is exceeded
 - [x] **AIE-04**: A tenant admin can see their AI usage + cost and manage AI settings (key, model, budget) in the UI
 
 ## Future Requirements (deferred)
@@ -93,7 +93,7 @@ Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no 
 | AIP-01 | 26 (Prioritization Narrative) | Complete |
 | AIP-02 | 26 (Prioritization Narrative) | Complete |
 | AID-01 | 27 (Ticket Auto-Drafting) | Complete |
-| AIE-01 | 28 (Eval + Cost + Observability Gate) | Pending |
-| AIE-02 | 28 (Eval + Cost + Observability Gate) | Pending |
-| AIE-03 | 28 (Eval + Cost + Observability Gate) | Pending |
+| AIE-01 | 28 (Eval + Cost + Observability Gate) | Complete |
+| AIE-02 | 28 (Eval + Cost + Observability Gate) | Complete |
+| AIE-03 | 28 (Eval + Cost + Observability Gate) | Complete |
 | AIE-04 | 28 (Eval + Cost + Observability Gate) | Complete |
