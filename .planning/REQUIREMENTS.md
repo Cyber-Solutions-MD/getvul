@@ -50,7 +50,7 @@ AI grounding is worthless on broken ingestion. Close the real gaps first.
 - [ ] **AIE-01**: A DeepEval pytest-native eval harness runs in CI against golden sets seeded from real outputs, asserting on schema/grounding/citation (not brittle prose snapshots)
 - [ ] **AIE-02**: A promptfoo red-team job (prompt-injection resistance over adversarial scanner text) runs as a separate CI check, alongside semgrep/ZAP
 - [ ] **AIE-03**: A **fail-closed** per-tenant token-cost budget / circuit breaker halts AI calls when the tenant's configured budget is exceeded
-- [ ] **AIE-04**: A tenant admin can see their AI usage + cost and manage AI settings (key, model, budget) in the UI
+- [x] **AIE-04**: A tenant admin can see their AI usage + cost and manage AI settings (key, model, budget) in the UI
 
 ## Future Requirements (deferred)
 
@@ -96,4 +96,4 @@ Coverage: 21/21 v1 requirements mapped, phases continue from 22. No orphans, no 
 | AIE-01 | 28 (Eval + Cost + Observability Gate) | Pending |
 | AIE-02 | 28 (Eval + Cost + Observability Gate) | Pending |
 | AIE-03 | 28 (Eval + Cost + Observability Gate) | Pending |
-| AIE-04 | 28 (Eval + Cost + Observability Gate) | Pending |
+| AIE-04 | 28 (Eval + Cost + Observability Gate) | Complete |
