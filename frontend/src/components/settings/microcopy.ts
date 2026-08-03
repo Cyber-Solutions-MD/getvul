@@ -13,7 +13,8 @@ export type Category =
   | 'saml'
   | 'notifications'
   | 'api-tokens'
-  | 'audit';
+  | 'audit'
+  | 'ai';
 
 /** Sidebar category labels — sentence case per copy-voice.md. */
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -23,6 +24,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   notifications: 'Notifications',
   'api-tokens': 'API tokens',
   audit: 'Audit log',
+  ai: 'AI usage & settings',
 } as const;
 
 /**

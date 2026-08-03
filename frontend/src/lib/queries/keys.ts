@@ -93,9 +93,11 @@ export const queryKeys = {
   // parameterized (D-15) so host/remediation views share the same key shape.
   // (24-10) status — the require_viewer "is AI configured" boolean signal;
   // tenant-scoped server-side so no tenant/id needs to be part of the key.
+  // (28-04) usage — the require_admin usage/cost aggregation pane's single key.
   ai: {
     explain: (resourceType: string, resourceId: string) =>
       ['ai', 'explain', resourceType, resourceId] as const,
     status: () => ['ai', 'status'] as const,
+    usage: () => ['ai', 'usage'] as const,
   },
 } as const;

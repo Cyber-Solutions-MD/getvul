@@ -44,6 +44,7 @@ const ALL_CATEGORIES: Category[] = [
   'notifications',
   'api-tokens',
   'audit',
+  'ai',
 ];
 
 /**
@@ -55,6 +56,7 @@ const ADMIN_ONLY: Set<Category> = new Set([
   'saml',
   'notifications',
   'audit',
+  'ai',
 ]);
 
 export function SettingsSidebarShell({

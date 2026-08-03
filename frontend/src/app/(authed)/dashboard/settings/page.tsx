@@ -43,6 +43,7 @@ import { SamlPane } from '@/components/settings/saml-pane';
 import { NotificationsPane } from '@/components/settings/notifications-pane';
 import { ApiTokensPane } from '@/components/settings/api-tokens-pane';
 import { AuditLogPane } from '@/components/settings/audit-log-pane';
+import { AiUsagePane } from '@/components/settings/ai-usage-pane';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { UNSAVED_GUARD } from '@/components/settings/microcopy';
 import { useUrlState } from '@/hooks/use-url-state';
@@ -55,6 +56,7 @@ const CATEGORY_ALLOW_LIST = [
   'notifications',
   'api-tokens',
   'audit',
+  'ai',
 ] as const satisfies readonly Category[];
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -125,6 +127,8 @@ export default function SettingsPage() {
         return <ApiTokensPane />;
       case 'audit':
         return <AuditLogPane />;
+      case 'ai':
+        return <AiUsagePane />;
       default:
         return <ProfilePane />;
     }
