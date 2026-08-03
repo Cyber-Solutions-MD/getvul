@@ -42,17 +42,22 @@ from app.tenants.models import User
 NON_ALLOWLIST_PATH = "/api/v1/vulnerabilities"
 
 
-async def _seed_password_user(
+async def _seed_password_user(  # nosemgrep: python.lang.security.audit.hardcoded-password-default-argument.hardcoded-password-default-argument
     db_session,
     tenant_id: uuid.UUID,
     *,
     must_change_password: bool,
     role: str = "OWNER",
+    password: str = "Admin123!",
 ):
     """Create a password-login user with the must_change_password flag set.
 
     Sets the column directly. The keyword does not exist on the model until
     Wave 1 adds it, so this raises TypeError (RED) pre-implementation.
+
+    `password` (Phase 29): defaults to the default install credential so
+    every existing Phase 06 caller is unaffected; pass a distinct value to
+    seed a user whose current password is NOT "Admin123!".
     """
     from app.auth.password import hash_password
 
@@ -61,7 +66,7 @@ async def _seed_password_user(
         email=f"seed-{uuid.uuid4().hex[:8]}@getvul.local",
         display_name="Seed",
         role=role,
-        password_hash=hash_password("Admin123!"),
+        password_hash=hash_password(password),
         idp_subject=f"local-{uuid.uuid4().hex[:8]}",
         idp_source="local",
         must_change_password=must_change_password,
@@ -70,6 +75,17 @@ async def _seed_password_user(
     await db_session.flush()
     await db_session.commit()
     return user
+
+
+async def _reflag(db_session, user_id: uuid.UUID) -> None:
+    """Set must_change_password=True in the DB and commit (Phase 29 helper).
+
+    Used between successive rotations in multi-step tests, since a
+    successful rotation clears the flag.
+    """
+    user = (await db_session.execute(select(User).where(User.id == user_id))).scalar_one()
+    user.must_change_password = True
+    await db_session.commit()
 
 
 def _bearer_client(app, token: str) -> AsyncClient:
@@ -427,3 +443,224 @@ async def test_refresh_reads_current_flag(app_factory, db_session, tenant_a):
     assert resp.status_code == 200
     new_access = resp.json()["access_token"]
     assert decode_token(new_access).must_change_password is False
+
+
+# ── Phase 29: forced-rotation password policy (complexity/history/similarity) ──
+
+
+def test_password_similarity_helpers():
+    """Pure-function unit tests for the new similarity primitives (no DB).
+
+    RED pre-Task-2: `password_similarity_ratio` / `is_too_similar` do not
+    exist yet, so this fails with ImportError.
+    """
+    from app.auth.password import is_too_similar, password_similarity_ratio
+
+    assert password_similarity_ratio("Admin1234!Xy", "Admin123!") >= 0.7
+    assert password_similarity_ratio("Zephyr!Quokka42", "Admin123!") < 0.7
+
+    assert is_too_similar("Admin1234!Xy", ["Admin123!"]) is not None
+    assert is_too_similar("Zephyr!Quokka42", ["Admin123!"]) is None
+
+    # DoS-truncation (Warning 2 fix): a 10k-char input must ratio-compare
+    # identically to its 128-char-truncated form (normalize THEN truncate).
+    long_input = "Admin123!" + "x" * 10000
+    assert password_similarity_ratio(long_input, "Admin123!") == password_similarity_ratio(
+        long_input[:128], "Admin123!"
+    )
+
+    # Make the 128-char cap itself observable: an input built from exactly
+    # 128 casefolded chars (9 + 119 = 128) must yield the same ratio as the
+    # 10k-char input above — proving truncation actually happens at 128, not
+    # some other length.
+    assert password_similarity_ratio(long_input, "Admin123!") == password_similarity_ratio(
+        "admin123!" + "x" * 119, "admin123!"
+    )
+
+
+async def test_rotation_rejects_weak_complexity(app_factory, db_session, tenant_a):
+    """A flagged rotation to a password that fails ONE complexity rule of
+    FORCED_ROTATION_POLICY (min_length=12 + all 4 char classes) is rejected
+    400, and the flag stays True. Each candidate is dissimilar to
+    "Admin123!" so the rejection isolates the complexity guard, not the
+    similarity guard."""
+    from asgi_lifespan import LifespanManager
+
+    candidates = (
+        "Sh0rt!Aa",  # too short (8 chars)
+        "alllower123!x",  # no uppercase
+        "ALLUPPER123!X",  # no lowercase
+        "NoDigitsHere!X",  # no digit
+        "NoSymbol1234Xy",  # no symbol
+    )
+    for candidate in candidates:
+        user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
+        token = create_access_token(
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+            email=user.email,
+            role=user.role,
+            must_change_password=True,
+        )
+        app = app_factory()
+        async with LifespanManager(app), _bearer_client(app, token) as ac:
+            resp = await ac.post(
+                "/auth/change-password",
+                json={"current_password": "Admin123!", "new_password": candidate},
+            )
+        assert resp.status_code == 400, f"candidate {candidate!r} should be rejected"
+
+        row = await db_session.execute(select(User.must_change_password).where(User.id == user.id))
+        assert row.scalar_one() is True, f"flag must remain set after rejecting {candidate!r}"
+
+
+async def test_rotation_rejects_superseded_password_history(app_factory, db_session, tenant_a):
+    """A flagged rotation cannot cycle back to a SUPERSEDED (past, non-current)
+    password. A 3-rotation cycle isolates check_password_history from the
+    WR-01 current-password guard: the reused password (FirstRotate1!Xy) is a
+    past history entry, never the live current password, when the reuse
+    attempt happens."""
+    from asgi_lifespan import LifespanManager
+
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
+
+    # Rotation 1: Admin123! -> FirstRotate1!Xy (succeeds; flag clears).
+    token1 = create_access_token(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        email=user.email,
+        role=user.role,
+        must_change_password=True,
+    )
+    app = app_factory()
+    async with LifespanManager(app), _bearer_client(app, token1) as ac:
+        resp1 = await ac.post(
+            "/auth/change-password",
+            json={"current_password": "Admin123!", "new_password": "FirstRotate1!Xy"},
+        )
+    assert resp1.status_code == 200
+
+    # Rotation 2: FirstRotate1!Xy -> SecondRotate2!Zz (succeeds; flag clears).
+    await _reflag(db_session, user.id)
+    token2 = create_access_token(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        email=user.email,
+        role=user.role,
+        must_change_password=True,
+    )
+    app = app_factory()
+    async with LifespanManager(app), _bearer_client(app, token2) as ac:
+        resp2 = await ac.post(
+            "/auth/change-password",
+            json={"current_password": "FirstRotate1!Xy", "new_password": "SecondRotate2!Zz"},
+        )
+    assert resp2.status_code == 200
+
+    # Rotation 3 (the assertion): current_password is the correct LIVE
+    # current (SecondRotate2!Zz), so verify_password passes and the WR-01
+    # current-hash guard does NOT fire. new_password reuses the now-
+    # SUPERSEDED FirstRotate1!Xy — rejected by check_password_history alone.
+    await _reflag(db_session, user.id)
+    token3 = create_access_token(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        email=user.email,
+        role=user.role,
+        must_change_password=True,
+    )
+    app = app_factory()
+    async with LifespanManager(app), _bearer_client(app, token3) as ac:
+        resp3 = await ac.post(
+            "/auth/change-password",
+            json={"current_password": "SecondRotate2!Zz", "new_password": "FirstRotate1!Xy"},
+        )
+    assert resp3.status_code == 400
+    detail = resp3.json()["detail"]
+    assert "reuse" in detail.lower() or "last" in detail.lower()
+
+    row = await db_session.execute(select(User.must_change_password).where(User.id == user.id))
+    assert row.scalar_one() is True
+
+
+async def test_rotation_rejects_near_default_variant(app_factory, db_session, tenant_a):
+    """The core WR-01 residual closure: both the ROADMAP example
+    "Admin1234!" and the complexity-passing near-variant "Admin1234!Xy" are
+    rejected 400 by the similarity guard, and the flag stays True."""
+    from asgi_lifespan import LifespanManager
+
+    for candidate in ("Admin1234!", "Admin1234!Xy"):
+        user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
+        token = create_access_token(
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+            email=user.email,
+            role=user.role,
+            must_change_password=True,
+        )
+        app = app_factory()
+        async with LifespanManager(app), _bearer_client(app, token) as ac:
+            resp = await ac.post(
+                "/auth/change-password",
+                json={"current_password": "Admin123!", "new_password": candidate},
+            )
+        assert resp.status_code == 400, f"candidate {candidate!r} should be rejected"
+
+        row = await db_session.execute(select(User.must_change_password).where(User.id == user.id))
+        assert row.scalar_one() is True, f"flag must remain set after rejecting {candidate!r}"
+
+
+async def test_rotation_rejects_similar_to_current(app_factory, db_session, tenant_a):
+    """A new password too similar to the user's submitted current password
+    (when that current password is NOT the default install credential) is
+    rejected 400 by the similarity guard's current-password branch — the
+    response detail names "current password" specifically, proving this is
+    distinct from the default-credential branch."""
+    from asgi_lifespan import LifespanManager
+
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True, password="Meadow7!Lantern")
+    token = create_access_token(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        email=user.email,
+        role=user.role,
+        must_change_password=True,
+    )
+    app = app_factory()
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.post(
+            "/auth/change-password",
+            json={"current_password": "Meadow7!Lantern", "new_password": "Meadow7!LanternXz"},
+        )
+    assert resp.status_code == 400
+    assert "current password" in resp.json()["detail"].lower()
+
+    row = await db_session.execute(select(User.must_change_password).where(User.id == user.id))
+    assert row.scalar_one() is True
+
+
+async def test_rotation_accepts_strong_distinct_password(app_factory, db_session, tenant_a):
+    """Positive control: a flagged user rotating to a strong password that is
+    dissimilar to both the default install credential and their current
+    password succeeds 200 and clears the flag. Guards must not be
+    over-broad."""
+    from asgi_lifespan import LifespanManager
+
+    user = await _seed_password_user(db_session, tenant_a, must_change_password=True)
+    token = create_access_token(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        email=user.email,
+        role=user.role,
+        must_change_password=True,
+    )
+    app = app_factory()
+    async with LifespanManager(app), _bearer_client(app, token) as ac:
+        resp = await ac.post(
+            "/auth/change-password",
+            json={"current_password": "Admin123!", "new_password": "Zephyr!Quokka42"},
+        )
+    assert resp.status_code == 200
+
+    row = await db_session.execute(select(User.must_change_password).where(User.id == user.id))
+    assert row.scalar_one() is False
