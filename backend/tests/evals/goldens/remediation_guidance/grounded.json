@@ -1,0 +1,43 @@
+{
+  "grounding_record": {
+    "cve_id": "CVE-2025-5566",
+    "severity": "HIGH",
+    "exploit_available": true,
+    "cisa_kev": true,
+    "remediation_action": "Upgrade OpenSSL to version 3.0.15 or later.",
+    "remediation_info": "Vendor advisory: apply the 3.0.15 security update.",
+    "affected_product": "OpenSSL",
+    "affected_version": "3.0.14",
+    "fixed_version": "3.0.15",
+    "asset_hostname": "acme-web-01",
+    "os_name": "Ubuntu",
+    "os_version": "22.04"
+  },
+  "schema_name": "ExplainRemediationGuidanceResponse",
+  "model_response": {
+    "summary": "The vendor's own guidance states: \"Upgrade OpenSSL to version 3.0.15 or later.\" On this Ubuntu 22.04 host, that means updating the openssl package to 3.0.15 through your OS package manager and restarting any services linked against libssl.",
+    "business_risk": "This CVE is CISA KEV-listed with a public exploit -- treat this as urgent even though a fix (3.0.15) is already available from the vendor.",
+    "citations": [
+      {
+        "text": "Upgrade OpenSSL to version 3.0.15 or later.",
+        "source": "scanner_verbatim",
+        "source_field": "remediation_action"
+      },
+      {
+        "text": "apply the 3.0.15 security update",
+        "source": "scanner_verbatim",
+        "source_field": "remediation_info"
+      },
+      {
+        "text": "update the openssl package through your OS package manager and restart linked services",
+        "source": "ai_interpreted",
+        "source_field": null
+      }
+    ],
+    "grounded": true
+  },
+  "model_used": null,
+  "captured_at": "2026-08-03T00:00:00+00:00",
+  "capture_method": "hand_authored",
+  "note": "Hand-authored per 28-01-PLAN.md's documented fallback (GETVUL_DEV_ANTHROPIC_KEY absent in this environment -- STATE.md Phase 24-01 blocker). Passes the SAME production gates backend/scripts/capture_ai_goldens.py enforces: ExplainRemediationGuidanceResponse.model_validate_json() + recheck_business_rules(allowed_source_fields=REMEDIATION_GUIDANCE_ALLOWLIST). Re-capture with a real dev key via that script (using this identical grounding_record) to replace with a genuine model-authored response."
+}

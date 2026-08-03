@@ -1,0 +1,37 @@
+{
+  "grounding_record": {
+    "cve_id": null,
+    "vulnerability_name": "Unspecified Finding",
+    "cvss_v3_score": null,
+    "cvss_v3_vector": null,
+    "severity": "LOW",
+    "cisa_kev": false,
+    "exploit_available": false,
+    "asset_hostname": "acme-ws-42",
+    "source": "QUALYS",
+    "affected_product": null,
+    "affected_version": null,
+    "fixed_version": null,
+    "remediation_info": null,
+    "status": "OPEN",
+    "first_detected_at": "2026-07-01T00:00:00Z",
+    "last_seen_at": "2026-07-29T00:00:00Z"
+  },
+  "schema_name": "ExplainVulnResponse",
+  "model_response": {
+    "summary": "The scanner record does not include enough detail -- no CVE ID, CVSS score, or affected product -- to explain what this finding actually is.",
+    "business_risk": "Unable to assess business risk without more information from the source scanner.",
+    "citations": [
+      {
+        "text": "no CVE ID, CVSS score, or affected product present in the record",
+        "source": "scanner_verbatim",
+        "source_field": "cve_id"
+      }
+    ],
+    "grounded": false
+  },
+  "model_used": null,
+  "captured_at": "2026-08-03T00:00:00+00:00",
+  "capture_method": "hand_authored",
+  "note": "Hand-authored per 28-01-PLAN.md's documented fallback (GETVUL_DEV_ANTHROPIC_KEY absent in this environment -- STATE.md Phase 24-01 blocker). Passes the SAME production gates backend/scripts/capture_ai_goldens.py enforces: ExplainVulnResponse.model_validate_json() + recheck_business_rules(allowed_source_fields=VULN_ALLOWLIST). Re-capture with a real dev key via that script (using this identical grounding_record) to replace with a genuine model-authored response."
+}

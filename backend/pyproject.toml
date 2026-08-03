@@ -36,6 +36,7 @@ dev = [
     "mypy==2.1.0",    # pinned: the mypy-baseline is line/version-sensitive — drift silently breaks the type gate
     "mypy-baseline==0.7.4",  # REQUIRED by ci.yml `mypy app/ | mypy-baseline filter`; was missing on main → step failed 127
     "factory-boy>=3.3",
+    "deepeval==4.1.5",  # pinned: DeepEval metric/CLI behavior changes across versions, keeps the AIE-01 gate deterministic
 ]
 
 [build-system]

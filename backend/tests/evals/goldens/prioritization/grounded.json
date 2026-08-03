@@ -1,0 +1,46 @@
+{
+  "grounding_record": {
+    "cve_id": "CVE-2025-9101",
+    "cvss_v3_score": 9.1,
+    "epss_score": 0.91,
+    "exploit_available": true,
+    "cisa_kev": true,
+    "exploit_status_name": "Weaponized",
+    "severity": "CRITICAL",
+    "sla_due_at": "2026-07-15T00:00:00Z",
+    "sla_breached": true,
+    "department": "Engineering"
+  },
+  "schema_name": "ExplainPrioritizationResponse",
+  "model_response": {
+    "summary": "This finding's current priority is driven by four factors: it is CISA KEV-listed with a weaponized public exploit, it carries a CRITICAL severity CVSS score of 9.1 with an EPSS score of 0.91, and its remediation SLA deadline has already passed.",
+    "business_risk": "It affects an asset owned by Engineering and is already past its SLA deadline -- the combination of active exploitation and a missed deadline is what is driving its existing priority, not an independent assessment of our own.",
+    "citations": [
+      {
+        "text": "CISA KEV-listed with a weaponized public exploit",
+        "source": "scanner_verbatim",
+        "source_field": "cisa_kev"
+      },
+      {
+        "text": "CRITICAL severity, CVSS 9.1, EPSS 0.91",
+        "source": "scanner_verbatim",
+        "source_field": "cvss_v3_score"
+      },
+      {
+        "text": "SLA deadline has already passed",
+        "source": "scanner_verbatim",
+        "source_field": "sla_breached"
+      },
+      {
+        "text": "owned by Engineering",
+        "source": "scanner_verbatim",
+        "source_field": "department"
+      }
+    ],
+    "grounded": true
+  },
+  "model_used": null,
+  "captured_at": "2026-08-03T00:00:00+00:00",
+  "capture_method": "hand_authored",
+  "note": "Hand-authored per 28-01-PLAN.md's documented fallback (GETVUL_DEV_ANTHROPIC_KEY absent in this environment -- STATE.md Phase 24-01 blocker). Passes the SAME production gates backend/scripts/capture_ai_goldens.py enforces: ExplainPrioritizationResponse.model_validate_json() + recheck_business_rules(allowed_source_fields=PRIORITIZATION_ALLOWLIST). model_response keys are exactly {summary, business_risk, citations, grounded} -- no numeric rank/priority/score field anywhere (the D-03/SC2 no-rank contract). Re-capture with a real dev key via that script (using this identical grounding_record) to replace with a genuine model-authored response."
+}

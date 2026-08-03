@@ -1,0 +1,34 @@
+{
+  "grounding_record": {
+    "cve": "CVE-2025-1234",
+    "fix": null,
+    "affected_assets": [
+      {
+        "hostname": "acme-ws-13",
+        "os_name": "Windows",
+        "os_version": "11",
+        "severity": "LOW",
+        "exploit_available": false,
+        "cisa_kev": false
+      }
+    ],
+    "priority": "LOW"
+  },
+  "schema_name": "ExplainRemediationResponse",
+  "model_response": {
+    "summary": "No vendor fix or solution text is available for CVE-2025-1234 in the scanner data.",
+    "business_risk": "Unable to recommend a remediation path without solution guidance from the source scanner.",
+    "citations": [
+      {
+        "text": "no fix/solution text present in the record",
+        "source": "scanner_verbatim",
+        "source_field": "fix"
+      }
+    ],
+    "grounded": false
+  },
+  "model_used": null,
+  "captured_at": "2026-08-03T00:00:00+00:00",
+  "capture_method": "hand_authored",
+  "note": "Hand-authored per 28-01-PLAN.md's documented fallback (GETVUL_DEV_ANTHROPIC_KEY absent in this environment -- STATE.md Phase 24-01 blocker). Passes the SAME production gates backend/scripts/capture_ai_goldens.py enforces: ExplainRemediationResponse.model_validate_json() + recheck_business_rules(allowed_source_fields=REMEDIATION_ALLOWLIST). Re-capture with a real dev key via that script (using this identical grounding_record) to replace with a genuine model-authored response."
+}

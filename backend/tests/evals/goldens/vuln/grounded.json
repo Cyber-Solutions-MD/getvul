@@ -1,0 +1,47 @@
+{
+  "grounding_record": {
+    "cve_id": "CVE-2025-9101",
+    "vulnerability_name": "Acme WebGateway Remote Code Execution",
+    "cvss_v3_score": 9.1,
+    "cvss_v3_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "severity": "CRITICAL",
+    "cisa_kev": true,
+    "exploit_available": true,
+    "asset_hostname": "acme-web-01",
+    "source": "NESSUS",
+    "affected_product": "Acme WebGateway",
+    "affected_version": "4.2.0",
+    "fixed_version": "4.2.3",
+    "remediation_info": "Upgrade Acme WebGateway to 4.2.3 or later.",
+    "status": "OPEN",
+    "first_detected_at": "2026-06-15T00:00:00Z",
+    "last_seen_at": "2026-07-30T00:00:00Z"
+  },
+  "schema_name": "ExplainVulnResponse",
+  "model_response": {
+    "summary": "This host runs Acme WebGateway 4.2.0, which has a remote code execution flaw (CVE-2025-9101) exploitable by an unauthenticated network attacker.",
+    "business_risk": "This CVE is listed in CISA's Known Exploited Vulnerabilities catalog and has a public exploit -- treat as urgent even though a fix (4.2.3) is already available.",
+    "citations": [
+      {
+        "text": "Acme WebGateway 4.2.0 remote code execution",
+        "source": "scanner_verbatim",
+        "source_field": "affected_product"
+      },
+      {
+        "text": "listed in CISA KEV with a public exploit",
+        "source": "scanner_verbatim",
+        "source_field": "cisa_kev"
+      },
+      {
+        "text": "treat as urgent",
+        "source": "ai_interpreted",
+        "source_field": null
+      }
+    ],
+    "grounded": true
+  },
+  "model_used": null,
+  "captured_at": "2026-08-03T00:00:00+00:00",
+  "capture_method": "hand_authored",
+  "note": "Hand-authored per 28-01-PLAN.md's documented fallback (GETVUL_DEV_ANTHROPIC_KEY absent in this environment -- STATE.md Phase 24-01 blocker). Passes the SAME production gates backend/scripts/capture_ai_goldens.py enforces: ExplainVulnResponse.model_validate_json() + recheck_business_rules(allowed_source_fields=VULN_ALLOWLIST). Re-capture with a real dev key via that script (using this identical grounding_record) to replace with a genuine model-authored response."
+}

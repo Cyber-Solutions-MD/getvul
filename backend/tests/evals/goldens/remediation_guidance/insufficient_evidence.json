@@ -1,0 +1,33 @@
+{
+  "grounding_record": {
+    "cve_id": "CVE-2025-7788",
+    "severity": "MEDIUM",
+    "exploit_available": false,
+    "cisa_kev": false,
+    "remediation_action": "Refer to vendor documentation for applicable configuration changes.",
+    "remediation_info": null,
+    "affected_product": "Acme Agent",
+    "affected_version": "2.4.0",
+    "fixed_version": null,
+    "asset_hostname": "acme-ws-88",
+    "os_name": "Windows",
+    "os_version": "11"
+  },
+  "schema_name": "ExplainRemediationGuidanceResponse",
+  "model_response": {
+    "summary": "The scanner's only remediation text is \"Refer to vendor documentation for applicable configuration changes\" -- it names no version, package, or specific setting, so no concrete fix steps can be derived from it.",
+    "business_risk": "Unable to recommend a remediation path -- the vendor's own guidance is too generic to safely act on without consulting Acme Agent's own documentation directly.",
+    "citations": [
+      {
+        "text": "Refer to vendor documentation for applicable configuration changes.",
+        "source": "scanner_verbatim",
+        "source_field": "remediation_action"
+      }
+    ],
+    "grounded": false
+  },
+  "model_used": null,
+  "captured_at": "2026-08-03T00:00:00+00:00",
+  "capture_method": "hand_authored",
+  "note": "Hand-authored per 28-01-PLAN.md's documented fallback (GETVUL_DEV_ANTHROPIC_KEY absent in this environment -- STATE.md Phase 24-01 blocker). This case deliberately passes the D-01 route-level pre-generation gate (has_actionable_remediation_text(): >=15 chars, not a generic placeholder) but the underlying vendor text is still too vague for the model to ground concrete steps in -- a genuine model-level grounded=false, distinct from the deterministic route-level refusal already covered by existing unit tests (28-RESEARCH.md). Passes the SAME production gates backend/scripts/capture_ai_goldens.py enforces: ExplainRemediationGuidanceResponse.model_validate_json() + recheck_business_rules(allowed_source_fields=REMEDIATION_GUIDANCE_ALLOWLIST). Re-capture with a real dev key via that script (using this identical grounding_record) to replace with a genuine model-authored response."
+}
