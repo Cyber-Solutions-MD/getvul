@@ -34,6 +34,9 @@ ai_router = APIRouter(prefix="/api/v1/ai", tags=["AI"])
 # status: Plan 10's gap-closure require_viewer "is AI configured" boolean
 #   signal (D-23) -- replaces the frontend's admin-gated-connectors-isError
 #   optimistic guess with a real, non-admin-safe signal.
+# usage: Phase 28 Plan 03's AIE-04 require_admin usage/cost aggregation over
+#   the EXISTING ai.* AuditLog rows (D-08) -- also the single source of the
+#   derived breaker_tripped boolean (D-09) the admin pane (Plan 04) reads.
 from app.api.v1.ai import (
     explain_host,  # noqa: E402
     explain_prioritization,  # noqa: E402
@@ -43,6 +46,7 @@ from app.api.v1.ai import (
     feedback,  # noqa: E402
     spike,  # noqa: F401
     status,  # noqa: E402
+    usage,  # noqa: E402
 )
 
 ai_router.include_router(explain_vuln.router)
@@ -52,3 +56,4 @@ ai_router.include_router(explain_remediation_guidance.router)
 ai_router.include_router(explain_prioritization.router)
 ai_router.include_router(feedback.router)
 ai_router.include_router(status.router)
+ai_router.include_router(usage.router)
