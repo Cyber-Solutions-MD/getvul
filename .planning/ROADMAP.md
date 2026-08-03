@@ -416,7 +416,7 @@ Plans:
 **Plans**: 5 plans (waves 1–2, sequential on main; no human checkpoint — tests + read-only admin pane + CI config)
 
 Plans:
-- [ ] 28-01-PLAN.md — AIE-01: DeepEval keyless structural eval harness (5 non-LLM metrics calling production gates) + one-time dev-key capture script + 10 committed synthetic golden fixtures
+- [x] 28-01-PLAN.md — AIE-01: DeepEval keyless structural eval harness (5 non-LLM metrics calling production gates) + one-time dev-key capture script + 10 committed synthetic golden fixtures
 - [ ] 28-02-PLAN.md — AIE-02 + AIE-03: consolidated keyless prompt-injection red-team suite (~15-25 payloads × 5 capabilities) + no-bypass budget coverage test (SDK-level patch, batch billing-gate nuance)
 - [ ] 28-03-PLAN.md — AIE-04 (backend) + AIE-03 exposure: GET /api/v1/ai/usage require_admin aggregation (6-row user_email batch split, derived breaker_tripped) + tests
 - [ ] 28-04-PLAN.md — AIE-04 (frontend): admin "AI usage & settings" pane (4 cards, restyled shadcn progress meter, inherited chrome) + useAiUsage hook + registration
@@ -458,7 +458,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 25. Asset-Aware Remediation Guidance | v3.0 AI-Assisted Triage | 7/7 | Complete    | 2026-07-30 |
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | Complete    | 2026-07-31 |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 3/3 | Complete    | 2026-08-01 |
-| 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 0/? | Not started | - |
+| 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 1/5 | Executing | - |
 
 ## Backlog
 

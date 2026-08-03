@@ -154,3 +154,7 @@ None — no external service configuration required. `GETVUL_DEV_ANTHROPIC_KEY` 
 ---
 *Phase: 28-eval-cost-observability-gate*
 *Completed: 2026-08-03*
+
+## Self-Check: PASSED
+
+All 17 claimed files verified present on disk (`backend/pyproject.toml`, `backend/scripts/capture_ai_goldens.py`, `backend/tests/evals/{__init__.py,metrics.py,test_golden_evals.py}`, all 10 `backend/tests/evals/goldens/**/*.json` fixtures, this SUMMARY.md, `deferred-items.md`, `.gitignore`). All 4 claimed commit hashes verified present in `git log` (`9cd1004`, `f4a3e08`, `77b79dd`, `1b64996`).
