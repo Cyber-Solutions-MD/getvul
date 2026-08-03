@@ -128,3 +128,7 @@ None - no external service configuration required. Both gates run keylessly (Tas
 ---
 *Phase: 28-eval-cost-observability-gate*
 *Completed: 2026-08-03*
+
+## Self-Check: PASSED
+
+All 8 claimed files verified present on disk (2 new test files, 4 modified prompt-builder test files, deferred-items.md, this summary). All 3 claimed commit hashes (`53086f4`, `77e3a50`, `908fc74`) verified present in `git log --oneline --all`.
