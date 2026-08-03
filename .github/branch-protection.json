@@ -2,10 +2,12 @@
   "required_status_checks": {
     "strict": false,
     "checks": [
-      { "context": "Backend",            "app_id": -1 },
-      { "context": "Frontend",           "app_id": -1 },
-      { "context": "Semgrep SAST",       "app_id": -1 },
-      { "context": "Terraform Validate", "app_id": -1 }
+      { "context": "Backend",                               "app_id": -1 },
+      { "context": "Frontend",                              "app_id": -1 },
+      { "context": "Semgrep SAST",                          "app_id": -1 },
+      { "context": "Terraform Validate",                    "app_id": -1 },
+      { "context": "AI Golden-Set Evals (DeepEval)",        "app_id": -1 },
+      { "context": "AI Prompt-Injection Red-Team (static)", "app_id": -1 }
     ]
   },
   "enforce_admins": false,

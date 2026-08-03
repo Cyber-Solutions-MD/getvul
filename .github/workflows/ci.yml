@@ -157,6 +157,142 @@ jobs:
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
+  ai-evals:
+    # AIE-01 CI-blocking gate: keyless, deterministic DeepEval structural
+    # metrics (schema/grounding/no-rank/no-PII/cite-or-refuse) run against
+    # committed golden fixtures. No ANTHROPIC_API_KEY anywhere in this job —
+    # BYOK means no GetVul-owned key, including in CI (28-CONTEXT.md D-01).
+    name: AI Golden-Set Evals (DeepEval)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run DeepEval golden-set suite (keyless -- structural metrics only, no DB/Redis needed)
+        env:
+          DEEPEVAL_TELEMETRY_OPT_OUT: "1"
+        run: deepeval test run tests/evals/test_golden_evals.py
+
+  ai-redteam-injection:
+    # AIE-02/AIE-03 CI-blocking gate: static prompt-builder inspection
+    # (injection-as-data isolation contract) + the no-bypass budget-guard
+    # coverage test. The budget-coverage test exercises the `client` fixture
+    # (a real app + DB), so this job mirrors the `backend` job's Postgres/
+    # Redis services + migration step verbatim. No ANTHROPIC_API_KEY.
+    name: AI Prompt-Injection Red-Team (static)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: getvul
+          POSTGRES_PASSWORD: getvul
+          POSTGRES_DB: getvul_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U getvul"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://getvul:getvul@localhost:5432/getvul_test
+        run: alembic upgrade head
+      - name: Run consolidated injection-isolation + no-bypass budget coverage suites (keyless)
+        env:
+          DATABASE_URL: postgresql+asyncpg://getvul:getvul@localhost:5432/getvul_test
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET_KEY: test-secret
+          ENVIRONMENT: test
+          # Disposable, non-secret Fernet key for this ephemeral CI DB only --
+          # test_ai_budget_coverage.py seeds a real encrypted ANTHROPIC
+          # ConnectorConfig row (encrypt_value() -> Fernet(settings.encryption_key)),
+          # so the class-level placeholder default is not a valid 32-byte
+          # url-safe base64 key and raises ValueError before any test runs
+          # (same documented requirement as test_ai_explain_stream.py).
+          ENCRYPTION_KEY: "9ynx6kK8mLb2ag-LhSCjA1L7oGWg873tk6dIQ45FBIA="
+        run: pytest tests/test_ai_injection_redteam.py tests/test_ai_budget_coverage.py -v
+
+  ai-live-eval-optin:
+    # Opt-in, key-gated, NON-blocking live tier (LLM-judge faithfulness +
+    # real promptfoo red-team). Only runs when a developer supplies their
+    # own ANTHROPIC key via the DEV_ANTHROPIC_API_KEY secret -- never a
+    # GetVul-owned/shared key. Must NEVER be added to branch-protection.json
+    # required checks (28-CONTEXT.md D-01). Never runs on fork PRs (no
+    # secret exposure to untrusted forks).
+    name: AI Live Eval + Red-Team (opt-in, non-blocking)
+    runs-on: ubuntu-latest
+    needs: [backend]
+    continue-on-error: true # never blocks -- opt-in tier only, per D-01
+    env:
+      HAS_DEV_KEY: ${{ secrets.DEV_ANTHROPIC_API_KEY != '' }} # indirection avoids the secrets-in-if gotcha
+    if: ${{ github.event.repository.fork == false }} # never run against untrusted fork PRs
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Skip if no dev key configured
+        if: env.HAS_DEV_KEY != 'true'
+        run: echo "No DEV_ANTHROPIC_API_KEY secret configured -- skipping opt-in live eval tier." && exit 0
+      - name: Set up Python
+        if: env.HAS_DEV_KEY == 'true'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        if: env.HAS_DEV_KEY == 'true'
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run DeepEval LLM-judge suite (Anthropic judge, dev key)
+        if: env.HAS_DEV_KEY == 'true'
+        working-directory: backend
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.DEV_ANTHROPIC_API_KEY }}
+          DEEPEVAL_TELEMETRY_OPT_OUT: "1"
+        run: deepeval test run tests/evals/test_llm_judge_evals.py
+      - name: Set up Node.js
+        if: env.HAS_DEV_KEY == 'true'
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Run promptfoo red-team (real adversarial generation + LLM grading)
+        if: env.HAS_DEV_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.DEV_ANTHROPIC_API_KEY }}
+        run: npx promptfoo@0.121.20 redteam run -c redteam/promptfooconfig.yaml -o redteam-results.json
+
   dast:
     name: OWASP ZAP DAST
     runs-on: ubuntu-latest
