@@ -279,7 +279,11 @@ export function AiUsagePane() {
         <div className="mt-4">
           {cap !== null ? (
             <>
-              <Progress value={meterValue} indicatorClassName={meterIndicatorClass(percentUsed)} />
+              <Progress
+                value={meterValue}
+                indicatorClassName={meterIndicatorClass(percentUsed)}
+                aria-label={`Monthly AI budget used — ${formatUsd(data.spent_this_month_usd)} of ${formatUsd(cap)} (${Math.round(percentUsed)}%)`}
+              />
               <p className="mt-2 text-sm text-text-muted">
                 {percentUsed >= 100
                   ? `${formatUsd(data.spent_this_month_usd)} of ${formatUsd(cap)} used this month — cap reached`
