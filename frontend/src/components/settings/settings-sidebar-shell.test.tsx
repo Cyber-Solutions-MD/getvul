@@ -3,7 +3,7 @@
  *
  * Behaviors verified:
  * 1. VIEWER role: sidebar renders exactly 'Profile' and 'API tokens' (no admin-only categories)
- * 2. ADMIN role: all 6 categories render
+ * 2. ADMIN role: all 7 categories render (28-04 added the admin-only 'ai' category)
  * 3. Clicking a category calls onCategoryChange with that category key
  * 4. Active category uses left gradient-strip indicator (data-active="true"), NOT a bottom border
  */
@@ -44,7 +44,7 @@ describe('SettingsSidebarShell', () => {
     expect(labels).not.toContain('Audit log');
   });
 
-  it('Test 2: ADMIN role renders all 6 categories', () => {
+  it('Test 2: ADMIN role renders all 7 categories', () => {
     mockUseAuth.mockReturnValue({ user: { role: 'ADMIN' } });
 
     const { container } = render(
@@ -55,7 +55,7 @@ describe('SettingsSidebarShell', () => {
 
     const nav = container.querySelector('nav');
     const buttons = nav!.querySelectorAll('button[data-category]');
-    expect(buttons.length).toBe(6);
+    expect(buttons.length).toBe(7);
 
     const labels = Array.from(buttons).map((b) => b.textContent?.trim());
     expect(labels).toContain('Profile');
@@ -64,9 +64,10 @@ describe('SettingsSidebarShell', () => {
     expect(labels).toContain('Notifications');
     expect(labels).toContain('API tokens');
     expect(labels).toContain('Audit log');
+    expect(labels).toContain('AI usage & settings');
   });
 
-  it('Test 2b: OWNER role renders all 6 categories (isAdmin includes OWNER)', () => {
+  it('Test 2b: OWNER role renders all 7 categories (isAdmin includes OWNER)', () => {
     mockUseAuth.mockReturnValue({ user: { role: 'OWNER' } });
 
     const { container } = render(
@@ -77,7 +78,7 @@ describe('SettingsSidebarShell', () => {
 
     const nav = container.querySelector('nav');
     const buttons = nav!.querySelectorAll('button[data-category]');
-    expect(buttons.length).toBe(6);
+    expect(buttons.length).toBe(7);
   });
 
   it('Test 3: clicking a category calls onCategoryChange with that category key', () => {
@@ -116,7 +117,7 @@ describe('SettingsSidebarShell', () => {
 
     // Inactive items have data-active="false"
     const inactiveButtons = nav!.querySelectorAll('button[data-active="false"]');
-    expect(inactiveButtons.length).toBe(5);
+    expect(inactiveButtons.length).toBe(6);
 
     // No border-b, border-b-2, or role="tab" anywhere in the nav
     const outerHtml = nav!.outerHTML;
