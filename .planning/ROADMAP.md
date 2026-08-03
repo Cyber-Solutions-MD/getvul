@@ -58,6 +58,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API (completed 2026-07-31 — 8/8 plans; verification passed 10/10 with 4 live-verification items accepted as tracked debt per the 26-05 proceed-on-trust decision — see 26-UAT.md / close via /gsd-verify-work 26)
 - [x] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships (completed 2026-08-01 — 3/3 plans; verification passed 12/12 with 1 live-browser item accepted as tracked debt — see 27-UAT.md / close via /gsd-verify-work 27)
 - [x] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI (5 plans, waves 1–2)
+- [ ] **Phase 29: Harden Forced-Rotation Password Policy** — real complexity + history + similarity policy on the forced-rotation endpoint, replacing the ad-hoc default-credential rejection (promoted from backlog 2026-08-03)
 
 ## Phase Details
 
@@ -240,7 +241,7 @@ Phases 16–22 finished the four features deferred out of v2.0, each holding the
 
 **Full phase detail + success criteria + plans:** [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md) · **Requirements:** [milestones/v2.2-REQUIREMENTS.md](milestones/v2.2-REQUIREMENTS.md) · **Audit:** [milestones/v2.2-MILESTONE-AUDIT.md](milestones/v2.2-MILESTONE-AUDIT.md) · **Summary:** [MILESTONES.md](MILESTONES.md)
 
-## 🚧 v3.0 AI-Assisted Triage ("Triage Copilot") — IN PROGRESS (opened 2026-07-25 — Phases 23–28)
+## 🚧 v3.0 AI-Assisted Triage ("Triage Copilot") — IN PROGRESS (opened 2026-07-25 — Phases 23–29)
 
 **Foundational principle (applies to every phase below): BYOK.** All AI functionality is client-provided-key only — each tenant supplies their own Anthropic API key; there is no GetVul-owned/shared/fallback key and no GetVul-proxied inference. AI features stay inert (graceful "configure AI" state, never an error) for a tenant until they configure their own key. Other hard constraints threaded through every phase: caching is tenant-scoped only (no cross-tenant serving), the deterministic risk score (ASSET-02) is augmented/explained but never replaced, prompt-injection defense is first-class (untrusted scanner text is delivered as data, never instructions), and the cost guardrail fails closed. See `.planning/research/SUMMARY.md` and `.planning/research/PITFALLS.md` for full rationale.
 
@@ -424,6 +425,25 @@ Plans:
 **UI hint**: yes
 **Pitfalls owned**: #5 cost blowup at scale (fail-closed circuit breaker + cheap-model-first routing already established, hard budget enforced here as a release gate), #6 non-determinism (nightly golden-dataset re-run policy), #8 shipping without evals (evals are the arbiter, matching this codebase's "the sweep, not the file list, is the arbiter" discipline).
 
+### Phase 29: Harden Forced-Rotation Password Policy
+
+**Goal**: Replace the ad-hoc default-credential rejection on the forced-rotation endpoint (`backend/app/auth/router.py`) with a real password policy. Phase 06 WR-01 closed the exact-literal, whitespace/case-variant, and current-password-reuse bypasses, but near-variants like `Admin1234!` still pass because `DEFAULT_POLICY` has `history_count=0` and all complexity flags `False`. Introduce configurable complexity requirements (length / character-class), a password-history check (`history_count > 0`), and a similarity/edit-distance guard against the known default install credential and the previous password.
+**Depends on**: Phase 6 (Default Admin Hardening — this extends the WR-01 forced-rotation guard it introduced)
+**Requirements**: WR-02 (forced-rotation real password policy — complexity + history + similarity; the WR-01 follow-up. Minted at planning time; ROADMAP said TBD/promoted from backlog 999.2)
+**Success Criteria** (what must be TRUE):
+
+  1. The forced-rotation endpoint rejects passwords failing configurable complexity requirements (min length + character-class flags), with a clear per-rule error message
+  2. Password-history reuse prevention is active by default (`history_count > 0`) so a rotation cannot cycle back to a recent password
+  3. A similarity/edit-distance guard rejects near-variants of the known default install credential and the user's previous password (e.g. `Admin1234!`), not just exact/case/whitespace variants
+  4. The existing WR-01 protections (exact default credential, whitespace/case variants, current-password reuse) remain enforced — no regression
+
+**Plans**: 1 plan
+
+Plans:
+- [ ] 29-01-PLAN.md — real complexity floor + active password-history + similarity/edit-distance guard wired into the forced-rotation endpoint (closes the WR-01 `Admin1234!` near-variant residual); backend-only, TDD
+
+_Source: Phase 06 REVIEW re-review (2026-07-23) WR-01 residual — the fixer flagged full complexity/history policy as follow-up beyond the safe subset it applied. Promoted from backlog 999.2 on 2026-08-03._
+
 ## Progress
 
 **Execution Order:**
@@ -459,6 +479,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | Complete    | 2026-07-31 |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 3/3 | Complete    | 2026-08-01 |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 5/5 | Complete | 2026-08-03 |
+| 29. Harden Forced-Rotation Password Policy | v3.0 AI-Assisted Triage | 0/1 | Planned | — |
 
 ## Backlog
 
@@ -473,18 +494,6 @@ Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
 _Source: Phase 16 REVIEW IN-02 (advisory Info, no per-phase change needed), reinforced by Phase 20 carrying the same retire-on-resync pattern._
-
-### Phase 999.2: Harden forced-rotation password policy (complexity + history) (BACKLOG)
-
-**Goal:** Replace the ad-hoc default-credential rejection on the forced-rotation endpoint (`backend/app/auth/router.py`) with a real password policy. Phase 06 WR-01 closed the exact-literal and whitespace/case-variant + current-password-reuse bypasses, but near-variants like `Admin1234!` still pass because `DEFAULT_POLICY` has `history_count=0` and all complexity flags `False`. Introduce configurable complexity requirements (length/character-class), a password-history check (`history_count > 0`), and optionally a similarity/edit-distance guard against the known default and the previous password.
-**Requirements:** TBD
-**Plans:** 0 plans
-
-Plans:
-
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
-_Source: Phase 06 REVIEW re-review (2026-07-23) WR-01 residual — the fixer flagged full complexity/history policy as follow-up beyond the safe subset it applied._
 
 ---
 *Roadmap created: 2026-05-08 from audit findings. v2.0 UI/UX Redesign section added 2026-05-12 from sketch findings. v2.2 collapsed to archive 2026-07-22 on milestone completion. v3.0 AI-Assisted Triage section added 2026-07-27 from research/SUMMARY.md's validated 6-phase build order — Phases 23–28, continuing phase numbering from 22; coverage 21/21 v1 requirements mapped.*
