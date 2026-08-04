@@ -4,6 +4,28 @@ A historical log of shipped milestones. Full per-milestone detail lives in `.pla
 
 ---
 
+## v3.0 AI-Assisted Triage ("Triage Copilot") — ✅ SHIPPED 2026-08-04
+
+**Phases:** 23–29 (7 phases, 45 plans) · **Timeline:** 2026-07-27 → 2026-08-04 (~8 days) · **Audit:** `tech_debt` (21/21 requirements satisfied, 0 broken/0 orphaned/0 missing integration seams, 11/11 flows wired) · **Closeout:** override_closeout (accepted live-verification debt — see Deferred Items in STATE.md)
+
+Added a BYOK (bring-your-own-key, tenant-supplied Anthropic key only) LLM-assistance layer — grounded in the tenant's own correlated vuln data, guardrailed against prompt injection / PII leakage / cost blowup, and gated by evals — so a triage analyst gets help *deciding and acting*, not just *seeing*. The deterministic risk score stays authoritative; AI explains and augments it, never replaces it. The hard privacy guarantee held end-to-end: no GetVul-owned/shared/fallback key, no proxied inference, tenant-scoped cache only, features inert until the tenant configures their own key.
+
+**Key accomplishments:**
+1. **AI foundation with the privacy guarantee intact** (Phase 24) — tenant-admin BYOK key config (encrypted via the Fernet/`ConnectorConfig` pattern), a buffer-validate-replay SSE engine streaming grounded, two-tier-cited "Explain this vuln" summaries through nginx, and the full reusable guardrail scaffold (untrusted-content-as-data, schema validation, tenant-scoped cache, fail-closed cost gate, audit) — shipped together at minimum blast radius, then reused unmodified by every later phase.
+2. **Grounded remediation + prioritization** (Phases 25–26) — asset-aware remediation guidance that cites the scanner's own solution text or refuses rather than inventing (cite-or-refuse + dangerous-command denylist), and a "what to fix first and why" narrative that augments — never replaces — the deterministic score, pre-generated in bulk via the Message Batches API (`asyncio.create_task`, never stalling a sync tick).
+3. **Ticket auto-drafting** (Phase 27) — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; a human click always creates the ticket (never auto-submitted).
+4. **A real CI-enforced quality gate** (Phase 28) — DeepEval golden-set evals + a promptfoo prompt-injection red-team (17 payloads × 5 capabilities = 85 cases) as required status checks, a fail-closed per-tenant cost circuit breaker, and an admin AI usage/cost/settings pane.
+5. **Ingestion reliability precursor** (Phase 23) — fixed the silently-broken Wiz + Rapid7 sync bugs, added HTTP-layer integration tests for all 6 scanners (the gap that let them ship), wired Jira ticket-create + finished GitHub ticketing, and surfaced per-connector sync health/last-error.
+6. **Auth hardening** (Phase 29, backlog-promoted WR-02) — replaced the ad-hoc default-credential rejection on the forced-rotation endpoint with a real complexity + password-history + similarity/edit-distance policy, closing the Phase 06 `Admin1234!` near-variant residual.
+
+**Verification:** all 7 phases verified `passed`; the integration checker traced 20+ cross-phase export/import chains and re-ran the AI backend suite (24 test files) + the 6-connector HTTP-layer suite (0 broken / 0 orphaned / 0 missing).
+
+**Archive:** [milestones/v3.0-ROADMAP.md](milestones/v3.0-ROADMAP.md) · [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md) · [milestones/v3.0-MILESTONE-AUDIT.md](milestones/v3.0-MILESTONE-AUDIT.md)
+
+**Tech debt carried forward (all accepted, non-blocking — see STATE.md Deferred Items + v3.0-MILESTONE-AUDIT.md):** Category A — live-Anthropic-key / live-browser verification waived on-trust at the tracer gates for Phases 24–27 (closeable via `/gsd-verify-work <N>`); Category B — Phase 28 hand-authored golden fixtures + 3 external-infra eval-gate overrides; **Category C (actionable) — the pre-existing `backend` CI job lacks `ENCRYPTION_KEY` and will fail 5 Phase 24–27 test files against a synced origin (one-line fix logged in Phase 28 deferred-items.md)**; Category D — carried Phase 23 ticketing WARNINGs (duplicate `/sync-status` route, unvalidated `TicketRuleAction.provider`); plus Nyquist VALIDATION.md doc reconciliation for phases 24–27/29 (documented-stale per project memory, real suites green). AINL-01 (natural-language query) deferred to v3.1.
+
+---
+
 ## v2.2 Deferred UI Features — ✅ SHIPPED 2026-07-22
 
 **Phases:** 16–22 (7 phases, 23 plans) · **Timeline:** 2026-07-15 → 2026-07-22 · **Audit:** `passed` (22/22 UX-D requirements, 9/9 integration seams, 5/5 flows)

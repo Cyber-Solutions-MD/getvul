@@ -4,14 +4,14 @@ milestone: v3.0
 milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 29
 current_phase_name: harden-forced-rotation-password-policy
-status: Phase 28 VERIFIED + UAT CLOSED (2026-08-04) — verification canonicalized human_needed→passed; 2/5 UAT tests passed, 3 waived by user (external-infra-only, not code defects), golden-fixture provenance + 3 human-verification items accepted as VERIFICATION overrides. Phase 29 COMPLETE + UAT PASSED (1/1 plan, 6/6). All v3.0 phases (23–29) executed & verified; /gsd-complete-milestone is the remaining work (re-verify Phase 24 optional — 4 waived live items).
-stopped_at: Phase 28 verify-work complete — verification passed, UAT closed (3 tests waived)
-last_updated: "2026-08-04T08:53:23Z"
+status: v3.0 AI-Assisted Triage ("Triage Copilot") MILESTONE COMPLETE & ARCHIVED (2026-08-04). Phases 23–29 (45 plans) all executed & verified passed; 21/21 v1 requirements satisfied + WR-02. Closeout: override_closeout — accepted live-verification debt for Phases 24–27 + the actionable backend-CI ENCRYPTION_KEY gap + Nyquist doc reconciliation (see Deferred Items below). Archived to milestones/v3.0-*; ROADMAP collapsed; PROJECT.md full review done; REQUIREMENTS.md removed; tag v3.0. Next: /gsd-new-milestone (no milestone queued; v3.1 AINL-01 leading candidate).
+stopped_at: v3.0 milestone closed via /gsd-complete-milestone
+last_updated: "2026-08-04T12:06:17Z"
 progress:
-  total_phases: 28
-  completed_phases: 28
-  total_plans: 137
-  completed_plans: 137
+  total_phases: 29
+  completed_phases: 29
+  total_plans: 141
+  completed_plans: 141
   percent: 100
 ---
 
@@ -19,11 +19,27 @@ progress:
 
 ## Project Reference
 
-See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-07-25)
+See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone)
 
-**Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 adds AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
+**Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 28 — eval-cost-observability-gate
+**Current focus:** Planning next milestone — no milestone queued (v3.1 AINL-01 natural-language triage assistant is the leading candidate; run `/gsd-new-milestone`).
+
+## Deferred Items
+
+Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chose "Acknowledge & proceed"; closeout_type = override_closeout). None block the milestone; all are conscious accepts. Full detail in [milestones/v3.0-MILESTONE-AUDIT.md](milestones/v3.0-MILESTONE-AUDIT.md).
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | Phase 24 — live-key/live-browser explain flow (nginx anti-buffering, wizard→explain→cache→audit tracer, D-25 429 card, reduced-motion/contrast) | waived on-trust at 24-06; close via /gsd-verify-work 24 |
+| uat | Phase 25 — live cited-steps render + insufficient-evidence card; WCAG AA axe sweep on new cards + ticket-description Textarea | waived on-trust at 25-05; close via /gsd-verify-work 25 |
+| uat | Phase 26 — live narrative render; no-AI-rank visual sweep; live Message Batches 24h round-trip; WCAG AA of pending card + citation tiers | waived on-trust at 26-05; close via /gsd-verify-work 26 |
+| uat | Phase 27 — live open→pre-fill→edit→Create flow | accepted post-hoc (no tracer gate); close via /gsd-verify-work 27 |
+| eval-override | Phase 28 — golden fixtures hand-authored (not captured from real model output); GETVUL_DEV_ANTHROPIC_KEY absent | formal override; capture_ai_goldens.py ready to regenerate once a key exists |
+| eval-override | Phase 28 — opt-in key-gated live-eval CI tier + real-PR merge-block + live budget-exceeded degradation | 3 external-infra items accepted as overrides |
+| ci-bug (actionable) | Pre-existing `backend` CI job lacks ENCRYPTION_KEY in its test step; will fail 5 Phase 24–27 test files next run against a synced origin | one-line fix logged in Phase 28 deferred-items.md — fix before/at next origin sync |
+| ticketing-warn | Phase 23 carried: duplicate POST /sync-status route (CR-02); unvalidated TicketRuleAction.provider str default 'ASANA' (WR-01) | routed to a ticketing-router backlog item |
+| nyquist-doc | VALIDATION.md draft-vs-validated reconciliation for phases 24–27; phase 29 has no VALIDATION.md | documented-stale per project memory (real suites green); coverage-TODO, not a compliance failure |
 
 ## Current Position
 
