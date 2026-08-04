@@ -2,15 +2,17 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
+current_phase_name: roadmap created, ready to plan
 status: planning
-last_updated: "2026-08-04T10:30:00.000Z"
+stopped_at: Phase 30 context gathered
+last_updated: "2026-08-04T11:51:49.013Z"
 last_activity: 2026-08-04
+last_activity_desc: v4.0 ROADMAP.md created (Phases 30-35)
 progress:
-  total_phases: 6
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -340,6 +342,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-08-03T09:53:03.000Z
-**Stopped at:** Completed 28-05-PLAN.md
-**Resume file:** None
+**Last session:** 2026-08-04T11:51:48.996Z
+**Stopped at:** Phase 30 context gathered
+**Resume file:** .planning/phases/30-correlation-schema-fix/30-CONTEXT.md
