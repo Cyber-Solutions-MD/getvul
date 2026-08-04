@@ -737,17 +737,17 @@ All claims in this research were either verified via direct execution against th
 
 **This table is empty** — no claim in this research rests solely on unverified training knowledge. The one item that came closest (an SQLAlchemy docs snippet suggesting ARRAY only works with psycopg2) was actively checked and refuted by direct execution — see Common Pitfalls #6.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact production row-count of `vulnerability_correlations`, to gauge real migration/re-correlation runtime**
    - What we know: D-07 characterizes the table as "small and rebuildable." The live dev Postgres container (`getvul-postgres-1`) currently has 0 rows (recently cleared/reset), so this environment cannot empirically confirm production scale.
    - What's unclear: How many tenants and rows actually exist in the deployed production system, and therefore how long `recorrelate_all_tenants.py` will take to run for real.
-   - Recommendation: Not a blocker — D-06/D-07 already accept this characterization as a locked decision. If the planner wants a runtime estimate, checking the actual production row count before writing the deploy runbook step is a cheap, valuable addition, but isn't required to plan the phase's tasks.
+   - **RESOLVED — Recommendation:** Not a blocker — D-06/D-07 already accept this characterization as a locked decision. If the planner wants a runtime estimate, checking the actual production row count before writing the deploy runbook step is a cheap, valuable addition, but isn't required to plan the phase's tasks.
 
 2. **Should the re-correlation script (`recorrelate_all_tenants.py`) also be exposed as an admin-gated API route, matching the `POST /sla/backfill` precedent?**
    - What we know: `POST /sla/backfill` (`require_analyst`-gated, single current tenant) is an established pattern for re-triggering a backfill on demand. `dev_routes.py`'s `POST /run-correlations` already exists but is dev-only and single-hardcoded-tenant, not suitable for production multi-tenant re-runs.
    - What's unclear: Whether ops convenience (re-run via an authenticated HTTP call instead of `docker compose exec`) is worth the extra route/RBAC surface for what's fundamentally a one-time migration-cutover step.
-   - Recommendation: Default to the standalone script only (satisfies D-07 literally, lowest surface area); the planner can add a route later if repeated re-runs turn out to be needed operationally.
+   - **RESOLVED — Recommendation:** Default to the standalone script only (satisfies D-07 literally, lowest surface area); the planner can add a route later if repeated re-runs turn out to be needed operationally.
 
 ## Environment Availability
 

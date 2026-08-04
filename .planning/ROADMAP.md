@@ -45,7 +45,7 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
   4. A regression test seeds a finding seen only by Qualys + Rapid7 and confirms it now correlates correctly (this case was silently dropped pre-fix)
 **Plans**: 2 plans
 - [ ] 30-01-PLAN.md — Generalized source-set: model + migration (034) + correlation_service rewrite; SC#4 tracer (CORR-01, CORR-03)
-- [ ] 30-02-PLAN.md — One-time per-tenant re-correlation script + per-tenant zero-loss proof + banding/invariant/tenant-scope tests (CORR-02, CORR-03)
+- [ ] 30-02-PLAN.md — Re-correlation script (testable `_recorrelate_tenant` helper) + runtime per-tenant zero-loss recovery test + banding/invariant/tenant-scope + D-09 HTTP-shape tests (CORR-01, CORR-02, CORR-03)
 
 ### Phase 31: Connector Enrichment Rewrite
 
