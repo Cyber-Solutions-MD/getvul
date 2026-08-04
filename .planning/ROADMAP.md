@@ -58,7 +58,7 @@ GetVul shipped its v0.1 feature set (vuln aggregation, correlation, ticketing, S
 - [x] **Phase 26: Prioritization Narrative** — "What to fix first and why" narrative augmenting (never replacing) the deterministic risk score, generated in bulk via the Message Batches API (completed 2026-07-31 — 8/8 plans; verification passed 10/10 with 4 live-verification items accepted as tracked debt per the 26-05 proceed-on-trust decision — see 26-UAT.md / close via /gsd-verify-work 26)
 - [x] **Phase 27: Ticket Auto-Drafting** — AI-drafted title/description/remediation/asset-context pre-fills the existing Jira/Asana create flow; analyst edits and ships (completed 2026-08-01 — 3/3 plans; verification passed 12/12 with 1 live-browser item accepted as tracked debt — see 27-UAT.md / close via /gsd-verify-work 27)
 - [x] **Phase 28: Eval + Cost + Observability Gate** — DeepEval CI harness, promptfoo red-team CI job, fail-closed per-tenant cost circuit breaker, admin usage/settings UI (5 plans, waves 1–2)
-- [ ] **Phase 29: Harden Forced-Rotation Password Policy** — real complexity + history + similarity policy on the forced-rotation endpoint, replacing the ad-hoc default-credential rejection (promoted from backlog 2026-08-03)
+- [x] **Phase 29: Harden Forced-Rotation Password Policy** — real complexity + history + similarity policy on the forced-rotation endpoint, replacing the ad-hoc default-credential rejection (promoted from backlog 2026-08-03; completed 2026-08-04 — 1/1 plan)
 
 ## Phase Details
 
@@ -432,15 +432,15 @@ Plans:
 **Requirements**: WR-02 (forced-rotation real password policy — complexity + history + similarity; the WR-01 follow-up. Minted at planning time; ROADMAP said TBD/promoted from backlog 999.2)
 **Success Criteria** (what must be TRUE):
 
-  1. The forced-rotation endpoint rejects passwords failing configurable complexity requirements (min length + character-class flags), with a clear per-rule error message
-  2. Password-history reuse prevention is active by default (`history_count > 0`) so a rotation cannot cycle back to a recent password
-  3. A similarity/edit-distance guard rejects near-variants of the known default install credential and the user's previous password (e.g. `Admin1234!`), not just exact/case/whitespace variants
-  4. The existing WR-01 protections (exact default credential, whitespace/case variants, current-password reuse) remain enforced — no regression
+  1. [x] The forced-rotation endpoint rejects passwords failing configurable complexity requirements (min length + character-class flags), with a clear per-rule error message
+  2. [x] Password-history reuse prevention is active by default (`history_count > 0`) so a rotation cannot cycle back to a recent password
+  3. [x] A similarity/edit-distance guard rejects near-variants of the known default install credential and the user's previous password (e.g. `Admin1234!`), not just exact/case/whitespace variants
+  4. [x] The existing WR-01 protections (exact default credential, whitespace/case variants, current-password reuse) remain enforced — no regression
 
-**Plans**: 1 plan
+**Plans**: 1 plan — Complete 2026-08-04
 
 Plans:
-- [ ] 29-01-PLAN.md — real complexity floor + active password-history + similarity/edit-distance guard wired into the forced-rotation endpoint (closes the WR-01 `Admin1234!` near-variant residual); backend-only, TDD
+- [x] 29-01-PLAN.md — real complexity floor + active password-history + similarity/edit-distance guard wired into the forced-rotation endpoint (closes the WR-01 `Admin1234!` near-variant residual); backend-only, TDD
 
 _Source: Phase 06 REVIEW re-review (2026-07-23) WR-01 residual — the fixer flagged full complexity/history policy as follow-up beyond the safe subset it applied. Promoted from backlog 999.2 on 2026-08-03._
 
@@ -479,7 +479,7 @@ v1.0 Phase 1 shipped. v1.0 Phases 2–8 are deferred. v2.0 phases execute in num
 | 26. Prioritization Narrative | v3.0 AI-Assisted Triage | 8/8 | Complete    | 2026-07-31 |
 | 27. Ticket Auto-Drafting | v3.0 AI-Assisted Triage | 3/3 | Complete    | 2026-08-01 |
 | 28. Eval + Cost + Observability Gate | v3.0 AI-Assisted Triage | 5/5 | Complete | 2026-08-03 |
-| 29. Harden Forced-Rotation Password Policy | v3.0 AI-Assisted Triage | 0/1 | Planned | — |
+| 29. Harden Forced-Rotation Password Policy | v3.0 AI-Assisted Triage | 1/1 | Complete | 2026-08-04 |
 
 ## Backlog
 
