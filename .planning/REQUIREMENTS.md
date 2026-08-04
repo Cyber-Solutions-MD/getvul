@@ -90,17 +90,45 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORR-01..03 | TBD | Pending |
-| ENRICH-01..06 | TBD | Pending |
-| EXPO-01..06 | TBD | Pending |
-| RISK-01..10 | TBD | Pending |
-| SRC-01..08 | TBD | Pending |
+| CORR-01 | Phase 30 (Correlation Schema Fix) | Pending |
+| CORR-02 | Phase 30 (Correlation Schema Fix) | Pending |
+| CORR-03 | Phase 30 (Correlation Schema Fix) | Pending |
+| ENRICH-01 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| ENRICH-02 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| ENRICH-03 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| ENRICH-04 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| ENRICH-05 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| ENRICH-06 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| EXPO-01 | Phase 32 (Asset Exposure Context) | Pending |
+| EXPO-02 | Phase 32 (Asset Exposure Context) | Pending |
+| EXPO-03 | Phase 32 (Asset Exposure Context) | Pending |
+| EXPO-04 | Phase 32 (Asset Exposure Context) | Pending |
+| EXPO-05 | Phase 32 (Asset Exposure Context) | Pending |
+| EXPO-06 | Phase 32 (Asset Exposure Context) | Pending |
+| RISK-01 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-02 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-03 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-04 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-05 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-06 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-07 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
+| RISK-08 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
+| RISK-09 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
+| RISK-10 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
+| SRC-01 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-02 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-03 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-04 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-05 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-06 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-07 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-08 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
 
 **Coverage:**
 - v1 requirements: 33 total (CORR 3, ENRICH 6, EXPO 6, RISK 10, SRC 8)
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 33 ⚠️ (resolved when the roadmapper runs)
+- Mapped to phases: 33/33 ✓
+- Unmapped: 0 ✓ (Phase 30 CORR, Phase 31 ENRICH, Phase 32 EXPO, Phase 33 RISK-01..06, Phase 34 RISK-07..10, Phase 35 SRC)
 
 ---
 *Requirements defined: 2026-08-04*
-*Last updated: 2026-08-04 after v4.0 requirements definition*
+*Last updated: 2026-08-04 after v4.0 roadmap creation — 33/33 requirements mapped to Phases 30-35, no orphans*
