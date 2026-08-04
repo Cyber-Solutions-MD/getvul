@@ -2,16 +2,17 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-current_phase_name: roadmap created, ready to plan
-status: planning
-stopped_at: Phase 30 context gathered
-last_updated: "2026-08-04T11:51:49.013Z"
+current_phase: 30
+current_phase_name: correlation-schema-fix
+status: executing
+stopped_at: Phase 30 Plan 01 Task 1 complete — paused at Task 2 blocking checkpoint:decision (irreversible schema-drop)
+last_updated: "2026-08-04T13:08:05.000Z"
 last_activity: 2026-08-04
-last_activity_desc: v4.0 ROADMAP.md created (Phases 30-35)
+last_activity_desc: 30-01 Task 1 (SC#4 RED test) committed 792e684; awaiting checkpoint decision (proceed/halt) before Task 3
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
 ---
 
@@ -23,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** v4.0 roadmap created (Phases 30-35, 33/33 requirements mapped, no orphans). Next: `/gsd-plan-phase 30`.
+**Current focus:** Phase 30 — correlation-schema-fix
 
 ## Deferred Items
 
@@ -43,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: Not started (roadmap created, ready to plan)
-Plan: —
-Status: Roadmap created
-Last activity: 2026-08-04 — v4.0 ROADMAP.md created (Phases 30-35)
+Phase: 30 (correlation-schema-fix) — EXECUTING
+Plan: 1 of 2 (30-01, correlation-schema-fix)
+Status: PAUSED at blocking checkpoint:decision — Task 2 of 3 in 30-01-PLAN.md
+Last activity: 2026-08-04 — Task 1 (SC#4 Qualys+Rapid7 RED test, `backend/tests/test_correlation_service.py`) committed at `792e684`. Task 2 is the irreversible schema-drop decision (add `sources`+GIN + `source_vuln_ids`, DROP the 4 legacy FK columns) — requires explicit user selection (proceed/halt) before Task 3 (model + migration + service rewrite) can run. Resume by re-invoking `/gsd-execute-phase 30` with the user's selection.
 
 ## v4.0 Phase Map
 
