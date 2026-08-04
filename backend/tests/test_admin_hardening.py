@@ -30,7 +30,7 @@ from __future__ import annotations
 import uuid
 
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 
 from app.auth.jwt import create_access_token, decode_token
 from app.tenants.models import User
@@ -81,10 +81,14 @@ async def _reflag(db_session, user_id: uuid.UUID) -> None:
     """Set must_change_password=True in the DB and commit (Phase 29 helper).
 
     Used between successive rotations in multi-step tests, since a
-    successful rotation clears the flag.
+    successful rotation clears the flag. Uses a Core-style UPDATE (not an
+    ORM entity select+mutate) so it always issues a real write — an
+    identity-map-cached User object fetched via `select(User)` would not be
+    marked dirty by assigning a value it already believes is unchanged
+    (e.g. still cached as True from initial seeding), silently no-op'ing a
+    plain ORM mutate-and-commit.
     """
-    user = (await db_session.execute(select(User).where(User.id == user_id))).scalar_one()
-    user.must_change_password = True
+    await db_session.execute(update(User).where(User.id == user_id).values(must_change_password=True))
     await db_session.commit()
 
 

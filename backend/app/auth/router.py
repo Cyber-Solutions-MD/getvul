@@ -204,7 +204,7 @@ async def change_password_endpoint(
     auth.first_login_rotation audit row BEFORE commit (AUDIT-01 fail-closed),
     then return fresh flag-free tokens so the client needs no extra round-trip.
     """
-    from app.auth.password import change_password
+    from app.auth.password import FORCED_ROTATION_POLICY, change_password
 
     flag_was_set = user.must_change_password
     new_password = body.get("new_password", "")
@@ -217,11 +217,13 @@ async def change_password_endpoint(
     #      case-fold variants (" Admin123!", "admin123!", "ADMIN123!"); and
     #   2. reuse of the caller's *current* password by hash, which generalizes
     #      the guard beyond a single hardcoded literal.
-    # RESIDUAL (backlog): near-but-not-equal variants such as "Admin1234!"
-    # still pass. Catching those requires a real complexity/similarity policy,
-    # which is a larger design change deliberately out of scope here.
+    # Phase 29 (WR-02) closes the near-but-not-equal-variant residual
+    # ("Admin1234!") via the similarity guard below, plus a real
+    # complexity/history floor (FORCED_ROTATION_POLICY) passed as
+    # policy_override on this path. Accepted residual: bcrypt silently
+    # truncates at 72 bytes (T-29-bcrypt-72-truncation) — out of scope.
     if flag_was_set:
-        from app.auth.password import verify_password
+        from app.auth.password import is_too_similar, verify_password
 
         default_install_credential = "Admin123!"
         if new_password.strip().casefold() == default_install_credential.casefold():
@@ -235,11 +237,22 @@ async def change_password_endpoint(
         if current_hash and verify_password(new_password, current_hash):
             raise HTTPException(400, "Choose a password different from your current one")
 
+        submitted_current_password = body.get("current_password")
+        forbidden = [default_install_credential]
+        if submitted_current_password:
+            forbidden.append(submitted_current_password)
+        similarity_hit = is_too_similar(new_password, forbidden)
+        if similarity_hit is not None:
+            if similarity_hit.casefold() == default_install_credential.casefold():
+                raise HTTPException(400, "Choose a password less similar to the default install credential")
+            raise HTTPException(400, "Choose a password less similar to your current password")
+
     result = await change_password(
         db,
         user.id,
         current_password=body.get("current_password"),
         new_password=new_password,
+        policy_override=FORCED_ROTATION_POLICY if flag_was_set else None,
     )
     if "error" in result:
         raise HTTPException(400, result["error"])
