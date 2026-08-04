@@ -1,9 +1,31 @@
 ---
 phase: 28-eval-cost-observability-gate
 verified: 2026-08-03T13:10:00Z
-status: human_needed
-score: 13/14 must-haves verified (1 partial — see Gaps Summary)
-overrides_applied: 0
+status: passed
+canonicalized: 2026-08-04T08:53:23Z
+canonicalized_note: "human_needed → passed via /gsd-verify-work 28 UAT. Item 1 (pane visual/a11y) satisfied live (axe WCAG 2.1 AA clean both themes, G-28-1 fixed). Item 5 (golden-fixture provenance) decided: accept hand-authored fallback. Items 2/3/4 require external infra (GitHub secret+CI, synced-origin PR, live BYOK key) unprovisionable in this environment — user-waived 2026-08-04 as accepted overrides. No code defects."
+score: 13/14 must-haves verified (1 partial accepted via override — see Gaps Summary)
+overrides_applied: 4
+overrides:
+  - must_have: "Golden fixtures are seeded from REAL Phase 24-27 model outputs"
+    reason: "GETVUL_DEV_ANTHROPIC_KEY absent in this environment (pre-existing since Phase 24-01); hand-authored fixtures pass the identical production validation gates (model_validate_json + recheck_business_rules) a real capture would, and capture_ai_goldens.py is built + documented to regenerate them the moment a key is available. Independently proven: a corrupted fixture fails NoRankInvariantMetric/GroundingTraceabilityMetric exactly as a real bad capture would, so the gate's discriminating power is fixture-provenance-independent."
+    accepted_by: "Igor Chemencedji"
+    accepted_at: "2026-08-04T08:53:23Z"
+  - human_verification_item: "human-verification-item-2"
+    test: "Opt-in key-gated live CI tier (ai-live-eval-optin) — real run"
+    reason: "Requires a real DEV_ANTHROPIC_API_KEY repo secret + live GitHub Actions run + the intentionally-unscaffolded test_llm_judge_evals.py / promptfooconfig.yaml. Structural YAML correctness (key-gating, fork-guard, continue-on-error non-blocking) proven from source in 28-VERIFICATION.md. Cannot be observed in this environment; not a code defect."
+    accepted_by: "Igor Chemencedji"
+    accepted_at: "2026-08-04T08:53:23Z"
+  - human_verification_item: "human-verification-item-3"
+    test: "Merge-blocking observed on a real GitHub PR"
+    reason: "Requires a real PR against a synced origin; local main is ~400+ commits ahead of origin/main (project memory getvul-origin-behind-local-main), so a PR would be unmergeable. branch-protection.json verified byte-correct vs ci.yml job names; the repo's own non-required-docs-job precedent proves the merge-block mechanism. Cannot be observed here; not a code defect."
+    accepted_by: "Igor Chemencedji"
+    accepted_at: "2026-08-04T08:53:23Z"
+  - human_verification_item: "human-verification-item-4"
+    test: "Live budget-exceeded degradation end-to-end"
+    reason: "Requires a live Anthropic BYOK key spending real inference to trip the fail-closed breaker across the running stack (BYOK absent since Phase 24-01). Guard-before-dispatch ordering (explain.py:308 before :339), batch-path gating (batch.py), frontend budget_exceeded handling, and the non-tautological no-bypass coverage test (11/11, with under-budget falsifiability control) were all confirmed in isolation. Full live cross-stack flow cannot be exercised here; not a code defect."
+    accepted_by: "Igor Chemencedji"
+    accepted_at: "2026-08-04T08:53:23Z"
 must_haves:
   truths:
     - "SC1/AIE-01: DeepEval pytest-native eval suite runs in CI against golden sets and fails the build on schema/grounding/citation regression, never brittle prose"
@@ -51,7 +73,7 @@ human_verification:
 
 **Phase Goal:** The milestone closes with a real, CI-enforced quality gate — evals, red-team injection resistance, a fail-closed cost breaker, and admin-visible usage — seeded from real usage data now that every capability exists.
 **Verified:** 2026-08-03T13:10:00Z
-**Status:** human_needed
+**Status:** passed (canonicalized 2026-08-04 via UAT — see frontmatter `overrides`)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
@@ -216,7 +238,9 @@ One real, disclosed gap exists: the 10 committed golden fixtures are hand-author
 
 Separately, an out-of-phase-28-scope but real finding: the pre-existing `backend` CI job (the "Backend" required check, untouched by this phase) still lacks an `ENCRYPTION_KEY` env var its own "Run tests" step needs, and will fail the next time it runs for real in CI against 5 other Phase 24-27 test files that seed encrypted AI credentials. This is transparently logged in `deferred-items.md` (28-05 entry) with a suggested one-line fix, confirmed pre-existing and unrelated to any file this phase modified — flagged here for visibility only, not counted against Phase 28's own goal achievement.
 
-The overall status is `human_needed` rather than `passed` because of the four live/visual/policy items above (Step 9's rule: human-verification items take priority over a full pass score) — none of which represent a broken or missing capability, but all of which require either a live stack, a live GitHub PR cycle, a real secret, or a human policy call that cannot be settled by static codebase inspection alone.
+The initial status was `human_needed` because of the four live/visual/policy items above (Step 9's rule: human-verification items take priority over a full pass score) — none of which represents a broken or missing capability, but all of which require either a live stack, a live GitHub PR cycle, a real secret, or a human policy call that cannot be settled by static codebase inspection alone.
+
+**Canonicalized to `passed` on 2026-08-04 via `/gsd-verify-work 28`.** Of the four human-verification items: item 1 (admin pane visual/a11y) was satisfied against a live browser — a new Playwright + axe sweep passed WCAG 2.1 AA clean in both themes after fixing a real `aria-progressbar-name` violation (resolved gap G-28-1); item 5 (golden-fixture provenance policy) was decided in favour of accepting the documented hand-authored fallback. Items 2, 3, and 4 require external infrastructure that cannot be provisioned in this environment (a `DEV_ANTHROPIC_API_KEY` GitHub secret + live CI run, a PR against a synced origin, and a live spending BYOK key, respectively) and were formally **waived by the user as accepted overrides** (see frontmatter `overrides`). None is a code defect. Phase 28 therefore achieves its goal — a real, CI-enforced quality gate — and is verified passed.
 
 ---
 

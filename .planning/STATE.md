@@ -4,9 +4,9 @@ milestone: v3.0
 milestone_name: "AI-Assisted Triage (\"Triage Copilot\")"
 current_phase: 29
 current_phase_name: harden-forced-rotation-password-policy
-status: Phase 29 COMPLETE + UAT PASSED (1/1 plan, 6/6 UAT checkpoints green 2026-08-04) — WR-02 forced-rotation policy closed. Phase 28 also COMPLETE (5/5 plans) — AIE-01/02/03/04 all Complete in REQUIREMENTS.md; ready for /gsd-verify-work 28. All v3.0 phases (23–29) executed; milestone verification/close is the remaining work.
-stopped_at: Completed 29-01-PLAN.md — UAT passed
-last_updated: "2026-08-04T08:47:06.446Z"
+status: Phase 28 VERIFIED + UAT CLOSED (2026-08-04) — verification canonicalized human_needed→passed; 2/5 UAT tests passed, 3 waived by user (external-infra-only, not code defects), golden-fixture provenance + 3 human-verification items accepted as VERIFICATION overrides. Phase 29 COMPLETE + UAT PASSED (1/1 plan, 6/6). All v3.0 phases (23–29) executed & verified; /gsd-complete-milestone is the remaining work (re-verify Phase 24 optional — 4 waived live items).
+stopped_at: Phase 28 verify-work complete — verification passed, UAT closed (3 tests waived)
+last_updated: "2026-08-04T08:53:23Z"
 progress:
   total_phases: 28
   completed_phases: 28

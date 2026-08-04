@@ -1,14 +1,14 @@
 ---
-status: partial
+status: complete
 phase: 28-eval-cost-observability-gate
 source: [28-VERIFICATION.md]
 started: 2026-08-03T13:10:00Z
-updated: 2026-08-03T16:30:00Z
+updated: 2026-08-04T08:53:23Z
 ---
 
 ## Current Test
 
-[testing paused — 3 items blocked on external infrastructure]
+[testing complete]
 
 ## Tests
 
@@ -29,21 +29,21 @@ note: |
 
 ### 2. Opt-in key-gated live CI tier (`ai-live-eval-optin`) — real run
 expected: Configure a `DEV_ANTHROPIC_API_KEY` repository secret, author the deliberately-unscaffolded `backend/tests/evals/test_llm_judge_evals.py` and `redteam/promptfooconfig.yaml`, and observe a real run of the `ai-live-eval-optin` job — runs the real DeepEval LLM-judge suite + real promptfoo redteam, `continue-on-error: true`, never blocks, never runs on fork PRs.
-result: blocked
+result: skipped
 blocked_by: third-party
-reason: "Requires a real DEV_ANTHROPIC_API_KEY repository secret + a live GitHub Actions run to observe. Cannot provision GitHub secrets or trigger real CI from this environment; the referenced test_llm_judge_evals.py / promptfooconfig.yaml are intentionally unscaffolded. Only structural YAML correctness (key-gating, fork-guard, continue-on-error) is provable locally and was already confirmed in 28-VERIFICATION.md."
+reason: "Can't test in this environment — requires a real DEV_ANTHROPIC_API_KEY repository secret + a live GitHub Actions run to observe. Cannot provision GitHub secrets or trigger real CI here; the referenced test_llm_judge_evals.py / promptfooconfig.yaml are intentionally unscaffolded. Structural YAML correctness (key-gating, fork-guard, continue-on-error) was confirmed in 28-VERIFICATION.md. WAIVED by user 2026-08-04: accepted as out-of-scope for local verification — not a code defect. See VERIFICATION override 'human-verification-item-2'."
 
 ### 3. Merge-blocking observed on a real GitHub PR
 expected: Push this branch and open a real PR against the origin repo. A deliberately-broken golden fixture or injection-isolation regression causes `AI Golden-Set Evals (DeepEval)` / `AI Prompt-Injection Red-Team (static)` to fail and the PR to be blocked from merging.
-result: blocked
+result: skipped
 blocked_by: other
-reason: "Requires a real PR against an up-to-date origin. Local main is ~400+ commits ahead of origin/main (origin at PR#12); a PR would be unmergeable and I should not push it. branch-protection.json is verified byte-correct and the repo's own non-required-docs-job precedent proves the mechanism, but a live merge-block cannot be observed here."
+reason: "Can't test in this environment — requires a real PR against an up-to-date origin. Local main is ~400+ commits ahead of origin/main (origin at PR#12); a PR would be unmergeable and should not be pushed. branch-protection.json is verified byte-correct and the repo's own non-required-docs-job precedent proves the mechanism, but a live merge-block cannot be observed here. WAIVED by user 2026-08-04: accepted as out-of-scope for local verification — not a code defect. See VERIFICATION override 'human-verification-item-3'."
 
 ### 4. Live budget-exceeded degradation end-to-end
 expected: In a live tenant session, exceed the configured AI budget and confirm every AI surface (explain vuln/host/remediation/remediation-guidance/prioritization, ticket drafting) degrades to deterministic-score-only in the running UI, and the admin pane's breaker banner ("AI paused — budget exceeded") appears within the same session.
-result: blocked
+result: skipped
 blocked_by: third-party
-reason: "Requires a live Anthropic BYOK key + a real tenant session actually spending inference to trip the fail-closed breaker end-to-end across the stack. No real key is available (BYOK, absent since Phase 24-01). Guard ordering (explain.py) + frontend budget_exceeded handling + the no-bypass coverage test were confirmed in isolation, but the full live cross-stack flow needs a spending key. NOTE: the pane's breaker-banner render path itself is exercised — the seeded-configured 4-card layout in Test 1 renders from the same component (breaker_tripped=false branch)."
+reason: "Can't test in this environment — requires a live Anthropic BYOK key + a real tenant session actually spending inference to trip the fail-closed breaker end-to-end across the stack. No real key is available (BYOK, absent since Phase 24-01). Guard ordering (explain.py) + frontend budget_exceeded handling + the no-bypass coverage test were confirmed in isolation, but the full live cross-stack flow needs a spending key. NOTE: the pane's breaker-banner render path itself is exercised — the seeded-configured 4-card layout in Test 1 renders from the same component (breaker_tripped=false branch). WAIVED by user 2026-08-04: accepted as out-of-scope for local verification — not a code defect. See VERIFICATION override 'human-verification-item-4'."
 
 ### 5. Policy decision — golden-fixture provenance
 expected: Decide whether the hand-authored (non-model-captured) golden fixtures are acceptable to close AIE-01, or whether milestone close should be gated on a real `capture_ai_goldens.py` run first.
@@ -61,8 +61,21 @@ total: 5
 passed: 2
 issues: 0
 pending: 0
-skipped: 0
-blocked: 3
+skipped: 3
+blocked: 0
+
+## Waived (user-accepted, 2026-08-04)
+
+Tests 2, 3, and 4 could not be executed in this environment — each requires
+external infrastructure that cannot be provisioned locally (a real
+`DEV_ANTHROPIC_API_KEY` GitHub secret + live CI run; a real PR against a
+synced origin; a live Anthropic BYOK key spending real inference). The user
+formally WAIVED these three checks on 2026-08-04, accepting them as
+out-of-scope for local verification. None represents a code defect: the
+underlying mechanisms were each confirmed structurally/in-isolation during
+28-VERIFICATION.md, and the corresponding VERIFICATION human-verification
+items are recorded as accepted overrides. Zero code issues were found; the
+one real gap surfaced during testing (G-28-1, a11y) was fixed and re-verified.
 
 ## Gaps
 
