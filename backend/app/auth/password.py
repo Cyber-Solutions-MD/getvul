@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import secrets
 import uuid
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
+from difflib import SequenceMatcher
+from typing import Any
 
 import bcrypt
 import structlog
@@ -24,6 +27,69 @@ DEFAULT_POLICY = {
     "require_symbol": False,
     "history_count": 0,
 }
+
+# Phase 29 (WR-02): the strong floor enforced on the forced-rotation
+# (must_change_password) path only. A tenant's own password_policy may be
+# stricter, never weaker — see merge_policy_floor.
+FORCED_ROTATION_POLICY = {
+    "min_length": 12,
+    "require_uppercase": True,
+    "require_lowercase": True,
+    "require_digit": True,
+    "require_symbol": True,
+    "history_count": 5,
+}
+
+
+def merge_policy_floor(base: dict[str, Any] | None, floor: dict[str, Any]) -> dict[str, Any]:
+    """Merge a tenant policy with a strong floor — the STRICTEST value wins.
+
+    Bools are OR'd (True wins); min_length and history_count take the max
+    of base vs. floor. `base=None` is treated as DEFAULT_POLICY. This lets a
+    tenant configure a *stricter* policy than the floor without ever being
+    weakened below it.
+    """
+    effective_base: dict[str, Any] = {**DEFAULT_POLICY, **(base or {})}
+    merged: dict[str, Any] = dict(effective_base)
+    for key, floor_value in floor.items():
+        base_value = effective_base.get(key)
+        if isinstance(floor_value, bool):
+            merged[key] = bool(base_value) or floor_value
+        elif isinstance(floor_value, int):
+            merged[key] = max(int(base_value or 0), floor_value)
+        else:
+            merged[key] = floor_value
+    return merged
+
+
+def password_similarity_ratio(a: str, b: str) -> float:
+    """Return a symmetric similarity ratio in [0.0, 1.0] between two strings.
+
+    Normalizes (casefold + strip) both inputs, THEN truncates each to 128
+    chars before running difflib's O(n·m) SequenceMatcher — bounding CPU
+    cost regardless of submitted input length (DoS mitigation). Returns 0.0
+    if either side is empty after normalization.
+    """
+    norm_a = a.casefold().strip()[:128]
+    norm_b = b.casefold().strip()[:128]
+    if not norm_a or not norm_b:
+        return 0.0
+    return SequenceMatcher(None, norm_a, norm_b).ratio()
+
+
+def is_too_similar(candidate: str, forbidden: Iterable[str], threshold: float = 0.7) -> str | None:
+    """Return the first forbidden string too similar to `candidate`, else None.
+
+    "Too similar" means password_similarity_ratio >= threshold. 0.7 mirrors
+    Django's UserAttributeSimilarityValidator default. Empty forbidden
+    entries are skipped.
+    """
+    for entry in forbidden:
+        if not entry:
+            continue
+        if password_similarity_ratio(candidate, entry) >= threshold:
+            return entry
+    return None
 
 
 def hash_password(password: str) -> str:
@@ -185,15 +251,26 @@ async def change_password(
     user_id: uuid.UUID,
     current_password: str | None,
     new_password: str,
+    policy_override: dict[str, Any] | None = None,
 ) -> dict:
-    """Change user password with policy validation and history check."""
+    """Change user password with policy validation and history check.
+
+    `policy_override` (Phase 29, WR-02): when provided, the effective policy
+    is `merge_policy_floor(tenant.password_policy, policy_override)` — a
+    strong floor that a tenant policy may exceed but never weaken. When
+    omitted, behavior is unchanged (tenant.password_policy or DEFAULT_POLICY).
+    """
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user:
         return {"error": "User not found"}
 
     # Get tenant policy
     tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
-    policy = tenant.password_policy or DEFAULT_POLICY
+    policy = (
+        merge_policy_floor(tenant.password_policy, policy_override)
+        if policy_override
+        else (tenant.password_policy or DEFAULT_POLICY)
+    )
 
     # Validate against policy
     err = validate_password(new_password, policy)
