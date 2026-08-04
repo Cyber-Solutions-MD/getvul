@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -90,18 +90,11 @@ class VulnerabilityCorrelation(Base, UUIDPrimaryKeyMixin):
     asset_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), nullable=False
     )
-    crowdstrike_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
-    )
-    nessus_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
-    )
-    defender_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
-    )
-    wiz_vuln_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="SET NULL")
-    )
+    # Canonical, deduplicated, enum-order-sorted source set (D-01/D-02). GIN-indexed
+    # via alembic 034_add_correlation_sources — mirrors assets.tags (025_add_asset_tags.py).
+    sources: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    # Linkage-only map {SOURCE: vuln_uuid-as-string} (D-04). No GIN index — not filtered on.
+    source_vuln_ids: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     sources_count: Mapped[int] = mapped_column(Integer, default=1)
     confidence: Mapped[str] = mapped_column(String(10), default=Confidence.LOW.value)
 

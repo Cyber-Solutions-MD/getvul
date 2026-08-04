@@ -9,17 +9,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
+from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation, VulnSource
 
 logger = structlog.get_logger()
 
-# Source column mapping on VulnerabilityCorrelation
-SOURCE_COLUMN_MAP = {
-    "CROWDSTRIKE": "crowdstrike_vuln_id",
-    "NESSUS": "nessus_vuln_id",
-    "DEFENDER": "defender_vuln_id",
-    "WIZ": "wiz_vuln_id",
-}
+# Canonical order = VulnSource enum declaration order (D-02). Forward-compatible:
+# adding a 7th VulnSource member requires zero change to this file (CORR-01).
+_SOURCE_ORDER: list[str] = [s.value for s in VulnSource]
 
 
 async def run_correlations(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
@@ -39,26 +35,32 @@ async def run_correlations(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
 
     for key, source_vulns in groups.items():
         cve_id, asset_id = key
-        sources_count = len(source_vulns)
+        # Canonical order (D-02): dedupe + sort by VulnSource enum declaration
+        # order. sources_count is derived from the SAME list, so the two can
+        # never disagree (CORR-03).
+        sources = [s for s in _SOURCE_ORDER if s in source_vulns]
+        sources_count = len(sources)
 
-        if sources_count >= 3:
+        # D-08 recalibrated bands for the full 6-source scale. LOW (<=1) is
+        # structurally near-unreachable here since _find_correlated_groups
+        # already filters to len(v) >= 2 -- intentional.
+        if sources_count >= 4:
             confidence = "HIGH"
-        elif sources_count == 2:
+        elif sources_count >= 2:
             confidence = "MEDIUM"
         else:
             confidence = "LOW"
 
-        # Build the source vuln ID columns
         values = {
             "tenant_id": tenant_id,
             "cve_id": cve_id,
             "asset_id": asset_id,
             "sources_count": sources_count,
             "confidence": confidence,
-            "crowdstrike_vuln_id": source_vulns.get("CROWDSTRIKE"),
-            "nessus_vuln_id": source_vulns.get("NESSUS"),
-            "defender_vuln_id": source_vulns.get("DEFENDER"),
-            "wiz_vuln_id": source_vulns.get("WIZ"),
+            "sources": sources,
+            # str() is required -- a raw uuid.UUID is not JSON-serializable into
+            # JSONB (verified: raises TypeError otherwise). See RESEARCH Pitfall 2.
+            "source_vuln_ids": {s: str(source_vulns[s]) for s in sources},
         }
 
         # Upsert on (tenant_id, cve_id, asset_id)
@@ -68,10 +70,8 @@ async def run_correlations(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
             set_={
                 "sources_count": stmt.excluded.sources_count,
                 "confidence": stmt.excluded.confidence,
-                "crowdstrike_vuln_id": stmt.excluded.crowdstrike_vuln_id,
-                "nessus_vuln_id": stmt.excluded.nessus_vuln_id,
-                "defender_vuln_id": stmt.excluded.defender_vuln_id,
-                "wiz_vuln_id": stmt.excluded.wiz_vuln_id,
+                "sources": stmt.excluded.sources,
+                "source_vuln_ids": stmt.excluded.source_vuln_ids,
             },
         )
         result = await db.execute(stmt)
@@ -182,25 +182,12 @@ async def get_correlation_for_vuln(
     if corr is None:
         return None
 
-    sources = []
-    if corr.crowdstrike_vuln_id:
-        sources.append("CROWDSTRIKE")
-    if corr.nessus_vuln_id:
-        sources.append("NESSUS")
-    if corr.defender_vuln_id:
-        sources.append("DEFENDER")
-    if corr.wiz_vuln_id:
-        sources.append("WIZ")
-
     return {
         "id": corr.id,
         "cve_id": corr.cve_id,
         "asset_id": corr.asset_id,
-        "sources": sources,
+        "sources": corr.sources or [],
         "sources_count": corr.sources_count,
         "confidence": corr.confidence,
-        "crowdstrike_vuln_id": corr.crowdstrike_vuln_id,
-        "nessus_vuln_id": corr.nessus_vuln_id,
-        "defender_vuln_id": corr.defender_vuln_id,
-        "wiz_vuln_id": corr.wiz_vuln_id,
+        "source_vuln_ids": corr.source_vuln_ids or {},
     }

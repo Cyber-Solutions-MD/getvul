@@ -32,6 +32,7 @@ app/audit.py:0: error: Missing type arguments for generic type "dict"  [type-arg
 app/audit.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/audit.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/vulnerabilities/models.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+app/vulnerabilities/models.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/vulnerabilities/models.py:0: error: Name "Asset" is not defined; did you mean "asset"?  [name-defined]
 app/vulnerabilities/models.py:0: error: Name "Asset" is not defined; did you mean "asset"?  [name-defined]
 app/ticketing/models.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
