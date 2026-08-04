@@ -43,8 +43,8 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
   2. Existing correlation data — including Qualys/Rapid7 records that are silently dropped today — is migrated into the new shape with zero loss, verified per-tenant
   3. `correlation_service.py` loops over the full `VulnSource` enum instead of a hardcoded `SOURCE_COLUMN_MAP`, so `sources_count` and the resolved source-name list can never disagree
   4. A regression test seeds a finding seen only by Qualys + Rapid7 and confirms it now correlates correctly (this case was silently dropped pre-fix)
-**Plans**: 2 plans
-- [ ] 30-01-PLAN.md — Generalized source-set: model + migration (034) + correlation_service rewrite; SC#4 tracer (CORR-01, CORR-03)
+**Plans**: 2 plans (1/2 complete)
+- [x] 30-01-PLAN.md — Generalized source-set: model + migration (034) + correlation_service rewrite; SC#4 tracer (CORR-01, CORR-03) *(complete 2026-08-04 — SC#4 GREEN: Qualys+Rapid7 now correlates)*
 - [ ] 30-02-PLAN.md — Re-correlation script (testable `_recorrelate_tenant` helper) + runtime per-tenant zero-loss recovery test + banding/invariant/tenant-scope + D-09 HTTP-shape tests (CORR-01, CORR-02, CORR-03)
 
 ### Phase 31: Connector Enrichment Rewrite

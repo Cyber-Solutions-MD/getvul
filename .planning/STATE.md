@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 30
 current_phase_name: correlation-schema-fix
 status: executing
-stopped_at: Phase 30 Plan 01 Task 1 complete — paused at Task 2 blocking checkpoint:decision (irreversible schema-drop)
-last_updated: "2026-08-04T13:08:05.000Z"
+stopped_at: Phase 30 Plan 01 complete (SC#4 GREEN) — ready for Plan 02
+last_updated: "2026-08-04T13:24:06.000Z"
 last_activity: 2026-08-04
-last_activity_desc: 30-01 Task 1 (SC#4 RED test) committed 792e684; awaiting checkpoint decision (proceed/halt) before Task 3
+last_activity_desc: 30-01 complete — correlation source-set generalized over full VulnSource enum; SC#4 Qualys+Rapid7 regression GREEN
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 2
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 30 (correlation-schema-fix) — EXECUTING
-Plan: 1 of 2 (30-01, correlation-schema-fix)
-Status: PAUSED at blocking checkpoint:decision — Task 2 of 3 in 30-01-PLAN.md
-Last activity: 2026-08-04 — Task 1 (SC#4 Qualys+Rapid7 RED test, `backend/tests/test_correlation_service.py`) committed at `792e684`. Task 2 is the irreversible schema-drop decision (add `sources`+GIN + `source_vuln_ids`, DROP the 4 legacy FK columns) — requires explicit user selection (proceed/halt) before Task 3 (model + migration + service rewrite) can run. Resume by re-invoking `/gsd-execute-phase 30` with the user's selection.
+Plan: 30-01 COMPLETE (1 of 2) — next: 30-02
+Status: 30-01 done; ready for `/gsd-execute-phase 30` to continue with 30-02 (or `/gsd-verify-work 30` once both plans land)
+Last activity: 2026-08-04 — 30-01 complete: Task 1 RED test (`792e684`), checkpoint:decision resolved = proceed (irreversible schema-drop approved), Task 3 tracer GREEN (`a0de97f`) — `VulnerabilityCorrelation` gains `sources ARRAY(String)`+GIN + `source_vuln_ids` JSONB, migration `034_add_correlation_sources` applied clean, `correlation_service.py` generalized over the full `VulnSource` enum (`SOURCE_COLUMN_MAP` removed, `_SOURCE_ORDER` added). SC#4 regression (Qualys+Rapid7-only correlation) confirmed GREEN. CORR-01/CORR-03 requirements NOT yet marked complete in REQUIREMENTS.md — shared-ID gate: 30-02 also declares them (plus CORR-02) and hasn't finished; all 3 flip together when 30-02's SUMMARY lands. Next: 30-02 (re-correlation script + zero-loss recovery test + banding/invariant/tenant-scope coverage).
 
 ## v4.0 Phase Map
 
@@ -303,6 +303,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 28-05]: BLOCKER (Rule 3 auto-fix) -- ai-redteam-injection needs ENCRYPTION_KEY: test_ai_budget_coverage.py seeds a real Fernet-encrypted ANTHROPIC ConnectorConfig row, and Settings.encryption_key's class-level default is a literal placeholder (not a valid 32-byte url-safe base64 Fernet key) with no .env anywhere (confirmed absent + gitignored on disk; confirmed via `gh secret list`/`gh variable list` against the real Cyber-Solutions-MD/getvul repo that only SEMGREP_APP_TOKEN exists). Added one disposable, non-secret, hardcoded test-only Fernet key scoped to just this job's env, mirroring the existing JWT_SECRET_KEY: test-secret convention. The identical gap in the pre-existing `backend` job (affecting 5 other Phase 24-27 test files, never yet exercised in real CI since local main is ~400+ commits ahead of origin/main) was logged to deferred-items.md, not fixed -- out of this plan's file scope
 - [Phase 28-05]: ai-live-eval-optin's referenced tests/evals/test_llm_judge_evals.py and redteam/promptfooconfig.yaml deliberately left non-existent (skip-no-op via the HAS_DEV_KEY-gated steps), not scaffolded -- per the plan's own explicit instruction ("do not create them here unless trivially scaffolding an empty config, and never make them blocking")
 - [Phase 28-05]: AIE-01/AIE-02/AIE-03 all marked [x] Complete in REQUIREMENTS.md -- this is the final contributing plan for all 3 (mirrors the AIE-01/02-Plan-01/02 precedent of holding a multi-plan requirement open until CI wiring lands); Phase 28 roadmap checkbox + progress-table row also flipped to Complete (5/5 plans) since this is the phase's last plan and no verification-status field exists at this layer to conflate with
+- [Phase 30-01]: Task 2 checkpoint:decision (irreversible schema-drop: add sources+GIN + source_vuln_ids, DROP the 4 legacy FK columns) resolved = proceed, per explicit user/coordinator approval -- executor did not self-select despite gate="blocking" nominally allowing auto-mode bypass, since auto-mode was not active (_auto_chain_active/auto_advance both false) and the plan's own frontmatter marks it non-autonomous
+- [Phase 30-01]: mypy-baseline.txt gained one new "Missing type arguments for generic type dict" entry for VulnerabilityCorrelation.source_vuln_ids -- mirrors the already-baselined bare-dict pattern used by Vulnerability.file_paths (same file) and Asset.mdm_details, matching RESEARCH Pattern 2's explicit "plain Mapped[dict | None]" shape rather than deviating to a typed dict[str,str] to dodge the baseline edit; verified zero net-new unbaselined violations via git-stash + rm -rf .mypy_cache before/after diff (fixed=3/new=3 identical to a clean-HEAD run)
+- [Phase 30-01]: CORR-01/CORR-03 deliberately left [ ] Pending in REQUIREMENTS.md despite this plan's frontmatter declaring them -- shared-ID gate: 30-02 also declares CORR-01/02/03 and hasn't produced a SUMMARY yet; all 3 flip together when 30-02 (the last declaring plan) finishes, mirroring the AIE-01/02/28-01 and AID-01/27-01 precedents
+- [Phase 30-01]: Confidence bands recalibrated in code per CONTEXT's already-locked D-08 (HIGH>=4/MEDIUM 2-3/LOW 1, up from HIGH>=3/MEDIUM=2/LOW else) -- not a new decision made during execution, but the first plan where the new bands take effect in run_correlations
 
 ## Performance Metrics
 
@@ -340,9 +344,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 28 P03 | 35min | 2 tasks | 4 files |
 | Phase 28 P04 | 36min | 2 tasks | 11 files |
 | Phase 28 P05 | 19min | 1 task | 3 files |
+| Phase 30 P01 | 21min | 3 tasks | 6 files |
 
 ## Session
 
-**Last session:** 2026-08-04T11:51:48.996Z
-**Stopped at:** Phase 30 context gathered
-**Resume file:** .planning/phases/30-correlation-schema-fix/30-CONTEXT.md
+**Last session:** 2026-08-04T13:24:06.000Z
+**Stopped at:** Completed 30-01-PLAN.md
+**Resume file:** None
