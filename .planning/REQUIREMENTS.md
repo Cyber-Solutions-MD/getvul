@@ -13,9 +13,9 @@ Requirements for the v4.0 release. Each maps to exactly one roadmap phase (see T
 
 ### Correlation Completeness (CORR) — prerequisite
 
-- [ ] **CORR-01**: Cross-source correlation records the complete set of scanners that see each CVE-on-host (all 6 sources, forward-compatible with a 7th), replacing the hardcoded 4-source FK columns with a `sources ARRAY(String)` + GIN-index shape (mirrors the shipped `assets.tags` pattern)
-- [ ] **CORR-02**: Existing correlation data (including Qualys/Rapid7, silently dropped today) is migrated into the generalized source-set model with no loss, tenant-scoped
-- [ ] **CORR-03**: `correlation_service.py` loops over the full `VulnSource` enum instead of a hardcoded 4-entry `SOURCE_COLUMN_MAP`, so `sources_count` and the resolved source names can never disagree
+- [x] **CORR-01**: Cross-source correlation records the complete set of scanners that see each CVE-on-host (all 6 sources, forward-compatible with a 7th), replacing the hardcoded 4-source FK columns with a `sources ARRAY(String)` + GIN-index shape (mirrors the shipped `assets.tags` pattern)
+- [x] **CORR-02**: Existing correlation data (including Qualys/Rapid7, silently dropped today) is migrated into the generalized source-set model with no loss, tenant-scoped
+- [x] **CORR-03**: `correlation_service.py` loops over the full `VulnSource` enum instead of a hardcoded 4-entry `SOURCE_COLUMN_MAP`, so `sources_count` and the resolved source names can never disagree
 
 ### Connector Enrichment (ENRICH)
 
@@ -90,9 +90,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORR-01 | Phase 30 (Correlation Schema Fix) | Pending |
-| CORR-02 | Phase 30 (Correlation Schema Fix) | Pending |
-| CORR-03 | Phase 30 (Correlation Schema Fix) | Pending |
+| CORR-01 | Phase 30 (Correlation Schema Fix) | Complete |
+| CORR-02 | Phase 30 (Correlation Schema Fix) | Complete |
+| CORR-03 | Phase 30 (Correlation Schema Fix) | Complete |
 | ENRICH-01 | Phase 31 (Connector Enrichment Rewrite) | Pending |
 | ENRICH-02 | Phase 31 (Connector Enrichment Rewrite) | Pending |
 | ENRICH-03 | Phase 31 (Connector Enrichment Rewrite) | Pending |
