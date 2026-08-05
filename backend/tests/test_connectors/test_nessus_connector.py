@@ -25,7 +25,7 @@ import json
 import httpx
 import pytest
 
-from app.connectors.nessus import NessusConnector
+from app.connectors.nessus import NessusConnector, _normalize_vuln
 
 
 def _install_fast_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -242,3 +242,104 @@ async def test_verify_tls_defaults_true_and_config_can_disable(monkeypatch: pyte
     await connector2.authenticate(CREDS, {"verify_tls": False})
     await connector2.close()
     assert captured[-1]["verify"] is False
+
+
+# ── ENRICH-03/04 (Phase 31 Plan 03): VPR defensive probe -> native_priority_score,
+# source_signals missing-vs-negative ──
+
+
+def test_normalize_vuln_vpr_score_key_populates_native_priority_score():
+    """A VPR-shaped `vpr_score` value in plugin_attributes -> native_priority_score
+    == the raw float on EVERY per-CVE fanout finding (D-06: no re-scale). Nessus
+    VPR has no vendor categorical rating, so native_priority_rating stays
+    explicit None."""
+    vuln = {
+        "plugin_id": 111,
+        "plugin_name": "Test VPR Plugin",
+        "severity": 3,
+        "cve": ["CVE-2024-0001", "CVE-2024-0002"],
+        "plugin_attributes": {"vpr_score": "7.8"},
+    }
+    results = _normalize_vuln(vuln, hostname="h", host_ip="10.0.0.1", os_name="Linux", os_version="5.4")
+
+    assert len(results) == 2
+    for r in results:
+        assert r.native_priority_score == 7.8
+        assert r.native_priority_rating is None
+
+
+def test_normalize_vuln_vpr_key_candidate_fallback():
+    """A1 (31-RESEARCH.md Assumptions Log): the exact VPR field name is
+    unverified -- the second candidate (`vpr`) is probed when `vpr_score` is
+    absent."""
+    vuln = {
+        "plugin_id": 112,
+        "plugin_name": "Test VPR Fallback Plugin",
+        "severity": 2,
+        "cve": ["CVE-2024-0003"],
+        "plugin_attributes": {"vpr": 4.2},
+    }
+    results = _normalize_vuln(vuln, hostname="h", host_ip="10.0.0.1", os_name="Linux", os_version="5.4")
+
+    assert results[0].native_priority_score == 4.2
+
+
+def test_normalize_vuln_vpr_absent_stays_none_no_crash():
+    """No VPR-shaped key at all in plugin_attributes -> native_priority_score
+    stays None (soft-null, never a crash)."""
+    vuln = {
+        "plugin_id": 113,
+        "plugin_name": "No VPR Plugin",
+        "severity": 1,
+        "cve": [],
+        "plugin_attributes": {"exploit_available": "false"},
+    }
+    results = _normalize_vuln(vuln, hostname="h", host_ip="10.0.0.1", os_name="Linux", os_version="5.4")
+
+    assert results[0].native_priority_score is None
+    # exploit_available IS present (even though falsy/"false" as a string) --
+    # must be captured in source_signals as present-but-negative, not omitted.
+    assert results[0].source_signals["exploit_available"] == "false"
+    # exploitability_ease was genuinely never returned -- missing, not negative.
+    assert "exploitability_ease" not in results[0].source_signals
+
+
+def test_normalize_vuln_source_signals_missing_vs_negative_and_no_pii_or_promoted_keys():
+    """SC#4 shape: a present-but-falsy field is distinguishable from a
+    genuinely-absent one in the same finding; no PII/promoted-column keys
+    leak into source_signals; VPR itself is NOT duplicated (already promoted
+    to native_priority_score, D-08)."""
+    vuln = {
+        "plugin_id": 114,
+        "plugin_name": "Missing vs Negative Plugin",
+        "severity": 4,
+        "cvss3_base_score": 9.8,
+        "cve": ["CVE-2024-0004"],
+        "plugin_attributes": {"exploit_available": False, "vpr_score": 8.1},
+    }
+    results = _normalize_vuln(vuln, hostname="host-x", host_ip="10.1.1.1", os_name="Linux", os_version="5.4")
+
+    signals = results[0].source_signals
+    assert signals["exploit_available"] is False  # present, negative
+    assert "exploitability_ease" not in signals  # genuinely never returned -- missing
+    assert "vpr_score" not in signals  # promoted to native_priority_score, not duplicated (D-08)
+    for forbidden in ("hostname", "ip_addresses", "cve_id", "cvss", "severity", "epss", "native_priority"):
+        assert forbidden not in signals
+
+
+def test_normalize_vuln_native_priority_fields_always_set_even_without_plugin_attributes():
+    """ENRICH-06: even when plugin_attributes is entirely absent, all 3 new
+    fields are explicitly set (native_priority_score=None,
+    native_priority_rating=None, source_signals={}) -- never omitted, never
+    a crash."""
+    vuln = {
+        "plugin_id": 115,
+        "plugin_name": "No Attributes Plugin",
+        "severity": 0,
+        "cve": [],
+    }
+    results = _normalize_vuln(vuln, hostname="h", host_ip="10.0.0.1", os_name="Linux", os_version="5.4")
+
+    assert results[0].native_priority_score is None
+    assert results[0].native_priority_rating is None
+    assert results[0].source_signals == {}
