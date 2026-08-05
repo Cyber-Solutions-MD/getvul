@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 31
 current_phase_name: Connector Enrichment Rewrite
 status: executing
-stopped_at: Phase 31 Plan 01 complete — Defender tracer, 3/3 tasks, TDD green
-last_updated: "2026-08-05T10:18:08.000Z"
+stopped_at: Phase 31 Plan 02 complete — enrichment feed refresh + scheduler wiring, 3/3 tasks, TDD green, live-verified against real EPSS/KEV feeds, 2 Rule-1 bugs fixed (concurrency race, cross-file test collision)
+last_updated: "2026-08-05T11:03:22.019Z"
 last_activity: 2026-08-05
-last_activity_desc: Phase 31 Plan 01 complete
+last_activity_desc: "Phase 31 Plan 02 complete (enrichment feed refresh + scheduler wiring: EPSS/KEV fetch+parse, D-09 atomic-swap-keeps-last-good, D-01/D-02 re-propagation, D-10 eager first-run, 3/3 tasks, TDD RED→GREEN, live-verified against real feeds)"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 31 (Connector Enrichment Rewrite) — EXECUTING
-Plan: 2 of 5 (Plan 1 complete)
-Status: Executing Phase 31
-Last activity: 2026-08-05 — Phase 31 Plan 01 complete (Defender enrichment tracer: schema spine + write-path + Defender parser, 3/3 tasks, TDD RED→GREEN)
+Plan: 3 of 5 (Plans 1-2 complete)
+Status: Ready to execute
+Last activity: 2026-08-05 — Phase 31 Plan 02 complete (enrichment feed refresh + scheduler wiring: EPSS/KEV fetch+parse, D-09 atomic-swap-keeps-last-good, D-01/D-02 re-propagation, D-10 eager first-run, 3/3 tasks, TDD RED→GREEN, live-verified against real feeds)
 
 ## v4.0 Phase Map
 
@@ -312,6 +312,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 31-01]: source_signals typed dict[str, Any] | None (not the interfaces block's literal bare dict | None) across base.py/models.py/schemas.py -- strict mypy flags bare generic dict; fixing this in the lead tracer prevents the same mypy-baseline regression recurring across Plans 02-05's remaining 5 connectors. Downstream plans should follow dict[str, Any], not the interfaces block's literal sketch
 - [Phase 31-01]: BLOCKER (Rule 1 auto-fix) -- Task 2's bare-dict source_signals fields cascaded into 2 new mypy arg-type errors on qualys.py's pre-existing NormalizedVulnerability(**base) call (a file this plan doesn't otherwise touch); fixed with a single dict[str, Any] annotation on qualys.py's base dict (zero behavior change), confirmed via git-stash diff against the Task-2-only state that this was a genuine regression (fixed) vs. the separate, confirmed pre-existing jose-stub note-attribution flake on app/auth/dependencies.py (unrelated, reproduces on unmodified HEAD)
 - [Phase 31-01]: ENRICH-01/02/03/04/06 left [ ] Pending in REQUIREMENTS.md -- shared-ID gate: every one of these 5 IDs is also declared by at least one other not-yet-executed Phase 31 plan (31-02 for ENRICH-01/02's real feed; 31-03/04/05 for ENRICH-03/04/06's remaining 5 connectors + cross-6 sweep), mirroring the CORR-01/03 (Phase 30) and AIE-01/02 (Phase 28) shared-ID-gate precedent
+- [Phase 31]: 31-02: repropagate_enrichment returns {repropagated, kev_recomputed} as two separate counts (not one) -- the EPSS UPDATE only matches rows with a cve_id hit while the KEV UPDATE is an unconditional bidirectional recompute touching every row (D-04 authoritative-both-ways); collapsing them would obscure the different match semantics
+- [Phase 31]: 31-02: added _enrichment_refresh_lock (asyncio.Lock), beyond the plan's literal text -- a genuine, reproduced-live concurrency race between start_scheduler()'s eager call and _scheduler_loop()'s own first-tick inline call both racing the same in-memory gate, confirmed via a real UniqueViolationError on epss_scores_pkey against the docker dev stack's --reload backend
+- [Phase 31]: 31-02: test_enrichment_feeds.py (new) and Plan 01's test_vulnerability_enrichment.py both changed seed cve_id values to a pre-1999 year (CVE-1990-...) -- the real CVE numbering floor is 1999, making this range permanently collision-proof against real feed data this plan's own scheduler wiring can now populate during any client-fixture test's app lifespan
 
 ## Performance Metrics
 
@@ -351,9 +354,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 28 P05 | 19min | 1 task | 3 files |
 | Phase 30 P01 | 21min | 3 tasks | 6 files |
 | Phase 31 P01 | 25min | 3 tasks | 10 files |
+| Phase 31 P02 | 65min | 3 tasks | 8 files |
 
 ## Session
 
-**Last session:** 2026-08-05T10:18:08.000Z
-**Stopped at:** Phase 31 Plan 01 complete (Defender enrichment tracer) — next: 31-02-PLAN.md
-**Resume file:** .planning/phases/31-connector-enrichment-rewrite/31-02-PLAN.md
+**Last session:** 2026-08-05T11:03:22.008Z
+**Stopped at:** Phase 31 Plan 02 complete — enrichment feed refresh + scheduler wiring, 3/3 tasks, TDD green, live-verified against real EPSS/KEV feeds, 2 Rule-1 bugs fixed (concurrency race, cross-file test collision)
+**Resume file:** None

@@ -19,11 +19,11 @@ Requirements for the v4.0 release. Each maps to exactly one roadmap phase (see T
 
 ### Connector Enrichment (ENRICH)
 
-- [ ] **ENRICH-01**: EPSS score + percentile is captured per finding and populated for every connector (the `epss_score` column exists today but no connector populates it)
-- [ ] **ENRICH-02**: Real CISA KEV status is captured per finding from an authoritative feed (fixing the Defender `cisa_kev=False` hardcode)
+- [x] **ENRICH-01**: EPSS score + percentile is captured per finding and populated for every connector (the `epss_score` column exists today but no connector populates it)
+- [x] **ENRICH-02**: Real CISA KEV status is captured per finding from an authoritative feed (fixing the Defender `cisa_kev=False` hardcode)
 - [ ] **ENRICH-03**: Vendor-native exploitability/priority signals (Nessus VPR, CrowdStrike ExPRT.AI rating + score, and each scanner's equivalent) are preserved per finding in promoted typed columns for sort/filter, not flattened to booleans at ingestion
 - [ ] **ENRICH-04**: Long-tail scanner-native signals are retained per finding in a queryable `source_signals` JSONB field (mirrors the `Asset.mdm_details` precedent), with explicit "missing vs. negative" modeling
-- [ ] **ENRICH-05**: EPSS and CISA KEV reference data live in global, tenant-independent reference tables refreshed by a dedicated daily job in the existing in-process scheduler, decoupled from any individual connector's sync cadence (a deliberate, signed-off exception to the "every table has `tenant_id`" convention, correct because this is CVE-level fact, not tenant-owned data)
+- [x] **ENRICH-05**: EPSS and CISA KEV reference data live in global, tenant-independent reference tables refreshed by a dedicated daily job in the existing in-process scheduler, decoupled from any individual connector's sync cadence (a deliberate, signed-off exception to the "every table has `tenant_id`" convention, correct because this is CVE-level fact, not tenant-owned data)
 - [ ] **ENRICH-06**: All 6 connectors (CrowdStrike, Nessus, Defender, Wiz, Qualys, Rapid7) thread native signals from the raw vendor payload through ingestion, so new fields are never permanently null/inconsistent
 
 ### Asset Exposure Context (EXPO)
@@ -93,11 +93,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CORR-01 | Phase 30 (Correlation Schema Fix) | Complete |
 | CORR-02 | Phase 30 (Correlation Schema Fix) | Complete |
 | CORR-03 | Phase 30 (Correlation Schema Fix) | Complete |
-| ENRICH-01 | Phase 31 (Connector Enrichment Rewrite) | Pending |
-| ENRICH-02 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| ENRICH-01 | Phase 31 (Connector Enrichment Rewrite) | Complete |
+| ENRICH-02 | Phase 31 (Connector Enrichment Rewrite) | Complete |
 | ENRICH-03 | Phase 31 (Connector Enrichment Rewrite) | Pending |
 | ENRICH-04 | Phase 31 (Connector Enrichment Rewrite) | Pending |
-| ENRICH-05 | Phase 31 (Connector Enrichment Rewrite) | Pending |
+| ENRICH-05 | Phase 31 (Connector Enrichment Rewrite) | Complete |
 | ENRICH-06 | Phase 31 (Connector Enrichment Rewrite) | Pending |
 | EXPO-01 | Phase 32 (Asset Exposure Context) | Pending |
 | EXPO-02 | Phase 32 (Asset Exposure Context) | Pending |
@@ -125,6 +125,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SRC-08 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
 
 **Coverage:**
+
 - v1 requirements: 33 total (CORR 3, ENRICH 6, EXPO 6, RISK 10, SRC 8)
 - Mapped to phases: 33/33 ✓
 - Unmapped: 0 ✓ (Phase 30 CORR, Phase 31 ENRICH, Phase 32 EXPO, Phase 33 RISK-01..06, Phase 34 RISK-07..10, Phase 35 SRC)
