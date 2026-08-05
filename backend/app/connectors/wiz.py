@@ -16,10 +16,28 @@ from app.connectors.base import (
 
 logger = structlog.get_logger(__name__)
 
+
+class WizGraphQLSchemaError(RuntimeError):
+    """Raised when a Wiz GraphQL response body contains an ``errors`` array --
+    signals a query-SHAPE problem (e.g., an unrecognized field name) rather
+    than a transport/auth/rate-limit failure. ``fetch_vulnerabilities()``
+    catches this specifically (ENRICH-03/04 Phase 31 Plan 05, Assumption A4)
+    to fall back from ``VULNERABILITY_QUERY_ENRICHED`` to the current/base
+    ``VULNERABILITY_QUERY`` instead of breaking the entire Wiz sync --
+    GraphQL fails the ENTIRE query on a single unrecognized field, unlike
+    REST's typical tolerance of extra params, so a wrong guess about an
+    unverified field name must degrade gracefully rather than break
+    ingestion.
+    """
+
+
 # ---------------------------------------------------------------------------
 # GraphQL queries
 # ---------------------------------------------------------------------------
 
+# Current/base field set -- kept byte-for-byte as the guaranteed-working
+# fallback (A4). fetch_vulnerabilities() only uses this query if
+# VULNERABILITY_QUERY_ENRICHED below fails with a WizGraphQLSchemaError.
 VULNERABILITY_QUERY = """
 query VulnerabilityFindings($after: String) {
   vulnerabilityFindings(
@@ -36,6 +54,63 @@ query VulnerabilityFindings($after: String) {
       exploitAvailable
       hasExploit
       hasCisaKevExploit
+      status
+      remediation
+      detailedName
+      version
+      fixedVersion
+      firstDetectedAt
+      lastDetectedAt
+      vulnerableAsset {
+        id
+        name
+        type
+        cloudPlatform
+        subscriptionId
+        subscriptionName
+        region
+        providerUniqueId
+        operatingSystem
+        ipAddresses
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"""
+
+# ENRICH-03/04 (Phase 31 Plan 05): adds Wiz's richer EPSS + exploitability
+# sub-scores after hasCisaKevExploit -- Wiz has NO vendor-authored composite
+# priority rating (Pitfall 6), so these 5 fields are the "richer signal"
+# that lands in source_signals instead of native_priority_score/rating
+# (which stay explicit None). Field names are WebSearch-CITED, NOT verified
+# against a live Wiz GraphQL schema this session (31-RESEARCH.md Assumptions
+# Log A4) -- fetch_vulnerabilities() tries this query first and falls back
+# to the unchanged VULNERABILITY_QUERY above on a WizGraphQLSchemaError.
+VULNERABILITY_QUERY_ENRICHED = """
+query VulnerabilityFindings($after: String) {
+  vulnerabilityFindings(
+    first: 500
+    after: $after
+    filterBy: { status: [OPEN, IN_PROGRESS] }
+  ) {
+    nodes {
+      id
+      name
+      CVEDescription
+      severity
+      score
+      exploitAvailable
+      hasExploit
+      hasCisaKevExploit
+      epssSeverity
+      epssPercentile
+      epssProbability
+      exploitabilityScore
+      impactScore
       status
       remediation
       detailedName
@@ -133,6 +208,31 @@ def _map_misconfig_severity(raw: str | None) -> str:
     return _MISCONFIG_SEVERITY_MAP.get(raw.upper(), "LOW")
 
 
+# ENRICH-04/D-07/D-08 (Phase 31 Plan 05): raw GraphQL node field names
+# captured into source_signals ONLY when present as a key in the raw node
+# dict -- omission means "missing" (either the base-query fallback was used,
+# so Wiz's response genuinely never included the 5 enriched keys, or Wiz's
+# schema itself omitted a nullable field), never an explicit None/False
+# sentinel. hasCisaKevExploit is captured here as PROVENANCE ONLY, read as
+# its RAW node value (pre-bool() coercion) -- NEVER the already-coerced
+# `cisa_kev` local built in fetch_vulnerabilities (Pitfall 2) -- it does NOT
+# set the cisa_kev column (D-04; that authority is sync.py's
+# _lookup_enrichment ref-table lookup). The other 5 keys are Wiz's richer
+# EPSS/exploitability signal in place of a vendor-authored composite
+# (Pitfall 6) -- native_priority_score/rating stay explicit None. Excludes
+# PII-adjacent asset fields (name/ip/os -- those live on `vulnerableAsset`,
+# already promoted to their own dataclass fields) and anything already
+# promoted to a typed column (cve/cvss/severity/exploit_available).
+_SOURCE_SIGNAL_ALLOWLIST = (
+    "hasCisaKevExploit",
+    "epssSeverity",
+    "epssPercentile",
+    "epssProbability",
+    "exploitabilityScore",
+    "impactScore",
+)
+
+
 # ---------------------------------------------------------------------------
 # Connector
 # ---------------------------------------------------------------------------
@@ -220,7 +320,7 @@ class WizConnector(BaseConnector):
 
             if "errors" in body:
                 logger.error("wiz.graphql_errors", errors=body["errors"])
-                raise RuntimeError(f"Wiz GraphQL errors: {body['errors']}")
+                raise WizGraphQLSchemaError(f"Wiz GraphQL errors: {body['errors']}")
 
             return body["data"]
 
@@ -264,15 +364,41 @@ class WizConnector(BaseConnector):
     # ------------------------------------------------------------------
 
     async def fetch_vulnerabilities(self) -> list[NormalizedVulnerability]:
-        """Fetch all open/in-progress vulnerability findings from Wiz."""
+        """Fetch all open/in-progress vulnerability findings from Wiz.
+
+        ENRICH-03/04 (Phase 31 Plan 05, Assumption A4): tries
+        ``VULNERABILITY_QUERY_ENRICHED`` (adds 5 EPSS/exploitability
+        sub-score fields, unverified against a live Wiz schema) first.
+        GraphQL fails the ENTIRE query on a single unrecognized field name
+        (unlike REST's typical tolerance of unknown params) -- so a
+        ``WizGraphQLSchemaError`` on the enriched query falls back to the
+        unchanged, current/base ``VULNERABILITY_QUERY`` instead of breaking
+        the whole Wiz sync (the phase's hardest-failure risk).
+        """
 
         logger.info("wiz.fetch_vulnerabilities.start")
-        nodes = await self._paginate(VULNERABILITY_QUERY, "vulnerabilityFindings")
+        try:
+            nodes = await self._paginate(VULNERABILITY_QUERY_ENRICHED, "vulnerabilityFindings")
+        except WizGraphQLSchemaError as e:
+            logger.warning("wiz.enriched_query_schema_error_fallback", error=str(e))
+            nodes = await self._paginate(VULNERABILITY_QUERY, "vulnerabilityFindings")
         logger.info("wiz.fetch_vulnerabilities.done", total=len(nodes))
 
         results: list[NormalizedVulnerability] = []
         for node in nodes:
             asset = node.get("vulnerableAsset") or {}
+
+            # ENRICH-04/D-07/D-08 (source_signals): built from the RAW node
+            # dict in this same scope -- key-presence checked (never
+            # `.get()` with a default), so a genuinely-absent field (the
+            # base-query fallback path, or a nullable field Wiz's schema
+            # omits) stays distinguishable from a vendor-returned-falsy one
+            # (Pitfall 2).
+            source_signals: dict[str, Any] = {}
+            for key in _SOURCE_SIGNAL_ALLOWLIST:
+                if key in node:
+                    source_signals[key] = node[key]
+
             results.append(
                 NormalizedVulnerability(
                     cve_id=node.get("name"),
@@ -288,6 +414,12 @@ class WizConnector(BaseConnector):
                     affected_version=node.get("version"),
                     fixed_version=node.get("fixedVersion"),
                     remediation_info=node.get("remediation"),
+                    # D-06/Pitfall 6: Wiz has no vendor-authored composite
+                    # priority rating -- explicit null, never a
+                    # synthesized/invented cross-boolean score.
+                    native_priority_score=None,
+                    native_priority_rating=None,
+                    source_signals=source_signals,
                 )
             )
 
