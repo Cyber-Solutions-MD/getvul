@@ -240,7 +240,14 @@ async def repropagate_enrichment(db: AsyncSession) -> dict[str, int]:
     across every tenant's findings (D-11), and the CISA KEV catalog is the
     SOLE authority for the column (D-04): the recompute flips a finding's
     `cisa_kev` both ways (True when its cve_id newly enters the catalog,
-    False when it's absent), never just OR-ing in a one-directional flag."""
+    False when it's absent), never just OR-ing in a one-directional flag.
+    CR-01: the KEV UPDATE excludes `cve_id IS NULL` rows -- `NULL IN
+    (<non-empty subquery>)` evaluates to SQL NULL (not FALSE) per
+    three-valued logic, which would otherwise silently corrupt `cisa_kev`
+    (both `VulnerabilityResponse`/`VulnerabilitySummary` declare it a
+    non-Optional `bool`) for any row lacking a `cve_id` (a state CrowdStrike/
+    Wiz can both persist). Those rows simply keep whatever `cisa_kev` value
+    they already had."""
     epss_result = await db.execute(
         text(
             "UPDATE vulnerabilities v SET epss_score = e.epss_score, "
@@ -248,7 +255,7 @@ async def repropagate_enrichment(db: AsyncSession) -> dict[str, int]:
         )
     )
     kev_result = await db.execute(
-        text("UPDATE vulnerabilities SET cisa_kev = (cve_id IN (SELECT cve_id FROM cisa_kev))")
+        text("UPDATE vulnerabilities SET cisa_kev = (cve_id IN (SELECT cve_id FROM cisa_kev)) WHERE cve_id IS NOT NULL")
     )
     return {
         "repropagated": epss_result.rowcount or 0,

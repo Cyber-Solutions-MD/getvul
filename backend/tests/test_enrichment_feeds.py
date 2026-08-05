@@ -354,3 +354,39 @@ async def test_repropagate_enrichment_sets_cisa_kev_true_for_catalog_member(db_s
 
     await db_session.refresh(vuln)
     assert vuln.cisa_kev is True
+
+
+async def test_repropagate_enrichment_preserves_cisa_kev_for_null_cve_id_row(db_session, tenant_a):
+    """CR-01 regression: `NULL IN (<non-empty subquery>)` is SQL NULL, not
+    FALSE, per three-valued logic -- without the `WHERE cve_id IS NOT NULL`
+    guard, the KEV UPDATE would silently overwrite this row's `cisa_kev`
+    with NULL, which then fails Pydantic validation on read-back
+    (`VulnerabilityResponse.cisa_kev`/`VulnerabilitySummary.cisa_kev` are
+    both non-Optional `bool`). CrowdStrike's `_normalize_vuln`/Wiz's
+    `cve_id=node.get("name")` both lack a fallback-exhausted guard, so a
+    NULL-`cve_id` row is a reachable state, not a hypothetical.
+
+    The `cisa_kev` catalog table must be non-empty for the bug to manifest:
+    `x IN (<empty subquery>)` is FALSE regardless of x, so an empty catalog
+    would mask the missing guard even without the fix."""
+    vuln = Vulnerability(
+        tenant_id=tenant_a,
+        cve_id=None,  # e.g. a CrowdStrike Spotlight item with no vulnerability_id/cve.id
+        severity="HIGH",
+        source="CROWDSTRIKE",
+        status="OPEN",
+        cisa_kev=True,  # pre-existing value -- must survive re-propagation untouched, never NULL
+        first_detected_at=datetime.now(UTC),
+        last_seen_at=datetime.now(UTC),
+    )
+    db_session.add(vuln)
+
+    # Non-empty catalog -- required for the bug to manifest (see docstring).
+    kev_row = CisaKev(cve_id="CVE-2030-9999", vendor_project="Acme")
+    db_session.add(kev_row)
+    await db_session.flush()
+
+    await enrichment_feeds.repropagate_enrichment(db_session)
+
+    await db_session.refresh(vuln)
+    assert vuln.cisa_kev is True  # untouched -- not NULL, not flipped
