@@ -278,3 +278,74 @@ async def test_429_exhausts_max_retries_returns_none(monkeypatch: pytest.MonkeyP
 
     assert resp is None
     assert retry_calls["n"] == 3  # MAX_RETRIES=3, all exhausted
+
+
+# ── Phase 31 Plan 01 — source_signals missing-vs-negative (ENRICH-04/SC#4) ────
+
+
+def test_defender_normalize_vuln_source_signals_missing_vs_negative():
+    """RED until Task 3: NormalizedVulnerability has no source_signals /
+    native_priority_score / native_priority_rating fields yet -- this raises
+    AttributeError on `v.source_signals`.
+
+    Once GREEN (Task 3), this pins ENRICH-04/D-07/D-08/SC#4: source_signals
+    distinguishes a vendor field that came back False (negative, key present)
+    from a vendor field Defender's API never returned at all (missing, key
+    absent) -- in the SAME returned finding. Defender has no VPR-equivalent
+    field at all, making 'vpr' a structurally-guaranteed-absent key: the
+    cleanest connector to anchor this fixture on (31-RESEARCH.md's own
+    recommendation, mirrored in 31-PATTERNS.md's Tests section).
+
+    Also pins D-06/Pitfall 6: Defender has no vendor-authored composite
+    priority rating (only granular booleans/sub-scores) -- native_priority_*
+    must be explicitly None, never a synthesized/invented composite.
+
+    And pins D-08/V8: PII-adjacent fields (hostname, ip_addresses,
+    last_login_user, serial_number) and already-promoted columns never
+    duplicate into source_signals.
+    """
+    conn = DefenderConnector()
+    conn._machine_cache = {
+        "m1": {
+            "computerDnsName": "should-not-leak-into-signals",
+            "ipAddresses": [{"ipAddress": "10.0.0.99"}],
+        }
+    }
+    rec = {
+        "cveId": "CVE-2024-9001",
+        "machineId": "m1",
+        "severity": "High",
+        "cvssV3": 7.5,
+        "exploitVerified": False,
+        "publicExploit": False,
+        # exploitInKit / exploitTypes / exploitUris / EPSS intentionally
+        # absent -- Defender's API simply did not return them for this
+        # finding (the "missing" half of the fixture).
+    }
+
+    v = conn._normalize_vuln(rec)
+
+    assert v is not None
+    assert v.source_signals is not None
+
+    # Negative: vendor returned False explicitly -- the key IS present.
+    assert v.source_signals["exploitVerified"] is False
+    assert v.source_signals["publicExploit"] is False
+
+    # Missing: vendor never returned these -- keys are absent entirely,
+    # never written as an explicit None/False sentinel (D-07).
+    assert "exploitInKit" not in v.source_signals
+    assert "exploitTypes" not in v.source_signals
+    assert "exploitUris" not in v.source_signals
+    assert "EPSS" not in v.source_signals
+    assert "vpr" not in v.source_signals  # no VPR-equivalent field exists for Defender
+
+    # D-06/Pitfall 6: no vendor composite for Defender -- explicit null,
+    # never an invented/synthesized cross-boolean composite.
+    assert v.native_priority_score is None
+    assert v.native_priority_rating is None
+
+    # D-08/V8: PII-adjacent fields and already-promoted columns never
+    # duplicate into source_signals.
+    for pii_key in ("hostname", "ip_addresses", "last_login_user", "serial_number"):
+        assert pii_key not in v.source_signals
