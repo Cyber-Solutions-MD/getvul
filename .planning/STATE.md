@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 31
 current_phase_name: Connector Enrichment Rewrite
 status: executing
-stopped_at: Phase 31 planned — 5 plans, plan-checker passed (0 blockers)
-last_updated: "2026-08-05T09:53:53.609Z"
+stopped_at: Phase 31 Plan 01 complete — Defender tracer, 3/3 tasks, TDD green
+last_updated: "2026-08-05T10:18:08.000Z"
 last_activity: 2026-08-05
-last_activity_desc: Phase 31 execution started
+last_activity_desc: Phase 31 Plan 01 complete
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 31 (Connector Enrichment Rewrite) — EXECUTING
-Plan: 1 of 5
+Plan: 2 of 5 (Plan 1 complete)
 Status: Executing Phase 31
-Last activity: 2026-08-05 — Phase 31 execution started
+Last activity: 2026-08-05 — Phase 31 Plan 01 complete (Defender enrichment tracer: schema spine + write-path + Defender parser, 3/3 tasks, TDD RED→GREEN)
 
 ## v4.0 Phase Map
 
@@ -307,6 +307,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 30-01]: mypy-baseline.txt gained one new "Missing type arguments for generic type dict" entry for VulnerabilityCorrelation.source_vuln_ids -- mirrors the already-baselined bare-dict pattern used by Vulnerability.file_paths (same file) and Asset.mdm_details, matching RESEARCH Pattern 2's explicit "plain Mapped[dict | None]" shape rather than deviating to a typed dict[str,str] to dodge the baseline edit; verified zero net-new unbaselined violations via git-stash + rm -rf .mypy_cache before/after diff (fixed=3/new=3 identical to a clean-HEAD run)
 - [Phase 30-01]: CORR-01/CORR-03 deliberately left [ ] Pending in REQUIREMENTS.md despite this plan's frontmatter declaring them -- shared-ID gate: 30-02 also declares CORR-01/02/03 and hasn't produced a SUMMARY yet; all 3 flip together when 30-02 (the last declaring plan) finishes, mirroring the AIE-01/02/28-01 and AID-01/27-01 precedents
 - [Phase 30-01]: Confidence bands recalibrated in code per CONTEXT's already-locked D-08 (HIGH>=4/MEDIUM 2-3/LOW 1, up from HIGH>=3/MEDIUM=2/LOW else) -- not a new decision made during execution, but the first plan where the new bands take effect in run_correlations
+- [Phase 31-01]: _lookup_enrichment(db, cve_id) is the single choke point for EPSS/KEV -- called once at the top of _upsert_vulnerability, wired into BOTH the update and insert branches; cisa_kev is set from the ref-table hit only, never from the connector's own v.cisa_kev guess (D-04) -- Defender's cisa_kev=False hardcode is left byte-for-byte unchanged in the parser, fixed only downstream
+- [Phase 31-01]: Defender's source_signals allowlist (exploitVerified, publicExploit, exploitInKit, exploitTypes, exploitUris, native EPSS) is built inline in _normalize_vuln from the RAW record dict -- a key lands only if the vendor's API actually returned it (D-07); native_priority_score/rating are explicit None (no vendor-authored composite exists for Defender, Pitfall 6) rather than a synthesized cross-boolean score
+- [Phase 31-01]: source_signals typed dict[str, Any] | None (not the interfaces block's literal bare dict | None) across base.py/models.py/schemas.py -- strict mypy flags bare generic dict; fixing this in the lead tracer prevents the same mypy-baseline regression recurring across Plans 02-05's remaining 5 connectors. Downstream plans should follow dict[str, Any], not the interfaces block's literal sketch
+- [Phase 31-01]: BLOCKER (Rule 1 auto-fix) -- Task 2's bare-dict source_signals fields cascaded into 2 new mypy arg-type errors on qualys.py's pre-existing NormalizedVulnerability(**base) call (a file this plan doesn't otherwise touch); fixed with a single dict[str, Any] annotation on qualys.py's base dict (zero behavior change), confirmed via git-stash diff against the Task-2-only state that this was a genuine regression (fixed) vs. the separate, confirmed pre-existing jose-stub note-attribution flake on app/auth/dependencies.py (unrelated, reproduces on unmodified HEAD)
+- [Phase 31-01]: ENRICH-01/02/03/04/06 left [ ] Pending in REQUIREMENTS.md -- shared-ID gate: every one of these 5 IDs is also declared by at least one other not-yet-executed Phase 31 plan (31-02 for ENRICH-01/02's real feed; 31-03/04/05 for ENRICH-03/04/06's remaining 5 connectors + cross-6 sweep), mirroring the CORR-01/03 (Phase 30) and AIE-01/02 (Phase 28) shared-ID-gate precedent
 
 ## Performance Metrics
 
@@ -345,9 +350,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 28 P04 | 36min | 2 tasks | 11 files |
 | Phase 28 P05 | 19min | 1 task | 3 files |
 | Phase 30 P01 | 21min | 3 tasks | 6 files |
+| Phase 31 P01 | 25min | 3 tasks | 10 files |
 
 ## Session
 
-**Last session:** 2026-08-05T08:43:57.051Z
-**Stopped at:** Phase 31 context gathered
-**Resume file:** .planning/phases/31-connector-enrichment-rewrite/31-CONTEXT.md
+**Last session:** 2026-08-05T10:18:08.000Z
+**Stopped at:** Phase 31 Plan 01 complete (Defender enrichment tracer) — next: 31-02-PLAN.md
+**Resume file:** .planning/phases/31-connector-enrichment-rewrite/31-02-PLAN.md
