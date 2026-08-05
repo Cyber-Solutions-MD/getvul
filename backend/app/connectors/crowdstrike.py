@@ -8,13 +8,20 @@ Spotlight combined API fields used:
 
 Severity: determined by per-severity filtered queries (not in response).
 Exploit status: fetched from /spotlight/entities/vulnerabilities/v2
-CISA KEV: derived from exploit_status >= 30 or separate KEV enrichment.
+CISA KEV: this connector's own exploit_status >= 50 heuristic ("Used in the
+  Wild") is preserved into source_signals as PROVENANCE ONLY (Phase 31 Plan
+  03) -- the `cisa_kev` column's sole authority is the global CISA KEV
+  reference-table lookup in sync.py's _lookup_enrichment (Phase 31 Plan 01,
+  D-04). [Comment-only fix 2026-08-05: this docstring previously said ">= 30",
+  which never matched the live code's ">= 50" check below -- stale comment
+  drift, not a behavior change; the code's threshold is untouched.]
 Remediation: resolved from apps[].remediation.ids via /spotlight/entities/remediations/v2
 """
 
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import httpx
 import structlog
@@ -352,6 +359,9 @@ class CrowdStrikeConnector(BaseConnector):
         meta = self._vuln_metadata_cache.get(vuln_id, {})
         exploit_status_id = 0
         cisa_kev = False
+        native_priority_rating: str | None = None
+        native_priority_score: float | None = None
+        source_signals: dict[str, Any] = {}
 
         if meta:
             cve_meta = meta.get("cve", {})
@@ -360,6 +370,42 @@ class CrowdStrikeConnector(BaseConnector):
                 # CISA KEV: exploit_status 50 = "Used in the Wild" (CISA KEV level)
                 # Also check for explicit CISA KEV flag
                 cisa_kev = exploit_status_id >= 50 or bool(cve_meta.get("cisa_kev", False))
+
+                # ENRICH-03/D-05 (Phase 31 Plan 03): ExPRT.AI rating -- raw
+                # categorical value verbatim (UNKNOWN/LOW/MEDIUM/HIGH/CRITICAL),
+                # no re-scale (D-06). Already-cached in _vuln_metadata_cache --
+                # zero new API calls.
+                native_priority_rating = cve_meta.get("exprt_rating")
+                # No CONFIRMED numeric ExPRT companion field exists in
+                # CrowdStrike's published schema (31-RESEARCH.md Assumptions
+                # Log / Tertiary sources) -- defensively probe the most likely
+                # candidate name (mirrors exprt_rating's own key shape); stays
+                # None if absent (soft-null, never a crash). Flagged in
+                # 31-03-SUMMARY.md for live re-verification against a real
+                # Falcon instance.
+                raw_score = cve_meta.get("exprt_score")
+                if raw_score is not None:
+                    try:
+                        native_priority_score = float(raw_score)
+                    except (TypeError, ValueError):
+                        native_priority_score = None
+
+                # ENRICH-04/D-07/D-08 (source_signals): built from the RAW
+                # cve_meta dict in this same scope -- never from the already-
+                # derived exploit_status_id/cisa_kev locals above -- so a
+                # vendor-omitted field stays distinguishable from a vendor-
+                # returned-falsy one (31-RESEARCH.md Pitfall 2). A key is
+                # added ONLY when the vendor actually returned it (D-07).
+                # exploit_status (+ the derived >=50 KEV-ish guess) is
+                # captured here as PROVENANCE ONLY -- it does NOT set the
+                # cisa_kev column (D-04; that authority is sync.py's
+                # _lookup_enrichment ref-table lookup). Pitfall 3: the
+                # module docstring's stale ">=30" is never used here -- >=50
+                # (the live code's real threshold, computed above) is what's
+                # preserved verbatim.
+                if "exploit_status" in cve_meta:
+                    source_signals["exploit_status"] = cve_meta["exploit_status"]
+                    source_signals["exploit_status_kev_guess"] = exploit_status_id >= 50
 
         exploit_available = exploit_status_id >= 20  # PoC or higher
         exploit_status_name = EXPLOIT_STATUS_NAMES.get(exploit_status_id, "Unknown")
@@ -405,6 +451,13 @@ class CrowdStrikeConnector(BaseConnector):
         vuln.remediation_action = remediation_action or (f"Update {product} to the latest version" if product else "")
         vuln.exploit_status_id = exploit_status_id
         vuln.exploit_status_name = exploit_status_name
+        # ENRICH-03/04 (Phase 31 Plan 03): native-priority pair + source_signals
+        # allowlist -- ad-hoc attribute attach per this file's own established
+        # idiom (mirrors remediation_id/exploit_status_id above), not
+        # constructor kwargs.
+        vuln.native_priority_rating = native_priority_rating
+        vuln.native_priority_score = native_priority_score
+        vuln.source_signals = source_signals
         return vuln
 
     # ── CSPM ──
