@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -36,7 +36,7 @@ class VulnerabilityResponse(BaseModel):
     epss_percentile: Decimal | None = None
     native_priority_score: Decimal | None = None
     native_priority_rating: str | None = None
-    source_signals: dict | None = None
+    source_signals: dict[str, Any] | None = None
     remediation_info: str | None
     status: str
     first_detected_at: datetime

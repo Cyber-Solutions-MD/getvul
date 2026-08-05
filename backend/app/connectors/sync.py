@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import structlog
 from sqlalchemy import select
@@ -25,7 +26,7 @@ from app.cspm.models import Misconfiguration
 from app.logging import _redact_value  # noqa: PLC2701 — intentional reuse of the Phase-7 redactor (23-RESEARCH Q7)
 from app.ticketing.models import ConnectorConfig, SyncLog
 from app.vulnerabilities.correlation_service import run_correlations
-from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.models import CisaKev, EpssScore, Vulnerability
 
 logger = structlog.get_logger()
 
@@ -310,10 +311,29 @@ def _parse_ts(val: str | None) -> datetime | None:
         return None
 
 
+async def _lookup_enrichment(db: AsyncSession, cve_id: str | None) -> tuple[Decimal | None, Decimal | None, bool]:
+    """(epss_score, epss_percentile, cisa_kev) from the global ref tables (D-01/D-11).
+
+    A miss (unscored/unlisted CVE) returns (None, None, False) -- never raises.
+    The CISA KEV catalog is the SOLE authority for cisa_kev (D-04): a
+    connector's own KEV-ish guess (`v.cisa_kev`) is never consulted here --
+    it is preserved only in `source_signals` for provenance. Never OR the
+    catalog hit with the connector's guess.
+    """
+    if not cve_id:
+        return None, None, False
+    epss_row = (await db.execute(select(EpssScore).where(EpssScore.cve_id == cve_id))).scalar_one_or_none()
+    kev_hit = (await db.execute(select(CisaKev.cve_id).where(CisaKev.cve_id == cve_id))).scalar_one_or_none()
+    epss_score = epss_row.epss_score if epss_row else None
+    epss_percentile = epss_row.percentile if epss_row else None
+    return epss_score, epss_percentile, kev_hit is not None
+
+
 async def _upsert_vulnerability(
     db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVulnerability, asset_id: uuid.UUID, source: str
 ) -> bool:
     now = datetime.now(UTC)
+    epss_score, epss_percentile, cisa_kev = await _lookup_enrichment(db, v.cve_id)
     result = await db.execute(
         select(Vulnerability).where(
             Vulnerability.tenant_id == tenant_id,
@@ -328,7 +348,14 @@ async def _upsert_vulnerability(
         existing.last_seen_at = now
         existing.severity = v.severity
         existing.exploit_available = v.exploit_available
-        existing.cisa_kev = v.cisa_kev
+        # D-04: the catalog/ref-table lookup is the sole authority for these
+        # three -- the connector's own v.cisa_kev guess is never used here.
+        existing.epss_score = epss_score
+        existing.epss_percentile = epss_percentile
+        existing.cisa_kev = cisa_kev
+        existing.native_priority_score = getattr(v, "native_priority_score", None)
+        existing.native_priority_rating = getattr(v, "native_priority_rating", None)
+        existing.source_signals = getattr(v, "source_signals", None)
         existing.remediation_id = getattr(v, "remediation_id", None)
         existing.remediation_action = getattr(v, "remediation_action", None) or v.remediation_info
         existing.exploit_status_id = getattr(v, "exploit_status_id", None)
@@ -343,8 +370,14 @@ async def _upsert_vulnerability(
             vulnerability_name=v.vulnerability_name,
             cvss_v3_score=v.cvss_v3_score,
             severity=v.severity,
+            epss_score=epss_score,
+            epss_percentile=epss_percentile,
             exploit_available=v.exploit_available,
-            cisa_kev=v.cisa_kev,
+            # D-04: catalog-authoritative -- NOT v.cisa_kev (the connector's own guess).
+            cisa_kev=cisa_kev,
+            native_priority_score=getattr(v, "native_priority_score", None),
+            native_priority_rating=getattr(v, "native_priority_rating", None),
+            source_signals=getattr(v, "source_signals", None),
             asset_id=asset_id,
             source=source,
             source_vuln_id=v.source_vuln_id,

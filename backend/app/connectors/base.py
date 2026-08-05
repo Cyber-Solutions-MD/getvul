@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -49,7 +50,7 @@ class NormalizedVulnerability:
     native_priority_rating: str | None = None
     # ENRICH-04/D-07/D-08: curated per-connector allowlist keyed by raw vendor
     # field name. Omission = missing; a present key with a falsy value = negative.
-    source_signals: dict | None = None
+    source_signals: dict[str, Any] | None = None
 
 
 @dataclass

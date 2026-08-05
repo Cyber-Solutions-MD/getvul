@@ -11,6 +11,7 @@ Authentication uses Azure AD OAuth2 client_credentials flow.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import httpx
 import structlog
@@ -25,6 +26,24 @@ SCOPE = "https://api.securitycenter.microsoft.com/.default"
 
 MAX_RETRIES = 3
 RETRY_BACKOFF = 5  # seconds
+
+# ENRICH-04/D-07/D-08 (Phase 31 Plan 01): raw vendor field names captured into
+# source_signals ONLY when present in the raw API record -- omission means
+# "missing" (Defender's API never returned it), never an explicit None/False
+# sentinel. Excludes PII-adjacent fields (hostname, ip_addresses, etc. -- those
+# live on the `machine` dict, not `record`, and are already promoted to their
+# own dataclass fields) and anything already promoted to a typed column
+# (cve/cvss/severity/exploit_available). Defender has no vendor-authored
+# composite priority rating (31-RESEARCH.md Pitfall 6) -- these are its
+# richer granular signal instead; native_priority_score/rating stay None.
+_SOURCE_SIGNAL_ALLOWLIST = (
+    "exploitVerified",
+    "publicExploit",
+    "exploitInKit",
+    "exploitTypes",
+    "exploitUris",
+    "EPSS",
+)
 
 
 class DefenderConnector(BaseConnector):
@@ -256,6 +275,16 @@ class DefenderConnector(BaseConnector):
         # Exploit info
         exploit_available = bool(record.get("exploitVerified") or record.get("publicExploit"))
 
+        # source_signals (D-07/D-08/ENRICH-04): built from the RAW record dict
+        # in this same scope -- never from the already-bool()-coerced
+        # `exploit_available` above -- so a vendor-returned False is
+        # distinguishable from a vendor-never-returned key (RESEARCH.md
+        # Pitfall 2). A key is added ONLY if present in `record`.
+        source_signals: dict[str, Any] = {}
+        for key in _SOURCE_SIGNAL_ALLOWLIST:
+            if key in record:
+                source_signals[key] = record[key]
+
         # OS info
         os_name = machine.get("osPlatform", "")
         os_version = machine.get("osVersion", "")
@@ -284,6 +313,11 @@ class DefenderConnector(BaseConnector):
             last_seen_at=last_seen or None,
             host_status=health_status or None,
             platform_name=os_name,
+            # D-06/Pitfall 6: no vendor-authored composite for Defender --
+            # explicit null, never a synthesized/invented cross-boolean score.
+            native_priority_score=None,
+            native_priority_rating=None,
+            source_signals=source_signals,
         )
 
     async def close(self):

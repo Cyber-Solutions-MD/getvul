@@ -580,7 +580,13 @@ def _normalize_detection(
     exploit_available = _kb_exploit_available(kb)
     solution = _kb_solution(kb)
 
-    base = dict(
+    # Phase 31 Plan 01: explicit dict[str, Any] annotation -- NormalizedVulnerability
+    # gained a dict[str, Any]-typed source_signals field (ENRICH-04) that this
+    # connector doesn't populate yet (Qualys's own enrichment lands in a later
+    # plan); annotating `base` as Any-valued keeps this **base unpacking call
+    # compatible with the widened constructor signature without changing any
+    # runtime behavior here.
+    base: dict[str, Any] = dict(
         vulnerability_name=vuln_name,
         cvss_v3_score=cvss3,
         severity=severity,

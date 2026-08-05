@@ -4,6 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
@@ -82,7 +83,7 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # names as keys. Omission = missing (vendor never returned it); a key
     # present with a falsy value = negative (vendor returned it falsy).
     # Mirrors Asset.mdm_details (assets/models.py:67).
-    source_signals: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+    source_signals: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=dict)
     status: Mapped[str] = mapped_column(String(20), default=VulnStatus.OPEN.value, index=True)
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
