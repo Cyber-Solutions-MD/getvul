@@ -5,12 +5,12 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 31
 current_phase_name: Connector Enrichment Rewrite
 status: planning
-stopped_at: Completed 30-01-PLAN.md
-last_updated: "2026-08-05T08:22:42.909Z"
+stopped_at: Phase 31 context gathered
+last_updated: "2026-08-05T08:43:57.064Z"
 last_activity: 2026-08-05
 last_activity_desc: Phase 30 complete, transitioned to Phase 31
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
   total_plans: 2
   completed_plans: 2
@@ -348,6 +348,6 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-08-04T13:24:06.000Z
-**Stopped at:** Completed 30-01-PLAN.md
-**Resume file:** None
+**Last session:** 2026-08-05T08:43:57.051Z
+**Stopped at:** Phase 31 context gathered
+**Resume file:** .planning/phases/31-connector-enrichment-rewrite/31-CONTEXT.md
