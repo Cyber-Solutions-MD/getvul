@@ -202,6 +202,53 @@ async def test_start_scheduler_eager_dispatch_does_not_fire_when_gate_is_warm(mo
     scheduler_module.stop_scheduler()
 
 
+async def test_dispatch_enrichment_refresh_concurrent_calls_do_not_race(monkeypatch):
+    """Regression (Rule 1 bug, found via live reproduction against the
+    docker dev stack's --reload backend, not speculative): `start_scheduler()`'s
+    eager call and `_scheduler_loop()`'s own first-tick inline call both fire
+    nearly simultaneously on process startup. The in-memory
+    `_last_enrichment_refresh is None` check ALONE is a check-then-act race
+    -- both call sites can observe `None` before either finishes setting the
+    gate, so both would proceed to fetch+swap concurrently without a lock.
+    Confirmed empirically this races into a real `UniqueViolationError` on
+    `epss_scores_pkey` from two overlapping delete-then-insert swaps.
+
+    This test proves `_enrichment_refresh_lock` closes the window: a second
+    concurrent call while a refresh is already in-flight must be a clean
+    no-op (zero additional fetch calls), never a second overlapping swap."""
+    monkeypatch.setattr(scheduler_module, "_last_enrichment_refresh", None)
+
+    calls: list[None] = []
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_refresh(db):
+        calls.append(None)
+        entered.set()
+        await release.wait()
+        return {"status": "ok", "epss_rows": 0, "kev_rows": 0}
+
+    async def fake_repropagate(db):
+        return {"repropagated": 0}
+
+    monkeypatch.setattr("app.connectors.enrichment_feeds.refresh_enrichment_reference_data", slow_refresh)
+    monkeypatch.setattr("app.connectors.enrichment_feeds.repropagate_enrichment", fake_repropagate)
+
+    task_a = asyncio.create_task(scheduler_module._dispatch_enrichment_refresh())
+    await entered.wait()  # deterministically wait until task_a is inside the locked section
+
+    task_b = asyncio.create_task(scheduler_module._dispatch_enrichment_refresh())
+    await asyncio.sleep(0)  # let task_b run its (fully synchronous) lock-check-and-return path
+
+    assert len(calls) == 1  # task_b observed the lock held and returned WITHOUT a second fetch
+
+    release.set()
+    await task_a
+    await task_b
+
+    assert scheduler_module._last_enrichment_refresh is not None
+
+
 async def test_scheduler_module_enrichment_refresh_builds_no_client(monkeypatch):
     """The dispatcher passes NO extra positional/keyword argument beyond its
     own `db` session -- it resolves nothing per-tenant (these are global,

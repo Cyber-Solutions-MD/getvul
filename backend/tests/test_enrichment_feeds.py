@@ -20,6 +20,18 @@ teardown -- no manual DELETE needed, and the shared dev Postgres's
 conftest.py's post-test TRUNCATE list) are never permanently mutated by this
 file.
 
+Seed `cve_id` values in this file deliberately use a pre-1999 year (e.g.
+`CVE-1990-...`) -- the real CVE numbering scheme's floor is 1999, so this
+range can NEVER collide with a real EPSS/KEV entry. This matters in
+practice, not just in theory: `settings.environment` defaults to
+"production" (no test-mode gate anywhere in this codebase, see 31-02's
+deferred-items.md), so ANY test elsewhere in the suite that spins up the
+real FastAPI app lifespan (the `client` fixture) also starts the real
+in-process scheduler, whose `_dispatch_enrichment_refresh` eager/first-tick
+call fetches the REAL feeds unconditionally on a cold gate -- this was
+observed to populate this dev stack's `epss_scores` with ~355k real rows
+mid-session, which collided with an earlier `CVE-2024-...`-ranged seed here.
+
 Backend env gotcha (MEMORY.md `getvul-backend-pytest-env`): run with a REAL
 Fernet ENCRYPTION_KEY (`Fernet.generate_key()`) + JWT_SECRET_KEY set,
 per-file.
@@ -208,7 +220,7 @@ async def test_refresh_atomic_swap_keeps_last_good_on_parse_failure(db_session, 
     swap only touches the DB after BOTH feeds are fetched+parsed fully in
     memory, so a failure here must leave the ref table byte-for-byte
     unchanged."""
-    seed = EpssScore(cve_id="CVE-1999-0001", epss_score=Decimal("0.50000"), percentile=Decimal("0.90000"))
+    seed = EpssScore(cve_id="CVE-1990-0001", epss_score=Decimal("0.50000"), percentile=Decimal("0.90000"))
     db_session.add(seed)
     await db_session.flush()
 
@@ -222,7 +234,7 @@ async def test_refresh_atomic_swap_keeps_last_good_on_parse_failure(db_session, 
     assert result["status"] == "failed"
 
     still_there = (
-        await db_session.execute(select(EpssScore).where(EpssScore.cve_id == "CVE-1999-0001"))
+        await db_session.execute(select(EpssScore).where(EpssScore.cve_id == "CVE-1990-0001"))
     ).scalar_one_or_none()
     assert still_there is not None
     assert still_there.epss_score == Decimal("0.50000")
@@ -231,7 +243,7 @@ async def test_refresh_atomic_swap_keeps_last_good_on_parse_failure(db_session, 
 async def test_refresh_swaps_in_new_data_on_full_success(db_session, monkeypatch):
     """Full-success path: both fetchers succeed -> the prior row is gone
     (TRUNCATE-equivalent delete) and the freshly-fetched rows are present."""
-    seed = EpssScore(cve_id="CVE-1999-0002", epss_score=Decimal("0.10000"), percentile=Decimal("0.20000"))
+    seed = EpssScore(cve_id="CVE-1990-0002", epss_score=Decimal("0.10000"), percentile=Decimal("0.20000"))
     db_session.add(seed)
     await db_session.flush()
 
@@ -268,7 +280,7 @@ async def test_refresh_swaps_in_new_data_on_full_success(db_session, monkeypatch
     assert result == {"status": "ok", "epss_rows": 1, "kev_rows": 1}
 
     old_row = (
-        await db_session.execute(select(EpssScore).where(EpssScore.cve_id == "CVE-1999-0002"))
+        await db_session.execute(select(EpssScore).where(EpssScore.cve_id == "CVE-1990-0002"))
     ).scalar_one_or_none()
     assert old_row is None  # TRUNCATE-equivalent delete wiped the prior row
 

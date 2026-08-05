@@ -19,6 +19,7 @@ _running_syncs: dict[str, asyncio.Task] = {}
 _scheduler_task: asyncio.Task | None = None
 _last_ticket_sync: datetime | None = None
 _last_ai_batch_prewarm: datetime | None = None
+_last_enrichment_refresh: datetime | None = None
 
 
 async def _run_single_sync(connector_id: str, tenant_id: str) -> None:
@@ -124,6 +125,82 @@ async def _dispatch_ai_batch_poll() -> None:
         asyncio.create_task(poll_pending_batches())
     except Exception as e:
         logger.error("ai_batch_poll_dispatch_error", error=str(e))
+
+
+_enrichment_refresh_lock = asyncio.Lock()
+
+
+async def _dispatch_enrichment_refresh() -> None:
+    """ENRICH-05/D-09/D-10 (31-RESEARCH Pattern 2, deliberate deviation from
+    `_dispatch_ai_batch_prewarm`'s create_task idiom above): nightly,
+    24h-gated refresh of the global `epss_scores`/`cisa_kev` reference
+    tables, followed by the D-01/D-02 re-propagation UPDATE onto every
+    existing finding.
+
+    Mirrors the INLINE-AWAIT shape of the "Daily ticket status sync" block
+    below (NOT `_dispatch_ai_batch_prewarm`'s `asyncio.create_task`
+    dispatch) -- D-09's atomic-swap transaction must run to completion as
+    ONE unit, and the gate must only advance once it has actually
+    committed. Detaching it via `create_task` would let the gate advance
+    before the swap itself finishes, defeating the "keeps last good on
+    failure" guarantee (a crashed detached task could leave the gate
+    advanced with the ref tables still on last night's data, silently
+    skipping a whole day). The gate is advanced ONLY after the `async with`
+    block below completes, AND only when the swap reports `status == "ok"`
+    -- a failed fetch/parse must not consume the day's retry window (D-09).
+
+    Extracted as a top-level function (not inlined in `_scheduler_loop()`)
+    so it is directly unit-testable via the established
+    `from app.connectors import scheduler as scheduler_module; await
+    scheduler_module._dispatch_enrichment_refresh()` convention
+    (test_connector_health.py::test_scheduler_path_failure_parity).
+
+    D-10 (eager first-run): `start_scheduler()` ALSO calls this once at
+    process startup (in addition to `_scheduler_loop()`'s own per-tick
+    call) -- a fresh process always starts with `_last_enrichment_refresh
+    is None`, so this dispatcher's own gate already treats "just booted"
+    the same as "cold/stale ref table", with no separate DB-staleness
+    check needed.
+
+    Concurrency (`_enrichment_refresh_lock`, found via live reproduction
+    against the docker dev stack's --reload backend -- Rule 1 bug, not
+    speculative): `start_scheduler()`'s eager call and `_scheduler_loop()`'s
+    own first-tick inline call both fire nearly simultaneously on process
+    startup. The in-memory `_last_enrichment_refresh is None` check ALONE
+    is a check-then-act race -- both call sites can observe `None` before
+    either finishes setting the gate, so both proceed to fetch+swap
+    concurrently. Confirmed empirically: two overlapping delete-then-insert
+    swaps interleaved and raised `UniqueViolationError` on `epss_scores_
+    pkey`. The lock closes the window -- a concurrent call while a refresh
+    is already in-flight is a clean no-op, never a second overlapping swap.
+    """
+    if _enrichment_refresh_lock.locked():
+        return
+    global _last_enrichment_refresh
+    async with _enrichment_refresh_lock:
+        try:
+            now = datetime.now(UTC)
+            if _last_enrichment_refresh is None or (now - _last_enrichment_refresh).total_seconds() >= 86400:
+                from app.connectors.enrichment_feeds import (
+                    refresh_enrichment_reference_data,
+                    repropagate_enrichment,
+                )
+
+                status_ok = False
+                async with async_session_factory() as db:
+                    result = await refresh_enrichment_reference_data(db)
+                    status_ok = result.get("status") == "ok"
+                    if status_ok:
+                        repropagate_result = await repropagate_enrichment(db)
+                        await db.commit()
+                        logger.info("enrichment_refresh_completed", **result, **repropagate_result)
+                    else:
+                        logger.warning("enrichment_refresh_skipped", **result)
+
+                if status_ok:
+                    _last_enrichment_refresh = now
+        except Exception as e:
+            logger.error("enrichment_refresh_dispatch_error", error=str(e))
 
 
 async def _scheduler_loop() -> None:
@@ -254,6 +331,13 @@ async def _scheduler_loop() -> None:
         await _dispatch_ai_batch_prewarm()
         await _dispatch_ai_batch_poll()
 
+        # Enrichment reference-data refresh (nightly, 24h-gated) + D-01/D-02
+        # re-propagation -- ENRICH-05: inline-awaited (NOT create_task,
+        # unlike the two AI batch dispatchers above) so D-09's atomic-swap
+        # transaction runs to completion as one unit before the gate
+        # advances (31-RESEARCH.md Pattern 2 deviation).
+        await _dispatch_enrichment_refresh()
+
         _loop_count += 1
 
         # Check every 60 seconds
@@ -266,6 +350,14 @@ def start_scheduler() -> None:
     if _scheduler_task is None or _scheduler_task.done():
         _scheduler_task = asyncio.create_task(_scheduler_loop())
         logger.info("sync_scheduler_registered")
+        # D-10: eager first-run -- a cold/just-booted process always starts
+        # with `_last_enrichment_refresh is None`, so calling the SAME
+        # gate-checked dispatcher once here (in addition to
+        # `_scheduler_loop()`'s own per-tick call) refreshes an empty/stale
+        # ref table immediately rather than waiting for the first natural
+        # 60s-interval tick. The dispatcher's own 24h-gate + status check
+        # make this idempotent/safe to invoke from both call sites.
+        asyncio.create_task(_dispatch_enrichment_refresh())
 
 
 def stop_scheduler() -> None:
