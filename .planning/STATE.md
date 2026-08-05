@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 31
 current_phase_name: Connector Enrichment Rewrite
 status: executing
-stopped_at: Phase 31 Plan 02 complete — enrichment feed refresh + scheduler wiring, 3/3 tasks, TDD green, live-verified against real EPSS/KEV feeds, 2 Rule-1 bugs fixed (concurrency race, cross-file test collision)
-last_updated: "2026-08-05T11:03:22.019Z"
+stopped_at: Phase 31 Plan 03 complete — CrowdStrike ExPRT rating + Nessus VPR probe, 2/2 tasks, TDD green
+last_updated: "2026-08-05T11:24:58.000Z"
 last_activity: 2026-08-05
-last_activity_desc: "Phase 31 Plan 02 complete (enrichment feed refresh + scheduler wiring: EPSS/KEV fetch+parse, D-09 atomic-swap-keeps-last-good, D-01/D-02 re-propagation, D-10 eager first-run, 3/3 tasks, TDD RED→GREEN, live-verified against real feeds)"
+last_activity_desc: "Phase 31 Plan 03 complete (CrowdStrike ExPRT.AI rating -> native_priority_rating, zero new API calls + Nessus VPR defensive probe -> native_priority_score; both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN)"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 31 (Connector Enrichment Rewrite) — EXECUTING
-Plan: 3 of 5 (Plans 1-2 complete)
+Plan: 4 of 5 (Plans 1-3 complete)
 Status: Ready to execute
-Last activity: 2026-08-05 — Phase 31 Plan 02 complete (enrichment feed refresh + scheduler wiring: EPSS/KEV fetch+parse, D-09 atomic-swap-keeps-last-good, D-01/D-02 re-propagation, D-10 eager first-run, 3/3 tasks, TDD RED→GREEN, live-verified against real feeds)
+Last activity: 2026-08-05 — Phase 31 Plan 03 complete (CrowdStrike ExPRT.AI rating -> native_priority_rating, zero new API calls + Nessus VPR defensive probe -> native_priority_score; both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN)
 
 ## v4.0 Phase Map
 
@@ -315,6 +315,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 31]: 31-02: repropagate_enrichment returns {repropagated, kev_recomputed} as two separate counts (not one) -- the EPSS UPDATE only matches rows with a cve_id hit while the KEV UPDATE is an unconditional bidirectional recompute touching every row (D-04 authoritative-both-ways); collapsing them would obscure the different match semantics
 - [Phase 31]: 31-02: added _enrichment_refresh_lock (asyncio.Lock), beyond the plan's literal text -- a genuine, reproduced-live concurrency race between start_scheduler()'s eager call and _scheduler_loop()'s own first-tick inline call both racing the same in-memory gate, confirmed via a real UniqueViolationError on epss_scores_pkey against the docker dev stack's --reload backend
 - [Phase 31]: 31-02: test_enrichment_feeds.py (new) and Plan 01's test_vulnerability_enrichment.py both changed seed cve_id values to a pre-1999 year (CVE-1990-...) -- the real CVE numbering floor is 1999, making this range permanently collision-proof against real feed data this plan's own scheduler wiring can now populate during any client-fixture test's app lifespan
+- [Phase 31]: 31-03: CrowdStrike's source_signals captures BOTH the raw exploit_status int AND a distinctly-named derived exploit_status_kev_guess boolean (never a literal "cisa_kev" key, which would visually collide with the promoted column D-08 forbids duplicating) -- makes the "preserved for provenance only" contract unambiguously testable
+- [Phase 31]: 31-03: CrowdStrike's native_priority_rating/native_priority_score set via the file's own post-construction ad-hoc-attribute idiom (matches remediation_id/exploit_status_id) rather than constructor kwargs, even though these 3 fields ARE real dataclass fields (unlike remediation_id) -- a deliberate plan choice for file-local consistency, not a technical requirement
+- [Phase 31]: 31-03: CrowdStrike's numeric ExPRT companion probed under candidate key exprt_score (mirrors exprt_rating's key shape) -- RESEARCH.md confirms this field's existence is entirely unverified (Tertiary source only); Nessus VPR field name (vpr_score, falling back to vpr) is the same class of unverified assumption (A1) -- both flagged in 31-03-SUMMARY.md for live re-verification against real vendor instances
+- [Phase 31]: 31-03: Nessus source_signals allowlist deliberately narrow (exploit_available, exploitability_ease only) -- scoped to the 2 fields this codebase's own pre-existing _check_exploit_available already reads from real Nessus payloads, not speculative exploit_framework_* fields
+- [Phase 31]: 31-03: comment-only fix to crowdstrike.py's module docstring (corrected stale ">= 30" KEV threshold description to match the live code's actual ">= 50" check, Pitfall 3) -- the code's threshold itself is byte-for-byte unchanged
+- [Phase 31]: 31-03: ENRICH-03/04/06 left [ ] Pending in REQUIREMENTS.md -- shared-ID gate continues (31-04 and 31-05 also declare all 3 IDs; they flip complete only when 31-05, the cross-6 sweep, lands)
 
 ## Performance Metrics
 
@@ -355,9 +361,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 30 P01 | 21min | 3 tasks | 6 files |
 | Phase 31 P01 | 25min | 3 tasks | 10 files |
 | Phase 31 P02 | 65min | 3 tasks | 8 files |
+| Phase 31 P03 | 17min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-08-05T11:03:22.008Z
-**Stopped at:** Phase 31 Plan 02 complete — enrichment feed refresh + scheduler wiring, 3/3 tasks, TDD green, live-verified against real EPSS/KEV feeds, 2 Rule-1 bugs fixed (concurrency race, cross-file test collision)
+**Last session:** 2026-08-05T11:24:58.000Z
+**Stopped at:** Phase 31 Plan 03 complete — CrowdStrike ExPRT rating + Nessus VPR probe, 2/2 tasks, TDD green
 **Resume file:** None
