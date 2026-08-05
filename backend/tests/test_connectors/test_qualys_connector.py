@@ -423,3 +423,41 @@ def test_normalize_detection_native_priority_fields_always_set_even_without_qds(
     assert results[0].native_priority_score is None
     assert results[0].native_priority_rating is None
     assert results[0].source_signals == {}
+
+
+def test_normalize_detection_source_signals_dual_case_lowercase_json_path():
+    """WR-03 regression: `_parse_response`'s JSON-response branch commonly
+    yields lowercase keys -- the source_signals allowlist must check both
+    casings (mirrors this file's own qid/severity/dns/QDS dual-case
+    convention), never silently capturing nothing just because a response
+    happened to arrive JSON-shaped. Always normalized to the canonical
+    uppercase key in source_signals regardless of which casing was read."""
+    detection = {
+        "qid": REAL_QID,
+        "severity": 5,
+        "qds": "82",
+        "type": "Confirmed",
+        "qds_factors": {"exploit_maturity": "high"},
+    }
+    host = {"ip": "10.3.3.3", "dns": "qualys-host-1", "os": "Ubuntu 20.04"}
+    kb_cache = {REAL_QID: {"CVE_LIST": {"CVE": [{"ID": "CVE-2024-3333"}]}}}
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    signals = results[0].source_signals
+    assert signals["TYPE"] == "Confirmed"
+    assert signals["QDS_FACTORS"] == {"exploit_maturity": "high"}
+    assert results[0].native_priority_score == 82.0  # _get_qds's own dual-case path, unaffected
+
+
+def test_normalize_detection_source_signals_uppercase_preferred_when_both_cases_present():
+    """If a (malformed/mixed) response somehow carries both casings for the
+    same field, the uppercase value wins -- matching the allowlist's
+    upper-then-lower probe order."""
+    detection = {"qid": REAL_QID, "severity": 5, "TYPE": "Confirmed", "type": "Potential"}
+    host: dict = {}
+    kb_cache = {REAL_QID: {"CVE_LIST": {"CVE": [{"ID": "CVE-2024-2222"}]}}}
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    assert results[0].source_signals["TYPE"] == "Confirmed"

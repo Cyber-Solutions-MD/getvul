@@ -575,9 +575,15 @@ def _kb_solution(kb: dict[str, Any]) -> str | None:
 # native_priority_score, not duplicated (D-08). Excludes PII-adjacent
 # host-identifying fields (those live on `host`, not `detection`, and are
 # already promoted to their own dataclass fields).
-_SOURCE_SIGNAL_ALLOWLIST = (
-    "TYPE",
-    "QDS_FACTORS",
+# WR-03: `_parse_response` can hand back an XML-derived dict (uppercase
+# tags) or a JSON-derived dict (commonly lowercase keys) -- each pair below
+# is checked both-case, mirroring this file's own qid/severity/dns/QDS
+# dual-case convention (`_get_qds` above), and always normalized to the
+# canonical uppercase key in `source_signals` regardless of which casing
+# the response actually used.
+_SOURCE_SIGNAL_KEYS = (
+    ("TYPE", "type"),
+    ("QDS_FACTORS", "qds_factors"),
 )
 
 
@@ -638,9 +644,11 @@ def _normalize_detection(
     # to carry a QDS-shaped key must not leak into native_priority_score).
     native_priority_score = _get_qds(detection)
     source_signals: dict[str, Any] = {}
-    for key in _SOURCE_SIGNAL_ALLOWLIST:
-        if key in detection:
-            source_signals[key] = detection[key]
+    for upper, lower in _SOURCE_SIGNAL_KEYS:
+        if upper in detection:
+            source_signals[upper] = detection[upper]
+        elif lower in detection:
+            source_signals[upper] = detection[lower]
 
     # Phase 31 Plan 01/04: explicit dict[str, Any] annotation --
     # NormalizedVulnerability's dict[str, Any]-typed source_signals field
