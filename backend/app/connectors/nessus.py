@@ -245,6 +245,41 @@ def _check_exploit_available(vuln: dict[str, Any]) -> bool:
     return bool("exploitable" in description or "exploit available" in description)
 
 
+# ENRICH-04/D-07/D-08 (Phase 31 Plan 03): raw plugin_attributes field names
+# captured into source_signals ONLY when present in the raw dict -- omission
+# means "missing" (Nessus never returned it), never an explicit None/False
+# sentinel (mirrors defender.py's _SOURCE_SIGNAL_ALLOWLIST idiom, Phase 31
+# Plan 01). Scoped to the 2 fields this codebase's own _check_exploit_available
+# already reads from real Nessus plugin_attributes payloads above -- VPR
+# itself is excluded here since it's promoted to native_priority_score, not
+# duplicated (D-08).
+_SOURCE_SIGNAL_ALLOWLIST = (
+    "exploit_available",
+    "exploitability_ease",
+)
+
+
+def _get_vpr_score(attrs: dict[str, Any]) -> float | None:
+    """ENRICH-03/D-05 (Phase 31 Plan 03): defensive VPR probe mirroring
+    _check_exploit_available's own plugin_attributes.get() idiom above.
+
+    A1 (31-RESEARCH.md Assumptions Log): the exact Nessus REST JSON field
+    name for VPR is UNVERIFIED this session -- probe candidates in priority
+    order (``vpr_score``, then ``vpr``). Coerces to float defensively;
+    returns None if absent or non-numeric (soft-null, never a crash).
+    Flagged in 31-03-SUMMARY.md for live re-verification against a real
+    Nessus 10.5+ instance.
+    """
+    for key in ("vpr_score", "vpr"):
+        raw = attrs.get(key)
+        if raw is not None:
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
 def _normalize_vuln(
     vuln: dict[str, Any],
     *,
@@ -264,6 +299,19 @@ def _normalize_vuln(
     cves: list[str] = vuln.get("cve", []) or []
     exploit_available = _check_exploit_available(vuln)
 
+    # ENRICH-03/04 (Phase 31 Plan 03): VPR + source_signals, both read from
+    # the RAW plugin_attributes dict in this same scope -- never from the
+    # already-coerced `exploit_available` boolean above -- so a vendor-
+    # omitted field stays distinguishable from a vendor-returned-falsy one
+    # (31-RESEARCH.md Pitfall 2).
+    raw_attrs = vuln.get("plugin_attributes", {})
+    attrs: dict[str, Any] = raw_attrs if isinstance(raw_attrs, dict) else {}
+    native_priority_score = _get_vpr_score(attrs)
+    source_signals: dict[str, Any] = {}
+    for key in _SOURCE_SIGNAL_ALLOWLIST:
+        if key in attrs:
+            source_signals[key] = attrs[key]
+
     # Parse affected product from plugin_output (first line as fallback)
     affected_product = ""
     if plugin_output:
@@ -279,7 +327,7 @@ def _normalize_vuln(
         except (TypeError, ValueError):
             cvss3_score = None
 
-    base = dict(
+    base: dict[str, Any] = dict(
         vulnerability_name=plugin_name,
         cvss_v3_score=cvss3_score,
         severity=severity,
@@ -291,6 +339,12 @@ def _normalize_vuln(
         os_version=os_version or None,
         affected_product=affected_product or None,
         exploit_available=exploit_available,
+        # D-06/Pitfall 6: Nessus VPR is numeric-only -- no vendor-authored
+        # categorical rating exists, so native_priority_rating stays
+        # explicit None (not omitted, not invented).
+        native_priority_rating=None,
+        native_priority_score=native_priority_score,
+        source_signals=source_signals,
     )
 
     results: list[NormalizedVulnerability] = []
