@@ -435,9 +435,11 @@ source_signals: dict | None = None
 
 **If this table is empty:** N/A — see entries above.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does this phase update `VulnerabilityResponse`/`VulnerabilitySummary` (API schemas) to expose the 4 new columns?**
+> All three resolved during planning (verified by gsd-plan-checker against the actual plan actions): Q1 → Plan 31-01 Task 2 adds the 4 columns to `VulnerabilityResponse` and leaves `sort=`/`VulnerabilityFilter` untouched; Q2 → two migrations (`035`, `036`); Q3 → new `enrichment_feeds.py` module with a thin scheduler dispatcher.
+
+1. **RESOLVED — Does this phase update `VulnerabilityResponse`/`VulnerabilitySummary` (API schemas) to expose the 4 new columns?**
    - What we know: `VulnerabilityResponse` is an explicit Pydantic allowlist (`schemas.py:15-45`) that already exposes `exploit_status_id`/`exploit_status_name` — a typed signal promoted beyond a boolean that, like this phase's new columns, isn't yet "consumed" by any scoring model (that's Phase 33's job). This is direct precedent for exposing new columns before they're consumed.
    - What's unclear: whether the planner should also add the new fields to the `sort=` `Literal` (`router.py:66-72`) and `VulnerabilityFilter` (enabling `?sort=native_priority_score` or `?native_priority_score_min=`) — CONTEXT.md's D-06 explicitly defers "consuming" these signals, and sort/filter wiring arguably counts as consumption-adjacent.
    - Recommendation: Add the 4 fields to `VulnerabilityResponse` (completes the persistence contract, matches precedent, zero scoring-model risk) but leave `sort=`/`VulnerabilityFilter` untouched this phase — that's squarely Phase 33+ territory. Flag this explicitly for the discuss-phase/planner to confirm rather than silently deciding.
