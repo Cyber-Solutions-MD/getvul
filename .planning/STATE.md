@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-current_phase: 30
-current_phase_name: correlation-schema-fix
-status: executing
-stopped_at: Phase 30 Plan 02 complete (2/2 plans) — ready for /gsd-verify-work 30
-last_updated: "2026-08-05T08:09:21.000Z"
+current_phase: 31
+current_phase_name: Connector Enrichment Rewrite
+status: planning
+stopped_at: Completed 30-01-PLAN.md
+last_updated: "2026-08-05T08:22:42.909Z"
 last_activity: 2026-08-05
-last_activity_desc: 30-02 complete — re-correlation script + runtime zero-loss recovery test + banding/invariant/tenant-scope/D-09 HTTP-shape coverage; 10/10 tests green; CORR-01/02/03 all Complete
+last_activity_desc: Phase 30 complete, transitioned to Phase 31
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
   completed_plans: 2
 ---
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 30 (correlation-schema-fix) — EXECUTION COMPLETE (2/2 plans)
-Plan: 30-02 COMPLETE (2 of 2)
-Status: Both plans done; ready for `/gsd-verify-work 30`
-Last activity: 2026-08-05 — 30-02 complete: Task 1 (`d10bc99`) added `backend/scripts/recorrelate_all_tenants.py` with a testable `_recorrelate_tenant(db, tenant_id)` helper (blind-spot diagnostic + `run_correlations` + per-tenant COALESCE zero-loss check) that `_main()` calls in its active-tenant loop; Task 2 (`21247ce`) proved runtime CORR-02 zero-loss recovery — seeded the exact post-backfill bug signature (`sources=[]`, `sources_count=2`) and proved `_recorrelate_tenant` corrects it, driving `inconsistent_rows_after` to 0; Task 3 (`1e820d4`) added confidence-banding (parametrized 2..6 sources, D-08 bands), the count-invariant across every combination (CORR-03), cross-tenant isolation, and the D-09 HTTP response-shape test against the real `GET /{vuln_id}/correlation` route. Full suite: 10/10 passed. CORR-01/CORR-02/CORR-03 now all `[x]` Complete in REQUIREMENTS.md — the shared-ID gate from 30-01's summary resolves here. Phase 30 is fully executed (2/2 plans); phase-level verification is `/gsd-verify-work 30`'s job, not marked complete here.
+Phase: 31 — Connector Enrichment Rewrite
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-05 — Phase 30 complete, transitioned to Phase 31
 
 ## v4.0 Phase Map
 
