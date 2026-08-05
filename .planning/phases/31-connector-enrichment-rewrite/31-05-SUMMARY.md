@@ -127,3 +127,7 @@ None — no external service configuration required. Wiz's new fields are read f
 ---
 *Phase: 31-connector-enrichment-rewrite*
 *Completed: 2026-08-05*
+
+## Self-Check: PASSED
+
+All 3 modified source/test files confirmed present on disk; all 4 commit hashes (`7c0acc4`, `5c04574`, `fc8aed1`, `d0be237`) confirmed in `git log`.

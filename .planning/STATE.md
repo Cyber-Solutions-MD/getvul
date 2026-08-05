@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 31
 current_phase_name: Connector Enrichment Rewrite
 status: executing
-stopped_at: Phase 31 Plan 04 complete — Qualys QDS + Rapid7 Risk Score, 2/2 tasks, TDD green
-last_updated: "2026-08-05T11:44:10.000Z"
+stopped_at: Phase 31 Plan 05 complete — Wiz guarded EPSS/exploitability enrichment + cross-6 ENRICH-06 sweep, 2/2 tasks, TDD green
+last_updated: "2026-08-05T12:10:19.000Z"
 last_activity: 2026-08-05
-last_activity_desc: "Phase 31 Plan 04 complete (Qualys QDS -> native_priority_score read from the per-detection record not kb_cache (Pitfall 4) + Rapid7 Risk Score -> native_priority_score read from vuln_entry not detail (Pitfall 5); both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN; completes native-priority coverage for all 4 composite-signal connectors)"
+last_activity_desc: "Phase 31 Plan 05 complete (Wiz gains VULNERABILITY_QUERY_ENRICHED + a WizGraphQLSchemaError guard: tries the enriched GraphQL query for 5 EPSS/exploitability sub-scores first, falls back to the unchanged base query on a schema error (A4) instead of breaking the whole Wiz sync; native_priority_score/rating explicit None (Pitfall 6); Task 2 adds a cross-6 parametrized sweep proving all 6 connectors always explicitly set native_priority_score/native_priority_rating/source_signals. 2/2 tasks, TDD RED→GREEN. This was the last of the 4 declaring plans for ENRICH-03/04/06 -- all 6 connectors now compliant; Phase 31 is 5/5 plans complete, pending /gsd-verify-work 31)"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 31 (Connector Enrichment Rewrite) — EXECUTING
-Plan: 5 of 5 (Plans 1-4 complete)
-Status: Ready to execute
-Last activity: 2026-08-05 — Phase 31 Plan 04 complete (Qualys QDS -> native_priority_score read from the per-detection record not kb_cache (Pitfall 4) + Rapid7 Risk Score -> native_priority_score read from vuln_entry not detail (Pitfall 5); both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN; completes native-priority coverage for all 4 composite-signal connectors)
+Plan: 5 of 5 (Plans 1-5 complete)
+Status: Ready for verification
+Last activity: 2026-08-05 — Phase 31 Plan 05 complete (Wiz gains VULNERABILITY_QUERY_ENRICHED + a WizGraphQLSchemaError guard: tries the enriched GraphQL query for 5 EPSS/exploitability sub-scores first, falls back to the unchanged base query on a schema error (A4) instead of breaking the whole Wiz sync; native_priority_score/rating explicit None (Pitfall 6). Task 2 adds a cross-6 parametrized sweep proving all 6 connectors always explicitly set native_priority_score/native_priority_rating/source_signals. 2/2 tasks, TDD RED→GREEN. Last of the 4 declaring plans for ENRICH-03/04/06 -- Phase 31 is 5/5 plans complete, pending /gsd-verify-work 31)
 
 ## v4.0 Phase Map
 
@@ -326,6 +326,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 31]: 31-04: Qualys source_signals allowlist (TYPE, QDS_FACTORS) and Rapid7's (status + derived status_confirmed, mirroring CrowdStrike's raw+derived-guess shape) are both Claude's-Discretion choices -- neither RESEARCH.md/PATTERNS.md named specific keys for these 2 connectors (unlike Nessus's exploit_available/exploitability_ease, which mirrored pre-existing code reads)
 - [Phase 31]: 31-04: both native-priority probes (_get_qds, _get_risk_score) use a single named candidate key each, no invented fallback candidates -- unlike Nessus's 2-candidate VPR probe, the plan's own interfaces block names exactly one candidate for Qualys/Rapid7
 - [Phase 31]: 31-04: ENRICH-03/04/06 left [ ] Pending in REQUIREMENTS.md -- shared-ID gate continues (31-05, the cross-6 sweep + Wiz, is the last declaring plan, confirmed via direct read of 31-05-PLAN.md's frontmatter); this plan completes native_priority_* coverage for all 4 connectors with a genuine vendor composite (Defender/Wiz are intentionally null, Pitfall 6)
+- [Phase 31]: 31-05: WizGraphQLSchemaError(RuntimeError) is a new, narrowly-scoped exception raised only when _graphql() sees an `errors` key in the response body -- lets fetch_vulnerabilities() catch specifically the schema-error-on-enriched-query case (A4 guard) without swallowing the pre-existing "rate-limit retries exhausted" RuntimeError or any transport/auth error, which still propagate unchanged
+- [Phase 31]: 31-05: VULNERABILITY_QUERY (current/base) kept byte-for-byte unchanged as its own constant; VULNERABILITY_QUERY_ENRICHED is additive -- the fallback path is therefore provably identical to pre-Plan-05 Wiz behavior, not a second query that could independently drift
+- [Phase 31]: 31-05: hasCisaKevExploit shares the same _SOURCE_SIGNAL_ALLOWLIST loop as the 5 new EPSS/exploitability fields (one key-presence-check idiom, matching Nessus/Qualys/Defender) -- naturally threads through both the enriched query (all 6 keys possible) and the base-query fallback (only hasCisaKevExploit possible) with no special-casing
+- [Phase 31]: 31-05: cross-6 sweep (Task 2) encodes per-connector expect_score_populated/expect_rating_populated flags rather than one shared assertion -- CrowdStrike's genuine signal is the *_rating half (ExPRT.AI categorical); Nessus/Qualys/Rapid7's is the *_score half (VPR/QDS/RiskScore, numeric-only so *_rating always None); Defender/Wiz have neither (Pitfall 6)
+- [Phase 31]: 31-05: mutation-verified the cross-6 sweep has real discriminating power -- temporarily inverting the CrowdStrike case's expected flags made the test fail for the exact expected reason, then reverted, before committing
+- [Phase 31]: 31-05: ENRICH-03/04/06 marked [x] Complete in REQUIREMENTS.md -- this was the last of the 4 declaring plans (01, 03, 04, 05); all 6 connectors + the cross-6 sweep are done. Phase 31 roadmap/progress-table flipped to 5/5 plans; STATE.md status intentionally left "executing" (not "complete") per this plan's own instruction -- phase completion is the orchestrator's call after /gsd-verify-work 31
 
 ## Performance Metrics
 
@@ -368,9 +374,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 31 P02 | 65min | 3 tasks | 8 files |
 | Phase 31 P03 | 17min | 2 tasks | 4 files |
 | Phase 31 P04 | 16min | 2 tasks | 4 files |
+| Phase 31 P05 | 23min | 2 tasks | 3 files |
 
 ## Session
 
-**Last session:** 2026-08-05T11:44:10.000Z
-**Stopped at:** Phase 31 Plan 04 complete — Qualys QDS + Rapid7 Risk Score, 2/2 tasks, TDD green
+**Last session:** 2026-08-05T12:10:19.000Z
+**Stopped at:** Phase 31 Plan 05 complete — Wiz guarded EPSS/exploitability enrichment + cross-6 ENRICH-06 sweep, 2/2 tasks, TDD green
 **Resume file:** None
