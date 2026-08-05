@@ -297,3 +297,63 @@ async def test_enrichment_batch_drops_on_429_no_retry(monkeypatch: pytest.Monkey
 
     assert calls["n"] == 1  # no retry attempted
     assert connector._device_cache == {}  # batch silently dropped
+
+
+# ── ENRICH-03/04 (Phase 31 Plan 03): ExPRT rating -> native_priority_rating,
+# source_signals provenance ──
+
+
+def test_normalize_vuln_exprt_rating_maps_to_native_priority_rating():
+    """A cached cve_meta with exprt_rating="HIGH" and exploit_status=50 ->
+    native_priority_rating=="HIGH" (raw ExPRT category, no re-scale -- D-06).
+    source_signals carries the exploit_status value (incl. the >=50 KEV-ish
+    guess) as PROVENANCE ONLY -- it must NOT itself carry cisa_kev column
+    authority (D-04, that authority moved to sync.py's _lookup_enrichment in
+    Phase 31 Plan 01)."""
+    connector = CrowdStrikeConnector()
+    connector._vuln_metadata_cache["vuln-exprt"] = {"cve": {"exploit_status": 50, "exprt_rating": "HIGH"}}
+    item = {"id": "vuln-exprt", "vulnerability_id": "CVE-2024-1111", "aid": "", "apps": []}
+
+    v = connector._normalize_vuln(item, "CRITICAL")
+
+    assert v is not None
+    assert v.native_priority_rating == "HIGH"
+    assert v.source_signals["exploit_status"] == 50
+    assert v.source_signals["exploit_status_kev_guess"] is True
+    # Provenance only -- must never itself carry the promoted column's name.
+    assert "cisa_kev" not in v.source_signals
+    # No PII-adjacent or already-promoted keys leak into source_signals.
+    for forbidden in ("hostname", "ip_addresses", "cve_id", "cvss", "severity", "epss", "native_priority"):
+        assert forbidden not in v.source_signals
+
+
+def test_normalize_vuln_native_priority_rating_none_when_exprt_absent():
+    """No exprt_rating in the cached cve_meta -> native_priority_rating is
+    None (soft-null, no crash) -- exploit_status is still captured for
+    provenance since the vendor DID return it."""
+    connector = CrowdStrikeConnector()
+    connector._vuln_metadata_cache["vuln-noexprt"] = {"cve": {"exploit_status": 10}}
+    item = {"id": "vuln-noexprt", "vulnerability_id": "CVE-2024-2222", "aid": "", "apps": []}
+
+    v = connector._normalize_vuln(item, "LOW")
+
+    assert v is not None
+    assert v.native_priority_rating is None
+    assert v.native_priority_score is None
+    assert v.source_signals["exploit_status"] == 10
+    assert v.source_signals["exploit_status_kev_guess"] is False
+
+
+def test_normalize_vuln_no_cached_vuln_metadata_at_all():
+    """No cached vuln metadata whatsoever for this vuln id -> native_priority_*
+    stay None and source_signals stays an empty dict (never a crash, never an
+    omitted attribute -- ENRICH-06 requires all 3 fields always set)."""
+    connector = CrowdStrikeConnector()
+    item = {"id": "vuln-nometa", "vulnerability_id": "CVE-2024-3333", "aid": "", "apps": []}
+
+    v = connector._normalize_vuln(item, "MEDIUM")
+
+    assert v is not None
+    assert v.native_priority_rating is None
+    assert v.native_priority_score is None
+    assert v.source_signals == {}
