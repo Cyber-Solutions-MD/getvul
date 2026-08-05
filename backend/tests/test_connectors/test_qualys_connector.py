@@ -42,7 +42,7 @@ import asyncio
 import httpx
 import pytest
 
-from app.connectors.qualys import QualysConnector
+from app.connectors.qualys import QualysConnector, _normalize_detection
 
 CREDS = {
     "url": "https://qualysapi.qualys.com",
@@ -307,3 +307,119 @@ async def test_proactive_throttle_on_low_rate_limit_remaining(monkeypatch: pytes
 
     assert resp.status_code == 200
     assert 7 in sleep_calls
+
+
+# ── ENRICH-03/04 (Phase 31 Plan 04): QDS -> native_priority_score,
+# source_signals missing-vs-negative (Pitfall 4: read from the detection
+# dict, NEVER kb_cache -- QDS is computed at detection time, not a QID-level
+# knowledge-base constant) ──────────────────────────────────────────────────
+
+
+def test_normalize_detection_qds_populates_native_priority_score():
+    """A detection dict carrying a QDS value -> native_priority_score == the
+    raw QDS number (1-100) on EVERY per-CVE fanout finding (D-06: no
+    re-scale); native_priority_rating stays explicit None (QDS is
+    numeric-only, no separate vendor categorical rating)."""
+    detection = {"qid": REAL_QID, "severity": 5, "QDS": "82"}
+    host = {"ip": "10.3.3.3", "dns": "qualys-host-1", "os": "Ubuntu 20.04"}
+    kb_cache = {
+        REAL_QID: {
+            "TITLE": "OpenSSL Remote Code Execution",
+            "CVSS_V3": {"BASE": "9.4"},
+            "CVE_LIST": {"CVE": [{"ID": "CVE-2024-9999"}, {"ID": "CVE-2024-8888"}]},
+        }
+    }
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    assert len(results) == 2
+    for r in results:
+        assert r.native_priority_score == 82.0
+        assert r.native_priority_rating is None
+
+
+def test_normalize_detection_qds_absent_stays_none_no_crash():
+    """A detection WITHOUT a QDS key -> native_priority_score stays None on
+    every emitted finding (soft-null, never a crash)."""
+    detection = {"qid": REAL_QID, "severity": 3}
+    host: dict = {}
+    kb_cache = {REAL_QID: {"CVE_LIST": {"CVE": [{"ID": "CVE-2024-7777"}]}}}
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    assert len(results) == 1
+    assert results[0].native_priority_score is None
+
+
+def test_normalize_detection_qds_read_from_detection_not_kb_cache():
+    """Pitfall 4: a kb_cache entry that happens to carry a QDS-shaped key
+    must NOT leak into native_priority_score -- QDS is a per-DETECTION field,
+    not a QID-level knowledge-base constant."""
+    detection = {"qid": REAL_QID, "severity": 3}  # no QDS on the detection itself
+    host: dict = {}
+    kb_cache = {
+        REAL_QID: {
+            "QDS": "99",  # a KB entry that happens to carry a QDS-shaped key
+            "CVE_LIST": {"CVE": [{"ID": "CVE-2024-6666"}]},
+        }
+    }
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    assert results[0].native_priority_score is None  # NOT 99.0 -- must ignore kb_cache
+
+
+def test_normalize_detection_source_signals_missing_vs_negative_and_no_pii_or_promoted_keys():
+    """source_signals captures a vendor field that IS present (TYPE) while a
+    genuinely-absent one (QDS_FACTORS) stays omitted in the SAME finding; no
+    PII-adjacent or already-promoted keys leak in; QDS itself is not
+    duplicated (already promoted to native_priority_score, D-08)."""
+    detection = {
+        "qid": REAL_QID,
+        "severity": 5,
+        "QDS": "82",
+        "TYPE": "Confirmed",
+        # QDS_FACTORS intentionally absent -- Qualys did not return a
+        # threat-intel breakdown for this detection (the "missing" half).
+    }
+    host = {"ip": "10.3.3.3", "dns": "qualys-host-1", "os": "Ubuntu 20.04"}
+    kb_cache = {REAL_QID: {"CVE_LIST": {"CVE": [{"ID": "CVE-2024-5555"}]}}}
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    signals = results[0].source_signals
+    assert signals["TYPE"] == "Confirmed"  # present
+    assert "QDS_FACTORS" not in signals  # genuinely never returned -- missing
+    assert "QDS" not in signals  # promoted to native_priority_score, not duplicated (D-08)
+    for forbidden in ("hostname", "ip_addresses", "cve_id", "cvss", "severity", "epss", "native_priority"):
+        assert forbidden not in signals
+
+
+def test_normalize_detection_qds_factors_present_but_empty_is_negative_not_missing():
+    """A detection where Qualys DID return the QDS_FACTORS breakdown, even if
+    it's empty (no elevated risk factors currently active), is present
+    (negative) -- distinguishable from the genuinely-absent case above."""
+    detection = {"qid": REAL_QID, "severity": 5, "QDS": "40", "QDS_FACTORS": {}}
+    host: dict = {}
+    kb_cache = {REAL_QID: {"CVE_LIST": {"CVE": [{"ID": "CVE-2024-4444"}]}}}
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    assert "QDS_FACTORS" in results[0].source_signals
+    assert results[0].source_signals["QDS_FACTORS"] == {}
+
+
+def test_normalize_detection_native_priority_fields_always_set_even_without_qds():
+    """ENRICH-06: even when QDS/QDS_FACTORS/TYPE are entirely absent, all 3
+    new fields are explicitly set (native_priority_score=None,
+    native_priority_rating=None, source_signals={}) -- never omitted, never
+    a crash."""
+    detection = {"qid": FILLER_QID, "severity": 1}
+    host: dict = {}
+    kb_cache: dict = {}
+
+    results = _normalize_detection(detection, host, kb_cache)
+
+    assert results[0].native_priority_score is None
+    assert results[0].native_priority_rating is None
+    assert results[0].source_signals == {}
