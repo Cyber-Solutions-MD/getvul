@@ -200,6 +200,17 @@ class QualysConnector(BaseConnector):
                 "truncation_limit": 1000,
                 "status": "New,Active,Re-Opened",
                 "show_igs": 0,
+                # ENRICH-03/D-05 (Phase 31 Plan 04, Pitfall 4): request the
+                # per-detection Qualys Detection Score (QDS, 1-100) + its
+                # QDS_FACTORS threat-intel breakdown. QDS is computed at
+                # detection time (exploit maturity / active-attack signals),
+                # NOT a QID-level knowledge-base constant -- it must be read
+                # from the `detection` dict in _normalize_detection below,
+                # never `kb_cache`. Param name is A3-unverified
+                # (31-RESEARCH.md) -- Qualys APIs are generally tolerant of
+                # unrecognized params (soft failure: QDS simply stays absent,
+                # never a broken request).
+                "show_qds_factors": 1,
             }
             if id_min > 0:
                 params["id_min"] = id_min
@@ -552,6 +563,46 @@ def _kb_solution(kb: dict[str, Any]) -> str | None:
     return None
 
 
+# ENRICH-04/D-07/D-08 (Phase 31 Plan 04): raw per-DETECTION field names
+# captured into source_signals ONLY when present in the raw dict -- omission
+# means "missing" (Qualys never returned it for this detection), never an
+# explicit None/False sentinel (mirrors defender.py/nessus.py's own
+# _SOURCE_SIGNAL_ALLOWLIST idiom, Phase 31 Plans 01/03). TYPE (detection
+# confirmation status: Confirmed/Potential/Info) and QDS_FACTORS (the
+# threat-intel breakdown `show_qds_factors=1` above unlocks) are both
+# exploit/priority-relevant and currently entirely discarded by this
+# connector. QDS itself is excluded here -- already promoted to
+# native_priority_score, not duplicated (D-08). Excludes PII-adjacent
+# host-identifying fields (those live on `host`, not `detection`, and are
+# already promoted to their own dataclass fields).
+_SOURCE_SIGNAL_ALLOWLIST = (
+    "TYPE",
+    "QDS_FACTORS",
+)
+
+
+def _get_qds(detection: dict[str, Any]) -> float | None:
+    """ENRICH-03/D-05 (Phase 31 Plan 04): defensive Qualys Detection Score
+    (QDS) probe. QDS is a per-DETECTION field (Pitfall 4) -- read from the
+    ``detection`` dict passed to ``_normalize_detection``, never
+    ``kb_cache`` (QDS is computed at detection time from exploit-maturity /
+    threat-intel factors, not a QID-level knowledge-base constant). Exact
+    element name is A3-unverified (31-RESEARCH.md) -- probe the documented
+    ``QDS`` tag, both-case (mirrors this file's own qid/severity
+    dual-case-checked convention). Soft-nulls (never raises) on absence or a
+    non-numeric value.
+    """
+    raw = detection.get("QDS")
+    if raw is None:
+        raw = detection.get("qds")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _normalize_detection(
     detection: dict[str, Any],
     host: dict[str, Any],
@@ -580,12 +631,21 @@ def _normalize_detection(
     exploit_available = _kb_exploit_available(kb)
     solution = _kb_solution(kb)
 
-    # Phase 31 Plan 01: explicit dict[str, Any] annotation -- NormalizedVulnerability
-    # gained a dict[str, Any]-typed source_signals field (ENRICH-04) that this
-    # connector doesn't populate yet (Qualys's own enrichment lands in a later
-    # plan); annotating `base` as Any-valued keeps this **base unpacking call
-    # compatible with the widened constructor signature without changing any
-    # runtime behavior here.
+    # ENRICH-03/04 (Phase 31 Plan 04): QDS + source_signals, both read from
+    # the per-DETECTION dict passed in -- NEVER kb_cache (Pitfall 4: QDS is
+    # computed at detection time from exploit-maturity/threat-intel factors,
+    # not a QID-level knowledge-base constant; a kb_cache entry that happens
+    # to carry a QDS-shaped key must not leak into native_priority_score).
+    native_priority_score = _get_qds(detection)
+    source_signals: dict[str, Any] = {}
+    for key in _SOURCE_SIGNAL_ALLOWLIST:
+        if key in detection:
+            source_signals[key] = detection[key]
+
+    # Phase 31 Plan 01/04: explicit dict[str, Any] annotation --
+    # NormalizedVulnerability's dict[str, Any]-typed source_signals field
+    # (ENRICH-04) is now genuinely populated below; the annotation keeps
+    # this **base unpacking call compatible with the constructor signature.
     base: dict[str, Any] = dict(
         vulnerability_name=vuln_name,
         cvss_v3_score=cvss3,
@@ -597,6 +657,12 @@ def _normalize_detection(
         os_name=os_name or None,
         os_version=os_version or None,
         exploit_available=exploit_available,
+        # D-06/Pitfall 4: QDS is numeric-only -- Qualys has no separate
+        # vendor-authored categorical rating -- native_priority_rating stays
+        # explicit None (never omitted, never invented).
+        native_priority_rating=None,
+        native_priority_score=native_priority_score,
+        source_signals=source_signals,
     )
 
     results: list[NormalizedVulnerability] = []
