@@ -230,3 +230,217 @@ async def test_verify_tls_defaults_true_and_config_can_disable(monkeypatch: pyte
     await connector2.authenticate(CREDS, {"verify_tls": False})
     assert connector2.verify_tls is False
     await connector2.close()
+
+
+# ── ENRICH-03/04 (Phase 31 Plan 04): riskScore -> native_priority_score,
+# source_signals missing-vs-negative (Pitfall 5: read from vuln_entry -- the
+# per-asset AssetVulnerability association entry -- NEVER `detail`, the
+# vendor-neutral vulnerability definition) ──────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_risk_score_from_vuln_entry_populates_native_priority_score(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A vuln_entry carrying riskScore -> native_priority_score == the raw
+    number (0-1000 scale) on the emitted finding (D-06: no re-scale);
+    native_priority_rating stays explicit None (Risk Score is numeric-only,
+    no separate vendor categorical rating)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/api/3/assets":
+            return _json_response(200, {"resources": [ASSET_1], "page": {"totalPages": 1}})
+        if path == "/api/3/assets/100/vulnerabilities":
+            return _json_response(
+                200,
+                {"resources": [{"id": "ssl-poodle", "riskScore": 653.5}], "page": {"totalPages": 1}},
+            )
+        if path == "/api/3/vulnerabilities/ssl-poodle":
+            return _json_response(200, VULN_DETAIL_1)
+        if path == "/api/3/vulnerabilities/ssl-poodle/solutions":
+            return _json_response(200, SOLUTIONS_1)
+        return _json_response(404, {"message": "not found"})
+
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = Rapid7Connector()
+    await connector.authenticate(CREDS, {})
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    assert len(results) == 1
+    assert results[0].native_priority_score == 653.5
+    assert results[0].native_priority_rating is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_risk_score_absent_stays_none_no_crash(monkeypatch: pytest.MonkeyPatch):
+    """A vuln_entry WITHOUT riskScore -> native_priority_score stays None
+    (soft-null, never a crash)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/api/3/assets":
+            return _json_response(200, {"resources": [ASSET_1], "page": {"totalPages": 1}})
+        if path == "/api/3/assets/100/vulnerabilities":
+            return _json_response(200, {"resources": [{"id": "ssl-poodle"}], "page": {"totalPages": 1}})
+        if path == "/api/3/vulnerabilities/ssl-poodle":
+            return _json_response(200, VULN_DETAIL_1)
+        if path == "/api/3/vulnerabilities/ssl-poodle/solutions":
+            return _json_response(200, SOLUTIONS_1)
+        return _json_response(404, {"message": "not found"})
+
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = Rapid7Connector()
+    await connector.authenticate(CREDS, {})
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    assert results[0].native_priority_score is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_risk_score_read_from_vuln_entry_not_detail(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Pitfall 5: a `detail` resource carrying a riskScore-shaped key must
+    NOT leak into native_priority_score -- Risk Score lives on the per-asset
+    AssetVulnerability association entry (vuln_entry), not the vendor-neutral
+    vulnerability definition resource (identical for every asset sharing
+    this CVE)."""
+    detail_with_risk_score = {**VULN_DETAIL_1, "riskScore": 999.0}  # must be ignored
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/api/3/assets":
+            return _json_response(200, {"resources": [ASSET_1], "page": {"totalPages": 1}})
+        if path == "/api/3/assets/100/vulnerabilities":
+            # vuln_entry itself carries no riskScore.
+            return _json_response(200, {"resources": [{"id": "ssl-poodle"}], "page": {"totalPages": 1}})
+        if path == "/api/3/vulnerabilities/ssl-poodle":
+            return _json_response(200, detail_with_risk_score)
+        if path == "/api/3/vulnerabilities/ssl-poodle/solutions":
+            return _json_response(200, SOLUTIONS_1)
+        return _json_response(404, {"message": "not found"})
+
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = Rapid7Connector()
+    await connector.authenticate(CREDS, {})
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    assert results[0].native_priority_score is None  # NOT 999.0 -- must ignore `detail`
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_source_signals_missing_vs_negative_and_no_pii_or_promoted_keys(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """source_signals captures a vendor field that IS present (`status`,
+    even a weaker vulnerable-version match) while riskScore itself is not
+    duplicated (already promoted to native_priority_score, D-08); no
+    PII-adjacent or already-promoted keys ever leak in."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/api/3/assets":
+            return _json_response(200, {"resources": [ASSET_1], "page": {"totalPages": 1}})
+        if path == "/api/3/assets/100/vulnerabilities":
+            return _json_response(
+                200,
+                {
+                    "resources": [{"id": "ssl-poodle", "riskScore": 653.5, "status": "vulnerable-version"}],
+                    "page": {"totalPages": 1},
+                },
+            )
+        if path == "/api/3/vulnerabilities/ssl-poodle":
+            return _json_response(200, VULN_DETAIL_1)
+        if path == "/api/3/vulnerabilities/ssl-poodle/solutions":
+            return _json_response(200, SOLUTIONS_1)
+        return _json_response(404, {"message": "not found"})
+
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = Rapid7Connector()
+    await connector.authenticate(CREDS, {})
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    signals = results[0].source_signals
+    assert signals["status"] == "vulnerable-version"  # present
+    assert signals["status_confirmed"] is False  # derived: not an exact/confirmed match
+    assert "riskScore" not in signals  # promoted to native_priority_score, not duplicated (D-08)
+    for forbidden in ("hostname", "ip_addresses", "cve_id", "cvss", "severity", "epss", "native_priority"):
+        assert forbidden not in signals
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_status_confirmed_true_and_status_absent_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """`status == "vulnerable"` -> derived status_confirmed True; when
+    `status` is absent entirely from a different finding's vuln_entry, BOTH
+    keys are omitted (missing, never a False sentinel) -- in the SAME
+    fetch_vulnerabilities() run."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/api/3/assets":
+            return _json_response(200, {"resources": [ASSET_1, ASSET_2], "page": {"totalPages": 1}})
+        if path == "/api/3/assets/100/vulnerabilities":
+            return _json_response(
+                200, {"resources": [{"id": "ssl-poodle", "status": "vulnerable"}], "page": {"totalPages": 1}}
+            )
+        if path == "/api/3/assets/200/vulnerabilities":
+            return _json_response(200, {"resources": [{"id": "openssh-cve"}], "page": {"totalPages": 1}})
+        if path == "/api/3/vulnerabilities/ssl-poodle":
+            return _json_response(200, VULN_DETAIL_1)
+        if path == "/api/3/vulnerabilities/ssl-poodle/solutions":
+            return _json_response(200, SOLUTIONS_1)
+        if path == "/api/3/vulnerabilities/openssh-cve":
+            return _json_response(200, VULN_DETAIL_2)
+        if path == "/api/3/vulnerabilities/openssh-cve/solutions":
+            return _json_response(200, SOLUTIONS_2)
+        return _json_response(404, {"message": "not found"})
+
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = Rapid7Connector()
+    await connector.authenticate(CREDS, {})
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    by_cve = {r.cve_id: r for r in results}
+    assert by_cve["CVE-2014-3566"].source_signals["status"] == "vulnerable"
+    assert by_cve["CVE-2014-3566"].source_signals["status_confirmed"] is True
+
+    # openssh-cve's vuln_entry has no `status` key at all -> both keys absent.
+    assert "status" not in by_cve["CVE-2023-9999"].source_signals
+    assert "status_confirmed" not in by_cve["CVE-2023-9999"].source_signals
+
+
+@pytest.mark.asyncio
+async def test_fetch_vulnerabilities_native_priority_fields_always_set_even_without_risk_score(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """ENRICH-06: even when riskScore/status are entirely absent (the
+    module-level VULN_ENTRY_1/VULN_ENTRY_2 fixtures used elsewhere in this
+    file), all 3 new fields are explicitly set (native_priority_score=None,
+    native_priority_rating=None, source_signals={}) -- never omitted, never
+    a crash."""
+    handler, _calls = _handler_factory()
+    _install_mock_transport(monkeypatch, handler)
+
+    connector = Rapid7Connector()
+    await connector.authenticate(CREDS, {})
+    results = await connector.fetch_vulnerabilities()
+    await connector.close()
+
+    assert len(results) == 2
+    for r in results:
+        assert r.native_priority_score is None
+        assert r.native_priority_rating is None
+        assert r.source_signals == {}
