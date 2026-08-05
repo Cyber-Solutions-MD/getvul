@@ -278,9 +278,7 @@ async def test_refresh_swaps_in_new_data_on_full_success(db_session, monkeypatch
     assert new_row is not None
     assert new_row.epss_score == Decimal("0.42000")
 
-    new_kev = (
-        await db_session.execute(select(CisaKev).where(CisaKev.cve_id == "CVE-2024-9999"))
-    ).scalar_one_or_none()
+    new_kev = (await db_session.execute(select(CisaKev).where(CisaKev.cve_id == "CVE-2024-9999"))).scalar_one_or_none()
     assert new_kev is not None
     assert new_kev.vendor_project == "Acme"
 

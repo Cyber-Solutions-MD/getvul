@@ -630,3 +630,5 @@ app/main.py:0: error: Function is missing a type annotation for one or more para
 app/main.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/main.py:0: error: Function is missing a type annotation  [no-untyped-def]
 app/main.py:0: error: Function is missing a type annotation  [no-untyped-def]
+app/connectors/enrichment_feeds.py:0: error: "Result[Any]" has no attribute "rowcount"  [attr-defined]
+app/connectors/enrichment_feeds.py:0: error: "Result[Any]" has no attribute "rowcount"  [attr-defined]
