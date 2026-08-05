@@ -54,6 +54,7 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     cvss_v3_vector: Mapped[str | None] = mapped_column(String(100))
     severity: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     epss_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    epss_percentile: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     exploit_available: Mapped[bool] = mapped_column(Boolean, default=False)
     cisa_kev: Mapped[bool] = mapped_column(Boolean, default=False)
     asset_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -69,8 +70,19 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     remediation_action: Mapped[str | None] = mapped_column(Text)
     exploit_status_id: Mapped[int | None] = mapped_column(Integer)
     exploit_status_name: Mapped[str | None] = mapped_column(String(100))
+    # ENRICH-03/D-05 (Phase 31 Plan 01): generic vendor-native composite pair --
+    # raw value/label verbatim, no cross-scale normalization (that's Phase 33).
+    # Nullable: 2 of 6 connectors (Defender, Wiz) have no vendor-authored
+    # composite and leave these explicitly None (31-RESEARCH.md Pitfall 6).
+    native_priority_score: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
+    native_priority_rating: Mapped[str | None] = mapped_column(String(50))
     remediation_info: Mapped[str | None] = mapped_column(Text)
     file_paths: Mapped[dict | None] = mapped_column(JSONB)  # ["path1", "path2"]
+    # ENRICH-04/D-07/D-08: curated per-connector allowlist, raw vendor field
+    # names as keys. Omission = missing (vendor never returned it); a key
+    # present with a falsy value = negative (vendor returned it falsy).
+    # Mirrors Asset.mdm_details (assets/models.py:67).
+    source_signals: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     status: Mapped[str] = mapped_column(String(20), default=VulnStatus.OPEN.value, index=True)
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
@@ -99,3 +111,39 @@ class VulnerabilityCorrelation(Base, UUIDPrimaryKeyMixin):
     confidence: Mapped[str] = mapped_column(String(10), default=Confidence.LOW.value)
 
     asset: Mapped["Asset"] = relationship("Asset", back_populates="correlations")
+
+
+class EpssScore(Base, TimestampMixin):
+    """Global EPSS reference table (ENRICH-01/ENRICH-05, D-11 signed-off
+    exception): CVE-level fact, no tenant_id, cve_id is the primary key
+    directly. Refreshed wholesale by the daily scheduler job (a later plan);
+    `_upsert_vulnerability` (sync.py) reads it once per ingest via
+    `_lookup_enrichment` to snapshot epss_score/epss_percentile onto each
+    finding (D-01)."""
+
+    __tablename__ = "epss_scores"
+
+    cve_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    epss_score: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    percentile: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    model_version: Mapped[str | None] = mapped_column(String(20))
+    score_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CisaKev(Base, TimestampMixin):
+    """Global CISA KEV catalog reference table (ENRICH-02/ENRICH-05, D-11
+    signed-off exception): CVE-level fact, no tenant_id, cve_id is the
+    primary key directly. Sole authority for the `Vulnerability.cisa_kev`
+    column (D-04) -- a connector's own KEV-ish guess never wins; presence of
+    a row (not any column value) determines catalog membership."""
+
+    __tablename__ = "cisa_kev"
+
+    cve_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    date_added: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    vendor_project: Mapped[str | None] = mapped_column(String(50))
+    product: Mapped[str | None] = mapped_column(String(200))
+    vulnerability_name: Mapped[str | None] = mapped_column(String(200))
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    known_ransomware_campaign_use: Mapped[str | None] = mapped_column(String(10))
+    catalog_version: Mapped[str | None] = mapped_column(String(20))

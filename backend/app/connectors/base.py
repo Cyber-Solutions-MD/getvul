@@ -42,6 +42,14 @@ class NormalizedVulnerability:
     system_product_name: str | None = None
     crowdstrike_aid: str | None = None
     file_paths: list[str] | None = None  # Paths where the vulnerable software was detected
+    # ENRICH-03/D-05 (Phase 31 Plan 01): generic vendor-native composite pair --
+    # raw value/label verbatim (no cross-scale normalization; that's Phase 33).
+    # None for connectors with no vendor-authored composite (Defender, Wiz).
+    native_priority_score: float | None = None
+    native_priority_rating: str | None = None
+    # ENRICH-04/D-07/D-08: curated per-connector allowlist keyed by raw vendor
+    # field name. Omission = missing; a present key with a falsy value = negative.
+    source_signals: dict | None = None
 
 
 @dataclass

@@ -33,6 +33,10 @@ class VulnerabilityResponse(BaseModel):
     remediation_action: str | None = None
     exploit_status_id: int | None = None
     exploit_status_name: str | None = None
+    epss_percentile: Decimal | None = None
+    native_priority_score: Decimal | None = None
+    native_priority_rating: str | None = None
+    source_signals: dict | None = None
     remediation_info: str | None
     status: str
     first_detected_at: datetime
