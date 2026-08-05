@@ -63,7 +63,12 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
   4. Long-tail scanner-native fields land in a queryable `source_signals` JSONB field per finding, with a fixture proving "missing" (field never returned) is distinguishable from "negative" (field returned false/zero)
   5. A dedicated daily job in the existing in-process scheduler refreshes global, tenant-independent `epss_scores`/`cisa_kev` reference tables, decoupled from any individual connector's sync cadence
 
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 31-01-PLAN.md — TRACER: Defender end-to-end enrichment slice (schema spine: migrations 035+036, 4 columns, EpssScore/CisaKev models, dataclass fields, enrichment write-path, Defender parser)
+- [ ] 31-02-PLAN.md — EPSS/KEV feed fetcher + daily scheduler refresh (atomic-swap-keeps-last-good, eager first-run, re-propagation UPDATE) [ENRICH-05]
+- [ ] 31-03-PLAN.md — CrowdStrike + Nessus native signals (ExPRT.AI, VPR) + source_signals
+- [ ] 31-04-PLAN.md — Qualys + Rapid7 native signals (QDS, riskScore) + source_signals
+- [ ] 31-05-PLAN.md — Wiz source_signals (null native, guarded GraphQL) + cross-6 ENRICH-06 sweep
 
 ### Phase 32: Asset Exposure Context
 
