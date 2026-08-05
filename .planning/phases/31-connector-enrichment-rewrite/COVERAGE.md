@@ -5,12 +5,13 @@
 ## External data feeds (not a capability-surface API)
 
 This phase downloads two read-only public reference feeds. Neither is an interactive,
-multi-verb capability-surface SDK, so there is no verb matrix to cover.
+multi-verb capability-surface SDK — each exposes a single GET (bulk download), and both
+are INTEGRATE (the whole point of the phase). Canonical capability/decision/reason matrix:
 
-| Feed | Verb | Disposition | Notes |
-|------|------|-------------|-------|
-| EPSS (FIRST.org daily CSV) — `https://epss.empiricalsecurity.com/epss_scores-current.csv.gz` | GET (download) | INTEGRATE | Single-purpose bulk download; 302-redirect → dated snapshot; gzip payload (no `Content-Encoding` header — manual `gzip.decompress`); ~355k rows; header comment line skipped before `csv.DictReader`. |
-| CISA KEV (JSON catalog) — `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` | GET (download) | INTEGRATE | Single-purpose download; `{catalogVersion,count,vulnerabilities[]}` envelope; ~1,660 entries; plain `resp.json()`. |
+| capability | decision | reason |
+|---|---|---|
+| EPSS daily CSV feed (FIRST.org bulk download, epss_scores-current.csv.gz) | INTEGRATE | Single-purpose read-only GET download; 302→dated snapshot; manual gzip.decompress; ~355k rows into global epss_scores ref table. |
+| CISA KEV JSON catalog download (known_exploited_vulnerabilities.json) | INTEGRATE | Single-purpose read-only GET download; {catalogVersion,count,vulnerabilities[]} envelope; ~1,660 entries into global cisa_kev ref table. |
 
 **Reasoned declaration:** No external capability-surface API. This phase downloads two
 read-only public reference feeds (EPSS CSV, CISA KEV JSON), not an interactive API. Both
