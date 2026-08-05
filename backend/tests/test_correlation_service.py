@@ -151,3 +151,104 @@ async def test_recorrelate_tenant_corrects_backfill_bug_signature(db_session, te
 
     assert stats["inconsistent_rows_after"] == 0
     assert await _consistency_count(db_session, tenant_a) == 0
+
+
+@pytest.mark.asyncio
+async def test_single_source_does_not_correlate(db_session, tenant_a):
+    """CORR-03 edge: a lone-source finding never produces a correlation row
+    -- correlation only exists at 2+ sources."""
+    asset_id = await _seed_asset(db_session, tenant_a)
+    cve_id = "CVE-2024-SINGLE001"
+    db_session.add(_seed_vuln(tenant_a, asset_id, "QUALYS", cve_id))
+    await db_session.commit()
+
+    await run_correlations(db_session, tenant_a)
+    await db_session.commit()
+
+    corr = await get_correlation_for_vuln(db_session, tenant_a, cve_id, asset_id)
+    assert corr is None
+
+
+_SOURCE_ORDER: list[str] = [s.value for s in VulnSource]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source_count", "expected_confidence"),
+    [
+        (2, "MEDIUM"),
+        (3, "MEDIUM"),
+        (4, "HIGH"),
+        (5, "HIGH"),
+        (6, "HIGH"),
+    ],
+)
+async def test_confidence_bands(db_session, tenant_a, source_count, expected_confidence):
+    """D-08 recalibrated bands: HIGH >=4, MEDIUM 2-3, proven across every
+    seeded source-count combination 2..6. Also locks CORR-03 (sources_count
+    always equals len(sources)) and D-02 canonical enum-declaration order."""
+    asset_id = await _seed_asset(db_session, tenant_a)
+    cve_id = f"CVE-2024-BAND{source_count}"
+    sources_to_seed = _SOURCE_ORDER[:source_count]
+    for source in sources_to_seed:
+        db_session.add(_seed_vuln(tenant_a, asset_id, source, cve_id))
+    await db_session.commit()
+
+    await run_correlations(db_session, tenant_a)
+    await db_session.commit()
+
+    corr = await get_correlation_for_vuln(db_session, tenant_a, cve_id, asset_id)
+    assert corr is not None
+    assert len(corr["sources"]) == corr["sources_count"] == source_count
+    assert corr["sources"] == sources_to_seed, "canonical enum-declaration order"
+    assert corr["confidence"] == expected_confidence
+
+
+@pytest.mark.asyncio
+async def test_correlation_tenant_scoped(db_session, tenant_a, tenant_b):
+    """Cross-tenant isolation: a correlation created for tenant_a is never
+    returned for tenant_b, mirroring test_vuln_source_filter.py's
+    test_source_filter_tenant_scoped shape."""
+    asset_id = await _seed_asset(db_session, tenant_a)
+    cve_id = "CVE-2024-TSCOPE001"
+    db_session.add_all(
+        [
+            _seed_vuln(tenant_a, asset_id, "QUALYS", cve_id),
+            _seed_vuln(tenant_a, asset_id, "RAPID7", cve_id),
+        ]
+    )
+    await db_session.commit()
+
+    await run_correlations(db_session, tenant_a)
+    await db_session.commit()
+
+    corr_a = await get_correlation_for_vuln(db_session, tenant_a, cve_id, asset_id)
+    assert corr_a is not None
+
+    corr_b = await get_correlation_for_vuln(db_session, tenant_b, cve_id, asset_id)
+    assert corr_b is None, "a tenant_a correlation must never be visible under tenant_b"
+
+
+@pytest.mark.asyncio
+async def test_correlation_route_returns_d09_shape(client, db_session, tenant_a, analyst_user):
+    """D-09: GET /{vuln_id}/correlation returns the promoted sources/
+    sources_count/source_vuln_ids shape and NONE of the 4 legacy *_vuln_id
+    keys, under require_viewer auth (the `client` fixture is authed as the
+    analyst -- ANALYST satisfies require_viewer's floor)."""
+    asset_id = await _seed_asset(db_session, tenant_a)
+    cve_id = "CVE-2024-D09SHAPE001"
+    qualys_vuln = _seed_vuln(tenant_a, asset_id, "QUALYS", cve_id)
+    rapid7_vuln = _seed_vuln(tenant_a, asset_id, "RAPID7", cve_id)
+    db_session.add_all([qualys_vuln, rapid7_vuln])
+    await db_session.commit()
+
+    await run_correlations(db_session, tenant_a)
+    await db_session.commit()
+
+    resp = await client.get(f"/api/v1/vulnerabilities/{qualys_vuln.id}/correlation")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["correlated"] is True
+    assert {"sources", "sources_count", "source_vuln_ids"}.issubset(body)
+    legacy_keys = {"crowdstrike_vuln_id", "nessus_vuln_id", "defender_vuln_id", "wiz_vuln_id"}
+    assert not (legacy_keys & body.keys()), f"legacy keys leaked into response: {legacy_keys & body.keys()}"
