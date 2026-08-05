@@ -226,6 +226,32 @@ class Rapid7Connector(BaseConnector):
                 exploit_count = detail.get("exploits", 0)
                 exploit_available = exploit_count > 0 if isinstance(exploit_count, int) else False
 
+                # ENRICH-03/04 (Phase 31 Plan 04, Pitfall 5): Risk Score is
+                # asset-context-dependent -- read from `vuln_entry` (the
+                # per-asset AssetVulnerability association entry), NEVER
+                # `detail` (the vendor-neutral vulnerability definition,
+                # identical for every asset sharing this CVE). Captured
+                # BEFORE the per-CVE loop below so every fanout finding for
+                # this vuln_entry gets the same value.
+                native_priority_score = _get_risk_score(vuln_entry)
+
+                # source_signals (D-07/D-08): built from the RAW vuln_entry
+                # dict in this same scope. `status` (InsightVM's per-asset
+                # match-confidence enum -- vulnerable/vulnerable-version/
+                # vulnerable-potential/not-vulnerable*) is currently entirely
+                # discarded by this connector (only vuln_entry["id"] is read
+                # above) and is genuinely exploit/confidence-relevant. A
+                # derived `status_confirmed` boolean is added alongside it as
+                # PROVENANCE ONLY, mirroring crowdstrike.py's own raw-value +
+                # derived-guess pair (Phase 31 Plan 03) -- never authoritative
+                # for a promoted column. riskScore itself is excluded here --
+                # already promoted to native_priority_score, not duplicated
+                # (D-08).
+                source_signals: dict[str, Any] = {}
+                if "status" in vuln_entry:
+                    source_signals["status"] = vuln_entry["status"]
+                    source_signals["status_confirmed"] = vuln_entry["status"] == "vulnerable"
+
                 # Remediation
                 try:
                     remediation_info = await self._fetch_vuln_solutions(vuln_id)
@@ -251,6 +277,14 @@ class Rapid7Connector(BaseConnector):
                             os_version=os_version,
                             remediation_info=remediation_info,
                             exploit_available=exploit_available,
+                            # D-06/Pitfall 5: Risk Score is numeric-only --
+                            # Rapid7 has no separate vendor-authored
+                            # categorical rating -- native_priority_rating
+                            # stays explicit None (never omitted, never
+                            # invented).
+                            native_priority_rating=None,
+                            native_priority_score=native_priority_score,
+                            source_signals=source_signals,
                         )
                     )
 
@@ -265,3 +299,29 @@ class Rapid7Connector(BaseConnector):
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             logger.info("Rapid7: HTTP client closed")
+
+
+# ======================================================================
+# Normalisation helpers
+# ======================================================================
+
+
+def _get_risk_score(vuln_entry: dict[str, Any]) -> float | None:
+    """ENRICH-03/D-05 (Phase 31 Plan 04): defensive Rapid7 Risk Score probe.
+
+    Risk/Active Risk Score (0-1000 scale) is asset-context-dependent, so it
+    lives on the per-asset AssetVulnerability ASSOCIATION entry
+    (``vuln_entry``, the ``/api/3/assets/{id}/vulnerabilities`` resource),
+    NOT the vendor-neutral ``detail`` resource (Pitfall 5). Exact field name
+    is unverified this session (31-RESEARCH.md Assumption A2) -- probes the
+    leading candidate (``riskScore``) named verbatim in the plan's own
+    interfaces block. Soft-nulls (never raises) on absence or a non-numeric
+    value.
+    """
+    raw = vuln_entry.get("riskScore")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None

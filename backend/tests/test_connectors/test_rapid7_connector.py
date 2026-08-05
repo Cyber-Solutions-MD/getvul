@@ -95,9 +95,7 @@ def _handler_factory(auth_probe_status: int = 200):
                 # The auth probe call.
                 if auth_probe_status != 200:
                     return _json_response(auth_probe_status, {"message": "unauthorized"})
-                return _json_response(
-                    200, {"resources": [ASSET_1], "page": {"totalPages": 1}}
-                )
+                return _json_response(200, {"resources": [ASSET_1], "page": {"totalPages": 1}})
             page = int(params.get("page", "0"))
             resources = [ASSET_1] if page == 0 else [ASSET_2]
             return _json_response(200, {"resources": resources, "page": {"totalPages": 2}})
