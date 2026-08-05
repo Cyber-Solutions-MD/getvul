@@ -4,15 +4,15 @@ milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 31
 current_phase_name: Connector Enrichment Rewrite
-status: planned
+status: executing
 stopped_at: Phase 31 planned — 5 plans, plan-checker passed (0 blockers)
-last_updated: "2026-08-05T12:00:00.000Z"
+last_updated: "2026-08-05T09:53:53.609Z"
 last_activity: 2026-08-05
-last_activity_desc: "Phase 31 planned: 5 plans in 3 waves (tracer-led), plan-checker PASS (0 blockers, 1 doc warning fixed)"
+last_activity_desc: Phase 31 execution started
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 2
+  total_plans: 7
   completed_plans: 2
 ---
 
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 31 — connector-enrichment-rewrite (planned, ready to execute)
+**Current focus:** Phase 31 — Connector Enrichment Rewrite
 
 ## Deferred Items
 
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 31 — Connector Enrichment Rewrite
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-05 — Phase 30 complete, transitioned to Phase 31
+Phase: 31 (Connector Enrichment Rewrite) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 31
+Last activity: 2026-08-05 — Phase 31 execution started
 
 ## v4.0 Phase Map
 
