@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 31
 current_phase_name: Connector Enrichment Rewrite
 status: executing
-stopped_at: Phase 31 Plan 03 complete — CrowdStrike ExPRT rating + Nessus VPR probe, 2/2 tasks, TDD green
-last_updated: "2026-08-05T11:24:58.000Z"
+stopped_at: Phase 31 Plan 04 complete — Qualys QDS + Rapid7 Risk Score, 2/2 tasks, TDD green
+last_updated: "2026-08-05T11:44:10.000Z"
 last_activity: 2026-08-05
-last_activity_desc: "Phase 31 Plan 03 complete (CrowdStrike ExPRT.AI rating -> native_priority_rating, zero new API calls + Nessus VPR defensive probe -> native_priority_score; both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN)"
+last_activity_desc: "Phase 31 Plan 04 complete (Qualys QDS -> native_priority_score read from the per-detection record not kb_cache (Pitfall 4) + Rapid7 Risk Score -> native_priority_score read from vuln_entry not detail (Pitfall 5); both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN; completes native-priority coverage for all 4 composite-signal connectors)"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 31 (Connector Enrichment Rewrite) — EXECUTING
-Plan: 4 of 5 (Plans 1-3 complete)
+Plan: 5 of 5 (Plans 1-4 complete)
 Status: Ready to execute
-Last activity: 2026-08-05 — Phase 31 Plan 03 complete (CrowdStrike ExPRT.AI rating -> native_priority_rating, zero new API calls + Nessus VPR defensive probe -> native_priority_score; both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN)
+Last activity: 2026-08-05 — Phase 31 Plan 04 complete (Qualys QDS -> native_priority_score read from the per-detection record not kb_cache (Pitfall 4) + Rapid7 Risk Score -> native_priority_score read from vuln_entry not detail (Pitfall 5); both connectors' source_signals model missing-vs-negative provenance, 2/2 tasks, TDD RED→GREEN; completes native-priority coverage for all 4 composite-signal connectors)
 
 ## v4.0 Phase Map
 
@@ -321,6 +321,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 31]: 31-03: Nessus source_signals allowlist deliberately narrow (exploit_available, exploitability_ease only) -- scoped to the 2 fields this codebase's own pre-existing _check_exploit_available already reads from real Nessus payloads, not speculative exploit_framework_* fields
 - [Phase 31]: 31-03: comment-only fix to crowdstrike.py's module docstring (corrected stale ">= 30" KEV threshold description to match the live code's actual ">= 50" check, Pitfall 3) -- the code's threshold itself is byte-for-byte unchanged
 - [Phase 31]: 31-03: ENRICH-03/04/06 left [ ] Pending in REQUIREMENTS.md -- shared-ID gate continues (31-04 and 31-05 also declare all 3 IDs; they flip complete only when 31-05, the cross-6 sweep, lands)
+- [Phase 31]: 31-04: Qualys's show_qds_factors=1 param addition + _get_qds() read the QDS score from the per-DETECTION dict, never kb_cache (Pitfall 4) -- a dedicated regression test proves a kb_cache entry carrying a QDS-shaped key does NOT leak into native_priority_score
+- [Phase 31]: 31-04: Rapid7's _get_risk_score() captures riskScore off vuln_entry (the per-asset AssetVulnerability association entry) BEFORE the per-CVE loop, never off `detail` (the vendor-neutral vulnerability definition, Pitfall 5) -- a dedicated regression test proves a `detail` payload carrying a riskScore-shaped key is ignored
+- [Phase 31]: 31-04: Qualys source_signals allowlist (TYPE, QDS_FACTORS) and Rapid7's (status + derived status_confirmed, mirroring CrowdStrike's raw+derived-guess shape) are both Claude's-Discretion choices -- neither RESEARCH.md/PATTERNS.md named specific keys for these 2 connectors (unlike Nessus's exploit_available/exploitability_ease, which mirrored pre-existing code reads)
+- [Phase 31]: 31-04: both native-priority probes (_get_qds, _get_risk_score) use a single named candidate key each, no invented fallback candidates -- unlike Nessus's 2-candidate VPR probe, the plan's own interfaces block names exactly one candidate for Qualys/Rapid7
+- [Phase 31]: 31-04: ENRICH-03/04/06 left [ ] Pending in REQUIREMENTS.md -- shared-ID gate continues (31-05, the cross-6 sweep + Wiz, is the last declaring plan, confirmed via direct read of 31-05-PLAN.md's frontmatter); this plan completes native_priority_* coverage for all 4 connectors with a genuine vendor composite (Defender/Wiz are intentionally null, Pitfall 6)
 
 ## Performance Metrics
 
@@ -362,9 +367,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 31 P01 | 25min | 3 tasks | 10 files |
 | Phase 31 P02 | 65min | 3 tasks | 8 files |
 | Phase 31 P03 | 17min | 2 tasks | 4 files |
+| Phase 31 P04 | 16min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-08-05T11:24:58.000Z
-**Stopped at:** Phase 31 Plan 03 complete — CrowdStrike ExPRT rating + Nessus VPR probe, 2/2 tasks, TDD green
+**Last session:** 2026-08-05T11:44:10.000Z
+**Stopped at:** Phase 31 Plan 04 complete — Qualys QDS + Rapid7 Risk Score, 2/2 tasks, TDD green
 **Resume file:** None
