@@ -169,18 +169,30 @@ describe('ConnectorsPage', () => {
     expect(screen.getByTestId('skeleton-table')).toBeTruthy();
   });
 
-  it('Test 3: a category with zero connectors renders EmptyState with Add connector CTA', () => {
-    // Only CrowdStrike is configured — ticketing, identity, enrichment categories should be empty
+  it('Test 3: an empty category shows an explained-empty intro plus a browsable catalog of available apps', () => {
+    // Only CrowdStrike is configured — ticketing, identity, enrichment categories are empty.
     mockUseConnectorsList.mockReturnValue(successState);
     render(<ConnectorsPage />, { wrapper: makeWrapper() });
 
-    // At least one empty state should be present
+    // The explained-empty intro still renders (state-patterns.md voice preserved).
     const emptyStates = screen.getAllByTestId('empty-state');
     expect(emptyStates.length).toBeGreaterThanOrEqual(1);
 
-    // "Add connector" CTA text should be present
-    const ctaButtons = screen.queryAllByText(/add connector/i);
-    expect(ctaButtons.length).toBeGreaterThanOrEqual(1);
+    // Marketplace: available apps render as catalog cards, NOT a single-type CTA.
+    // Empty ticketing category → Jira + Asana catalog cards, each with a Configure
+    // action carrying data-add-connector.
+    expect(document.querySelector('[data-add-connector="JIRA"]')).not.toBeNull();
+    expect(document.querySelector('[data-add-connector="ASANA"]')).not.toBeNull();
+
+    // Non-empty scanner category still offers the remaining app (Nessus) in its catalog.
+    expect(document.querySelector('[data-add-connector="NESSUS"]')).not.toBeNull();
+
+    // Each catalog card exposes its short description from /connectors/types.
+    expect(screen.getByText('Jira connector')).toBeInTheDocument();
+    expect(screen.getByText('Nessus connector')).toBeInTheDocument();
+
+    // Configure buttons are the per-app action (marketplace), not one global CTA.
+    expect(screen.getAllByText(/configure/i).length).toBeGreaterThanOrEqual(2);
   });
 
   it('Test 4: on query error, PartialFailureBanner renders', () => {

@@ -76,6 +76,20 @@ export const CATEGORY_EMPTY: Record<ConnectorCategory, EmptyCopy> = {
   },
 };
 
+// ——— Catalog / marketplace copy ———
+// The connectors page is a catalog of apps you can connect. Available apps render
+// as ConnectorCatalogCard; these strings live here, never inlined in components.
+
+export const CATALOG_COPY = {
+  configureLabel: 'Configure',
+  setupGuideLabel: 'Setup guide',
+  noDescription: 'No description available.',
+  /** Subheading above the grid of available apps in a category, e.g. "Available scanners". */
+  availableHeading: (categoryLabel: string) => `Available ${categoryLabel.toLowerCase()}`,
+  /** Config dialog guidance panel heading (shown above the wizard when notes/setup_url exist). */
+  guidanceHeading: 'Before you start',
+} as const;
+
 // ——— Delete confirm copy ———
 
 /**

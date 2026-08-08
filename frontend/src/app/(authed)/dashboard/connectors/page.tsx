@@ -18,7 +18,7 @@
  * Sunset-tokenized: no raw gray-N or indigo-N utilities.
  */
 import { useState, useEffect, useId, useRef, Suspense } from 'react';
-import { X } from 'lucide-react';
+import { X, ArrowUpRight } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import {
@@ -34,12 +34,14 @@ import { useDocumentTitle } from '@/hooks/use-document-title';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { ConnectorCard } from '@/components/connectors/connector-card';
+import { ConnectorCatalogCard } from '@/components/connectors/connector-catalog-card';
 import { ConnectorForm } from '@/components/connectors/connector-form';
 import { AddConnectorWizard } from '@/components/connectors/wizard/add-connector-wizard';
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   CATEGORY_EMPTY,
+  CATALOG_COPY,
   deleteConfirmMessage,
   WIZARD_COPY,
 } from '@/components/connectors/microcopy';
@@ -287,11 +289,32 @@ function ConnectorsPageInner() {
         const catLabel = CATEGORY_LABELS[cat];
         const emptyCopy = CATEGORY_EMPTY[cat];
 
-        // Connector types in this category (from /types endpoint)
+        // Connector types in this category (from /types endpoint), split into
+        // already-configured vs. available-to-add (the catalog).
         const catTypes =
           typesQuery.data?.filter(
             (t) => CONNECTOR_CATEGORIES[t.type] === cat,
           ) ?? [];
+        const availableTypes = catTypes.filter((t) => !configuredTypes.has(t.type));
+
+        // A category renders as a marketplace: browse the available apps (each with
+        // its description + setup link) and Configure the one you want. When nothing
+        // is configured yet, an explained-empty intro sits above the catalog grid;
+        // when some are configured, the catalog follows under an "Available …" head.
+        const catalogGrid = availableTypes.length > 0 && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {availableTypes.map((t) => (
+              <ConnectorCatalogCard
+                key={t.type}
+                type={t.type}
+                name={t.name}
+                description={t.description}
+                setupUrl={t.setup_url}
+                onConfigure={openAddForm}
+              />
+            ))}
+          </div>
+        );
 
         return (
           <section
@@ -307,57 +330,43 @@ function ConnectorsPageInner() {
             </h2>
 
             {catConnectors.length === 0 ? (
-              /* Empty state */
-              <EmptyState>
-                <EmptyState.Title>{emptyCopy.heading}</EmptyState.Title>
-                <EmptyState.Body>{emptyCopy.body}</EmptyState.Body>
-                <EmptyState.Actions>
-                  {/* "Add connector" CTA — opens add flow for first type in this category */}
-                  {catTypes.length > 0 && (
-                    <button
-                      type="button"
-                      data-add-connector={catTypes[0].type}
-                      onClick={() => openAddForm(catTypes[0].type)}
-                      style={{ background: 'var(--gradient-sunset)' }}
-                      className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-[var(--glow-cta)] hover:-translate-y-px transition-all"
-                    >
-                      {emptyCopy.cta}
-                    </button>
-                  )}
-                </EmptyState.Actions>
-                <EmptyState.Suggestion>
-                  {emptyCopy.suggestion}
-                </EmptyState.Suggestion>
-              </EmptyState>
+              /* Explained-empty intro + browsable catalog of available apps.
+                 No single-type CTA — the user picks from the catalog below. */
+              <div className="space-y-6">
+                <EmptyState>
+                  <EmptyState.Title>{emptyCopy.heading}</EmptyState.Title>
+                  <EmptyState.Body>{emptyCopy.body}</EmptyState.Body>
+                  <EmptyState.Suggestion>
+                    {emptyCopy.suggestion}
+                  </EmptyState.Suggestion>
+                </EmptyState>
+                {catalogGrid}
+              </div>
             ) : (
-              /* Connector card grid */
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {catConnectors.map((connector) => (
-                  <ConnectorCard
-                    key={connector.id}
-                    connector={connector}
-                    isAdmin={isAdmin}
-                    onEdit={openEditForm}
-                    onDelete={handleDelete}
-                    onSync={handleSync}
-                    onToggleEnabled={(enabled) => handleToggleEnabled(connector, enabled)}
-                    isSyncing={syncingIds.has(connector.id)}
-                  />
-                ))}
-                {/* "Add another" card for configured categories */}
-                {catTypes
-                  .filter((t) => !configuredTypes.has(t.type))
-                  .map((t) => (
-                    <button
-                      key={t.type}
-                      type="button"
-                      data-add-connector={t.type}
-                      onClick={() => openAddForm(t.type)}
-                      className="flex min-h-[100px] items-center justify-center rounded-lg border border-dashed border-border-subtle bg-surface p-4 text-sm text-text-muted transition-colors hover:border-border hover:text-text"
-                    >
-                      + {t.name}
-                    </button>
+              /* Configured connectors, then the remaining available apps as a catalog. */
+              <div className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {catConnectors.map((connector) => (
+                    <ConnectorCard
+                      key={connector.id}
+                      connector={connector}
+                      isAdmin={isAdmin}
+                      onEdit={openEditForm}
+                      onDelete={handleDelete}
+                      onSync={handleSync}
+                      onToggleEnabled={(enabled) => handleToggleEnabled(connector, enabled)}
+                      isSyncing={syncingIds.has(connector.id)}
+                    />
                   ))}
+                </div>
+                {availableTypes.length > 0 && (
+                  <div>
+                    <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-text-faint">
+                      {CATALOG_COPY.availableHeading(catLabel)}
+                    </h3>
+                    {catalogGrid}
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -401,13 +410,42 @@ function ConnectorsPageInner() {
                   </button>
                 </div>
                 {formState.mode === 'add' ? (
-                  <AddConnectorWizard
-                    connectorType={formState.connectorType}
-                    providerName={providerName}
-                    fields={formState.fields}
-                    permissions={providerTypeInfo?.permissions ?? []}
-                    onClose={closeForm}
-                  />
+                  <>
+                    {/* Configuration guidelines — the provider's own setup notes +
+                        docs link, so the user knows how to obtain keys/permissions
+                        before filling the credentials step. Hidden when the type
+                        carries neither notes nor a setup_url. */}
+                    {(providerTypeInfo?.notes || providerTypeInfo?.setup_url) && (
+                      <div className="mb-5 rounded-lg border border-border-subtle bg-surface-2 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-text-faint">
+                          {CATALOG_COPY.guidanceHeading}
+                        </p>
+                        {providerTypeInfo?.notes && (
+                          <p className="mt-1.5 text-sm text-text-muted">
+                            {providerTypeInfo.notes}
+                          </p>
+                        )}
+                        {providerTypeInfo?.setup_url && (
+                          <a
+                            href={providerTypeInfo.setup_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 text-xs text-violet transition-colors hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+                          >
+                            {CATALOG_COPY.setupGuideLabel}
+                            <ArrowUpRight size={12} aria-hidden />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    <AddConnectorWizard
+                      connectorType={formState.connectorType}
+                      providerName={providerName}
+                      fields={formState.fields}
+                      permissions={providerTypeInfo?.permissions ?? []}
+                      onClose={closeForm}
+                    />
+                  </>
                 ) : (
                   <ConnectorForm
                     mode="edit"
