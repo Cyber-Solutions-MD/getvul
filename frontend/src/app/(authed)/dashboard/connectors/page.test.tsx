@@ -169,18 +169,17 @@ describe('ConnectorsPage', () => {
     expect(screen.getByTestId('skeleton-table')).toBeTruthy();
   });
 
-  it('Test 3: an empty category shows an explained-empty intro plus a browsable catalog of available apps', () => {
+  it('Test 3: an empty category shows the browsable catalog directly, with no "No X connected" banner', () => {
     // Only CrowdStrike is configured — ticketing, identity, enrichment categories are empty.
     mockUseConnectorsList.mockReturnValue(successState);
     render(<ConnectorsPage />, { wrapper: makeWrapper() });
 
-    // The explained-empty intro still renders (state-patterns.md voice preserved).
-    const emptyStates = screen.getAllByTestId('empty-state');
-    expect(emptyStates.length).toBeGreaterThanOrEqual(1);
+    // The redundant empty-state banner is gone.
+    expect(screen.queryByTestId('empty-state')).toBeNull();
+    expect(screen.queryByText(/no vulnerability scanners connected/i)).toBeNull();
 
-    // Marketplace: available apps render as catalog cards, NOT a single-type CTA.
-    // Empty ticketing category → Jira + Asana catalog cards, each with a Configure
-    // action carrying data-add-connector.
+    // Marketplace: available apps render as catalog cards, each with a Configure
+    // action carrying data-add-connector. Empty ticketing → Jira + Asana.
     expect(document.querySelector('[data-add-connector="JIRA"]')).not.toBeNull();
     expect(document.querySelector('[data-add-connector="ASANA"]')).not.toBeNull();
 

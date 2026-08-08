@@ -21,9 +21,8 @@
  * the page-level primary action stays singular, catalog buttons are restrained.
  */
 import { ArrowUpRight } from 'lucide-react';
-import { ConnectorMark } from './connector-mark';
+import { ConnectorLogo } from './connector-logo';
 import { CATALOG_COPY } from './microcopy';
-import type { ConnectorProvider } from './types';
 
 export type ConnectorCatalogCardProps = {
   /** Backend connector_type (e.g. "CROWDSTRIKE"). */
@@ -45,34 +44,31 @@ export function ConnectorCatalogCard({
   setupUrl,
   onConfigure,
 }: ConnectorCatalogCardProps) {
-  // page-layer lowercases the backend type before the mark's injection-safe lookup.
-  const provider = type.toLowerCase() as ConnectorProvider;
-
   return (
     <div
       data-connector-catalog-card={type}
-      className="flex flex-col rounded-lg border border-border-subtle bg-surface-2 p-4 transition-all hover:-translate-y-px hover:border-border"
+      className="group flex min-h-[168px] flex-col rounded-xl border border-border-subtle bg-surface-2 p-5 transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-card"
     >
-      {/* Header: larger gradient mark + name */}
+      {/* Header: prominent vendor logo tile + name */}
       <div className="flex items-center gap-3">
-        <ConnectorMark provider={provider} className="size-9 rounded-lg text-sm" />
-        <span className="min-w-0 truncate text-sm font-semibold text-text">{name}</span>
+        <ConnectorLogo type={type} name={name} className="size-11 text-lg" />
+        <span className="min-w-0 truncate text-base font-semibold text-text">{name}</span>
       </div>
 
       {/* Short description */}
       {description ? (
-        <p className="mt-2.5 line-clamp-2 text-sm text-text-muted">{description}</p>
+        <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-text-muted">{description}</p>
       ) : (
-        <p className="mt-2.5 text-sm text-text-faint">{CATALOG_COPY.noDescription}</p>
+        <p className="mt-3 text-sm leading-relaxed text-text-faint">{CATALOG_COPY.noDescription}</p>
       )}
 
-      {/* Footer: Configure (primary per-card action) + optional setup guide link */}
-      <div className="mt-4 flex items-center justify-between gap-2 pt-1">
+      {/* Footer pinned to the bottom for even card heights */}
+      <div className="mt-auto flex items-center justify-between gap-2 pt-5">
         <button
           type="button"
           data-add-connector={type}
           onClick={() => onConfigure(type)}
-          className="inline-flex items-center rounded-md border border-border-subtle px-3 py-1.5 text-sm font-medium text-text-muted transition-colors hover:border-violet hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+          className="inline-flex items-center rounded-md border border-border-subtle px-3.5 py-2 text-sm font-medium text-text-muted transition-colors hover:border-violet hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
         >
           {CATALOG_COPY.configureLabel}
         </button>

@@ -12,7 +12,8 @@
  * D-X-01: State patterns mandatory:
  *   - isPending  → <SkeletonTable>
  *   - error      → <PartialFailureBanner>
- *   - per-category zero → <EmptyState> with "Add connector" CTA
+ *   - per-category zero → browsable catalog of available apps (ConnectorCatalogCard);
+ *     the redundant "No X connected" banner was removed at the owner's request.
  *   - mutations  → toasts (handled in hooks)
  *
  * Sunset-tokenized: no raw gray-N or indigo-N utilities.
@@ -29,7 +30,7 @@ import {
   useSyncConnector,
 } from '@/lib/queries/use-connectors-admin';
 import type { ConnectorConfigResponse, ConnectorFieldSpec } from '@/lib/queries/use-connectors-admin';
-import { SkeletonTable, EmptyState, PartialFailureBanner } from '@/components/states';
+import { SkeletonTable, PartialFailureBanner } from '@/components/states';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
@@ -40,7 +41,6 @@ import { AddConnectorWizard } from '@/components/connectors/wizard/add-connector
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
-  CATEGORY_EMPTY,
   CATALOG_COPY,
   deleteConfirmMessage,
   WIZARD_COPY,
@@ -287,7 +287,6 @@ function ConnectorsPageInner() {
       {CATEGORY_ORDER.map((cat) => {
         const catConnectors = connectorsByCategory[cat];
         const catLabel = CATEGORY_LABELS[cat];
-        const emptyCopy = CATEGORY_EMPTY[cat];
 
         // Connector types in this category (from /types endpoint), split into
         // already-configured vs. available-to-add (the catalog).
@@ -330,18 +329,9 @@ function ConnectorsPageInner() {
             </h2>
 
             {catConnectors.length === 0 ? (
-              /* Explained-empty intro + browsable catalog of available apps.
-                 No single-type CTA — the user picks from the catalog below. */
-              <div className="space-y-6">
-                <EmptyState>
-                  <EmptyState.Title>{emptyCopy.heading}</EmptyState.Title>
-                  <EmptyState.Body>{emptyCopy.body}</EmptyState.Body>
-                  <EmptyState.Suggestion>
-                    {emptyCopy.suggestion}
-                  </EmptyState.Suggestion>
-                </EmptyState>
-                {catalogGrid}
-              </div>
+              /* Nothing configured yet → just the browsable catalog. The old
+                 "No X connected" banner was redundant with the catalog itself. */
+              catalogGrid
             ) : (
               /* Configured connectors, then the remaining available apps as a catalog. */
               <div className="space-y-6">
