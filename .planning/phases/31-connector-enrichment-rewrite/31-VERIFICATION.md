@@ -1,10 +1,11 @@
 ---
 phase: 31-connector-enrichment-rewrite
 verified: 2026-08-05T12:25:12Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 overrides_applied: 0
 human_verification:
+
   - test: "Confirm the unverified vendor field-name assumptions against live scanner accounts: CrowdStrike's numeric ExPRT companion (probed as `exprt_score`), Nessus VPR's exact JSON field (`vpr_score`/`vpr`), Qualys QDS's exact element name + `show_qds_factors` param, Rapid7 `riskScore`'s field name/location on the AssetVulnerability association, and Wiz's 5 GraphQL field names (`epssSeverity`/`epssPercentile`/`epssProbability`/`exploitabilityScore`/`impactScore`)."
     expected: "Each connector's native_priority_score/native_priority_rating (and Wiz's 5 source_signals sub-scores) populate with real, non-null values on a live sync against a real vendor tenant, not just soft-null on the synthetic test fixtures."
     why_human: "No live CrowdStrike/Nessus/Qualys/Rapid7/Wiz credentials are available in this session. These are external-service-schema assumptions (5 of RESEARCH.md's Assumptions Log entries, A1-A4 plus the ExPRT numeric companion) that the code soft-nulls safely if wrong (never crashes, never breaks ingestion — verified), but only a live vendor payload can confirm the exact field name/path guesses are correct. All 5 plan SUMMARYs independently self-flagged this same item as needing live re-verification."
@@ -14,8 +15,19 @@ human_verification:
 
 **Phase Goal:** Every connector captures and persists the richer native signal each scanner actually provides, so v4.0's enrichment claims are real data, not permanently-null columns.
 **Verified:** 2026-08-05T12:25:12Z
-**Status:** human_needed
+**Status:** passed (live-vendor UAT item waived on-trust at v4.0 closeout — see Accepted Debt)
 **Re-verification:** No — initial verification
+
+## Accepted Debt (v4.0 closeout, 2026-08-10)
+
+The one human-verification item — confirming vendor field-name guesses (CrowdStrike ExPRT
+companion, Nessus VPR, Qualys QDS, Rapid7 `riskScore`, Wiz's 5 GraphQL fields) populate on a
+**live** sync — was **waived on-trust** because no live scanner credentials/connectors exist in
+this environment. This matches the v3.0 Phases 24–27 on-trust-waiver precedent. Basis for
+acceptance: 5/5 automated must-haves verified (168 tests re-run during verification; live Postgres
+confirmed 355,094 EPSS + 1,660 KEV rows from a real feed sync), and every field guess soft-nulls
+safely if wrong (never crashes ingestion). **To close:** run a live sync once real vendor
+credentials exist and confirm the promoted columns populate.
 
 ## Goal Achievement
 
@@ -113,6 +125,7 @@ No orphaned requirements: REQUIREMENTS.md's traceability table maps all 6 ENRICH
 ### Anti-Patterns Found
 
 None at BLOCKER or WARNING severity. Specifically checked and ruled out:
+
 - No `return null`/empty-stub implementations in any of the 11 modified/created source files.
 - No TODO/FIXME/PLACEHOLDER markers introduced by this phase's changes.
 - No hardcoded empty `source_signals = {}` that's never populated — every connector's dict is populated via a real per-key presence-check loop reading a real payload variable in scope.

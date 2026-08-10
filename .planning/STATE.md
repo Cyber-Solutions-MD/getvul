@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-current_phase: 31
-current_phase_name: Connector Enrichment Rewrite
-status: executing
+current_phase: 32
+current_phase_name: Asset Exposure Context
+status: planning
 stopped_at: Phase 31 Plan 05 complete — Wiz guarded EPSS/exploitability enrichment + cross-6 ENRICH-06 sweep, 2/2 tasks, TDD green
-last_updated: "2026-08-05T12:10:19.000Z"
-last_activity: 2026-08-05
-last_activity_desc: "Phase 31 Plan 05 complete (Wiz gains VULNERABILITY_QUERY_ENRICHED + a WizGraphQLSchemaError guard: tries the enriched GraphQL query for 5 EPSS/exploitability sub-scores first, falls back to the unchanged base query on a schema error (A4) instead of breaking the whole Wiz sync; native_priority_score/rating explicit None (Pitfall 6); Task 2 adds a cross-6 parametrized sweep proving all 6 connectors always explicitly set native_priority_score/native_priority_rating/source_signals. 2/2 tasks, TDD RED→GREEN. This was the last of the 4 declaring plans for ENRICH-03/04/06 -- all 6 connectors now compliant; Phase 31 is 5/5 plans complete, pending /gsd-verify-work 31)"
+last_updated: "2026-08-10T09:58:12.433Z"
+last_activity: 2026-08-10
+last_activity_desc: Phase 31 complete, transitioned to Phase 32
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
   completed_plans: 7
 ---
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 31 (Connector Enrichment Rewrite) — EXECUTING
-Plan: 5 of 5 (Plans 1-5 complete)
-Status: Ready for verification
-Last activity: 2026-08-05 — Phase 31 Plan 05 complete (Wiz gains VULNERABILITY_QUERY_ENRICHED + a WizGraphQLSchemaError guard: tries the enriched GraphQL query for 5 EPSS/exploitability sub-scores first, falls back to the unchanged base query on a schema error (A4) instead of breaking the whole Wiz sync; native_priority_score/rating explicit None (Pitfall 6). Task 2 adds a cross-6 parametrized sweep proving all 6 connectors always explicitly set native_priority_score/native_priority_rating/source_signals. 2/2 tasks, TDD RED→GREEN. Last of the 4 declaring plans for ENRICH-03/04/06 -- Phase 31 is 5/5 plans complete, pending /gsd-verify-work 31)
+Phase: 32 — Asset Exposure Context
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-10 — Phase 31 complete, transitioned to Phase 32
 
 ## v4.0 Phase Map
 

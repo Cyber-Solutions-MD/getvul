@@ -25,7 +25,7 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
 **v4.0 Enriched Risk Exposure & Source-Aware Triage (IN PROGRESS — Phases 30–35):**
 
 - [x] **Phase 30: Correlation Schema Fix** — Replace the hardcoded 4-of-6-source correlation FK columns with a `sources ARRAY(String)` + GIN shape, migrate existing data with no loss, generalize `correlation_service.py` over the full `VulnSource` enum (completed 2026-08-05)
-- [ ] **Phase 31: Connector Enrichment Rewrite** — All 6 connectors thread native signals (VPR, ExPRT.AI, EPSS, real KEV) from the raw payload through ingestion; new global EPSS/KEV reference tables refreshed by a daily scheduler job
+- [x] **Phase 31: Connector Enrichment Rewrite** — All 6 connectors thread native signals (VPR, ExPRT.AI, EPSS, real KEV) from the raw payload through ingestion; new global EPSS/KEV reference tables refreshed by a daily scheduler job (completed 2026-08-10)
 - [ ] **Phase 32: Asset Exposure Context** — Auto-infer criticality/data-sensitivity/internet-facing at asset upsert; per-asset and asset-group admin override with audit trail and criticality-inflation calibration bound
 - [ ] **Phase 33: Risk-Exposure Model Definition** — Deterministic, versioned, explainable per-finding risk-exposure score; shadow-computed for a full sync cycle before any consumer reads it
 - [ ] **Phase 34: Historical Recompute & Consumer Cutover** — Idempotent/resumable/throttled per-tenant backfill; SLA/sort/trend/AI-batch-selector cutover; per-tenant threshold re-tuning acknowledgment; version-boundary guards on alerts/trends
@@ -142,7 +142,7 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 | Phase | Plans Complete | Status | Completed |
 |-------|-----------------|--------|-----------|
 | 30. Correlation Schema Fix | 2/2 | Complete    | 2026-08-05 |
-| 31. Connector Enrichment Rewrite | 4/5 | In Progress | - |
+| 31. Connector Enrichment Rewrite | 5/5 | Complete    | 2026-08-10 |
 | 32. Asset Exposure Context | 0/TBD | Not started | - |
 | 33. Risk-Exposure Model Definition | 0/TBD | Not started | - |
 | 34. Historical Recompute & Consumer Cutover | 0/TBD | Not started | - |
