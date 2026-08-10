@@ -41,13 +41,41 @@ exact set of tags/departments EXPO-06's calibration reasons about):
                  "marketing" (deliberately weak, public-facing signal)
   INTERNAL     — default (no strong signal either way)
 
-internet_facing (v1 proxy — Plan 04 upgrades this to real per-connector
-detection wherever the vendor payload supports it, e.g. Wiz publicExposure /
-cloud security-group signals; no existing connector currently extracts such
-a signal, verified again this session):
-  True  — "internet-facing" is present in `tags` (case-insensitive) OR
-          `external_ip` is not None
-  False — otherwise
+internet_facing (Plan 04, EXPO-02 — real per-connector detection where the
+vendor payload genuinely supports it; the v1 external_ip/tag proxy
+elsewhere):
+  `internet_facing_detected` if not None, else the v1 proxy:
+    True  — "internet-facing" is present in `tags` (case-insensitive) OR
+            `external_ip` is not None
+    False — otherwise
+  A connector-supplied `internet_facing_detected` (Asset column, raw
+  provenance, mirrors `external_ip`) always wins over the proxy when a
+  connector actually set it; an ASSET_OVERRIDE/GROUP_OVERRIDE still
+  permanently wins over BOTH (EXPO-03/04, unchanged).
+
+Per-connector internet-facing coverage (honest — inspected this session
+against each connector's actual raw payload/GraphQL response shape in this
+codebase, not guessed; re-confirms 32-PATTERNS.md's "No Analog Found"
+finding for every connector, no exceptions):
+
+  | Connector   | Real signal?                      | Notes |
+  |-------------|------------------------------------|-------|
+  | CrowdStrike | FALLBACK (no distinct signal)      | Falcon Host device dict (`/devices/entities/devices/v2`) exposes `external_ip` (already the v1 proxy's own signal, wired since before this plan) but no separate public-exposure/security-group/DMZ field. Re-deriving `internet_facing_detected` from the same `external_ip` value would be circular (identical information, not a second signal) — not wired. |
+  | Wiz         | FALLBACK                           | `vulnerabilityFindings.nodes.vulnerableAsset` (both `VULNERABILITY_QUERY` and the EPSS-enriched `VULNERABILITY_QUERY_ENRICHED`, wiz.py) exposes `cloudPlatform`/`region`/`ipAddresses`/`operatingSystem` — no `publicExposure`/`isInternetFacing`/security-group field is queried. Wiz's real product does model network exposure (Attack Path graph), but no such field is present in this connector's live GraphQL query today, and none is added without confirming it against a real schema (T-32-12 — no guessed field names). |
+  | Qualys      | FALLBACK                           | `/api/2.0/fo/asset/host/` host records feed only `ip`/`dns`/`os` into `_normalize_detection` (qualys.py) — no `TRACKING_METHOD`/network-zone/public-IP flag is extracted. |
+  | Nessus      | FALLBACK                           | Scan host detail (`_get_scan`, nessus.py) surfaces `hostname`/`ip`/`os` plus plugin output — no exposure/network-zone field is extracted. |
+  | Rapid7      | FALLBACK                           | InsightVM `/api/3/assets` resource dict (rapid7.py) surfaces `hostName`/`ip`/`os` — no `exposures`/tag-based internet-facing field is extracted (InsightVM does support asset tags/sites, but none is currently queried by this connector). |
+  | Defender    | FALLBACK                           | `/api/machines` + `/api/vulnerabilities/machinesVulnerabilities` (defender.py) surface `computerDnsName`/`ipAddresses`/health/exploit fields — Defender's `exposureScore` is a per-tenant risk metric, not a per-machine public-exposure boolean, and is not queried by this connector. |
+
+  Every connector's `NormalizedVulnerability.internet_facing` therefore stays
+  the dataclass default of `None` today — `Asset.internet_facing_detected`
+  is never set from a live sync, and `infer_exposure_context` always falls
+  through to the v1 external_ip/tag proxy in production. The full
+  detected-signal spine (dataclass field, `Asset` column, sync passthrough,
+  inference precedence — all landed this plan) is deliberately wired ahead
+  of any real per-connector mapping so that the day a vendor schema is
+  confirmed to expose a genuine signal, only that one connector's normalize
+  step needs a one-line change — no schema/precedence work remains.
 
 Auto-inference seeds from — never overwrites — existing `Asset.tags` and
 existing MDM (Jamf)/HR (Humaans) enrichment (`Asset.department`,
