@@ -84,12 +84,12 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
   4. Every exposure-context override (auto or manual) is audit-logged with actor, asset/group, field, old value, and new value
   5. A calibration check caps or flags the proportion of assets auto-classified at the highest criticality tier, provable against a realistic seed-data fixture (guards against criticality inflation cascading into score/SLA distortion)
 
-**Plans**: 2/5 plans complete
+**Plans**: 3/5 plans complete
 
 Plans:
 - [x] 32-01-PLAN.md — TRACER: business_criticality end-to-end (migration + enums/columns + inference + per-asset override + audit + response dicts) *(complete 2026-08-10 — migration 037 + exposure.py + PATCH/POST override+recompute endpoints + 6 keys in both inline dicts; 10/10 tests green, EXPO-01/02/03/05)*
 - [x] 32-02-PLAN.md — all 3 fields real inference + EXPO-06 calibration check + per-tenant cap config *(complete 2026-08-10 — real data_sensitivity/internet_facing inference completing the triad; check_criticality_calibration (AUTO-only CRITICAL proportion, overrides exempt) + migration 038 per-tenant cap/hard-cap-enabled + admin GET /assets/exposure-context/calibration; 16/16 tests green, EXPO-06 complete)*
-- [ ] 32-03-PLAN.md — real AssetGroup entity (model + membership + admin CRUD) + group-scope override + per-asset>group>auto precedence
+- [x] 32-03-PLAN.md — real AssetGroup entity (model + membership + admin CRUD) + group-scope override + per-asset>group>auto precedence *(complete 2026-08-10 — migrations 039/040 + AssetGroup/AssetGroupMember/AssetGroupExposureOverride models + groups_service/groups_router at /api/v1/asset-groups + apply_precedence_to_asset (GROUP_OVERRIDE tier, most-recently-updated tiebreak) + add_member/remove_member immediate re-apply + full audit trail; 24/24 tests green, EXPO-04/EXPO-05 complete)*
 - [ ] 32-04-PLAN.md — real per-connector internet-facing detection (detected-signal>proxy) + honest coverage doc
 - [ ] 32-05-PLAN.md — frontend: exposure card + inline override + AssetGroup management page (sketch-findings, mandatory states, admin gating)
 

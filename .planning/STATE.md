@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 32
 current_phase_name: Asset Exposure Context
 status: executing
-stopped_at: Phase 32 Plan 02 complete — real data_sensitivity + internet_facing inference completing the exposure triad, EXPO-06 calibration check + per-tenant cap (migration 038) + admin report endpoint, 16/16 tests green, 2/2 tasks
-last_updated: "2026-08-10T13:40:00.000Z"
+stopped_at: Phase 32 Plan 03 complete — real AssetGroup entity (migrations 039/040 + models + groups_service/groups_router at /api/v1/asset-groups) + GROUP_OVERRIDE precedence tier (apply_precedence_to_asset, most-recently-updated multi-group tiebreak) + add_member/remove_member immediate re-apply + full audit trail, 24/24 tests green, 3/3 tasks, EXPO-04/EXPO-05 complete
+last_updated: "2026-08-10T14:30:00.000Z"
 last_activity: 2026-08-10
-last_activity_desc: Phase 32 Plan 02 complete, 2/5 plans
+last_activity_desc: Phase 32 Plan 03 complete, 3/5 plans
 progress:
   total_phases: 2
   completed_phases: 2
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 32 — Asset Exposure Context (Plan 02/5 complete)
+**Current focus:** Phase 32 — Asset Exposure Context (Plan 03/5 complete)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 32 — Asset Exposure Context
-Plan: 02/5 complete
+Plan: 03/5 complete
 Status: In progress
-Last activity: 2026-08-10 — Phase 32 Plan 02 complete — real data_sensitivity + internet_facing inference completing the exposure triad (data_sensitivity tags/department tiers; internet_facing v1 external_ip/tag proxy), EXPO-06 check_criticality_calibration (AUTO-only CRITICAL proportion, per-tenant configurable cap via migration 038, admin GET /assets/exposure-context/calibration report endpoint, flag+report only), 16/16 tests green, 2/2 tasks committed
+Last activity: 2026-08-10 — Phase 32 Plan 03 complete — real, tenant-scoped AssetGroup entity (migrations 039/040; AssetGroup/AssetGroupMember/AssetGroupExposureOverride models; groups_service.py + groups_router.py mounted at /api/v1/asset-groups with full CRUD/membership/group-override, admin-gated, 404-not-403 cross-tenant); GROUP_OVERRIDE precedence tier (apply_precedence_to_asset: per-asset ASSET_OVERRIDE > group override (most-recently-updated wins on multi-group conflict) > auto-inference); add_member/remove_member immediately re-apply precedence; one audit row per group mutation (asset_group.create/update/delete/member_add/member_remove/exposure_override); 24/24 tests green, 3/3 tasks committed, EXPO-04/EXPO-05 complete
 
 ## v4.0 Phase Map
 

@@ -31,8 +31,8 @@ Requirements for the v4.0 release. Each maps to exactly one roadmap phase (see T
 - [ ] **EXPO-01**: Each asset carries business-criticality, data-sensitivity, and internet-facing exposure-context fields
 - [ ] **EXPO-02**: Exposure context is auto-inferred at asset upsert from existing MDM/HR/IdP enrichment + scanner internet-facing flags, seeded from (never overwriting) existing `Asset.tags`
 - [ ] **EXPO-03**: An admin can override any exposure-context field per asset, and a set override permanently wins over auto-inference (explicit per-field override discriminator)
-- [ ] **EXPO-04**: An admin can override exposure context at asset-group scope, with a defined precedence between group and per-asset overrides
-- [ ] **EXPO-05**: Every exposure-context override is audit-logged (actor, asset/group, field, old→new)
+- [x] **EXPO-04**: An admin can override exposure context at asset-group scope, with a defined precedence between group and per-asset overrides
+- [x] **EXPO-05**: Every exposure-context override is audit-logged (actor, asset/group, field, old→new)
 - [x] **EXPO-06**: Auto-inference is calibration-bounded — the proportion of assets auto-classified at the highest criticality is capped/flagged to prevent criticality inflation cascading into score/SLA distortion
 
 ### Risk-Exposure Model (RISK)
@@ -102,8 +102,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | EXPO-01 | Phase 32 (Asset Exposure Context) | Pending |
 | EXPO-02 | Phase 32 (Asset Exposure Context) | Pending |
 | EXPO-03 | Phase 32 (Asset Exposure Context) | Pending |
-| EXPO-04 | Phase 32 (Asset Exposure Context) | Pending |
-| EXPO-05 | Phase 32 (Asset Exposure Context) | Pending |
+| EXPO-04 | Phase 32 (Asset Exposure Context) | Complete |
+| EXPO-05 | Phase 32 (Asset Exposure Context) | Complete |
 | EXPO-06 | Phase 32 (Asset Exposure Context) | Complete |
 | RISK-01 | Phase 33 (Risk-Exposure Model Definition) | Pending |
 | RISK-02 | Phase 33 (Risk-Exposure Model Definition) | Pending |
