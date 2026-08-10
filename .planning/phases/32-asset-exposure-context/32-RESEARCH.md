@@ -429,7 +429,11 @@ query = query.where(Asset.seen_by_sources.contains([s]))
 
 **If this table is empty:** N/A — table is populated; every item above needs explicit confirmation before the planner locks tasks around it.
 
-## Open Questions
+## Open Questions (RESOLVED — see 32-CONTEXT.md, 2026-08-10)
+
+> **Q1 RESOLVED:** real per-connector internet-facing detection is IN scope (CONTEXT [USER] decision) — Plan 04 adds real extraction where vendor payloads support it, with the `external_ip`/tag proxy as fallback and an honest coverage table.
+> **Q2 RESOLVED:** IdP-directory signals are DEFERRED for v1 — inference uses MDM/HR only (see CONTEXT "IdP-directory signals are DEFERRED"). Documented future work, not a silent drop.
+> **Q3 RESOLVED:** a real first-class `AssetGroup` entity is IN scope (CONTEXT [USER] decision) — Plan 03 builds it (not tag-scoped).
 
 1. **Does a real internet-facing signal exist in any connector's raw payload that simply isn't mapped into `NormalizedVulnerability` yet?**
    - What we know: none of the 6 connectors' Python code maps such a field into the `Asset`/`NormalizedVulnerability` shape today (Pitfall 1).

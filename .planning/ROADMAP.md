@@ -84,7 +84,15 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
   4. Every exposure-context override (auto or manual) is audit-logged with actor, asset/group, field, old value, and new value
   5. A calibration check caps or flags the proportion of assets auto-classified at the highest criticality tier, provable against a realistic seed-data fixture (guards against criticality inflation cascading into score/SLA distortion)
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 32-01-PLAN.md — TRACER: business_criticality end-to-end (migration + enums/columns + inference + per-asset override + audit + response dicts)
+- [ ] 32-02-PLAN.md — all 3 fields real inference + EXPO-06 calibration check + per-tenant cap config
+- [ ] 32-03-PLAN.md — real AssetGroup entity (model + membership + admin CRUD) + group-scope override + per-asset>group>auto precedence
+- [ ] 32-04-PLAN.md — real per-connector internet-facing detection (detected-signal>proxy) + honest coverage doc
+- [ ] 32-05-PLAN.md — frontend: exposure card + inline override + AssetGroup management page (sketch-findings, mandatory states, admin gating)
+
 **UI hint**: yes
 
 ### Phase 33: Risk-Exposure Model Definition

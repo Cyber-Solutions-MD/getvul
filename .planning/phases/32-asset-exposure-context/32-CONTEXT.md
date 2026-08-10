@@ -27,7 +27,13 @@ responses are built inline in `assets/router.py`, so new fields must be added th
   from multiple groups on the same field → **most-recently-updated group override wins** (deterministic,
   tested). This precedence must be unit-tested (EXPO-04 criterion #3).
 - **[DEFAULT] Auto-inference seeds from — never overwrites — existing `Asset.tags`** and existing
-  enrichment (MDM/HR/IdP). An existing manual override or a set tag value is never clobbered by a re-run.
+  **MDM (Jamf/Intune) + HR (Humaans, department/job_title)** enrichment plus scanner flags. An existing
+  manual override or a set tag value is never clobbered by a re-run.
+- **[RESOLVED post-plan-check 2026-08-10] IdP-directory signals are DEFERRED for Phase 32 v1.** EXPO-02's
+  "MDM/HR/IdP" wording is narrowed to **MDM/HR** for v1: a live join to IdP directory data
+  (Entra/Okta/Google `User.department`/groups) is NOT wired into inference — it breaks the pure-inference
+  function and needs a DB join for low marginal value (per RESEARCH Open Question 2). Documented future
+  work, not a silent drop. HR-sourced department/job_title (already on the asset) still feed inference.
 - **[DEFAULT] Audit (EXPO-05):** every exposure-context field change is audit-logged with actor,
   asset/group, field, old value, new value, reusing the existing `app/audit.py` audit()-then-commit
   pattern. Manual overrides → actor = the admin user. Auto-inference → actor = `system:exposure-inference`,
@@ -57,6 +63,19 @@ audit events for all new mutating actions; encrypted connector creds must keep d
 Phase has a UI surface (asset exposure fields + override controls + AssetGroup management). Follow the
 `sketch-findings-getvul` design system (sunset tokens, state patterns, copy voice). Admin-only controls
 gated in UI (backend enforces independently).
+
+## Execution notes (from plan-check, 2026-08-10)
+
+- **System audit actor:** `app/audit.py::audit()` derives the actor from a `CurrentUser` and cannot emit a
+  literal `system:*` actor. For auto-inference audit rows use a **direct `AuditLog(...)` construction**
+  (precedent: `app/encryption.py:256-276` `user_email="system:cli"`; `app/ai/audit.py` `system:scheduler`)
+  with `user_email="system:exposure-inference"`, still audit-then-commit, logged only when a value changes.
+- **Group membership re-applies precedence:** `add_member`/`remove_member` (Plan 03) MUST re-apply the
+  per-asset > group > auto precedence to the affected asset immediately (mirror the group-override-PATCH
+  handler), so a newly-added member picks up the group override without waiting for a full recompute. Add a
+  test for the add-member-after-override ordering.
+- **Migration filenames:** trust each PLAN.md's migration ids (chain from `036`, ≤32 chars); 32-PATTERNS.md's
+  example filenames are illustrative and may be off-by-one — PLAN.md is authoritative.
 
 ## Scope note (honest)
 
