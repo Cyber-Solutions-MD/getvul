@@ -62,6 +62,10 @@ class AuditLog(Base):
 # asset.exposure_override (admin manual override, actor=admin email),
 # asset.exposure_recompute (auto-inference write, actor=system:exposure-inference,
 #   logged only when a value actually changes — Phase 32/EXPO-05)
+# asset_group.create, asset_group.update, asset_group.delete,
+#   asset_group.member_add, asset_group.member_remove,
+#   asset_group.exposure_override (Phase 32 Plan 03 — EXPO-04/EXPO-05; one row
+#   per group mutation, regardless of how many member assets it fans out to)
 
 
 # ── Syslog forwarder ──
