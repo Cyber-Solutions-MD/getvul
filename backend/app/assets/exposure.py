@@ -113,11 +113,18 @@ def infer_exposure_context(
     department: str | None,
     job_title: str | None,
     external_ip: str | None,
+    internet_facing_detected: bool | None = None,
 ) -> tuple[str, str, bool]:
     """Pure, no DB. Returns (business_criticality, data_sensitivity, internet_facing).
 
     Never mutates the caller's `tags` list — reads it into a local, lower-cased
     set only.
+
+    `internet_facing_detected` (Plan 04, EXPO-02) is the REAL per-connector
+    signal captured on `Asset.internet_facing_detected` — when it is not
+    None, it wins over the external_ip/tag proxy below. When it is None (no
+    connector currently supplies a signal for this asset), the v1 proxy
+    formula applies unchanged.
     """
     job_title_lower = (job_title or "").lower()
     department_lower = (department or "").strip().lower()
@@ -145,10 +152,13 @@ def infer_exposure_context(
     elif (tag_set & _PUBLIC_TAGS) or department_lower in _PUBLIC_DEPARTMENTS:
         data_sensitivity = "PUBLIC"
 
-    # v1 proxy (Plan 04 upgrades to real per-connector detection wherever the
-    # vendor payload supports it — no existing connector currently extracts
-    # such a signal).
-    internet_facing = ("internet-facing" in tag_set) or (external_ip is not None)
+    # Plan 04 (EXPO-02): a real per-connector detected signal wins over the
+    # v1 proxy ("internet-facing" tag OR external_ip IS NOT NULL) whenever a
+    # connector actually supplied one (internet_facing_detected is not None).
+    if internet_facing_detected is not None:
+        internet_facing = internet_facing_detected
+    else:
+        internet_facing = ("internet-facing" in tag_set) or (external_ip is not None)
 
     return business_criticality, data_sensitivity, internet_facing
 
@@ -169,6 +179,7 @@ def apply_inference_to_asset(asset: Asset) -> list[dict]:
         department=asset.department,
         job_title=job_title,
         external_ip=asset.external_ip,
+        internet_facing_detected=asset.internet_facing_detected,
     )
     inferred_values: dict[str, object] = {
         "business_criticality": inferred_criticality,
@@ -294,6 +305,7 @@ async def apply_precedence_to_asset(db: AsyncSession, asset: Asset) -> list[dict
             department=asset.department,
             job_title=job_title,
             external_ip=asset.external_ip,
+            internet_facing_detected=asset.internet_facing_detected,
         )
         inferred_values: dict[str, object] = {
             "business_criticality": inferred_criticality,

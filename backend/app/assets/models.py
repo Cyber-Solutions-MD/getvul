@@ -109,6 +109,15 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     internet_facing: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     internet_facing_source: Mapped[str] = mapped_column(String(20), default="AUTO", server_default="AUTO")
 
+    # Phase 32 Plan 04 (EXPO-02) — durable raw vendor provenance for a REAL
+    # per-connector internet-facing/public-exposure signal, mirroring
+    # `external_ip` above (nullable, no server_default — None until a
+    # connector genuinely supplies one). `infer_exposure_context` prefers
+    # this over the external_ip/tag proxy when it is not None. See
+    # app/assets/exposure.py's module docstring for the honest per-connector
+    # coverage table (which connectors set this vs. remain FALLBACK).
+    internet_facing_detected: Mapped[bool | None] = mapped_column(Boolean)
+
     vulnerabilities: Mapped[list["Vulnerability"]] = relationship("Vulnerability", back_populates="asset")
     correlations: Mapped[list["VulnerabilityCorrelation"]] = relationship(
         "VulnerabilityCorrelation", back_populates="asset"

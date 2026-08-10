@@ -34,6 +34,13 @@ class NormalizedVulnerability:
     serial_number: str | None = None
     mac_address: str | None = None
     external_ip: str | None = None
+    # Phase 32 Plan 04 (EXPO-02): REAL per-connector internet-facing/
+    # public-exposure signal, set by a connector's normalize step ONLY when
+    # its raw vendor payload genuinely supports it. None (the default) means
+    # "no vendor signal" -- app/assets/exposure.py's infer_exposure_context
+    # then falls back to the external_ip/tag proxy. See exposure.py's module
+    # docstring for the honest per-connector coverage table.
+    internet_facing: bool | None = None
     last_login_user: str | None = None
     last_login_at: str | None = None
     last_seen_at: str | None = None

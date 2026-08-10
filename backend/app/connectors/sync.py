@@ -247,6 +247,10 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
             model=_model,
             system_manufacturer=_manufacturer or None,
             external_ip=getattr(v, "external_ip", None),
+            # Phase 32 Plan 04 (EXPO-02) — always capture the raw connector
+            # signal (like external_ip above), regardless of whether it's
+            # None (no vendor signal) or a real bool.
+            internet_facing_detected=getattr(v, "internet_facing", None),
             last_login_user=getattr(v, "last_login_user", None),
             last_login_at=_last_login_at,
             last_seen_at=_last_seen_at,
@@ -279,6 +283,12 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
             asset.system_manufacturer = _manufacturer
         if getattr(v, "external_ip", None):
             asset.external_ip = v.external_ip
+        # Phase 32 Plan 04 (EXPO-02) — always capture the raw connector
+        # signal on re-sync too, distinguishing "vendor said False" from
+        # "vendor said nothing" (the latter must NOT overwrite a previously
+        # captured real signal with None).
+        if getattr(v, "internet_facing", None) is not None:
+            asset.internet_facing_detected = v.internet_facing
         if getattr(v, "mac_address", None):
             asset.mac_addresses = [v.mac_address]
         if getattr(v, "last_login_user", None):
