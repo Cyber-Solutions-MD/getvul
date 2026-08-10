@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 32
 current_phase_name: Asset Exposure Context
 status: executing
-stopped_at: Phase 32 Plan 01 complete — business_criticality end-to-end tracer (migration 037 + exposure.py + PATCH/POST override+recompute endpoints + 6 inline-dict keys), 10/10 tests green, 3/3 tasks
-last_updated: "2026-08-10T13:15:00.000Z"
+stopped_at: Phase 32 Plan 02 complete — real data_sensitivity + internet_facing inference completing the exposure triad, EXPO-06 calibration check + per-tenant cap (migration 038) + admin report endpoint, 16/16 tests green, 2/2 tasks
+last_updated: "2026-08-10T13:40:00.000Z"
 last_activity: 2026-08-10
-last_activity_desc: Phase 32 Plan 01 (LEAD TRACER) complete, 1/5 plans
+last_activity_desc: Phase 32 Plan 02 complete, 2/5 plans
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 12
-  completed_plans: 8
+  total_plans: 13
+  completed_plans: 9
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 32 — Asset Exposure Context (Plan 01/5 complete)
+**Current focus:** Phase 32 — Asset Exposure Context (Plan 02/5 complete)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 32 — Asset Exposure Context
-Plan: 01/5 complete
+Plan: 02/5 complete
 Status: In progress
-Last activity: 2026-08-10 — Phase 32 Plan 01 (LEAD TRACER) complete — business_criticality end-to-end (migration 037, exposure.py, PATCH/POST override+recompute endpoints, 6 keys in both inline dicts), 10/10 tests green, 3/3 tasks committed
+Last activity: 2026-08-10 — Phase 32 Plan 02 complete — real data_sensitivity + internet_facing inference completing the exposure triad (data_sensitivity tags/department tiers; internet_facing v1 external_ip/tag proxy), EXPO-06 check_criticality_calibration (AUTO-only CRITICAL proportion, per-tenant configurable cap via migration 038, admin GET /assets/exposure-context/calibration report endpoint, flag+report only), 16/16 tests green, 2/2 tasks committed
 
 ## v4.0 Phase Map
 
@@ -332,6 +332,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 31]: 31-05: cross-6 sweep (Task 2) encodes per-connector expect_score_populated/expect_rating_populated flags rather than one shared assertion -- CrowdStrike's genuine signal is the *_rating half (ExPRT.AI categorical); Nessus/Qualys/Rapid7's is the *_score half (VPR/QDS/RiskScore, numeric-only so *_rating always None); Defender/Wiz have neither (Pitfall 6)
 - [Phase 31]: 31-05: mutation-verified the cross-6 sweep has real discriminating power -- temporarily inverting the CrowdStrike case's expected flags made the test fail for the exact expected reason, then reverted, before committing
 - [Phase 31]: 31-05: ENRICH-03/04/06 marked [x] Complete in REQUIREMENTS.md -- this was the last of the 4 declaring plans (01, 03, 04, 05); all 6 connectors + the cross-6 sweep are done. Phase 31 roadmap/progress-table flipped to 5/5 plans; STATE.md status intentionally left "executing" (not "complete") per this plan's own instruction -- phase completion is the orchestrator's call after /gsd-verify-work 31
+- [Phase 32]: 32-02: data_sensitivity tier mapping (RESTRICTED = tags contain pii/phi/restricted; CONFIDENTIAL = tags contain pci/confidential OR department in {finance,legal}; PUBLIC = tags contain public/www OR department is marketing; INTERNAL = default) documented in exposure.py's docstring, same ordered-priority shape as Plan 01's business_criticality mapping
+- [Phase 32]: 32-02: internet_facing v1 proxy is exactly ("internet-facing" in tags) OR (external_ip is not None) -- CONTEXT.md's mandated fallback; Plan 04 is the documented owner of real per-connector detection
+- [Phase 32]: 32-02: check_criticality_calibration counts ONLY business_criticality=='CRITICAL' AND business_criticality_source=='AUTO' in the numerator -- admin/group overrides are exempt (EXPO-06 CONTEXT.md decision, resolves tension with EXPO-03's override-permanence guarantee); reads cap/hard_cap_enabled inline off the Tenant row (migration 038, default 0.15/False)
+- [Phase 32]: 32-02: hard_cap_enabled is a documented, deliberately unwired flag in this plan -- no enforcement code path exists anywhere; flag+report only per CONTEXT.md, even when a tenant sets the flag True
+- [Phase 32]: 32-02: EXPO-06 marked [x] Complete in REQUIREMENTS.md (only declaring plan); EXPO-01/EXPO-02 remain Pending -- shared-ID gate, EXPO-01 also needs Plan 05 (frontend), EXPO-02 also needs Plan 04 (real per-connector internet-facing)
 
 ## Performance Metrics
 
@@ -375,9 +380,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 31 P03 | 17min | 2 tasks | 4 files |
 | Phase 31 P04 | 16min | 2 tasks | 4 files |
 | Phase 31 P05 | 23min | 2 tasks | 3 files |
+| Phase 32 P01 | 30min | 3 tasks | 10 files |
+| Phase 32 P02 | 25min | 2 tasks | 6 files |
 
 ## Session
 
-**Last session:** 2026-08-05T12:10:19.000Z
-**Stopped at:** Phase 31 Plan 05 complete — Wiz guarded EPSS/exploitability enrichment + cross-6 ENRICH-06 sweep, 2/2 tasks, TDD green
+**Last session:** 2026-08-10T13:40:00.000Z
+**Stopped at:** Phase 32 Plan 02 complete — real data_sensitivity + internet_facing inference, EXPO-06 calibration check + per-tenant cap + admin report endpoint, 16/16 tests green, 2/2 tasks
 **Resume file:** None
