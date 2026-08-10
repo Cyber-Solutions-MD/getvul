@@ -47,6 +47,12 @@ async def test_asset_group_crud_tenant_isolation(client_factory, db_session, ten
     """Admin creates a group; it appears in the list; a tenant_b admin
     cannot see/patch/delete it (404, not 403 — cross-tenant existence
     stays private, same convention as the per-asset override endpoint)."""
+    # `tenant_a`/`tenant_b` fixtures only flush (not commit); AssetGroup has
+    # a real FK to `tenants` (unlike Asset, which has none), so the row must
+    # be committed before the app's separate session can satisfy the FK
+    # check on INSERT.
+    await db_session.commit()
+
     admin_client = client_factory(admin_user)
     r = await admin_client.post("/api/v1/asset-groups", json={"name": "Prod DB Tier", "description": "prod dbs"})
     assert r.status_code == 201, r.text
@@ -81,6 +87,8 @@ async def test_group_endpoints_require_admin(
 ):
     """Non-admin roles are rejected (403) on every mutating group endpoint:
     create, add member, group-scope exposure override."""
+    await db_session.commit()  # tenant_a must be committed — AssetGroup FKs to tenants.
+
     admin_client = client_factory(admin_user)
     r = await admin_client.post("/api/v1/asset-groups", json={"name": "RBAC Test Group"})
     assert r.status_code == 201, r.text
@@ -111,6 +119,8 @@ async def test_group_endpoints_require_admin(
 async def test_group_member_add_and_remove(client_factory, db_session, tenant_a, admin_user):
     """Admin can add and remove a member; both are idempotent (TicketWatcher
     composite-PK pattern) and 404 on an unknown group/asset id."""
+    await db_session.commit()  # tenant_a must be committed — AssetGroup FKs to tenants.
+
     admin_client = client_factory(admin_user)
     r = await admin_client.post("/api/v1/asset-groups", json={"name": "Membership Test Group"})
     assert r.status_code == 201, r.text

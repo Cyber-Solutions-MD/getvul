@@ -666,6 +666,7 @@ async def test_conflicting_group_overrides_tiebreak(client_factory, db_session, 
 async def test_group_override_writes_audit_row(client_factory, db_session, tenant_a, admin_user):
     """A group-scope override writes exactly one asset_group.exposure_override
     audit row (EXPO-05), regardless of how many member assets it fans out to."""
+    await db_session.commit()  # tenant_a must be committed — AssetGroup FKs to tenants.
     admin_client = client_factory(admin_user)
 
     r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group {uuid.uuid4().hex[:6]}"})
@@ -706,6 +707,7 @@ async def test_add_member_after_override_immediately_applies_precedence(
     """32-CONTEXT.md execution note: add_member re-applies per-asset > group
     > auto precedence to the newly-added member immediately — it must not
     wait for a full-tenant recompute to pick up an existing group override."""
+    await db_session.commit()  # tenant_a must be committed — AssetGroup FKs to tenants.
     admin_client = client_factory(admin_user)
 
     r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group {uuid.uuid4().hex[:6]}"})

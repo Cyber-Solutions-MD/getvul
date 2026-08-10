@@ -3,7 +3,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, PrimaryKeyConstraint, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,7 +38,7 @@ class DataSensitivity(str, enum.Enum):
 class ExposureFieldSource(str, enum.Enum):
     AUTO = "AUTO"
     ASSET_OVERRIDE = "ASSET_OVERRIDE"
-    GROUP_OVERRIDE = "GROUP_OVERRIDE"  # reserved for Plan 03's AssetGroup entity
+    GROUP_OVERRIDE = "GROUP_OVERRIDE"  # Plan 03 — set by a real AssetGroup's exposure-context override
 
 
 class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -100,7 +100,8 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # an admin manually set the value via PATCH /assets/{id}/exposure-context,
     # which permanently wins over any future auto re-run (EXPO-03) since
     # apply_inference_to_asset only ever writes a field whose source is still
-    # AUTO. GROUP_OVERRIDE is reserved for Plan 03's AssetGroup entity.
+    # AUTO. GROUP_OVERRIDE (Plan 03) is set by a real AssetGroup's
+    # exposure-context override via apply_precedence_to_asset.
     business_criticality: Mapped[str] = mapped_column(String(20), default="MEDIUM", server_default="MEDIUM")
     business_criticality_source: Mapped[str] = mapped_column(String(20), default="AUTO", server_default="AUTO")
     data_sensitivity: Mapped[str] = mapped_column(String(20), default="INTERNAL", server_default="INTERNAL")
@@ -112,3 +113,51 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     correlations: Mapped[list["VulnerabilityCorrelation"]] = relationship(
         "VulnerabilityCorrelation", back_populates="asset"
     )
+
+
+# Phase 32 Plan 03 — a real, tenant-scoped AssetGroup entity (EXPO-04).
+# CONTEXT.md's [USER] decision overrides RESEARCH.md's tag-scoped-query
+# shortcut: group-scope exposure overrides target a real group + explicit
+# membership, not a tag-containment query. Mirrors ConnectorConfig's
+# tenant-scoped-entity shape (ticketing/models.py:39-57).
+class AssetGroup(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "asset_groups"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_asset_group_tenant_name"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500))
+
+
+# Composite-PK membership join table — mirrors TicketWatcher
+# (ticketing/models.py:139-156). Both FKs CASCADE so rows are cleaned up
+# when the group or asset is deleted.
+class AssetGroupMember(Base):
+    __tablename__ = "asset_group_members"
+    __table_args__ = (PrimaryKeyConstraint("group_id", "asset_id"),)
+
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("asset_groups.id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), nullable=False
+    )
+
+
+# One row per (group_id, field). `updated_at` (TimestampMixin) is the
+# tiebreak key for multi-group conflicts on the same asset+field —
+# most-recently-updated group override wins (32-CONTEXT.md, unit-tested in
+# test_asset_exposure.py::test_conflicting_group_overrides_tiebreak).
+class AssetGroupExposureOverride(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "asset_group_exposure_overrides"
+    __table_args__ = (UniqueConstraint("group_id", "field", name="uq_group_override_field"),)
+
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("asset_groups.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    field: Mapped[str] = mapped_column(
+        String(30), nullable=False
+    )  # business_criticality|data_sensitivity|internet_facing
+    value: Mapped[str] = mapped_column(String(20), nullable=False)  # stored as string; cast per field on apply

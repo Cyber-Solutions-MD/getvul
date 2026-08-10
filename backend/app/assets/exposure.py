@@ -11,6 +11,12 @@ defaults — `data_sensitivity` (real tag/department signals) and
 `internet_facing` (the v1 external_ip/tag proxy) — and adds
 `check_criticality_calibration` (EXPO-06).
 
+Phase 32 Plan 03 adds the real `AssetGroup` entity's GROUP_OVERRIDE
+precedence tier: `apply_precedence_to_asset` resolves, per field, per-asset
+ASSET_OVERRIDE (permanent) > group override (most-recently-updated group
+wins on a multi-group conflict) > auto-inference. `recompute_exposure_context`
+now calls it instead of the group-unaware `apply_inference_to_asset`.
+
 business_criticality tier mapping (ordered priority, first match wins;
 Claude's Discretion per PLAN.md — documented here for auditability):
   CRITICAL — job_title contains an executive keyword (ceo/cto/ciso/cfo/coo/
@@ -72,7 +78,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.assets.models import Asset
+from app.assets.models import Asset, AssetGroupExposureOverride, AssetGroupMember
 from app.audit import AuditLog
 
 logger = structlog.get_logger()
@@ -215,20 +221,116 @@ def audit_auto_inference_changes(
     )
 
 
+async def _resolve_group_overrides_for_asset(db: AsyncSession, asset_id: uuid.UUID) -> dict[str, tuple[str, uuid.UUID]]:
+    """For each exposure field, the most-recently-updated group override
+    (value, group_id) among the asset's group memberships — absent from the
+    returned dict if no group the asset belongs to has an override for that
+    field. Multi-group conflicts on the same field resolve to the
+    most-recently-updated override (32-CONTEXT.md's deterministic tiebreak,
+    unit-tested in test_asset_exposure.py::test_conflicting_group_overrides_tiebreak).
+    """
+    q = (
+        select(
+            AssetGroupExposureOverride.field,
+            AssetGroupExposureOverride.value,
+            AssetGroupExposureOverride.group_id,
+            AssetGroupExposureOverride.updated_at,
+        )
+        .join(AssetGroupMember, AssetGroupMember.group_id == AssetGroupExposureOverride.group_id)
+        .where(AssetGroupMember.asset_id == asset_id)
+    )
+    rows = (await db.execute(q)).all()
+
+    best: dict[str, tuple[str, uuid.UUID, datetime]] = {}
+    for field, value, group_id, updated_at in rows:
+        current = best.get(field)
+        if current is None or updated_at > current[2]:
+            best[field] = (value, group_id, updated_at)
+
+    return {field: (value, group_id) for field, (value, group_id, _updated_at) in best.items()}
+
+
+async def apply_precedence_to_asset(db: AsyncSession, asset: Asset) -> list[dict]:
+    """Full per-asset precedence resolution (Phase 32 Plan 03 — EXPO-04):
+    per-asset ASSET_OVERRIDE (permanent) > group override (most-recently-
+    updated group wins on a multi-group conflict) > auto-inference. Returns
+    change records (`{field, old, new}`) for actual value changes only, for
+    the caller to audit — never a source-only churn with no value change.
+
+    DB-aware wrapper around `infer_exposure_context`'s pure auto tier — used
+    by `recompute_exposure_context` (full-tenant), the group-scope override
+    PATCH endpoint (re-applies to every member), and
+    `groups_service.add_member`/`remove_member` (re-applies to the single
+    affected asset immediately, per 32-CONTEXT.md's execution note, so a
+    newly-added member picks up an existing group override — or a removed
+    member reverts to the auto tier — without waiting for a full recompute).
+    """
+    group_overrides = await _resolve_group_overrides_for_asset(db, asset.id)
+
+    changes: list[dict] = []
+    fields_for_auto: list[str] = []
+
+    for field in EXPOSURE_FIELDS:
+        current_source = getattr(asset, f"{field}_source", "AUTO")
+        if current_source == "ASSET_OVERRIDE":
+            continue  # permanent per-asset override always wins (EXPO-03)
+
+        if field in group_overrides:
+            raw_value, _group_id = group_overrides[field]
+            new_value: str | bool = raw_value.strip().lower() == "true" if field == "internet_facing" else raw_value
+            old_value = getattr(asset, field)
+            if old_value != new_value:
+                setattr(asset, field, new_value)
+                changes.append({"field": field, "old": old_value, "new": new_value})
+            if current_source != "GROUP_OVERRIDE":
+                setattr(asset, f"{field}_source", "GROUP_OVERRIDE")
+        else:
+            fields_for_auto.append(field)
+
+    if fields_for_auto:
+        job_title = (asset.mdm_details or {}).get("humaans_job_title")
+        inferred_criticality, inferred_sensitivity, inferred_internet_facing = infer_exposure_context(
+            tags=asset.tags,
+            department=asset.department,
+            job_title=job_title,
+            external_ip=asset.external_ip,
+        )
+        inferred_values: dict[str, object] = {
+            "business_criticality": inferred_criticality,
+            "data_sensitivity": inferred_sensitivity,
+            "internet_facing": inferred_internet_facing,
+        }
+        for field in fields_for_auto:
+            current_source = getattr(asset, f"{field}_source", "AUTO")
+            old_value = getattr(asset, field)
+            new_value = inferred_values[field]
+            if old_value != new_value:
+                setattr(asset, field, new_value)
+                changes.append({"field": field, "old": old_value, "new": new_value})
+            if current_source != "AUTO":
+                # A field that was GROUP_OVERRIDE-sourced but no longer has an
+                # applicable group override (group deleted / membership
+                # removed) reverts to the auto tier.
+                setattr(asset, f"{field}_source", "AUTO")
+
+    return changes
+
+
 async def recompute_exposure_context(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     """Full-tenant recompute (mirrors `risk_score.py::compute_risk_scores`).
 
-    Per asset, per field: `*_source == ASSET_OVERRIDE` -> skip (Plan 03
-    inserts the GROUP_OVERRIDE middle tier here). Else auto-tier via
-    `apply_inference_to_asset`. Audits actual changes only, actor
-    `system:exposure-inference`. Returns `{"assets_updated": int}`.
+    Per asset, per field: `*_source == ASSET_OVERRIDE` -> skip (permanent).
+    Else group override via membership (most-recently-updated group wins) ->
+    GROUP_OVERRIDE. Else auto-tier. See `apply_precedence_to_asset`. Audits
+    actual changes only, actor `system:exposure-inference`. Returns
+    `{"assets_updated": int}`.
     """
     result = await db.execute(select(Asset).where(Asset.tenant_id == tenant_id))
     assets = result.scalars().all()
 
     updated = 0
     for asset in assets:
-        changes = apply_inference_to_asset(asset)
+        changes = await apply_precedence_to_asset(db, asset)
         if changes:
             updated += 1
             audit_auto_inference_changes(db, tenant_id, asset.id, changes)

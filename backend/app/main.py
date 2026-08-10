@@ -23,6 +23,7 @@ from starlette.responses import Response
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from app.api.v1.ai import ai_router
+from app.assets.groups_router import router as asset_groups_router
 from app.assets.router import router as asset_router
 from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
@@ -307,6 +308,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
     app.include_router(vuln_router, prefix="/api/v1/vulnerabilities", tags=["Vulnerabilities"])
     app.include_router(asset_router, prefix="/api/v1/assets", tags=["Assets"])
+    app.include_router(asset_groups_router, prefix="/api/v1/asset-groups", tags=["Asset Groups"])
     app.include_router(tenant_router, prefix="/api/v1/tenant", tags=["Tenant & Users"])
     app.include_router(connector_router, prefix="/api/v1/connectors", tags=["Connectors"])
     app.include_router(cspm_router, prefix="/api/v1/cspm", tags=["CSPM"])
