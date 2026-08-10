@@ -59,6 +59,9 @@ class AuditLog(Base):
 # user.create, user.update, user.delete, user.role_change, user.deactivate
 # settings.update, settings.sso_toggle
 # filter.create, filter.update, filter.delete
+# asset.exposure_override (admin manual override, actor=admin email),
+# asset.exposure_recompute (auto-inference write, actor=system:exposure-inference,
+#   logged only when a value actually changes — Phase 32/EXPO-05)
 
 
 # ── Syslog forwarder ──

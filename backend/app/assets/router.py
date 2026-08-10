@@ -7,12 +7,13 @@ import uuid
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset
-from app.assets.models import Asset
+from app.assets.exposure import EXPOSURE_FIELDS
+from app.assets.models import Asset, BusinessCriticality, DataSensitivity
 from app.auth.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.vulnerabilities.models import Vulnerability
@@ -44,6 +45,34 @@ class _AssetOwnerUpdate(BaseModel):
         if not _EMAIL_RE.match(v):
             raise ValueError("must be a valid email address")
         return v
+
+
+class _ExposureOverrideUpdate(BaseModel):
+    """Phase 32 (EXPO-03) — admin-only per-asset exposure-context override.
+
+    T-32-03 mitigation: `extra="forbid"` (mass-assignment defense) + `field`
+    allow-list + `value` validated against the enum matching `field` (a
+    bool-string for `internet_facing`) — invalid combinations raise 422
+    before the handler ever touches the ORM.
+    """
+
+    model_config = {"extra": "forbid"}
+    field: str
+    value: str
+
+    @model_validator(mode="after")
+    def _validate_field_and_value(self) -> _ExposureOverrideUpdate:
+        if self.field not in EXPOSURE_FIELDS:
+            raise ValueError(f"field must be one of {sorted(EXPOSURE_FIELDS)}")
+        if self.field == "internet_facing":
+            if self.value.strip().lower() not in {"true", "false"}:
+                raise ValueError("value must be 'true' or 'false' for internet_facing")
+        else:
+            enum_cls = BusinessCriticality if self.field == "business_criticality" else DataSensitivity
+            valid_values = {member.value for member in enum_cls}
+            if self.value not in valid_values:
+                raise ValueError(f"value must be one of {sorted(valid_values)}")
+        return self
 
 
 async def _get_directory_user(db: AsyncSession, tenant_id, asset) -> dict | None:
@@ -218,6 +247,16 @@ async def list_assets(
                 "tags": a.tags or [],
                 "sla_breach": vcounts.sla_breach,
                 "sla_breach_count": vcounts.sla_breach,
+                # Phase 32 — EXPO-01 exposure context (6 keys: 3 value + 3
+                # *_source discriminator). Must be added here AND to the
+                # detail dict below — dead schemas.py/service.py fields never
+                # surface (32-PATTERNS Anti-Patterns).
+                "business_criticality": a.business_criticality,
+                "business_criticality_source": a.business_criticality_source,
+                "data_sensitivity": a.data_sensitivity,
+                "data_sensitivity_source": a.data_sensitivity_source,
+                "internet_facing": a.internet_facing,
+                "internet_facing_source": a.internet_facing_source,
             }
         )
 
@@ -275,21 +314,13 @@ async def asset_stats(
     }
 
 
-@router.get("/{asset_id}")
-async def get_asset(
-    asset_id: uuid.UUID,
-    user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get single asset with full details."""
-    asset = (
-        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
-    ).scalar_one_or_none()
-    if not asset:
-        from fastapi import HTTPException
+async def _build_asset_detail(db: AsyncSession, user, asset: Asset) -> dict:
+    """Build the full asset-detail response dict.
 
-        raise HTTPException(404, "Asset not found")
-
+    Shared by `GET /assets/{id}` and `PATCH /assets/{id}/exposure-context`
+    (Phase 32) so the override endpoint's response mirrors GET exactly,
+    same convention `update_asset_owner` already uses for `directory_user`.
+    """
     # Vuln breakdown
     vuln_q = select(
         func.count().label("total"),
@@ -375,7 +406,35 @@ async def get_asset(
             "kev": vc.kev,
             "sla_breach": vc.sla_breach,
         },
+        # Phase 32 — EXPO-01 exposure context (6 keys: 3 value + 3 *_source
+        # discriminator). Must be added here AND to the list dict above —
+        # dead schemas.py/service.py fields never surface (32-PATTERNS
+        # Anti-Patterns).
+        "business_criticality": asset.business_criticality,
+        "business_criticality_source": asset.business_criticality_source,
+        "data_sensitivity": asset.data_sensitivity,
+        "data_sensitivity_source": asset.data_sensitivity_source,
+        "internet_facing": asset.internet_facing,
+        "internet_facing_source": asset.internet_facing_source,
     }
+
+
+@router.get("/{asset_id}")
+async def get_asset(
+    asset_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get single asset with full details."""
+    asset = (
+        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
+    if not asset:
+        from fastapi import HTTPException
+
+        raise HTTPException(404, "Asset not found")
+
+    return await _build_asset_detail(db, user, asset)
 
 
 @router.post("/{asset_id}/ignore")
@@ -495,6 +554,53 @@ async def update_asset_owner(
     }
 
 
+@router.patch("/{asset_id}/exposure-context")
+async def update_asset_exposure_context(
+    asset_id: uuid.UUID,
+    body: _ExposureOverrideUpdate,
+    user=Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only per-asset exposure-context override (Phase 32 — EXPO-03).
+
+    Setting a field here flips its ``*_source`` discriminator to
+    ``ASSET_OVERRIDE``, which permanently wins over any future auto
+    re-inference — ``apply_inference_to_asset``/``recompute_exposure_context``
+    only ever write a field whose source is still ``AUTO``. Audit-then-commit
+    in the same transaction (T-32-04/EXPO-05 — mirrors ``update_asset_owner``).
+    """
+    from fastapi import HTTPException
+
+    from app.audit import audit
+
+    asset = (
+        await db.execute(select(Asset).where(Asset.id == asset_id, Asset.tenant_id == user.tenant_id))
+    ).scalar_one_or_none()
+    if not asset:
+        # T-32-02 mitigation — 404 (not 403) keeps cross-tenant existence private.
+        raise HTTPException(404, "Asset not found")
+
+    field = body.field
+    new_value: str | bool = body.value.strip().lower() == "true" if field == "internet_facing" else body.value
+    old_value = getattr(asset, field)
+
+    setattr(asset, field, new_value)
+    setattr(asset, f"{field}_source", "ASSET_OVERRIDE")
+
+    await audit(
+        db,
+        user,
+        "asset.exposure_override",
+        "asset",
+        str(asset.id),
+        {"field": field, "old": old_value, "new": new_value},
+    )
+    await db.commit()
+    await db.refresh(asset)
+
+    return await _build_asset_detail(db, user, asset)
+
+
 @router.post("/bulk-ignore")
 async def bulk_ignore_assets(
     body: dict,
@@ -544,6 +650,24 @@ async def recompute_risk_scores(
     stats = await compute_risk_scores(db, user.tenant_id)
     await db.commit()
     return {"message": "Risk scores recomputed", **stats}
+
+
+@router.post("/exposure-context/recompute")
+async def recompute_exposure_context_endpoint(
+    user=Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Full-tenant re-inference of exposure-context fields (Phase 32 — EXPO-02).
+
+    Mirrors ``POST /assets/recompute-risk-scores``. Any field whose source
+    is ``ASSET_OVERRIDE`` (and, from Plan 03, ``GROUP_OVERRIDE``) is skipped
+    — an override permanently wins over auto re-inference (EXPO-03).
+    """
+    from app.assets.exposure import recompute_exposure_context
+
+    stats = await recompute_exposure_context(db, user.tenant_id)
+    await db.commit()
+    return {"message": "Exposure context recomputed", **stats}
 
 
 @router.post("/classify")

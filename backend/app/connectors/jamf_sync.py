@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.assets.classification import classify_asset_from_data
+from app.assets.exposure import apply_inference_to_asset, audit_auto_inference_changes
 from app.assets.models import Asset
 from app.connectors.jamf import JamfConnector
 from app.connectors.service import get_decrypted_credentials
@@ -166,6 +167,9 @@ async def _upsert_jamf_device(
         )
         db.add(asset)
         await db.flush()
+        # Phase 32 (EXPO-02) — department is set above; re-run inference now.
+        exposure_changes = apply_inference_to_asset(asset)
+        audit_auto_inference_changes(db, tenant_id, asset.id, exposure_changes)
         return True
     else:
         # Enrich existing asset with Jamf data
@@ -197,5 +201,11 @@ async def _upsert_jamf_device(
         if "JAMF" not in sources:
             asset.seen_by_sources = sources + ["JAMF"]
             flag_modified(asset, "seen_by_sources")
+
+        # Phase 32 (EXPO-02) — department may have just changed above;
+        # re-run inference (AUTO-gated per field — an ASSET_OVERRIDE
+        # permanently wins, EXPO-03).
+        exposure_changes = apply_inference_to_asset(asset)
+        audit_auto_inference_changes(db, tenant_id, asset.id, exposure_changes)
 
         return False

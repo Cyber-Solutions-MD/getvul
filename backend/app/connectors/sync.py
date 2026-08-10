@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset_from_data
+from app.assets.exposure import apply_inference_to_asset, audit_auto_inference_changes
 from app.assets.models import Asset
 from app.assets.risk_score import compute_risk_scores
 from app.connectors.base import BaseConnector, NormalizedMisconfiguration, NormalizedVulnerability
@@ -298,6 +299,15 @@ async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVul
             asset.wiz_asset_id = v.wiz_asset_id
         if getattr(v, "nessus_host_id", None):
             asset.nessus_host_id = v.nessus_host_id
+
+    # Phase 32 (EXPO-01/02) — auto-infer exposure context on both the
+    # create branch (brand-new asset, no override yet) and the update
+    # branch (AUTO-gated per field inside apply_inference_to_asset, so an
+    # ASSET_OVERRIDE permanently wins — EXPO-03). Audited only when a value
+    # actually changes (EXPO-05).
+    exposure_changes = apply_inference_to_asset(asset)
+    audit_auto_inference_changes(db, tenant_id, asset.id, exposure_changes)
+
     return asset
 
 

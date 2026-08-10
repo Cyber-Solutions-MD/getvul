@@ -83,7 +83,9 @@ def infer_exposure_context(
         or (tag_set & _CRITICAL_TAGS)
     ):
         business_criticality = "CRITICAL"
-    elif any(keyword in job_title_lower for keyword in _HIGH_JOB_TITLE_KEYWORDS) or department_lower in _HIGH_DEPARTMENTS:
+    elif (
+        any(keyword in job_title_lower for keyword in _HIGH_JOB_TITLE_KEYWORDS) or department_lower in _HIGH_DEPARTMENTS
+    ):
         business_criticality = "HIGH"
     elif department_lower in _LOW_DEPARTMENTS:
         business_criticality = "LOW"

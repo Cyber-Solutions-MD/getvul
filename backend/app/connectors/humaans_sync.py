@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.assets.exposure import apply_inference_to_asset, audit_auto_inference_changes
 from app.assets.models import Asset
 from app.connectors.humaans import HumaansConnector, HumaansPerson
 from app.connectors.service import get_decrypted_credentials
@@ -61,6 +62,11 @@ async def run_humaans_sync(db: AsyncSession, connector_config: ConnectorConfig) 
             if assets:
                 for asset in assets:
                     _enrich_asset(asset, person)
+                    # Phase 32 (EXPO-02) — department/humaans_job_title were
+                    # just set above; re-run inference (AUTO-gated per field,
+                    # an ASSET_OVERRIDE permanently wins — EXPO-03).
+                    exposure_changes = apply_inference_to_asset(asset)
+                    audit_auto_inference_changes(db, connector_config.tenant_id, asset.id, exposure_changes)
                 matched += 1
             else:
                 unmatched += 1
