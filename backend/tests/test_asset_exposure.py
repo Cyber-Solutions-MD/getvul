@@ -534,3 +534,201 @@ async def test_calibration_endpoint_admin_only(
         c = client_factory(user)
         r = await c.get("/api/v1/assets/exposure-context/calibration")
         assert r.status_code == 403, r.text
+
+
+# ── Group-scope exposure override precedence (Plan 03 — EXPO-04) ────────
+
+
+@pytest.mark.asyncio
+async def test_group_override_applies_to_group_members(client_factory, db_session, tenant_a, admin_user):
+    """A group-scope override applies to every AUTO member asset, setting
+    its value and flipping `*_source` to GROUP_OVERRIDE."""
+    admin_client = client_factory(admin_user)
+
+    a1 = _seed_asset(tenant_a, f"member-1-{uuid.uuid4().hex[:6]}")
+    a2 = _seed_asset(tenant_a, f"member-2-{uuid.uuid4().hex[:6]}")
+    db_session.add_all([a1, a2])
+    await db_session.commit()
+    assert a1.business_criticality_source == "AUTO"
+    assert a2.business_criticality_source == "AUTO"
+
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group {uuid.uuid4().hex[:6]}"})
+    assert r.status_code == 201, r.text
+    group_id = r.json()["id"]
+
+    for asset_id in (a1.id, a2.id):
+        r = await admin_client.post(f"/api/v1/asset-groups/{group_id}/members/{asset_id}")
+        assert r.status_code == 201, r.text
+
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    await db_session.refresh(a1)
+    await db_session.refresh(a2)
+    assert a1.business_criticality == "CRITICAL"
+    assert a1.business_criticality_source == "GROUP_OVERRIDE"
+    assert a2.business_criticality == "CRITICAL"
+    assert a2.business_criticality_source == "GROUP_OVERRIDE"
+
+
+@pytest.mark.asyncio
+async def test_asset_override_beats_group_override(client_factory, db_session, tenant_a, admin_user):
+    """An asset with a per-asset ASSET_OVERRIDE stays put even when its
+    group's override targets the same field (EXPO-04 precedence #3)."""
+    admin_client = client_factory(admin_user)
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+    asset_id = a.id
+
+    r = await admin_client.patch(
+        f"/api/v1/assets/{asset_id}/exposure-context",
+        json={"field": "business_criticality", "value": "LOW"},
+    )
+    assert r.status_code == 200, r.text
+
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group {uuid.uuid4().hex[:6]}"})
+    assert r.status_code == 201, r.text
+    group_id = r.json()["id"]
+
+    r = await admin_client.post(f"/api/v1/asset-groups/{group_id}/members/{asset_id}")
+    assert r.status_code == 201, r.text
+
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    await db_session.refresh(a)
+    assert a.business_criticality == "LOW"
+    assert a.business_criticality_source == "ASSET_OVERRIDE"
+
+
+@pytest.mark.asyncio
+async def test_conflicting_group_overrides_tiebreak(client_factory, db_session, tenant_a, admin_user):
+    """An asset in two groups with conflicting overrides on the same field
+    resolves to the group whose override has the most-recent `updated_at`
+    (EXPO-04 — deterministic multi-group conflict resolution)."""
+    admin_client = client_factory(admin_user)
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+    asset_id = a.id
+
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group A {uuid.uuid4().hex[:6]}"})
+    assert r.status_code == 201, r.text
+    group_a_id = r.json()["id"]
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group B {uuid.uuid4().hex[:6]}"})
+    assert r.status_code == 201, r.text
+    group_b_id = r.json()["id"]
+
+    for gid in (group_a_id, group_b_id):
+        r = await admin_client.post(f"/api/v1/asset-groups/{gid}/members/{asset_id}")
+        assert r.status_code == 201, r.text
+
+    # Group A's override lands first...
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_a_id}/exposure-context",
+        json={"field": "business_criticality", "value": "HIGH"},
+    )
+    assert r.status_code == 200, r.text
+
+    # ...Group B's override lands second (more recent) — B wins.
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_b_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    await db_session.refresh(a)
+    assert a.business_criticality == "CRITICAL"
+    assert a.business_criticality_source == "GROUP_OVERRIDE"
+
+    # Re-touching Group A's override makes IT the most recent — A wins now.
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_a_id}/exposure-context",
+        json={"field": "business_criticality", "value": "LOW"},
+    )
+    assert r.status_code == 200, r.text
+
+    await db_session.refresh(a)
+    assert a.business_criticality == "LOW"
+    assert a.business_criticality_source == "GROUP_OVERRIDE"
+
+
+@pytest.mark.asyncio
+async def test_group_override_writes_audit_row(client_factory, db_session, tenant_a, admin_user):
+    """A group-scope override writes exactly one asset_group.exposure_override
+    audit row (EXPO-05), regardless of how many member assets it fans out to."""
+    admin_client = client_factory(admin_user)
+
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group {uuid.uuid4().hex[:6]}"})
+    assert r.status_code == 201, r.text
+    group_id = r.json()["id"]
+
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    rows = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "asset_group.exposure_override",
+                    AuditLog.resource_id == str(group_id),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1, f"expected exactly one audit row, got {len(rows)}"
+    row = rows[0]
+    assert row.details["field"] == "business_criticality"
+    assert row.details["old"] is None
+    assert row.details["new"] == "CRITICAL"
+    assert row.user_email == admin_user.email
+    assert row.resource_type == "asset_group"
+
+
+@pytest.mark.asyncio
+async def test_add_member_after_override_immediately_applies_precedence(
+    client_factory, db_session, tenant_a, admin_user
+):
+    """32-CONTEXT.md execution note: add_member re-applies per-asset > group
+    > auto precedence to the newly-added member immediately — it must not
+    wait for a full-tenant recompute to pick up an existing group override."""
+    admin_client = client_factory(admin_user)
+
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": f"Group {uuid.uuid4().hex[:6]}"})
+    assert r.status_code == 201, r.text
+    group_id = r.json()["id"]
+
+    # The group override is set BEFORE the asset even exists as a member.
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+    asset_id = a.id
+    assert a.business_criticality == "MEDIUM"
+    assert a.business_criticality_source == "AUTO"
+
+    r = await admin_client.post(f"/api/v1/asset-groups/{group_id}/members/{asset_id}")
+    assert r.status_code == 201, r.text
+
+    await db_session.refresh(a)
+    assert a.business_criticality == "CRITICAL"
+    assert a.business_criticality_source == "GROUP_OVERRIDE"
