@@ -10,10 +10,10 @@
  *      Icons, brand-colored) — rendered as an <img> on a light tile.
  *   2. Inline SVG mark for vendors Simple Icons doesn't carry but that are simple
  *      and iconic (Microsoft family → the four-square mark).
- *   3. A tile in the vendor's official brand color with a bold monogram, for
- *      security vendors with no available icon (CrowdStrike, Wiz, Rapid7, Nessus,
- *      Jamf, Humaans). Drop a file into connector-logos/ to promote any of these
- *      to a real logo — no code change beyond adding its type to IMAGE_LOGOS.
+ *   3. A tile in the vendor's official brand color with a bold monogram, for the
+ *      few vendors with no freely-available icon (CrowdStrike, Wiz, Rapid7,
+ *      Nessus/Tenable, Humaans). Drop a file into connector-logos/ to promote any
+ *      of these to a real logo — no code change beyond adding its type to IMAGE_LOGOS.
  *
  * Injection-safe: `type` maps through literal lookups; unknown types fall through
  * to a neutral monogram tile (no style/URL interpolation from arbitrary input).
@@ -31,6 +31,7 @@ const IMAGE_LOGOS = new Set<string>([
   'asana',
   'github',
   'anthropic',
+  'jamf',
 ]);
 
 type Brand = {
