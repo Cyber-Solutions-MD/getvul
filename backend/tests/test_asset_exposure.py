@@ -88,6 +88,97 @@ def test_infer_exposure_context_does_not_mutate_tags():
     assert tags == ["x"]
 
 
+# ── Unit tests: real data_sensitivity + internet_facing (Plan 02, EXPO-01) ─
+
+
+def test_infer_all_three_fields():
+    """All three exposure fields infer from real signals (Plan 02 replaces
+    the two static Plan-01 defaults with real logic)."""
+    from app.assets.exposure import infer_exposure_context
+
+    # RESTRICTED: pii tag is the strongest data_sensitivity signal.
+    criticality, sensitivity, internet_facing = infer_exposure_context(
+        tags=["pii"], department="Finance", job_title="CFO", external_ip="1.2.3.4"
+    )
+    assert criticality in ("CRITICAL", "HIGH")
+    assert sensitivity == "RESTRICTED"
+    assert internet_facing is True
+
+    # PUBLIC: marketing department + public/www tags, no other signal.
+    _criticality, sensitivity, _internet_facing = infer_exposure_context(
+        tags=["public", "www"], department="Marketing", job_title=None, external_ip=None
+    )
+    assert sensitivity == "PUBLIC"
+
+    # INTERNAL: no signal at all falls back to the safe default.
+    _criticality, sensitivity, _internet_facing = infer_exposure_context(
+        tags=None, department=None, job_title=None, external_ip=None
+    )
+    assert sensitivity == "INTERNAL"
+
+    # CONFIDENTIAL: pci tag or finance/legal department (no pii/phi/restricted).
+    _criticality, sensitivity, _internet_facing = infer_exposure_context(
+        tags=["pci"], department=None, job_title=None, external_ip=None
+    )
+    assert sensitivity == "CONFIDENTIAL"
+
+
+def test_internet_facing_from_tag_or_external_ip():
+    """internet_facing is True from either the "internet-facing" tag OR a
+    non-null external_ip — and False when neither signal is present."""
+    from app.assets.exposure import infer_exposure_context
+
+    _c, _s, internet_facing = infer_exposure_context(
+        tags=["internet-facing"], department=None, job_title=None, external_ip=None
+    )
+    assert internet_facing is True
+
+    _c, _s, internet_facing = infer_exposure_context(
+        tags=None, department=None, job_title=None, external_ip="203.0.113.5"
+    )
+    assert internet_facing is True
+
+    _c, _s, internet_facing = infer_exposure_context(tags=None, department=None, job_title=None, external_ip=None)
+    assert internet_facing is False
+
+
+@pytest.mark.asyncio
+async def test_reinference_skips_all_overridden_fields(db_session, tenant_a):
+    """apply_inference_to_asset skips EVERY field whose source has been
+    flipped to ASSET_OVERRIDE — not just business_criticality — even when a
+    strong signal for that field is newly present."""
+    from app.assets.exposure import apply_inference_to_asset
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+
+    # Manually override all three fields (simulating three separate PATCH
+    # /exposure-context calls) before any strong signal exists.
+    a.business_criticality = "LOW"
+    a.business_criticality_source = "ASSET_OVERRIDE"
+    a.data_sensitivity = "PUBLIC"
+    a.data_sensitivity_source = "ASSET_OVERRIDE"
+    a.internet_facing = False
+    a.internet_facing_source = "ASSET_OVERRIDE"
+    await db_session.commit()
+
+    # Now introduce signals that would push every field to its opposite
+    # extreme if inference were allowed to run.
+    a.department = "Finance"
+    a.mdm_details = {"humaans_job_title": "CFO"}
+    a.tags = ["pii", "internet-facing"]
+    a.external_ip = "198.51.100.7"
+
+    changes = apply_inference_to_asset(a)
+    await db_session.commit()
+
+    assert changes == []
+    assert a.business_criticality == "LOW"
+    assert a.data_sensitivity == "PUBLIC"
+    assert a.internet_facing is False
+
+
 # ── Integration: upsert + defaults (EXPO-01) ───────────────────────────
 
 
