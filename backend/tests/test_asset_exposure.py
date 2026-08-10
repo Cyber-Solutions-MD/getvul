@@ -147,6 +147,70 @@ def test_internet_facing_from_tag_or_external_ip():
     assert internet_facing is False
 
 
+# ── Unit tests: real per-connector internet_facing detected signal beats the
+# external_ip/tag proxy (Plan 04, EXPO-02) ──────────────────────────────────
+
+
+def test_detected_signal_wins_with_no_proxy_signal():
+    """A real per-connector detected signal (True) wins even when neither
+    proxy signal (tag/external_ip) is present."""
+    from app.assets.exposure import infer_exposure_context
+
+    _c, _s, internet_facing = infer_exposure_context(
+        tags=None, department=None, job_title=None, external_ip=None, internet_facing_detected=True
+    )
+    assert internet_facing is True
+
+
+def test_detected_false_wins_over_external_ip_proxy():
+    """A real detected signal of False overrides the external_ip proxy,
+    which alone would otherwise infer True."""
+    from app.assets.exposure import infer_exposure_context
+
+    _c, _s, internet_facing = infer_exposure_context(
+        tags=None, department=None, job_title=None, external_ip="1.2.3.4", internet_facing_detected=False
+    )
+    assert internet_facing is False
+
+
+def test_proxy_used_when_no_detected_signal():
+    """When internet_facing_detected is None (no vendor signal), the
+    external_ip/tag proxy formula is used exactly as it was in Plan 02."""
+    from app.assets.exposure import infer_exposure_context
+
+    _c, _s, internet_facing = infer_exposure_context(
+        tags=None, department=None, job_title=None, external_ip="1.2.3.4", internet_facing_detected=None
+    )
+    assert internet_facing is True
+
+
+@pytest.mark.asyncio
+async def test_asset_override_still_wins_over_detected_signal(db_session, tenant_a):
+    """An ASSET_OVERRIDE internet_facing=False stays False even after a
+    connector supplies a real internet_facing_detected=True signal on a
+    subsequent re-run — the admin override is permanent (EXPO-03)."""
+    from app.assets.exposure import apply_inference_to_asset
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+
+    a.internet_facing = False
+    a.internet_facing_source = "ASSET_OVERRIDE"
+    await db_session.commit()
+
+    # A connector now supplies a real detected signal that would flip
+    # internet_facing to True if inference were allowed to run.
+    a.internet_facing_detected = True
+
+    changes = apply_inference_to_asset(a)
+    await db_session.commit()
+
+    assert changes == []
+    assert a.internet_facing is False
+    assert a.internet_facing_source == "ASSET_OVERRIDE"
+
+
 @pytest.mark.asyncio
 async def test_reinference_skips_all_overridden_fields(db_session, tenant_a):
     """apply_inference_to_asset skips EVERY field whose source has been
