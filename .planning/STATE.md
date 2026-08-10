@@ -4,16 +4,16 @@ milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 32
 current_phase_name: Asset Exposure Context
-status: planning
-stopped_at: Phase 31 Plan 05 complete — Wiz guarded EPSS/exploitability enrichment + cross-6 ENRICH-06 sweep, 2/2 tasks, TDD green
-last_updated: "2026-08-10T09:58:12.433Z"
+status: executing
+stopped_at: Phase 32 Plan 01 complete — business_criticality end-to-end tracer (migration 037 + exposure.py + PATCH/POST override+recompute endpoints + 6 inline-dict keys), 10/10 tests green, 3/3 tasks
+last_updated: "2026-08-10T13:15:00.000Z"
 last_activity: 2026-08-10
-last_activity_desc: Phase 31 complete, transitioned to Phase 32
+last_activity_desc: Phase 32 Plan 01 (LEAD TRACER) complete, 1/5 plans
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 12
+  completed_plans: 8
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 31 — Connector Enrichment Rewrite
+**Current focus:** Phase 32 — Asset Exposure Context (Plan 01/5 complete)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 32 — Asset Exposure Context
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-10 — Phase 31 complete, transitioned to Phase 32
+Plan: 01/5 complete
+Status: In progress
+Last activity: 2026-08-10 — Phase 32 Plan 01 (LEAD TRACER) complete — business_criticality end-to-end (migration 037, exposure.py, PATCH/POST override+recompute endpoints, 6 keys in both inline dicts), 10/10 tests green, 3/3 tasks committed
 
 ## v4.0 Phase Map
 

@@ -84,10 +84,10 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
   4. Every exposure-context override (auto or manual) is audit-logged with actor, asset/group, field, old value, and new value
   5. A calibration check caps or flags the proportion of assets auto-classified at the highest criticality tier, provable against a realistic seed-data fixture (guards against criticality inflation cascading into score/SLA distortion)
 
-**Plans**: 5 plans
+**Plans**: 1/5 plans complete
 
 Plans:
-- [ ] 32-01-PLAN.md — TRACER: business_criticality end-to-end (migration + enums/columns + inference + per-asset override + audit + response dicts)
+- [x] 32-01-PLAN.md — TRACER: business_criticality end-to-end (migration + enums/columns + inference + per-asset override + audit + response dicts) *(complete 2026-08-10 — migration 037 + exposure.py + PATCH/POST override+recompute endpoints + 6 keys in both inline dicts; 10/10 tests green, EXPO-01/02/03/05)*
 - [ ] 32-02-PLAN.md — all 3 fields real inference + EXPO-06 calibration check + per-tenant cap config
 - [ ] 32-03-PLAN.md — real AssetGroup entity (model + membership + admin CRUD) + group-scope override + per-asset>group>auto precedence
 - [ ] 32-04-PLAN.md — real per-connector internet-facing detection (detected-signal>proxy) + honest coverage doc
@@ -151,7 +151,7 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 |-------|-----------------|--------|-----------|
 | 30. Correlation Schema Fix | 2/2 | Complete    | 2026-08-05 |
 | 31. Connector Enrichment Rewrite | 5/5 | Complete    | 2026-08-10 |
-| 32. Asset Exposure Context | 0/TBD | Not started | - |
+| 32. Asset Exposure Context | 1/5 | In Progress | - |
 | 33. Risk-Exposure Model Definition | 0/TBD | Not started | - |
 | 34. Historical Recompute & Consumer Cutover | 0/TBD | Not started | - |
 | 35. Source-Aware Filtering & Provenance Badges | 0/TBD | Not started | - |
