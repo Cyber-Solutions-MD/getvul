@@ -670,6 +670,23 @@ async def recompute_exposure_context_endpoint(
     return {"message": "Exposure context recomputed", **stats}
 
 
+@router.get("/exposure-context/calibration")
+async def get_exposure_context_calibration(
+    user=Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only EXPO-06 calibration report (Phase 32 Plan 02).
+
+    Reports the proportion of AUTO-sourced CRITICAL assets against the
+    tenant's configurable cap (default 15%). Admin/group overrides are
+    exempt from the numerator (T-32-05/T-32-06 — see 32-02-PLAN.md threat
+    model). Read-only: flag+report, never mutates any asset.
+    """
+    from app.assets.exposure import check_criticality_calibration
+
+    return await check_criticality_calibration(db, user.tenant_id)
+
+
 @router.post("/classify")
 async def classify_all_assets(
     user=Depends(require_role("admin")),

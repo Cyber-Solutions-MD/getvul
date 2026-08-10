@@ -1,14 +1,15 @@
-"""Phase 32 Plan 01 (LEAD TRACER) — tests for exposure-context inference,
-per-asset override permanence, RBAC, and audit trail.
+"""Phase 32 Plans 01+02 — tests for exposure-context inference, per-asset
+override permanence, RBAC, audit trail, and EXPO-06 calibration.
 
 Covers:
   - infer_exposure_context: pure-function business_criticality inference
-    (real logic), data_sensitivity/internet_facing defaults (Plan 02 fills
-    real logic for those two), and never mutating the caller's `tags` list.
+    (real logic) and, since Plan 02, real data_sensitivity/internet_facing
+    inference too — never mutating the caller's `tags` list.
   - GET /assets/{id} surfaces all 6 exposure keys with sane AUTO defaults
     on a freshly-upserted asset (EXPO-01).
   - apply_inference_to_asset re-infers an AUTO field after MDM/HR enrichment
-    changes department/job_title, without flipping its source (EXPO-02).
+    changes department/job_title, without flipping its source, and skips
+    ALL fields once ASSET_OVERRIDE-sourced (EXPO-02).
   - PATCH /assets/{id}/exposure-context flips business_criticality to
     ASSET_OVERRIDE and that override survives a subsequent full-tenant
     recompute (EXPO-03).
@@ -16,6 +17,10 @@ Covers:
     override endpoint (access control).
   - Audit: exactly one row per manual override; auto-inference audits
     only when a value actually changes, never on re-affirmation (EXPO-05).
+  - check_criticality_calibration (EXPO-06): AUTO-only CRITICAL proportion
+    against a realistic 100-asset fixture, tenant-configurable cap, override
+    exemption, and the admin-gated GET /assets/exposure-context/calibration
+    endpoint.
 
 Uses the project's canonical inline-seed + client_factory pattern from
 test_asset_owner_reassign.py / test_ai_status.py. No respx/pytest-httpx —
@@ -403,3 +408,129 @@ async def test_auto_inference_audits_only_on_change(db_session, tenant_a):
         .all()
     )
     assert len(second_rows) == 1, "recompute on an unchanged asset must not write a new audit row"
+
+
+# ── EXPO-06 calibration check (Plan 02) ──────────────────────────────────
+
+
+def _seed_calibration_fixture(tenant_id, *, critical_count: int, total: int) -> list[Asset]:
+    """Build a realistic ~100-asset fixture with a skewed dept/tag
+    distribution (per 32-RESEARCH §5 seed-fixture guidance): `critical_count`
+    assets carry a genuine CRITICAL signal (Finance department + CFO
+    job_title — the same real business_criticality tier mapping documented
+    in exposure.py, not a hand-set value), the rest rotate through
+    unremarkable departments (Engineering/IT/Marketing/Sales/none) that
+    infer to MEDIUM or HIGH but never CRITICAL."""
+    assets = []
+    non_critical_departments = ["Engineering", "IT", "Marketing", "Sales", None]
+    for i in range(total):
+        if i < critical_count:
+            a = _seed_asset(
+                tenant_id,
+                f"calib-critical-{i}-{uuid.uuid4().hex[:6]}",
+                department="Finance",
+                job_title="CFO",
+            )
+        else:
+            dept = non_critical_departments[i % len(non_critical_departments)]
+            a = _seed_asset(tenant_id, f"calib-normal-{i}-{uuid.uuid4().hex[:6]}", department=dept)
+        assets.append(a)
+    return assets
+
+
+@pytest.mark.asyncio
+async def test_calibration_check_against_realistic_fixture(db_session, tenant_a):
+    """A realistic 100-asset fixture with a skewed dept/tag distribution
+    proves pct/cap/over_cap/critical_auto/total against real
+    infer_exposure_context output, and proves the cap is tenant-configurable
+    (EXPO-06)."""
+    from app.assets.exposure import apply_inference_to_asset, check_criticality_calibration
+
+    assets = _seed_calibration_fixture(tenant_a, critical_count=20, total=100)
+    db_session.add_all(assets)
+    await db_session.commit()  # establish AUTO/MEDIUM defaults before re-inferring
+    for a in assets:
+        apply_inference_to_asset(a)
+    await db_session.commit()
+
+    report = await check_criticality_calibration(db_session, tenant_a)
+    assert report["total"] == 100
+    assert report["critical_auto"] == 20
+    assert report["pct"] == pytest.approx(0.20)
+    assert report["cap"] == pytest.approx(0.15)  # tenant default (migration 038)
+    assert report["over_cap"] is True
+    assert report["hard_cap_enabled"] is False
+
+    # Tenant-configurable cap: raising it above the observed pct flips
+    # over_cap back to False without touching any asset (flag+report only —
+    # critical_auto/total are unchanged, no down-ranking happened).
+    from app.tenants.models import Tenant
+
+    tenant = (await db_session.execute(select(Tenant).where(Tenant.id == tenant_a))).scalar_one()
+    tenant.exposure_criticality_cap = 0.25
+    await db_session.commit()
+
+    report2 = await check_criticality_calibration(db_session, tenant_a)
+    assert report2["cap"] == pytest.approx(0.25)
+    assert report2["over_cap"] is False
+    assert report2["critical_auto"] == 20
+    assert report2["total"] == 100
+
+
+@pytest.mark.asyncio
+async def test_calibration_exempts_manual_overrides(client_factory, db_session, tenant_a, admin_user):
+    """An admin-set CRITICAL override (via the real PATCH endpoint) does NOT
+    count toward critical_auto — only AUTO-sourced CRITICAL assets
+    contribute to the calibration proportion (EXPO-06, CONTEXT.md's
+    calibration decision: exempting overrides resolves the tension with
+    EXPO-03's 'override permanently wins' guarantee)."""
+    from app.assets.exposure import apply_inference_to_asset, check_criticality_calibration
+
+    auto_critical = _seed_asset(
+        tenant_a, f"auto-critical-{uuid.uuid4().hex[:6]}", department="Finance", job_title="CFO"
+    )
+    others = [_seed_asset(tenant_a, f"other-{i}-{uuid.uuid4().hex[:6]}") for i in range(4)]
+
+    db_session.add(auto_critical)
+    db_session.add_all(others)
+    await db_session.commit()  # establish AUTO/MEDIUM defaults before re-inferring
+    apply_inference_to_asset(auto_critical)
+    await db_session.commit()
+    assert auto_critical.business_criticality == "CRITICAL"
+    assert auto_critical.business_criticality_source == "AUTO"
+
+    override_target_id = others[0].id
+    admin_client = client_factory(admin_user)
+    r = await admin_client.patch(
+        f"/api/v1/assets/{override_target_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    report = await check_criticality_calibration(db_session, tenant_a)
+    assert report["total"] == 5
+    # Only the one genuinely AUTO-sourced CRITICAL asset counts — the manual
+    # override on `others[0]` is exempt, even though it's also CRITICAL now.
+    assert report["critical_auto"] == 1
+
+
+@pytest.mark.asyncio
+async def test_calibration_endpoint_admin_only(
+    client_factory, db_session, tenant_a, admin_user, analyst_user, viewer_user
+):
+    """GET /assets/exposure-context/calibration returns the report shape for
+    admin; analyst/viewer get 403 (T-32-05)."""
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+
+    admin_client = client_factory(admin_user)
+    r = await admin_client.get("/api/v1/assets/exposure-context/calibration")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body.keys()) >= {"pct", "cap", "over_cap", "critical_auto", "total", "hard_cap_enabled"}
+
+    for user in (analyst_user, viewer_user):
+        c = client_factory(user)
+        r = await c.get("/api/v1/assets/exposure-context/calibration")
+        assert r.status_code == 403, r.text

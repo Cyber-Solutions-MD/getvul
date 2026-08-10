@@ -241,8 +241,12 @@ app/assets/exposure.py:0: error: Missing type arguments for generic type "dict" 
 app/assets/exposure.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/assets/exposure.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/assets/exposure.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+app/assets/exposure.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/assets/classifier.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/auth/service.py:0: error: Library stubs not installed for "jose"  [import-untyped]
+app/auth/service.py:0: note: Hint: "python3 -m pip install types-python-jose"
+app/auth/service.py:0: note: (or run "mypy --install-types" to install all missing stub packages)
+app/auth/service.py:0: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
 app/redis_client.py:0: error: Returning Any from function declared to return "Redis"  [no-any-return]
 app/vulnerabilities/trends.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/vulnerabilities/trends.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
@@ -301,9 +305,6 @@ app/ticketing/service.py:0: error: Item "None" of "Any | None" has no attribute 
 app/ticketing/service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/ticketing/service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/auth/dependencies.py:0: error: Library stubs not installed for "jose"  [import-untyped]
-app/auth/dependencies.py:0: note: Hint: "python3 -m pip install types-python-jose"
-app/auth/dependencies.py:0: note: (or run "mypy --install-types" to install all missing stub packages)
-app/auth/dependencies.py:0: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
 app/auth/dependencies.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 app/auth/dependencies.py:0: error: Function is missing a type annotation  [no-untyped-def]
 app/enrich_assets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -426,6 +427,8 @@ app/assets/router.py:0: error: Function is missing a return type annotation  [no
 app/assets/router.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 app/assets/router.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/assets/router.py:0: error: Incompatible types in assignment (expression has type "datetime", variable has type "SQLCoreOperations[str | None] | str | None")  [assignment]
+app/assets/router.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+app/assets/router.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 app/assets/router.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 app/assets/router.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 app/assets/router.py:0: error: Function is missing a return type annotation  [no-untyped-def]

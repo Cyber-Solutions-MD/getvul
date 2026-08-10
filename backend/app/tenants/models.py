@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,6 +42,14 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     branding: Mapped[dict | None] = mapped_column(
         JSONB
     )  # logo_path, company_name, tagline, primary_color, accent_color
+
+    # Phase 32 (EXPO-06) — per-tenant calibration config for
+    # check_criticality_calibration (app/assets/exposure.py). cap = the
+    # AUTO-CRITICAL proportion above which the report flags `over_cap`.
+    # hard_cap_enabled is a documented, deliberately unwired flag — default
+    # OFF (flag+report only per 32-CONTEXT.md).
+    exposure_criticality_cap: Mapped[float] = mapped_column(Float, default=0.15, server_default="0.15")
+    exposure_hard_cap_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 
