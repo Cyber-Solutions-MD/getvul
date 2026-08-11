@@ -29,6 +29,14 @@ export const queryKeys = {
     all: ['connectors'] as const,
     list: () => ['connectors', 'list'] as const,
   },
+  // Phase 32 (32-05) — /dashboard/asset-groups management surface.
+  assetGroups: {
+    all: ['asset-groups'] as const,
+    list: () => ['asset-groups', 'list'] as const,
+    members: (groupId: string) => ['asset-groups', groupId, 'members'] as const,
+    exposureContext: (groupId: string) =>
+      ['asset-groups', groupId, 'exposure-context'] as const,
+  },
   savedFilters: {
     all: ['saved-filters'] as const,
     list: () => ['saved-filters', 'list'] as const,
