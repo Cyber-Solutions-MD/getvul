@@ -131,7 +131,11 @@ Plans:
   3. Every tenant receives a pre/post diff report for its `min_risk_score` automation-rule and saved-filter thresholds and must give an explicit re-tuning acknowledgment before its data is cut over — no silent reinterpretation
   4. The day-over-day risk-spike notification (`_check_risk_score_changes`) and the trend chart are version-boundary-guarded, provable with a fixture spanning the cutover boundary that produces neither an alert storm nor a trend cliff
 
-**Plans**: TBD
+**Plans**: 4 plans (Wave 1: 01 tracer; Wave 2: 02, 03, 04 — parallel, no file overlap)
+- [ ] 34-01-PLAN.md — RISK-07 lead tracer: durable RiskExposureBackfillJob + migration 044 (+cutover flag +ack columns) → chunked idempotent resumable bulk UPDATE...FROM → scheduler dispatcher → kill-mid-chunk/restart/isolation/load fixtures
+- [ ] 34-02-PLAN.md — RISK-08 flag-gated cutover: sort="triage" + get_top_findings_for_ai_batch read the new score when ON (byte-identical OFF); SLA stays severity-keyed (untouched)
+- [ ] 34-03-PLAN.md — RISK-09 diff+ack: pre/post min_risk_score threshold diff + audited per-tenant ack + admin flag-flip endpoint gated on backfill-complete + fresh-ack (no live retarget)
+- [ ] 34-04-PLAN.md — RISK-10 boundary guards: unconditional DailySnapshot dual-write + dead _check_risk_score_changes fix + same-version-only diffing; boundary fixture proves no storm / no cliff
 
 ### Phase 35: Source-Aware Filtering & Provenance Badges
 
