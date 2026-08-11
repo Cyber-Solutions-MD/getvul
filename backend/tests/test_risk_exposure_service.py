@@ -424,3 +424,87 @@ async def test_compute_uses_correlation_sources_count(db_session, tenant_a):
     by_id = {row.id: row for row in rows}
 
     assert by_id[corroborated_vuln.id].risk_exposure_score > by_id[single_vuln.id].risk_exposure_score
+
+
+# --- Plan 33-03: asset MAX rollup (RISK-02) ---------------------------------
+# compute_finding_risk_scores does not yet touch Asset.risk_exposure_score --
+# Plan 33-02's docstring says so explicitly ("left NULL by this plan"). These
+# two tests MUST fail for real against the current code: the rollup query
+# does not exist yet.
+
+
+@pytest.mark.asyncio
+async def test_asset_rollup_is_max(db_session, tenant_a):
+    """RISK-02: Asset.risk_exposure_score rolls up to the MAX of its OPEN/
+    IN_PROGRESS findings' risk_exposure_score (CONTEXT RESOLVED Q2 -- MAX
+    only, no volume curve), and Asset.risk_model_version is stamped
+    alongside it."""
+    from app.vulnerabilities.risk_exposure_service import RISK_MODEL_VERSION, compute_finding_risk_scores
+
+    asset = _seed_asset(tenant_a)
+    db_session.add(asset)
+    await db_session.flush()
+
+    # A middling MEDIUM/no-KEV finding vs. a KEV-floored finding (guaranteed
+    # to land at/near 90) -- two clearly DIFFERENT scores, so the MAX is
+    # unambiguous regardless of the exact formula output.
+    low_vuln = _seed_vuln(tenant_a, asset.id, cve_id="CVE-2024-9001", severity="MEDIUM", cvss_v3_score=Decimal("5.0"))
+    high_vuln = _seed_vuln(
+        tenant_a,
+        asset.id,
+        cve_id="CVE-2024-9002",
+        severity="LOW",
+        cvss_v3_score=Decimal("3.1"),
+        cisa_kev=True,
+    )
+    db_session.add_all([low_vuln, high_vuln])
+    await db_session.commit()
+
+    await compute_finding_risk_scores(db_session, tenant_a)
+    await db_session.commit()
+
+    findings = (
+        (
+            await db_session.execute(
+                select(Vulnerability).where(Vulnerability.id.in_([low_vuln.id, high_vuln.id]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(findings) == 2
+    max_finding_score = max(f.risk_exposure_score for f in findings)
+    # Sanity: the KEV-floored finding really is the higher one, proving this
+    # test exercises a genuine MAX (not two findings that coincidentally tie).
+    assert max_finding_score >= 90
+
+    await db_session.refresh(asset)
+    assert asset.risk_exposure_score == max_finding_score
+    assert asset.risk_model_version == RISK_MODEL_VERSION
+
+
+@pytest.mark.asyncio
+async def test_asset_rollup_empty_resets(db_session, tenant_a):
+    """RISK-02: an asset with no OPEN/IN_PROGRESS findings resets its rollup
+    to NULL -- never a stale carryover from a prior compute cycle."""
+    from app.vulnerabilities.risk_exposure_service import compute_finding_risk_scores
+
+    asset = _seed_asset(tenant_a)
+    # Simulate a stale rollup value written by a prior compute cycle.
+    asset.risk_exposure_score = 77
+    asset.risk_model_version = "v0-stale"
+    db_session.add(asset)
+    await db_session.flush()
+
+    closed_vuln = _seed_vuln(
+        tenant_a, asset.id, cve_id="CVE-2024-9003", severity="CRITICAL", cvss_v3_score=Decimal("9.8")
+    )
+    closed_vuln.status = "CLOSED"
+    db_session.add(closed_vuln)
+    await db_session.commit()
+
+    await compute_finding_risk_scores(db_session, tenant_a)
+    await db_session.commit()
+
+    await db_session.refresh(asset)
+    assert asset.risk_exposure_score is None
