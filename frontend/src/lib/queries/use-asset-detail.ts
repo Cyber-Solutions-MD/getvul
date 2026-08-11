@@ -49,6 +49,20 @@ export type AssetDetail = {
   last_checkin_at: string | null;
   building: string | null;
   department: string | null;
+  // Phase 32 (32-01/32-02/32-03) — exposure-context fields. Precedence:
+  // ASSET_OVERRIDE (permanent) > GROUP_OVERRIDE (most-recently-updated group
+  // wins on conflict) > AUTO (inferred at upsert/recompute).
+  business_criticality: string | null;
+  business_criticality_source: 'AUTO' | 'ASSET_OVERRIDE' | 'GROUP_OVERRIDE' | null;
+  // Read-side lookup (32-05) — the name of the group currently driving this
+  // field when its source is GROUP_OVERRIDE; null otherwise.
+  business_criticality_group_name: string | null;
+  data_sensitivity: string | null;
+  data_sensitivity_source: 'AUTO' | 'ASSET_OVERRIDE' | 'GROUP_OVERRIDE' | null;
+  data_sensitivity_group_name: string | null;
+  internet_facing: boolean | null;
+  internet_facing_source: 'AUTO' | 'ASSET_OVERRIDE' | 'GROUP_OVERRIDE' | null;
+  internet_facing_group_name: string | null;
 };
 
 export function useAsset(id: string | null | undefined) {

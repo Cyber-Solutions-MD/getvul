@@ -30,6 +30,7 @@ import { Breadcrumb, Crumb } from '@/components/ui/Breadcrumb';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { RiskCard } from '@/components/assets/risk-card';
 import { OwnerCard } from '@/components/assets/owner-card';
+import { ExposureContextCard } from '@/components/assets/exposure-context-card';
 import { IdentityMetadataRail } from '@/components/assets/identity-metadata-rail';
 import { SeverityRibbon } from '@/components/assets/severity-ribbon';
 import { AssetVulnsList } from '@/components/assets/asset-vulns-list';
@@ -226,6 +227,7 @@ function AssetDetailInner() {
         >
           <RiskCard asset={a} />
           <OwnerCard asset={a} />
+          <ExposureContextCard asset={a} />
           <IdentityMetadataRail asset={a} />
         </aside>
       </div>

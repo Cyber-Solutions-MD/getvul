@@ -34,6 +34,15 @@ const ASSET: AssetDetail = {
   last_checkin_at: '2026-05-20T10:00:00Z',
   building: null,
   department: 'IT',
+  business_criticality: null,
+  business_criticality_source: null,
+  business_criticality_group_name: null,
+  data_sensitivity: null,
+  data_sensitivity_source: null,
+  data_sensitivity_group_name: null,
+  internet_facing: null,
+  internet_facing_source: null,
+  internet_facing_group_name: null,
 };
 
 describe('IdentityMetadataRail', () => {

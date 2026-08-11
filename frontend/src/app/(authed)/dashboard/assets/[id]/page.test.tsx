@@ -56,6 +56,15 @@ vi.mock('@/lib/queries/use-asset-detail', () => ({
       last_checkin_at: null,
       building: null,
       department: null,
+      business_criticality: 'HIGH',
+      business_criticality_source: 'AUTO',
+      business_criticality_group_name: null,
+      data_sensitivity: 'INTERNAL',
+      data_sensitivity_source: 'AUTO',
+      data_sensitivity_group_name: null,
+      internet_facing: false,
+      internet_facing_source: 'AUTO',
+      internet_facing_group_name: null,
     },
     isLoading: false,
     error: null,
@@ -173,11 +182,12 @@ describe('/assets/[id] page', () => {
     expect(tagBlock).toHaveTextContent('tier-1');
   });
 
-  it('renders the right rail with RiskCard, OwnerCard, IdentityMetadataRail', () => {
+  it('renders the right rail with RiskCard, OwnerCard, ExposureContextCard, IdentityMetadataRail', () => {
     renderPage();
     expect(screen.getByTestId('asset-detail-rail')).toBeInTheDocument();
     expect(screen.getByTestId('risk-card')).toBeInTheDocument();
     expect(screen.getByTestId('owner-card')).toBeInTheDocument();
+    expect(screen.getByTestId('exposure-context-card')).toBeInTheDocument();
     expect(screen.getByTestId('identity-metadata')).toBeInTheDocument();
   });
 
