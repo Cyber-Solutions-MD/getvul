@@ -111,7 +111,7 @@ Plans:
   6. The score carries a `risk_model_version` column and is shadow-computed for at least one full sync cycle with zero consumers reading it before cutover; the previously-triplicated severity-tier boundaries (`export.py`/`assets/router.py`/`dashboard.py`) are centralized to one constant
 
 **Plans**: 4 plans
-- [ ] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response
+- [x] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response *(complete 2026-08-11 — migration 042 (5 nullable columns); risk_exposure_service.py's score_finding (pure, severity/CVSS+EPSS+KEV-floor real, native/exposure/corroboration zeroed Plan-33-02 placeholders) + compute_finding_risk_scores (DB-orchestration); single sync.py post-sync hook wire; GET /vulnerabilities/{id} persisted-column read. 5 new backend tests green, zero-consumer grep gate confirmed.)*
 - [ ] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures
 - [ ] 33-03-PLAN.md — Asset MAX rollup + sortable index; severity-tier centralization (one constant) + characterization regression
 - [ ] 33-04-PLAN.md — DrillPanel per-input breakdown ("why is this an 82"), shadow/preview-labeled (RISK-05)
@@ -161,6 +161,6 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 | 30. Correlation Schema Fix | 2/2 | Complete    | 2026-08-05 |
 | 31. Connector Enrichment Rewrite | 5/5 | Complete    | 2026-08-10 |
 | 32. Asset Exposure Context | 5/5 | Complete    | 2026-08-11 |
-| 33. Risk-Exposure Model Definition | 0/TBD | Not started | - |
+| 33. Risk-Exposure Model Definition | 1/4 | In Progress | - |
 | 34. Historical Recompute & Consumer Cutover | 0/TBD | Not started | - |
 | 35. Source-Aware Filtering & Provenance Badges | 0/TBD | Not started | - |

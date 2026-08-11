@@ -4,16 +4,16 @@ milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 33
 current_phase_name: Risk-Exposure Model Definition
-status: planning
-stopped_at: Phase 32 Plan 05 complete (final plan) — exposure-context card + admin inline override on the asset detail page, /dashboard/asset-groups management page (list/CRUD/membership/group-override) + nav entry, backend read-endpoint deviation (member_count, GET members/exposure-context, group-name lookup). 18 new frontend tests + 6 new backend tests green, full frontend suite 922/922 + backend exposure/groups suites green. Phase 32 is 5/5 plans complete — pending `/gsd-verify-work 32`.
-last_updated: "2026-08-11T08:17:42.296Z"
+status: in_progress
+stopped_at: Phase 33 Plan 01 (LEAD TRACER) complete — migration 042 lands the 5-column risk-exposure schema spine (3 on vulnerabilities, 2 on assets); new app/vulnerabilities/risk_exposure_service.py implements score_finding (pure, deterministic, additive 100-point weighted-sum; severity/CVSS + EPSS + KEV floor REAL, native/exposure/corroboration zeroed Plan-33-02 placeholders) + compute_finding_risk_scores (DB-orchestration, bulk-fetch + per-row persist); wired into the single sync.py post-sync hook alongside compute_risk_scores; GET /vulnerabilities/{id} reads the 3 new fields directly off the persisted row (no live recompute). 5 new backend tests green (determinism, KEV-floor fixture proving exactly 90, EPSS, persistence, response-shape); zero-consumer grep gate confirmed (RISK-06); one auto-fixed mypy-baseline deviation. Phase 33 is 1/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI) — continue with Plan 02.
+last_updated: "2026-08-11T13:17:08.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 32 complete, transitioned to Phase 33
+last_activity_desc: Phase 33 Plan 01 (LEAD TRACER) complete — per-finding risk-exposure schema + scoring spine landed, shadow-computed, zero automated consumer
 progress:
   total_phases: 3
   completed_phases: 3
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 33 — Risk-Exposure Model Definition
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-11 — Phase 32 complete, transitioned to Phase 33
+Plan: 01 complete (LEAD TRACER) — Plan 02 next
+Status: In progress
+Last activity: 2026-08-11 — Plan 33-01 complete (schema spine + pure/impure score_finding + compute_finding_risk_scores + single sync hook + GET /vulnerabilities/{id} persisted-column read; RISK-01/02/03/06)
 
 ## v4.0 Phase Map
 
@@ -342,6 +342,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 32]: 32-05: `useSetExposureOverride`'s mutation response IS the full asset-detail dict (same shape as `useAsset`'s GET, since the backend's PATCH handler shares `_build_asset_detail`) -- `onSuccess` writes it straight into the `byId` cache via `setQueryData` (instant, no re-fetch) rather than relying on `invalidateQueries` alone; both are called for defense-in-depth, matching the plan's literal "invalidates the asset-detail query" instruction while being faster in practice.
 - [Phase 32]: 32-05: the AssetGroup management page's membership editor has no dedicated "asset picker" endpoint -- reused the existing `useAssets({filters:{search}})` list hook (debounced 250ms, mirroring `ReassignCombobox`'s idiom) against `/api/v1/assets` rather than adding a new search-scoped endpoint; candidates already in the group are filtered out client-side against the `useGroupMembers` result.
 - [Phase 32]: 32-05: EXPO-01/EXPO-03 marked [x] Complete in REQUIREMENTS.md -- the last declaring plan (EXPO-04 was already Complete from Plan 03). All 6 EXPO requirements are now Complete; Phase 32 is 5/5 plans executed. Task 3 (human-verify checkpoint) recorded as accepted verification debt in 32-05-SUMMARY.md rather than blocking -- no live browser in this execution environment, matching the milestone's established manual-UAT precedent (24-06/25-05/26-05/27's waived-on-trust checkpoints).
+- [Phase 33]: 33-01 (LEAD TRACER): risk_exposure_breakdown persisted as `list[dict]` (the serialized RiskBreakdownComponent rows), not the full RiskBreakdown envelope -- lets Pydantic coerce the persisted JSONB directly into VulnerabilityResponse's `list[RiskBreakdownComponent] | None` field with zero server-side reshaping on read
+- [Phase 33]: 33-01: tracer scope keeps native_exploitability/exposure_*/corroboration as 7 zeroed placeholder RiskBreakdownComponent rows (never renormalized) tagged "# PLAN 33-02" -- only severity/CVSS (35pts) + EPSS (20pts) + the KEV floor (max(subtotal, 90)) are real this plan; sources_count hardcoded to 1 for every row (no VulnerabilityCorrelation join yet)
+- [Phase 33]: 33-01: Asset.risk_exposure_score/risk_model_version columns landed in migration 042 but deliberately left NULL -- Plan 33-03 owns the MAX rollup
+- [Phase 33]: 33-01: BLOCKER (Rule 3 auto-fix) -- Mapped[dict | None] (the plan interfaces block's literal annotation) for Vulnerability.risk_exposure_breakdown and a bare `-> dict` return type on compute_finding_risk_scores both tripped mypy-baseline as NEW "Missing type arguments for generic type dict" violations (the file already carries 2 baselined bare-dict occurrences; a 3rd counts as new). Fixed with `list[dict[str, Any]] | None` (the column's true shape) and `-> dict[str, int]`; verified 0 new mypy-baseline errors via the project's actual CI invocation (`mypy app/ | mypy-baseline filter --allow-unsynced`)
+- [Phase 33]: 33-01: RISK-01/02/03/06 deliberately left [ ] Pending in REQUIREMENTS.md -- shared-ID gate: RISK-01/03 are also declared by 33-02 (full formula), RISK-02/06 also by 33-03 (asset rollup); each flips only when its LAST declaring plan lands, mirroring the AIE-01/02/AID-01/CORR-01 precedent. RISK-04 (33-02) and RISK-05 (33-04) are untouched by this plan.
 
 ## Performance Metrics
 
@@ -390,9 +395,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 32 P03 | 45min | 3 tasks | 11 files |
 | Phase 32 P04 | 20min | 3 tasks | 7 files |
 | Phase 32 P05 | 40min | 3 tasks | 21 files |
+| Phase 33 P01 | 55min | 3 tasks | 8 files |
 
 ## Session
 
-**Last session:** 2026-08-11T11:10:00.000Z
-**Stopped at:** Phase 32 Plan 05 complete (final plan) — exposure-context card + admin inline override on the asset detail page, /dashboard/asset-groups management page (list/CRUD/membership/group-override) + nav entry, backend read-endpoint deviation (member_count, GET members/exposure-context, group-name lookup). 18 new frontend tests + 6 new backend tests green, full frontend suite 922/922 + backend exposure/groups suites green. Phase 32 is 5/5 plans complete — pending `/gsd-verify-work 32`.
+**Last session:** 2026-08-11T13:17:08.000Z
+**Stopped at:** Phase 33 Plan 01 (LEAD TRACER) complete — migration 042 lands the 5-column risk-exposure schema spine; risk_exposure_service.py's score_finding (pure, severity/CVSS+EPSS+KEV-floor real, native/exposure/corroboration zeroed Plan-33-02 placeholders) + compute_finding_risk_scores (DB-orchestration) wired into the single sync.py post-sync hook; GET /vulnerabilities/{id} reads the 3 new fields directly off the persisted row. 5 new backend tests green, zero-consumer grep gate confirmed, one auto-fixed mypy-baseline deviation. Phase 33 is 1/4 plans complete — continue with Plan 02 (full formula: native normalization + corroboration + real exposure context).
 **Resume file:** None
