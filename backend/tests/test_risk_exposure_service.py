@@ -294,8 +294,17 @@ def test_score_finding_all_components():
 
 
 def test_corroboration_fixture():
-    """RISK-04, RESEARCH verbatim: an identical HIGH finding at
-    sources_count=3 scores ~6.7 pts higher than at sources_count=1."""
+    """RISK-04, RESEARCH verbatim base fixture: an identical HIGH finding at
+    sources_count=3 scores measurably higher than at sources_count=1, driven
+    by the corroboration component's exact ~6.7pt contribution.
+
+    NOTE: final_score is a rounded int (RiskBreakdown.final_score: int); with
+    this exact base fixture the two independently-rounded subtotals (41.87 ->
+    42 vs 48.54 -> 49) land 7 apart, not 6.7 -- an expected int-rounding
+    boundary artifact, not a formula bug. Asserting on the underlying
+    "corroboration" breakdown component (computed pre-rounding) is the
+    precise, deterministic RISK-04 proof; the final_score assertion below
+    proves the direction/magnitude at the reported-score level."""
     from app.vulnerabilities.risk_exposure_service import FindingScoreInputs, score_finding
 
     base = FindingScoreInputs(
@@ -313,11 +322,15 @@ def test_corroboration_fixture():
     )
     three_sources = replace(base, sources_count=3)
 
-    one_score = score_finding(base).final_score
-    three_score = score_finding(three_sources).final_score
+    one_result = score_finding(base)
+    three_result = score_finding(three_sources)
 
-    assert three_score > one_score
-    assert three_score - one_score == pytest.approx(6.7, abs=0.2)
+    assert three_result.final_score > one_result.final_score
+    assert three_result.final_score - one_result.final_score >= 6
+
+    one_corrob = next(c for c in one_result.components if c.key == "corroboration")
+    three_corrob = next(c for c in three_result.components if c.key == "corroboration")
+    assert three_corrob.points - one_corrob.points == pytest.approx(6.7, abs=0.1)
 
 
 def test_kev_floor_survives_full_formula():

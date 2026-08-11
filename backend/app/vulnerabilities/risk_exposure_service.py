@@ -1,4 +1,4 @@
-"""Per-finding risk-exposure score (Phase 33 — RISK-01/02/03/06 LEAD TRACER).
+"""Per-finding risk-exposure score (Phase 33 — RISK-01..06, FULL FORMULA).
 
 This is a NEW, ADDITIVE per-finding scoring model. It does not replace or
 modify `app/assets/risk_score.py` (the existing per-ASSET aggregate, which
@@ -8,17 +8,15 @@ That curve exists specifically to tame the *volume* of vulns on one asset --
 a single finding has no volume dimension, so this module uses a fixed
 100-point additive weighted-sum instead. Do NOT reuse `_normalize_raw_score`.
 
-100-point budget (tracer scope -- severity/CVSS and EPSS are REAL; native
-exploitability, exposure context, and cross-scanner corroboration are zeroed
-PLACEHOLDER components in this plan, replaced with real logic by Plan 33-02):
+100-point budget (Plan 33-02: FULL formula, every component real):
 
-    severity / CVSS                    35 pts  (REAL)
-    EPSS (exploit probability)         20 pts  (REAL)
-    native exploitability              15 pts  (placeholder, Plan 33-02)
-    exposure -- business criticality   10 pts  (placeholder, Plan 33-02)
-    exposure -- internet facing         6 pts  (placeholder, Plan 33-02)
-    exposure -- data sensitivity        4 pts  (placeholder, Plan 33-02)
-    cross-scanner corroboration        10 pts  (placeholder, Plan 33-02)
+    severity / CVSS                    35 pts
+    EPSS (exploit probability)         20 pts
+    native exploitability              15 pts  (per-source 0-1 normalized)
+    exposure -- business criticality   10 pts
+    exposure -- internet facing         6 pts
+    exposure -- data sensitivity        4 pts
+    cross-scanner corroboration        10 pts
     ---------------------------------------------
     subtotal                          100 pts
 
@@ -33,15 +31,31 @@ present. Renormalizing (e.g. "average only the signals we have") would
 produce a misleadingly high score for a finding with a tiny sample of
 available signals; the additive weighted-points design avoids that trap.
 
+Native-exploitability normalization (CONTEXT lock, highest-risk task):
+`native_priority_score` arrives on incompatible vendor scales (Nessus VPR
+0-10, Qualys QDS 0-100, Rapid7 Risk Score 0-1000). CrowdStrike's numeric
+`native_priority_score` (`exprt_score`) is UNVERIFIED (Phase 31's own
+flagged risk) -- use its categorical `native_priority_rating` instead.
+Defender/Wiz never populate either field. `_normalize_native_signal` NEVER
+raises: any missing/unparseable/out-of-range input soft-nulls to 0.0
+(neutral, never penalized), mirroring the connectors' own
+`try/except (TypeError, ValueError)` idiom.
+
+Corroboration (RISK-04): `sources_count` comes from Phase 30's
+`VulnerabilityCorrelation.sources_count`, bulk-fetched once per tenant (see
+`compute_finding_risk_scores`) -- never a per-row lookup. A finding with no
+correlation row is single-source (count=1), not "unknown."
+`min((sources_count - 1) / 3, 1.0) * WEIGHT_CORROBORATION` -- a capped
+linear fraction: 1 source contributes 0, 4+ sources contribute the full 10.
+
 Pitfall 1 (important, easy to miss): the unique constraint on
 `Vulnerability` is `(tenant_id, cve_id, asset_id, source)` -- the SAME
 logical CVE-on-asset issue seen by N scanners produces N separate rows, and
 this function scores PER ROW, not per logical issue. All N rows receive the
-same score inputs (once Plan 33-02 wires in the real corroboration count,
-keyed on `(cve_id, asset_id)`, all N rows will get the identical
-corroboration bonus too). This is intentional -- de-duplicating the finding
-LIST view is an explicit later-phase decision, not something this module
-attempts.
+same score inputs, including the identical corroboration bonus (keyed on
+`(cve_id, asset_id)`, not per-source). This is intentional -- de-duplicating
+the finding LIST view is an explicit later-phase decision, not something
+this module attempts.
 """
 
 from __future__ import annotations
@@ -55,7 +69,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
-from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
 
 logger = structlog.get_logger()
 
@@ -81,6 +95,37 @@ WEIGHT_CORROBORATION = 10
 # Proportioned from risk_score.py's SEVERITY_WEIGHTS ratios, used only when
 # no cvss_v3_score is available for this finding.
 SEVERITY_FALLBACK = {"CRITICAL": 35, "HIGH": 20, "MEDIUM": 8, "LOW": 2, "INFO": 0}
+
+# Phase 32 exposure fractions (x WEIGHT_EXPOSURE_CRITICALITY / _DATA_SENSITIVITY).
+_CRITICALITY_FRACTION = {"CRITICAL": 1.0, "HIGH": 0.67, "MEDIUM": 0.33, "LOW": 0.0}
+_SENSITIVITY_FRACTION = {"RESTRICTED": 1.0, "CONFIDENTIAL": 0.67, "INTERNAL": 0.33, "PUBLIC": 0.0}
+
+# CrowdStrike ExPRT categorical rating -> 0-1 (confirmed field; its numeric
+# companion `exprt_score` is unverified per 31-RESEARCH.md and is never used).
+_CROWDSTRIKE_RATING_FRACTION = {"UNKNOWN": 0.0, "LOW": 0.25, "MEDIUM": 0.5, "HIGH": 0.75, "CRITICAL": 1.0}
+
+
+def _normalize_native_signal(source: str, score: Decimal | None, rating: str | None) -> float:
+    """Maps a vendor's native priority signal to a common 0.0-1.0 scale.
+
+    NEVER raises -- any missing signal, unparseable value, or unexpected
+    source soft-nulls to 0.0 (CONTEXT native-normalization lock). Per-source
+    divisor is that vendor's own documented scale ceiling; the result is
+    defensively clamped to [0.0, 1.0] so an out-of-range/garbage vendor value
+    never produces a negative or >1.0 contribution.
+    """
+    try:
+        if source == "NESSUS" and score is not None:
+            return min(max(float(score) / 10.0, 0.0), 1.0)
+        if source == "QUALYS" and score is not None:
+            return min(max(float(score) / 100.0, 0.0), 1.0)
+        if source == "RAPID7" and score is not None:
+            return min(max(float(score) / 1000.0, 0.0), 1.0)
+        if source == "CROWDSTRIKE" and rating is not None:
+            return _CROWDSTRIKE_RATING_FRACTION.get(rating.upper(), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return 0.0  # DEFENDER, WIZ, missing signal, or unrecognized source
 
 
 @dataclass(frozen=True)
@@ -123,10 +168,10 @@ def score_finding(inputs: FindingScoreInputs) -> RiskBreakdown:
     """Pure, no DB, fully deterministic: identical inputs always yield an
     identical final_score + identical breakdown (RISK-01).
 
-    TRACER SCOPE: severity/CVSS and EPSS components are REAL; the KEV floor
-    is REAL. native_exploitability / exposure_* / corroboration components
-    each emit a row with points=0.0 and a raw_value flagged "# PLAN 33-02"
-    -- Plan 33-02 replaces those zeros with real logic.
+    FULL FORMULA (Plan 33-02): all 6 categories are real -- severity/CVSS,
+    EPSS, per-source-normalized native exploitability, the 3-way exposure
+    split (business criticality / internet facing / data sensitivity), and
+    cross-scanner corroboration -- plus the KEV floor via max().
     """
     components: list[RiskBreakdownComponent] = []
 
@@ -164,24 +209,33 @@ def score_finding(inputs: FindingScoreInputs) -> RiskBreakdown:
         )
     )
 
-    # -- Native exploitability (PLACEHOLDER -- Plan 33-02) --
+    # -- Native exploitability --
+    native_fraction = _normalize_native_signal(
+        inputs.source, inputs.native_priority_score, inputs.native_priority_rating
+    )
+    native_points = native_fraction * WEIGHT_NATIVE
+    if native_fraction > 0.0:
+        native_raw = f"{native_fraction:.2f} (normalized from {inputs.source})"
+    else:
+        native_raw = f"not provided by {inputs.source}"
     components.append(
         RiskBreakdownComponent(
             key="native_exploitability",
             label="Native exploitability",
-            raw_value=f"not scored by {inputs.source} -- # PLAN 33-02",
-            points=0.0,
+            raw_value=native_raw,
+            points=round(native_points, 2),
             max_points=float(WEIGHT_NATIVE),
         )
     )
 
-    # -- Exposure context (PLACEHOLDER -- Plan 33-02), 3 sub-components --
+    # -- Exposure context, 3 sub-components (Phase 32 signals) --
+    criticality_fraction = _CRITICALITY_FRACTION.get(inputs.business_criticality, 0.0)
     components.append(
         RiskBreakdownComponent(
             key="exposure_business_criticality",
             label="Exposure -- business criticality",
-            raw_value=f"{inputs.business_criticality} -- # PLAN 33-02",
-            points=0.0,
+            raw_value=str(inputs.business_criticality),
+            points=round(criticality_fraction * WEIGHT_EXPOSURE_CRITICALITY, 2),
             max_points=float(WEIGHT_EXPOSURE_CRITICALITY),
         )
     )
@@ -189,28 +243,31 @@ def score_finding(inputs: FindingScoreInputs) -> RiskBreakdown:
         RiskBreakdownComponent(
             key="exposure_internet_facing",
             label="Exposure -- internet facing",
-            raw_value=f"{inputs.internet_facing} -- # PLAN 33-02",
-            points=0.0,
+            raw_value=str(inputs.internet_facing),
+            points=round((WEIGHT_EXPOSURE_INTERNET_FACING if inputs.internet_facing else 0.0), 2),
             max_points=float(WEIGHT_EXPOSURE_INTERNET_FACING),
         )
     )
+    sensitivity_fraction = _SENSITIVITY_FRACTION.get(inputs.data_sensitivity, 0.0)
     components.append(
         RiskBreakdownComponent(
             key="exposure_data_sensitivity",
             label="Exposure -- data sensitivity",
-            raw_value=f"{inputs.data_sensitivity} -- # PLAN 33-02",
-            points=0.0,
+            raw_value=str(inputs.data_sensitivity),
+            points=round(sensitivity_fraction * WEIGHT_EXPOSURE_DATA_SENSITIVITY, 2),
             max_points=float(WEIGHT_EXPOSURE_DATA_SENSITIVITY),
         )
     )
 
-    # -- Cross-scanner corroboration (PLACEHOLDER -- Plan 33-02) --
+    # -- Cross-scanner corroboration -- capped linear fraction: 1 source
+    # contributes 0, 4+ sources contribute the full budget (RISK-04).
+    corroboration_fraction = min(max(inputs.sources_count - 1, 0) / 3.0, 1.0)
     components.append(
         RiskBreakdownComponent(
             key="corroboration",
             label="Cross-scanner corroboration",
-            raw_value=f"{inputs.sources_count} scanner(s) -- # PLAN 33-02",
-            points=0.0,
+            raw_value=f"{inputs.sources_count} scanner(s)",
+            points=round(corroboration_fraction * WEIGHT_CORROBORATION, 2),
             max_points=float(WEIGHT_CORROBORATION),
         )
     )
@@ -221,6 +278,16 @@ def score_finding(inputs: FindingScoreInputs) -> RiskBreakdown:
     if inputs.cisa_kev:
         final_score = max(rounded_subtotal, KEV_FLOOR_SCORE)
         kev_floor_applied = rounded_subtotal < KEV_FLOOR_SCORE
+        if kev_floor_applied:
+            components.append(
+                RiskBreakdownComponent(
+                    key="kev_floor",
+                    label="CISA KEV floor",
+                    raw_value=f"raised {rounded_subtotal} -> {KEV_FLOOR_SCORE}",
+                    points=float(KEV_FLOOR_SCORE - rounded_subtotal),
+                    max_points=0.0,
+                )
+            )
     else:
         final_score = rounded_subtotal
         kev_floor_applied = False
@@ -241,14 +308,30 @@ async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) ->
     score_finding per row, and persists risk_exposure_score +
     risk_exposure_breakdown + risk_model_version.
 
-    TRACER: sources_count defaults to 1 for every row (Plan 33-02 adds the
-    VulnerabilityCorrelation bulk-join, keyed on (cve_id, asset_id), single
-    query -- never a per-row lookup). Does NOT roll up Asset.risk_exposure_score
-    (Plan 33-03 owns the MAX rollup) -- left NULL by this tracer.
+    Corroboration (RISK-04): a single tenant-scoped bulk-select of every
+    VulnerabilityCorrelation row into a dict keyed by (cve_id, asset_id) --
+    never a per-row lookup (correlation_service.py's get_correlation_for_vuln
+    is the wrong shape here, it would be N+1 across thousands of findings).
+    A finding with no correlation row scores as sources_count=1 (default,
+    not "unknown").
+
+    Does NOT roll up Asset.risk_exposure_score (Plan 33-03 owns the MAX
+    rollup) -- left NULL by this plan.
 
     Every query filters tenant_id (V4 access control) -- a bulk-fetch across
-    tenants would leak cross-tenant Vulnerability/Asset rows.
+    tenants would leak cross-tenant Vulnerability/Asset/Correlation rows.
     """
+    corr_rows = (
+        await db.execute(
+            select(
+                VulnerabilityCorrelation.cve_id,
+                VulnerabilityCorrelation.asset_id,
+                VulnerabilityCorrelation.sources_count,
+            ).where(VulnerabilityCorrelation.tenant_id == tenant_id)
+        )
+    ).all()
+    corr_by_key = {(row.cve_id, row.asset_id): row.sources_count for row in corr_rows}
+
     query = (
         select(Vulnerability, Asset)
         .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
@@ -261,6 +344,7 @@ async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) ->
 
     updated = 0
     for vuln, asset in rows:
+        sources_count = corr_by_key.get((vuln.cve_id, vuln.asset_id), 1)
         inputs = FindingScoreInputs(
             severity=vuln.severity,
             cvss_v3_score=vuln.cvss_v3_score,
@@ -269,7 +353,7 @@ async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) ->
             source=vuln.source,
             native_priority_score=vuln.native_priority_score,
             native_priority_rating=vuln.native_priority_rating,
-            sources_count=1,  # TRACER placeholder -- Plan 33-02 bulk-joins VulnerabilityCorrelation.
+            sources_count=sources_count,
             business_criticality=asset.business_criticality if asset is not None else "MEDIUM",
             data_sensitivity=asset.data_sensitivity if asset is not None else "INTERNAL",
             internet_facing=asset.internet_facing if asset is not None else False,
