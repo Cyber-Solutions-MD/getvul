@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 33
 current_phase_name: Risk-Exposure Model Definition
 status: in_progress
-stopped_at: Phase 33 Plan 03 (Asset MAX rollup + severity-tier centralization) complete — compute_finding_risk_scores now rolls Asset.risk_exposure_score up to the MAX of each asset's OPEN/IN_PROGRESS findings via a single bulk subquery + outerjoin (resets to NULL when an asset has no open findings, never a stale carryover); Asset.risk_model_version stamped alongside. Migration 043_index_risk_exposure_score adds a btree index on vulnerabilities.risk_exposure_score — passive sortability substrate, zero-consumer gate re-confirmed intact. RISK_SCORE_TIER_CRITICAL/HIGH/MEDIUM (80/50/20) centralized in app/assets/risk_score.py, imported by dashboard.py/export.py/assets/router.py, replacing the byte-identical triplicated literals — proven zero behavior change by a new characterization test (test_risk_tier_distribution.py) that passed BEFORE and AFTER the refactor. Found and documented (not fixed, out of scope) a pre-existing asymmetry: assets/router.py's low-bucket filter lacks the `| is_(None)` clause that dashboard.py/export.py have. RISK-02/RISK-06 both complete. Phase 33 is 3/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI) — continue with Plan 04.
-last_updated: "2026-08-11T15:12:21.000Z"
+stopped_at: Phase 33 Plan 04 (DrillPanel Risk Exposure breakdown, RISK-05) complete — the shared drill-content.tsx gained a new "Risk exposure" section (desktop+mobile, one edit) rendering the shadow risk_exposure_score via a reused RiskRing, a data-driven row per risk_exposure_breakdown component, a "★ KEV floor applied" chip keyed off a kev_floor breakdown component (no frontend re-derivation of scoring logic), and a "Shadow score — not yet used for sorting or alerts" preview caption; section is null-safe absent when the finding hasn't been shadow-computed yet. VulnerabilityDetail type + microcopy.ts extended to match the backend contract 1:1. 51/51 RTL tests green across both DrillPanel wrapper suites (RED→GREEN TDD commit split), full frontend suite 137 files/926 tests green, tsc/eslint clean. RISK-05 complete. Task 3 human-verify checkpoint recorded as accepted manual-UAT (no live browser in this environment), matching Phase 31's waived-on-trust precedent. Phase 33 is now 4/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI), RISK-01..06 all marked Complete in REQUIREMENTS.md — phase-level closeout (STATE.md status flip + ROADMAP.md Complete stamp) is the orchestrator's call after /gsd-verify-work 33.
+last_updated: "2026-08-11T15:34:23.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 33 Plan 03 (Asset MAX rollup + severity-tier centralization) complete — MAX rollup + risk_model_version stamp, index migration 043, tier boundaries centralized with zero-behavior-change proof
+last_activity_desc: Phase 33 Plan 04 (DrillPanel Risk Exposure breakdown) complete — new shadow/preview "Risk exposure" section in DrillPanel (desktop+mobile), RISK-05 closed, Phase 33 fully shipped (4/4 plans)
 progress:
   total_phases: 3
   completed_phases: 3
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 33 — Risk-Exposure Model Definition (3/4 plans complete, continue with `/gsd-plan-phase 33` Plan 04)
+**Current focus:** Phase 33 — Risk-Exposure Model Definition (4/4 plans complete, pending `/gsd-verify-work 33` for phase-level closeout, then `/gsd-plan-phase 34`)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 33 — Risk-Exposure Model Definition
-Plan: 03 complete (Asset MAX rollup + severity-tier centralization) — Plan 04 next
+Plan: 04 complete (DrillPanel Risk Exposure breakdown, RISK-05) — Phase 33 is 4/4 plans complete, awaiting /gsd-verify-work 33
 Status: In progress
-Last activity: 2026-08-11 — Plan 33-03 complete (Asset.risk_exposure_score MAX rollup + NULL reset, risk_model_version stamp, migration 043 index, RISK_SCORE_TIER_* centralization with zero-behavior-change proof; RISK-02/RISK-06)
+Last activity: 2026-08-11 — Plan 33-04 complete (shadow/preview "Risk exposure" DrillPanel section, desktop+mobile; RISK-05)
 
 ## v4.0 Phase Map
 
@@ -401,9 +401,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 32 P05 | 40min | 3 tasks | 21 files |
 | Phase 33 P01 | 55min | 3 tasks | 8 files |
 | Phase 33 P02 | 32min | 2 tasks | 2 files |
+| Phase 33 P04 | 3min | 2 tasks | 5 files |
 
 ## Session
 
-**Last session:** 2026-08-11T14:00:27.000Z
-**Stopped at:** Phase 33 Plan 02 (Full formula expansion) complete — score_finding now computes the FULL 6-category 100-point formula: _normalize_native_signal (per-source 0-1, soft-null, never raises), exposure 3-row split driven by real Asset fields, corroboration capped linear fraction fed by a single tenant-scoped VulnerabilityCorrelation bulk-join (no N+1), kev_floor breakdown row emitted when the floor changes the outcome. RISK-03 re-proven under the full formula, RISK-04 proven. 10/10 tests green (5 Plan 01 regression + 5 new). Phase 33 is 2/4 plans complete — continue with Plan 03 (asset MAX rollup + severity-tier centralization).
+**Last session:** 2026-08-11T15:34:23.000Z
+**Stopped at:** Phase 33 Plan 04 (DrillPanel Risk Exposure breakdown, RISK-05) complete — new shadow/preview "Risk exposure" section in drill-content.tsx (desktop+mobile, one shared edit): RiskRing badge for the overall risk_exposure_score, data-driven row per risk_exposure_breakdown component, "★ KEV floor applied" chip keyed off a kev_floor component, "Shadow score — not yet used for sorting or alerts" preview caption; null-safe absent when unscored. 51/51 RTL tests green (both DrillPanel wrapper suites), full frontend suite 137 files/926 tests green, tsc/eslint clean. RISK-05 complete. Phase 33 is 4/4 plans complete (RISK-01..06 all Complete in REQUIREMENTS.md) — pending /gsd-verify-work 33 for phase-level closeout, then /gsd-plan-phase 34.
 **Resume file:** None
