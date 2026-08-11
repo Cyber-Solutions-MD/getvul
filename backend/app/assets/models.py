@@ -64,8 +64,9 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # RISK-02 (Phase 33): shadow rollup, NOT the live risk_score above.
     # MAX(risk_exposure_score) across the asset's OPEN/IN_PROGRESS
     # findings -- a separate, additive column so risk_score.py's live curve
-    # is untouched. Left NULL by this tracer plan (Plan 03 populates the
-    # rollup); Phase 34 owns any cutover of consumers to this value.
+    # is untouched. Populated by compute_finding_risk_scores (Plan 33-03);
+    # NULL when the asset has no open findings. Phase 34 owns any cutover
+    # of automated consumers to this value (shadow-only through Phase 33).
     risk_exposure_score: Mapped[int | None] = mapped_column(Integer)
     risk_model_version: Mapped[str | None] = mapped_column(String(20))
 

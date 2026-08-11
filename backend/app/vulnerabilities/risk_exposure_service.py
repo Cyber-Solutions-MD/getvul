@@ -31,6 +31,15 @@ present. Renormalizing (e.g. "average only the signals we have") would
 produce a misleadingly high score for a finding with a tiny sample of
 available signals; the additive weighted-points design avoids that trap.
 
+Asset rollup (Plan 33-03, RISK-02, CONTEXT RESOLVED Q2): after persisting
+every per-finding score, `compute_finding_risk_scores` rolls each asset's
+`Asset.risk_exposure_score` up to the MAX of its OPEN/IN_PROGRESS findings'
+`risk_exposure_score` -- MAX ONLY, no volume-sensitive curve (a curve that
+factors in HOW MANY urgent findings an asset has is explicitly deferred to
+Phase 34). An asset with zero open findings is reset to NULL, never left at
+a stale prior value. `Asset.risk_model_version` is stamped on every asset
+touched by the rollup (both the MAX-set and the NULL-reset paths).
+
 Native-exploitability normalization (CONTEXT lock, highest-risk task):
 `native_priority_score` arrives on incompatible vendor scales (Nessus VPR
 0-10, Qualys QDS 0-100, Rapid7 Risk Score 0-1000). CrowdStrike's numeric
@@ -65,7 +74,7 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
@@ -315,8 +324,11 @@ async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) ->
     A finding with no correlation row scores as sources_count=1 (default,
     not "unknown").
 
-    Does NOT roll up Asset.risk_exposure_score (Plan 33-03 owns the MAX
-    rollup) -- left NULL by this plan.
+    Also rolls Asset.risk_exposure_score up to the MAX of each asset's
+    OPEN/IN_PROGRESS findings (Plan 33-03, RISK-02) -- MAX only, no volume
+    curve (deferred to Phase 34). A single bulk subquery + outerjoin so
+    assets with zero open findings reset to NULL (T-33-07: tenant-scoped,
+    no cross-tenant leak).
 
     Every query filters tenant_id (V4 access control) -- a bulk-fetch across
     tenants would leak cross-tenant Vulnerability/Asset/Correlation rows.
@@ -372,10 +384,42 @@ async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) ->
         )
         updated += 1
 
+    # RISK-02 asset rollup (Plan 33-03) -- MAX only, no volume curve (CONTEXT
+    # RESOLVED Q2; a curve is explicitly deferred to Phase 34). Single bulk
+    # subquery grouped by asset_id, outerjoin'd to every tenant Asset so an
+    # asset with zero OPEN/IN_PROGRESS findings resets to NULL rather than
+    # keeping a stale value from a prior compute cycle.
+    rollup_sub = (
+        select(Vulnerability.asset_id, func.max(Vulnerability.risk_exposure_score).label("max_score"))
+        .where(
+            Vulnerability.tenant_id == tenant_id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            Vulnerability.asset_id.isnot(None),
+        )
+        .group_by(Vulnerability.asset_id)
+        .subquery()
+    )
+    rollup_query = (
+        select(Asset.id, rollup_sub.c.max_score)
+        .outerjoin(rollup_sub, Asset.id == rollup_sub.c.asset_id)
+        .where(Asset.tenant_id == tenant_id)
+    )
+    rollup_rows = (await db.execute(rollup_query)).all()
+
+    assets_rolled_up = 0
+    for asset_id, max_score in rollup_rows:
+        await db.execute(
+            update(Asset)
+            .where(Asset.id == asset_id)
+            .values(risk_exposure_score=max_score, risk_model_version=RISK_MODEL_VERSION)
+        )
+        assets_rolled_up += 1
+
     logger.info(
         "finding_risk_scores_computed",
         tenant_id=str(tenant_id),
         findings_updated=updated,
+        assets_rolled_up=assets_rolled_up,
     )
 
-    return {"findings_updated": updated}
+    return {"findings_updated": updated, "assets_rolled_up": assets_rolled_up}
