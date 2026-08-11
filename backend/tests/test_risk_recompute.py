@@ -91,6 +91,16 @@ async def test_chunk_processes_correct_rows(db_session, tenant_a):
     asset = _seed_asset(tenant_a)
     db_session.add(asset)
     await db_session.flush()
+    # Captured BEFORE the backfill runs: process_backfill_chunk's bulk
+    # UPDATE...FROM is raw SQL that bypasses the ORM, so it calls
+    # `db.expire_all()` afterwards to avoid stale identity-map reads (see
+    # risk_backfill_service.py) -- that expires THIS test's own `asset`
+    # reference too, so any attribute read after the backfill call must
+    # come from a value captured beforehand (or a fresh query), not from
+    # touching the now-expired `asset` object directly.
+    asset_criticality = asset.business_criticality
+    asset_sensitivity = asset.data_sensitivity
+    asset_internet_facing = asset.internet_facing
 
     vulns = [_seed_vuln(tenant_a, asset.id, cve_id=f"CVE-2024-{i:04d}") for i in range(3)]
     db_session.add_all(vulns)
@@ -109,9 +119,7 @@ async def test_chunk_processes_correct_rows(db_session, tenant_a):
     assert result2["processed"] == 0
     assert result2["done"] is True
 
-    rows = (
-        (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
-    )
+    rows = (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
     assert len(rows) == 3
     for row in rows:
         expected = score_finding(
@@ -124,9 +132,9 @@ async def test_chunk_processes_correct_rows(db_session, tenant_a):
                 native_priority_score=row.native_priority_score,
                 native_priority_rating=row.native_priority_rating,
                 sources_count=1,
-                business_criticality=asset.business_criticality,
-                data_sensitivity=asset.data_sensitivity,
-                internet_facing=asset.internet_facing,
+                business_criticality=asset_criticality,
+                data_sensitivity=asset_sensitivity,
+                internet_facing=asset_internet_facing,
             )
         )
         assert row.risk_exposure_score == expected.final_score
@@ -276,9 +284,7 @@ async def test_kill_mid_chunk_resumes_correctly(db_session, tenant_a, monkeypatc
 
     await db_session.rollback()
 
-    rows = (
-        (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
-    )
+    rows = (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
     assert len(rows) == 3
     assert all(r.risk_exposure_score is None for r in rows)
     assert all(r.risk_model_version is None for r in rows)
@@ -296,9 +302,7 @@ async def test_kill_mid_chunk_resumes_correctly(db_session, tenant_a, monkeypatc
     completion = await process_backfill_chunk(db_session, tenant_a)
     assert completion["done"] is True
 
-    rows = (
-        (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
-    )
+    rows = (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
     assert all(r.risk_exposure_score is not None for r in rows)
 
     job_row = (
@@ -484,9 +488,7 @@ async def test_large_tenant_backfill_throughput(db_session, tenant_a):
     assert job_row.status == "completed"
     assert job_row.rows_migrated == total
 
-    rows = (
-        (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
-    )
+    rows = (await db_session.execute(select(Vulnerability).where(Vulnerability.tenant_id == tenant_a))).scalars().all()
     assert len(rows) == total
     assert all(r.risk_exposure_score is not None for r in rows)
 

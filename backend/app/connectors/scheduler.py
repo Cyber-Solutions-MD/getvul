@@ -127,6 +127,49 @@ async def _dispatch_ai_batch_poll() -> None:
         logger.error("ai_batch_poll_dispatch_error", error=str(e))
 
 
+async def _dispatch_risk_exposure_backfill() -> None:
+    """RISK-07 (34-RESEARCH.md "Design implication for Phase 34"): the
+    per-tenant chunked historical-recompute backfill is dispatched via
+    `asyncio.create_task` -- mirrors `_dispatch_ai_batch_prewarm`'s shape
+    above (long-running, partial progress across many ticks is the whole
+    point, must NEVER stall this tick), explicitly NOT
+    `_dispatch_enrichment_refresh`'s inline-await/`asyncio.Lock()` shape
+    below (that one exists because its atomic delete+insert swap must
+    complete as ONE unit before its gate advances -- a backfill chunk is
+    the opposite: resumable, incremental progress is the design goal).
+
+    Deliberately NO in-memory `_last_*` gate here (unlike every other
+    dispatcher in this file): the gate is the DURABLE per-tenant claim-row
+    UPDATE inside `process_backfill_chunk` itself
+    (`risk_backfill_service.py`) -- an in-memory gate would reset on the
+    exact process restart RISK-07 must survive.
+
+    `dispatch_backfill_chunks` already isolates each tenant's failure in
+    its own try/except (mirrors `poll_pending_batches`); the extra
+    try/except around the detached task is defense-in-depth so a totally
+    unexpected error (e.g. a DB-connect failure before any tenant loop
+    starts) still never escapes this create_task'd coroutine.
+
+    Extracted as a top-level function (not inlined in `_scheduler_loop()`)
+    so it is directly unit-testable via the established
+    `from app.connectors import scheduler as scheduler_module; await
+    scheduler_module._dispatch_risk_exposure_backfill()` convention.
+    """
+    try:
+        from app.vulnerabilities.risk_backfill_service import dispatch_backfill_chunks
+
+        async def _run() -> None:
+            try:
+                async with async_session_factory() as db:
+                    await dispatch_backfill_chunks(db)
+            except Exception as e:
+                logger.error("risk_backfill_dispatch_error", error=str(e))
+
+        asyncio.create_task(_run())
+    except Exception as e:
+        logger.error("risk_backfill_dispatch_error", error=str(e))
+
+
 _enrichment_refresh_lock = asyncio.Lock()
 
 
@@ -330,6 +373,13 @@ async def _scheduler_loop() -> None:
         # stalls this tick (the batch work they dispatch runs detached).
         await _dispatch_ai_batch_prewarm()
         await _dispatch_ai_batch_poll()
+
+        # Historical risk-exposure backfill (RISK-07, every tick -- no 24h
+        # gate, the gate is the durable per-tenant claim-row inside
+        # process_backfill_chunk): also a non-blocking asyncio.create_task
+        # dispatch (mirrors the two AI batch dispatchers above, not the
+        # enrichment-refresh lock/inline-await shape below).
+        await _dispatch_risk_exposure_backfill()
 
         # Enrichment reference-data refresh (nightly, 24h-gated) + D-01/D-02
         # re-propagation -- ENRICH-05: inline-awaited (NOT create_task,

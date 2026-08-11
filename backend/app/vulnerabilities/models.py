@@ -190,7 +190,9 @@ class RiskExposureBackfillJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")  # pending|in_progress|completed|failed
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending"
+    )  # pending|in_progress|completed|failed
     cursor_vuln_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     rows_migrated: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     rows_total_estimate: Mapped[int | None] = mapped_column(Integer)
