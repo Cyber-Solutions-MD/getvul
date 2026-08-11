@@ -27,7 +27,7 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
 - [x] **Phase 30: Correlation Schema Fix** — Replace the hardcoded 4-of-6-source correlation FK columns with a `sources ARRAY(String)` + GIN shape, migrate existing data with no loss, generalize `correlation_service.py` over the full `VulnSource` enum (completed 2026-08-05)
 - [x] **Phase 31: Connector Enrichment Rewrite** — All 6 connectors thread native signals (VPR, ExPRT.AI, EPSS, real KEV) from the raw payload through ingestion; new global EPSS/KEV reference tables refreshed by a daily scheduler job (completed 2026-08-10)
 - [x] **Phase 32: Asset Exposure Context** — Auto-infer criticality/data-sensitivity/internet-facing at asset upsert; per-asset and asset-group admin override with audit trail and criticality-inflation calibration bound (completed 2026-08-11)
-- [ ] **Phase 33: Risk-Exposure Model Definition** — Deterministic, versioned, explainable per-finding risk-exposure score; shadow-computed for a full sync cycle before any consumer reads it
+- [x] **Phase 33: Risk-Exposure Model Definition** — Deterministic, versioned, explainable per-finding risk-exposure score; shadow-computed for a full sync cycle before any consumer reads it (completed 2026-08-11)
 - [ ] **Phase 34: Historical Recompute & Consumer Cutover** — Idempotent/resumable/throttled per-tenant backfill; SLA/sort/trend/AI-batch-selector cutover; per-tenant threshold re-tuning acknowledgment; version-boundary guards on alerts/trends
 - [ ] **Phase 35: Source-Aware Filtering & Provenance Badges** — Per-entity OR/AND scanner-source filtering (Vulnerabilities, Assets, CSPM, Tickets) and a `SourceBadgeGroup` provenance component, batched queries
 
@@ -111,10 +111,12 @@ Plans:
   6. The score carries a `risk_model_version` column and is shadow-computed for at least one full sync cycle with zero consumers reading it before cutover; the previously-triplicated severity-tier boundaries (`export.py`/`assets/router.py`/`dashboard.py`) are centralized to one constant
 
 **Plans**: 4/4 plans complete
+
 - [x] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response *(complete 2026-08-11 — migration 042 (5 nullable columns); risk_exposure_service.py's score_finding (pure, severity/CVSS+EPSS+KEV-floor real, native/exposure/corroboration zeroed Plan-33-02 placeholders) + compute_finding_risk_scores (DB-orchestration); single sync.py post-sync hook wire; GET /vulnerabilities/{id} persisted-column read. 5 new backend tests green, zero-consumer grep gate confirmed.)*
 - [x] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures *(complete 2026-08-11 — _normalize_native_signal (per-source 0-1, soft-null, never raises); exposure 3-row split (business_criticality/internet_facing/data_sensitivity) driven by real Asset fields; corroboration capped linear fraction fed by a single tenant-scoped VulnerabilityCorrelation bulk-join (no N+1); kev_floor breakdown row emitted when the floor changes the outcome. RISK-03 re-proven under the full formula, RISK-04 proven (corroboration component delta exactly 6.67). 10/10 tests green (5 Plan 01 regression + 5 new).)*
 - [x] 33-03-PLAN.md — Asset MAX rollup + sortable index; severity-tier centralization (one constant) + characterization regression *(complete 2026-08-11 — compute_finding_risk_scores rolls Asset.risk_exposure_score up to the MAX of open findings (NULL reset when none) via one bulk subquery + outerjoin, risk_model_version stamped; migration 043 adds a btree index on Vulnerability.risk_exposure_score (zero-consumer gate intact); RISK_SCORE_TIER_CRITICAL/HIGH/MEDIUM centralized in risk_score.py, imported by dashboard.py/export.py/assets/router.py, zero behavior change proven by test_risk_tier_distribution.py (byte-identical bucket counts before/after). RISK-02/RISK-06 complete. 13/13 new+regression tests green.)*
 - [x] 33-04-PLAN.md — DrillPanel per-input breakdown ("why is this an 82"), shadow/preview-labeled (RISK-05) *(complete 2026-08-11 — new "Risk exposure" DrillPanel section (desktop+mobile, one drill-content.tsx edit) renders the shadow risk_exposure_score via a reused RiskRing + a data-driven row per risk_exposure_breakdown component + a "★ KEV floor applied" chip keyed off a kev_floor component + a "Shadow score — not yet used for sorting or alerts" preview caption; null-safe absent state when unscored. 51/51 RTL tests green (both DrillPanel wrapper suites), full frontend suite 137 files/926 tests green, tsc/eslint clean. RISK-05 complete — Phase 33 is now 4/4 plans complete, RISK-01..06 all marked Complete in REQUIREMENTS.md, pending /gsd-verify-work 33 for phase-level closeout. Task 3 human-verify checkpoint recorded as accepted manual-UAT (no live browser in this environment), matching Phase 31's waived-on-trust precedent.)*
+
 **UI hint**: yes
 
 ### Phase 34: Historical Recompute & Consumer Cutover
@@ -145,10 +147,12 @@ Plans:
   5. Provenance and source-facet queries are batched (no per-row N+1) and stay performant at scale, provable with a query-count assertion
 
 **Plans**: 4 plans
+
 - [ ] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response
 - [ ] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures
 - [ ] 33-03-PLAN.md — Asset MAX rollup + sortable index; severity-tier centralization (one constant) + characterization regression
 - [ ] 33-04-PLAN.md — DrillPanel per-input breakdown ("why is this an 82"), shadow/preview-labeled (RISK-05)
+
 **UI hint**: yes
 
 ## Progress
@@ -161,6 +165,6 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 | 30. Correlation Schema Fix | 2/2 | Complete    | 2026-08-05 |
 | 31. Connector Enrichment Rewrite | 5/5 | Complete    | 2026-08-10 |
 | 32. Asset Exposure Context | 5/5 | Complete    | 2026-08-11 |
-| 33. Risk-Exposure Model Definition | 4/4 | In Progress | - |
+| 33. Risk-Exposure Model Definition | 4/4 | Complete    | 2026-08-11 |
 | 34. Historical Recompute & Consumer Cutover | 0/TBD | Not started | - |
 | 35. Source-Aware Filtering & Provenance Badges | 0/TBD | Not started | - |

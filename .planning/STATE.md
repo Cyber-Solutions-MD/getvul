@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-current_phase: 33
-current_phase_name: Risk-Exposure Model Definition
-status: in_progress
-stopped_at: Phase 33 Plan 04 (DrillPanel Risk Exposure breakdown, RISK-05) complete — the shared drill-content.tsx gained a new "Risk exposure" section (desktop+mobile, one edit) rendering the shadow risk_exposure_score via a reused RiskRing, a data-driven row per risk_exposure_breakdown component, a "★ KEV floor applied" chip keyed off a kev_floor breakdown component (no frontend re-derivation of scoring logic), and a "Shadow score — not yet used for sorting or alerts" preview caption; section is null-safe absent when the finding hasn't been shadow-computed yet. VulnerabilityDetail type + microcopy.ts extended to match the backend contract 1:1. 51/51 RTL tests green across both DrillPanel wrapper suites (RED→GREEN TDD commit split), full frontend suite 137 files/926 tests green, tsc/eslint clean. RISK-05 complete. Task 3 human-verify checkpoint recorded as accepted manual-UAT (no live browser in this environment), matching Phase 31's waived-on-trust precedent. Phase 33 is now 4/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI), RISK-01..06 all marked Complete in REQUIREMENTS.md — phase-level closeout (STATE.md status flip + ROADMAP.md Complete stamp) is the orchestrator's call after /gsd-verify-work 33.
-last_updated: "2026-08-11T15:34:23.000Z"
+current_phase: 34
+current_phase_name: Historical Recompute & Consumer Cutover
+status: planning
+stopped_at: "Phase 33 Plan 04 (DrillPanel Risk Exposure breakdown, RISK-05) complete — new shadow/preview \"Risk exposure\" section in drill-content.tsx (desktop+mobile, one shared edit): RiskRing badge for the overall risk_exposure_score, data-driven row per risk_exposure_breakdown component, \"★ KEV floor applied\" chip keyed off a kev_floor component, \"Shadow score — not yet used for sorting or alerts\" preview caption; null-safe absent when unscored. 51/51 RTL tests green (both DrillPanel wrapper suites), full frontend suite 137 files/926 tests green, tsc/eslint clean. RISK-05 complete. Phase 33 is 4/4 plans complete (RISK-01..06 all Complete in REQUIREMENTS.md) — pending /gsd-verify-work 33 for phase-level closeout, then /gsd-plan-phase 34."
+last_updated: "2026-08-11T13:13:29.811Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 33 Plan 04 (DrillPanel Risk Exposure breakdown) complete — new shadow/preview "Risk exposure" section in DrillPanel (desktop+mobile), RISK-05 closed, Phase 33 fully shipped (4/4 plans)
+last_activity_desc: Phase 33 complete, transitioned to Phase 34
 progress:
-  total_phases: 3
-  completed_phases: 3
+  total_phases: 4
+  completed_phases: 4
   total_plans: 16
   completed_plans: 16
 ---
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 33 — Risk-Exposure Model Definition
-Plan: 04 complete (DrillPanel Risk Exposure breakdown, RISK-05) — Phase 33 is 4/4 plans complete, awaiting /gsd-verify-work 33
-Status: In progress
-Last activity: 2026-08-11 — Plan 33-04 complete (shadow/preview "Risk exposure" DrillPanel section, desktop+mobile; RISK-05)
+Phase: 34 — Historical Recompute & Consumer Cutover
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-11 — Phase 33 complete, transitioned to Phase 34
 
 ## v4.0 Phase Map
 
