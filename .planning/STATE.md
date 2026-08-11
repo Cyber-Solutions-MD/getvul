@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 33
 current_phase_name: Risk-Exposure Model Definition
 status: in_progress
-stopped_at: Phase 33 Plan 02 (Full formula expansion) complete — score_finding now computes the FULL 6-category 100-point formula; _normalize_native_signal maps each source's native_priority_score to 0-1 on its own scale (soft-null, never raises); exposure context is a real 3-row split (business_criticality/internet_facing/data_sensitivity) driven by Phase 32 Asset fields; cross-scanner corroboration is a capped linear fraction fed by a single tenant-scoped VulnerabilityCorrelation bulk-join in compute_finding_risk_scores (no N+1); KEV floor now emits an explicit kev_floor breakdown row when it changes the outcome. RISK-03 re-proven under the full formula, RISK-04 proven (corroboration component delta exactly 6.67). 10/10 tests green (5 Plan 01 regression + 5 new). Phase 33 is 2/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI) — continue with Plan 03.
-last_updated: "2026-08-11T14:00:27.000Z"
+stopped_at: Phase 33 Plan 03 (Asset MAX rollup + severity-tier centralization) complete — compute_finding_risk_scores now rolls Asset.risk_exposure_score up to the MAX of each asset's OPEN/IN_PROGRESS findings via a single bulk subquery + outerjoin (resets to NULL when an asset has no open findings, never a stale carryover); Asset.risk_model_version stamped alongside. Migration 043_index_risk_exposure_score adds a btree index on vulnerabilities.risk_exposure_score — passive sortability substrate, zero-consumer gate re-confirmed intact. RISK_SCORE_TIER_CRITICAL/HIGH/MEDIUM (80/50/20) centralized in app/assets/risk_score.py, imported by dashboard.py/export.py/assets/router.py, replacing the byte-identical triplicated literals — proven zero behavior change by a new characterization test (test_risk_tier_distribution.py) that passed BEFORE and AFTER the refactor. Found and documented (not fixed, out of scope) a pre-existing asymmetry: assets/router.py's low-bucket filter lacks the `| is_(None)` clause that dashboard.py/export.py have. RISK-02/RISK-06 both complete. Phase 33 is 3/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI) — continue with Plan 04.
+last_updated: "2026-08-11T15:12:21.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 33 Plan 02 (Full formula expansion) complete — native per-source normalization, exposure sub-split, corroboration bulk-join, KEV floor under full formula
+last_activity_desc: Phase 33 Plan 03 (Asset MAX rollup + severity-tier centralization) complete — MAX rollup + risk_model_version stamp, index migration 043, tier boundaries centralized with zero-behavior-change proof
 progress:
   total_phases: 3
   completed_phases: 3
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 15
+  completed_plans: 15
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 33 — Risk-Exposure Model Definition (2/4 plans complete, continue with `/gsd-plan-phase 33` Plan 03)
+**Current focus:** Phase 33 — Risk-Exposure Model Definition (3/4 plans complete, continue with `/gsd-plan-phase 33` Plan 04)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 33 — Risk-Exposure Model Definition
-Plan: 02 complete (Full formula expansion) — Plan 03 next
+Plan: 03 complete (Asset MAX rollup + severity-tier centralization) — Plan 04 next
 Status: In progress
-Last activity: 2026-08-11 — Plan 33-02 complete (native per-source normalization, exposure sub-split, corroboration bulk-join, KEV floor under full formula; RISK-01/03/04)
+Last activity: 2026-08-11 — Plan 33-03 complete (Asset.risk_exposure_score MAX rollup + NULL reset, risk_model_version stamp, migration 043 index, RISK_SCORE_TIER_* centralization with zero-behavior-change proof; RISK-02/RISK-06)
 
 ## v4.0 Phase Map
 

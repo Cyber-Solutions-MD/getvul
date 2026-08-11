@@ -38,11 +38,11 @@ Requirements for the v4.0 release. Each maps to exactly one roadmap phase (see T
 ### Risk-Exposure Model (RISK)
 
 - [x] **RISK-01**: A deterministic, explainable (non-ML) risk-exposure model computes a score from severity/CVSS + EPSS + KEV + vendor-native exploitability signals + asset exposure context + cross-scanner corroboration count
-- [ ] **RISK-02**: A real per-finding risk-exposure score is computed and persisted (today only a per-asset aggregate exists), so finding lists can sort by "most urgent finding"; the asset score becomes a rollup of it
+- [x] **RISK-02**: A real per-finding risk-exposure score is computed and persisted (today only a per-asset aggregate exists), so finding lists can sort by "most urgent finding"; the asset score becomes a rollup of it
 - [x] **RISK-03**: CISA KEV acts as a near-automatic escalation/floor on the score (per BOD-26-04 guidance), not merely a buried multiplier
 - [x] **RISK-04**: Cross-scanner corroboration count raises confidence/urgency in the score (the aggregator differentiator)
 - [ ] **RISK-05**: The score is explainable — an analyst can see the per-input breakdown ("why is this an 82") for a finding/asset in the DrillPanel
-- [ ] **RISK-06**: The score is versioned via a `risk_model_version` column and shadow-computed for at least one full sync cycle before any consumer reads it
+- [x] **RISK-06**: The score is versioned via a `risk_model_version` column and shadow-computed for at least one full sync cycle before any consumer reads it
 - [ ] **RISK-07**: The one-time historical recompute is idempotent, resumable, throttled, and per-tenant isolated (bulk `UPDATE … FROM`, reusing the shipped `backfill_sla_due_dates` + scheduler-tick idiom, never a blocking Alembic data migration) and provably survives a kill-mid-run-and-resume + a realistic single-VM load test
 - [ ] **RISK-08**: SLA breach detection, list sorting (`sort="triage"`), trend charts, and the v3.0 AI batch selector (`get_top_findings_for_ai_batch`) cut over to the new score; SLA windows remain severity-keyed; hardcoded severity-tier boundaries currently triplicated across `export.py`/`assets/router.py`/`dashboard.py` are centralized to one constant
 - [ ] **RISK-09**: Before cutover, each tenant receives a pre/post diff report for its `min_risk_score` automation-rule and saved-filter thresholds, requiring explicit re-tuning acknowledgment (no silent reinterpretation)
@@ -106,11 +106,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 | EXPO-05 | Phase 32 (Asset Exposure Context) | Complete |
 | EXPO-06 | Phase 32 (Asset Exposure Context) | Complete |
 | RISK-01 | Phase 33 (Risk-Exposure Model Definition) | Complete |
-| RISK-02 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-02 | Phase 33 (Risk-Exposure Model Definition) | Complete |
 | RISK-03 | Phase 33 (Risk-Exposure Model Definition) | Complete |
 | RISK-04 | Phase 33 (Risk-Exposure Model Definition) | Complete |
 | RISK-05 | Phase 33 (Risk-Exposure Model Definition) | Pending |
-| RISK-06 | Phase 33 (Risk-Exposure Model Definition) | Pending |
+| RISK-06 | Phase 33 (Risk-Exposure Model Definition) | Complete |
 | RISK-07 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
 | RISK-08 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
 | RISK-09 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
