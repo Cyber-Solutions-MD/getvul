@@ -53,6 +53,13 @@ SEVERITY_WEIGHTS = {
 EXPLOIT_MULTIPLIER = 2.0
 KEV_MULTIPLIER = 3.0
 
+# RISK-06 (Phase 33): centralizes the >=80/>=50/>=20 tier boundaries
+# previously triplicated at dashboard.py:125-128, export.py:368-371,
+# assets/router.py:297-300. Pure refactor -- zero behavior change.
+RISK_SCORE_TIER_CRITICAL = 80
+RISK_SCORE_TIER_HIGH = 50
+RISK_SCORE_TIER_MEDIUM = 20
+
 # Piecewise normalization parameters.
 # KNEE_RAW: raw score at the transition point (~3 CRITICALs or 6 HIGHs).
 # Below the knee, score grows slowly via a power curve (exponent < 1).

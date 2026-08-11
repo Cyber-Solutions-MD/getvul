@@ -16,6 +16,7 @@ from sqlalchemy import desc, func, nulls_last, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
 from app.ticketing.models import ConnectorConfig, Ticket
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import DashboardTiles, TileValue, TopVuln
@@ -122,10 +123,14 @@ async def get_overview_stats(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
 
     # Risk distribution across assets
     risk_q = select(
-        func.count().filter(Asset.risk_score >= 80).label("critical"),
-        func.count().filter((Asset.risk_score >= 50) & (Asset.risk_score < 80)).label("high"),
-        func.count().filter((Asset.risk_score >= 20) & (Asset.risk_score < 50)).label("medium"),
-        func.count().filter((Asset.risk_score < 20) | (Asset.risk_score.is_(None))).label("low"),
+        func.count().filter(Asset.risk_score >= RISK_SCORE_TIER_CRITICAL).label("critical"),
+        func.count()
+        .filter((Asset.risk_score >= RISK_SCORE_TIER_HIGH) & (Asset.risk_score < RISK_SCORE_TIER_CRITICAL))
+        .label("high"),
+        func.count()
+        .filter((Asset.risk_score >= RISK_SCORE_TIER_MEDIUM) & (Asset.risk_score < RISK_SCORE_TIER_HIGH))
+        .label("medium"),
+        func.count().filter((Asset.risk_score < RISK_SCORE_TIER_MEDIUM) | (Asset.risk_score.is_(None))).label("low"),
     ).where(Asset.tenant_id == tenant_id)
     risk_dist = (await db.execute(risk_q)).one()
 

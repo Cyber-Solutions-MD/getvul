@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.assets.classification import classify_asset
 from app.assets.exposure import EXPOSURE_FIELDS, resolve_group_override_names
 from app.assets.models import Asset, BusinessCriticality, DataSensitivity
+from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
 from app.auth.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.vulnerabilities.models import Vulnerability
@@ -294,10 +295,14 @@ async def asset_stats(
 
     # Risk distribution
     risk_q = select(
-        func.count().filter(Asset.risk_score >= 80).label("critical"),
-        func.count().filter((Asset.risk_score >= 50) & (Asset.risk_score < 80)).label("high"),
-        func.count().filter((Asset.risk_score >= 20) & (Asset.risk_score < 50)).label("medium"),
-        func.count().filter(Asset.risk_score < 20).label("low"),
+        func.count().filter(Asset.risk_score >= RISK_SCORE_TIER_CRITICAL).label("critical"),
+        func.count()
+        .filter((Asset.risk_score >= RISK_SCORE_TIER_HIGH) & (Asset.risk_score < RISK_SCORE_TIER_CRITICAL))
+        .label("high"),
+        func.count()
+        .filter((Asset.risk_score >= RISK_SCORE_TIER_MEDIUM) & (Asset.risk_score < RISK_SCORE_TIER_HIGH))
+        .label("medium"),
+        func.count().filter(Asset.risk_score < RISK_SCORE_TIER_MEDIUM).label("low"),
     ).where(Asset.tenant_id == user.tenant_id)
     risk_dist = (await db.execute(risk_q)).one()
 

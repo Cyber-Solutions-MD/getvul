@@ -11,6 +11,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
 from app.tenants.models import Tenant, User
 from app.ticketing.models import Ticket
 from app.vulnerabilities.models import Vulnerability
@@ -365,10 +366,10 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
 
     # Risk distribution (filtered)
     risk_q = select(
-        func.count().filter(Asset.risk_score >= 80),
-        func.count().filter((Asset.risk_score >= 50) & (Asset.risk_score < 80)),
-        func.count().filter((Asset.risk_score >= 20) & (Asset.risk_score < 50)),
-        func.count().filter((Asset.risk_score < 20) | (Asset.risk_score.is_(None))),
+        func.count().filter(Asset.risk_score >= RISK_SCORE_TIER_CRITICAL),
+        func.count().filter((Asset.risk_score >= RISK_SCORE_TIER_HIGH) & (Asset.risk_score < RISK_SCORE_TIER_CRITICAL)),
+        func.count().filter((Asset.risk_score >= RISK_SCORE_TIER_MEDIUM) & (Asset.risk_score < RISK_SCORE_TIER_HIGH)),
+        func.count().filter((Asset.risk_score < RISK_SCORE_TIER_MEDIUM) | (Asset.risk_score.is_(None))),
     ).where(*asset_where)
     rd = (await db.execute(risk_q)).one()
 
