@@ -2,7 +2,11 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import Link from 'next/link';
-import { useVulnerabilityDetail } from '@/lib/queries/use-vulnerability-detail';
+import {
+  useVulnerabilityDetail,
+  type RiskBreakdownComponent,
+} from '@/lib/queries/use-vulnerability-detail';
+import { RiskRing } from '@/components/ui/RiskRing';
 import { useCreateTicketMutation } from '@/lib/mutations/use-create-ticket';
 import { useSnoozeMutation } from '@/lib/mutations/use-snooze';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -72,6 +76,12 @@ type FlexibleDetail = {
   status?: string;
   first_detected_at?: string;
   last_seen_at?: string;
+  // Phase 33 Plan 04 (RISK-05): shadow/preview per-finding risk-exposure
+  // score + its per-input breakdown. Null until the first post-Phase-33
+  // sync shadow-computes it.
+  risk_exposure_score?: number | null;
+  risk_exposure_breakdown?: RiskBreakdownComponent[] | null;
+  risk_model_version?: string | null;
 };
 
 // Phase 27 (AID-01, Plan 03): the gap-fill row's per-section render state.
@@ -620,6 +630,49 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             {v.cvss_v3_vector ?? '—'}
           </div>
         </section>
+
+        {/* Phase 33 Plan 04 (RISK-05): shadow/preview per-finding Risk
+            Exposure breakdown -- read-only, the sole permitted reader of
+            the new score this phase (RISK-06 zero-consumer gate). Guarded
+            on score+breakdown both present (state-patterns: null-safe
+            absent state, no crash). Data-driven .map over the server-
+            computed breakdown array -- no frontend re-derivation of the
+            scoring formula. */}
+        {v.risk_exposure_score != null && v.risk_exposure_breakdown && (
+          <section aria-labelledby="drill-risk-exposure-h">
+            <h4
+              id="drill-risk-exposure-h"
+              className="mb-2 text-xs uppercase tracking-wide text-text-muted"
+            >
+              {microcopy.drill.sections.riskExposure}
+            </h4>
+            <div className="flex items-center gap-3">
+              <RiskRing score={v.risk_exposure_score} size={56} />
+              {v.risk_exposure_breakdown.some((c) => c.key === 'kev_floor') && (
+                <span className="rounded-md bg-pink-soft px-2 py-0.5 font-mono text-[10px] font-medium uppercase text-[var(--color-severity-critical-on-soft)]">
+                  {microcopy.drill.riskExposure.kevFloorChip}
+                </span>
+              )}
+            </div>
+            <div className="mt-2 space-y-0">
+              {v.risk_exposure_breakdown.map((c) => (
+                <div
+                  key={c.key}
+                  className="flex items-center justify-between border-t border-border-subtle py-2 text-sm"
+                  data-testid={`risk-exposure-row-${c.key}`}
+                >
+                  <span className="text-text-muted">{c.label}</span>
+                  <span className="font-mono tabular-nums text-text">
+                    {c.raw_value} · {c.points}/{c.max_points} pts
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-text-faint">
+              {microcopy.drill.riskExposure.previewCaption}
+            </p>
+          </section>
+        )}
 
         <section aria-labelledby="drill-hosts-h">
           <h4
