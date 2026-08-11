@@ -28,6 +28,7 @@ from app.logging import _redact_value  # noqa: PLC2701 — intentional reuse of 
 from app.ticketing.models import ConnectorConfig, SyncLog
 from app.vulnerabilities.correlation_service import run_correlations
 from app.vulnerabilities.models import CisaKev, EpssScore, Vulnerability
+from app.vulnerabilities.risk_exposure_service import compute_finding_risk_scores
 
 logger = structlog.get_logger()
 
@@ -171,6 +172,12 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         # Post-sync: run correlation engine and risk score computation
         corr_stats = await run_correlations(db, connector_config.tenant_id)
         risk_stats = await compute_risk_scores(db, connector_config.tenant_id)
+        # RISK-06 (Phase 33): single shadow-compute hook this phase -- do NOT
+        # wire compute_finding_risk_scores into any other call site (see
+        # 33-CONTEXT.md RESOLVED Q1). This full-tenant recompute covers every
+        # currently-open finding, so the very first sync after this ships
+        # already satisfies "shadow-computed for >=1 full sync cycle".
+        finding_risk_stats = await compute_finding_risk_scores(db, connector_config.tenant_id)
 
         log.status = "SUCCESS"
         log.records_fetched = len(vulns) + len(misconfigs)
@@ -184,6 +191,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
             "misconfigs_created": mc,
             "correlations": corr_stats,
             "risk_scores": risk_stats,
+            "finding_risk_scores": finding_risk_stats,
         }
         connector_config.last_sync_at = datetime.now(UTC)
         connector_config.last_sync_status = "SUCCESS"

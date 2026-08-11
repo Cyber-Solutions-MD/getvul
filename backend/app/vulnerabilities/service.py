@@ -225,6 +225,13 @@ async def get_vulnerability(
         updated_at=vuln.updated_at,
         asset_hostname=hostname,
         correlation_sources_count=corr_count,
+        # RISK-05 precursor (Phase 33): read directly off the already-fetched
+        # `vuln` ORM object -- NO new query, NO live score_finding call
+        # (Pitfall 4). Always reflects exactly what was shadow-computed at
+        # the last sync's compute_finding_risk_scores pass.
+        risk_exposure_score=vuln.risk_exposure_score,
+        risk_exposure_breakdown=vuln.risk_exposure_breakdown,
+        risk_model_version=vuln.risk_model_version,
     )
 
 

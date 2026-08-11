@@ -12,6 +12,18 @@ from pydantic import BaseModel, Field
 # ── Responses ──
 
 
+class RiskBreakdownComponent(BaseModel):
+    """One row of the per-finding risk-exposure breakdown (Phase 33 —
+    RISK-05 precursor). Mirrors risk_exposure_service.RiskBreakdownComponent
+    1:1 -- server-computed only, never accepts user input (T-33-02)."""
+
+    key: str
+    label: str
+    raw_value: str
+    points: float
+    max_points: float
+
+
 class VulnerabilityResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
@@ -48,6 +60,13 @@ class VulnerabilityResponse(BaseModel):
     # Joined fields (optional, populated on detail view)
     asset_hostname: str | None = None
     correlation_sources_count: int | None = None
+
+    # RISK-05 precursor (Phase 33): read directly from the persisted
+    # Vulnerability row -- no live recompute (Pitfall 4). Shadow/preview
+    # only; NULL until the first post-Phase-33 sync scores this finding.
+    risk_exposure_score: int | None = None
+    risk_exposure_breakdown: list[RiskBreakdownComponent] | None = None
+    risk_model_version: str | None = None
 
     model_config = {"from_attributes": True}
 
