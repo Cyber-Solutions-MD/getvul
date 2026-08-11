@@ -148,3 +148,91 @@ async def test_group_member_add_and_remove(client_factory, db_session, tenant_a,
     # Unknown group id on add is a 404.
     r = await admin_client.post(f"/api/v1/asset-groups/{uuid.uuid4()}/members/{asset_id}")
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_group_list_and_detail_include_member_count(client_factory, db_session, tenant_a, admin_user):
+    """32-05-PLAN's frontend management page needs a `member_count` on both
+    the list and detail responses to avoid an N+1 round trip per group."""
+    await db_session.commit()
+
+    admin_client = client_factory(admin_user)
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": "Count Test Group"})
+    assert r.status_code == 201, r.text
+    group_id = r.json()["id"]
+
+    r = await admin_client.get("/api/v1/asset-groups")
+    assert r.status_code == 200, r.text
+    listed = next(g for g in r.json() if g["id"] == group_id)
+    assert listed["member_count"] == 0
+
+    r = await admin_client.get(f"/api/v1/asset-groups/{group_id}")
+    assert r.status_code == 200, r.text
+    assert r.json()["member_count"] == 0
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+
+    r = await admin_client.post(f"/api/v1/asset-groups/{group_id}/members/{a.id}")
+    assert r.status_code == 201, r.text
+
+    r = await admin_client.get("/api/v1/asset-groups")
+    listed = next(g for g in r.json() if g["id"] == group_id)
+    assert listed["member_count"] == 1
+
+    r = await admin_client.get(f"/api/v1/asset-groups/{group_id}")
+    assert r.json()["member_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_group_members_and_exposure_context_read_endpoints(
+    client_factory, db_session, tenant_a, tenant_b, admin_user, analyst_user
+):
+    """GET /{group_id}/members and GET /{group_id}/exposure-context are
+    readable by any authenticated tenant member (not just admins — matches
+    list/detail gating), reflect current state, and 404-not-403 cross-tenant."""
+    await db_session.commit()
+
+    admin_client = client_factory(admin_user)
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": "Read Endpoints Group"})
+    assert r.status_code == 201, r.text
+    group_id = r.json()["id"]
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+
+    r = await admin_client.get(f"/api/v1/asset-groups/{group_id}/members")
+    assert r.status_code == 200, r.text
+    assert r.json() == []
+
+    r = await admin_client.get(f"/api/v1/asset-groups/{group_id}/exposure-context")
+    assert r.status_code == 200, r.text
+    assert r.json() == {}
+
+    r = await admin_client.post(f"/api/v1/asset-groups/{group_id}/members/{a.id}")
+    assert r.status_code == 201, r.text
+
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    # Analyst (non-admin) can read both — read-only, matches list/detail.
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.get(f"/api/v1/asset-groups/{group_id}/members")
+    assert r.status_code == 200, r.text
+    assert [m["id"] for m in r.json()] == [str(a.id)]
+
+    r = await analyst_client.get(f"/api/v1/asset-groups/{group_id}/exposure-context")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"business_criticality": "CRITICAL"}
+
+    # Cross-tenant probe — 404, not 403 (existence stays private).
+    tenant_b_admin = client_factory(_admin_user_for(tenant_b))
+    r = await tenant_b_admin.get(f"/api/v1/asset-groups/{group_id}/members")
+    assert r.status_code == 404
+    r = await tenant_b_admin.get(f"/api/v1/asset-groups/{group_id}/exposure-context")
+    assert r.status_code == 404

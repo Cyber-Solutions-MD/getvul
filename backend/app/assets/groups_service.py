@@ -17,16 +17,37 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.exposure import apply_precedence_to_asset, audit_auto_inference_changes
-from app.assets.models import Asset, AssetGroup, AssetGroupMember
+from app.assets.models import Asset, AssetGroup, AssetGroupExposureOverride, AssetGroupMember
 
 
 async def list_groups(db: AsyncSession, tenant_id: uuid.UUID) -> list[AssetGroup]:
     result = await db.execute(select(AssetGroup).where(AssetGroup.tenant_id == tenant_id).order_by(AssetGroup.name))
     return list(result.scalars().all())
+
+
+async def list_groups_with_member_counts(db: AsyncSession, tenant_id: uuid.UUID) -> list[tuple[AssetGroup, int]]:
+    """Same as `list_groups` but paired with a member-count (frontend
+    management page's list view — 32-05-PLAN). A single outer-join + GROUP BY
+    avoids an N+1 count-per-group query."""
+    result = await db.execute(
+        select(AssetGroup, func.count(AssetGroupMember.asset_id))
+        .outerjoin(AssetGroupMember, AssetGroupMember.group_id == AssetGroup.id)
+        .where(AssetGroup.tenant_id == tenant_id)
+        .group_by(AssetGroup.id)
+        .order_by(AssetGroup.name)
+    )
+    return [(g, c) for g, c in result.all()]
+
+
+async def count_members(db: AsyncSession, group_id: uuid.UUID) -> int:
+    result = await db.execute(
+        select(func.count(AssetGroupMember.asset_id)).where(AssetGroupMember.group_id == group_id)
+    )
+    return result.scalar_one()
 
 
 async def get_group(db: AsyncSession, tenant_id: uuid.UUID, group_id: uuid.UUID) -> AssetGroup | None:
@@ -97,6 +118,34 @@ async def add_member(db: AsyncSession, tenant_id: uuid.UUID, group_id: uuid.UUID
     if changes:
         audit_auto_inference_changes(db, tenant_id, asset.id, changes)
     return True
+
+
+async def list_members(db: AsyncSession, tenant_id: uuid.UUID, group_id: uuid.UUID) -> list[Asset] | None:
+    """Returns the group's member assets (tenant-scoped), or `None` if the
+    group itself does not exist/belong to this tenant (router converts to
+    404 — same not-found convention as every other lookup in this module)."""
+    group = await get_group(db, tenant_id, group_id)
+    if group is None:
+        return None
+    result = await db.execute(
+        select(Asset)
+        .join(AssetGroupMember, AssetGroupMember.asset_id == Asset.id)
+        .where(AssetGroupMember.group_id == group_id, Asset.tenant_id == tenant_id)
+        .order_by(Asset.hostname)
+    )
+    return list(result.scalars().all())
+
+
+async def get_group_exposure_overrides(
+    db: AsyncSession, tenant_id: uuid.UUID, group_id: uuid.UUID
+) -> dict[str, str] | None:
+    """Returns the group's current field->value exposure overrides, or
+    `None` if the group does not exist/belong to this tenant."""
+    group = await get_group(db, tenant_id, group_id)
+    if group is None:
+        return None
+    result = await db.execute(select(AssetGroupExposureOverride).where(AssetGroupExposureOverride.group_id == group_id))
+    return {row.field: row.value for row in result.scalars().all()}
 
 
 async def remove_member(db: AsyncSession, tenant_id: uuid.UUID, group_id: uuid.UUID, asset_id: uuid.UUID) -> bool:

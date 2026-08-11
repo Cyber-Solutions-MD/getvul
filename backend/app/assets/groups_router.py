@@ -25,10 +25,13 @@ from sqlalchemy import select
 from app.assets.exposure import EXPOSURE_FIELDS, apply_precedence_to_asset
 from app.assets.groups_service import (
     add_member,
+    count_members,
     create_group,
     delete_group,
     get_group,
-    list_groups,
+    get_group_exposure_overrides,
+    list_groups_with_member_counts,
+    list_members,
     remove_member,
     update_group,
 )
@@ -85,8 +88,8 @@ class _GroupExposureOverrideUpdate(BaseModel):
         return self
 
 
-def _group_to_dict(group: AssetGroup) -> dict:
-    return {
+def _group_to_dict(group: AssetGroup, member_count: int | None = None) -> dict:
+    d: dict[str, str | int | None] = {
         "id": str(group.id),
         "tenant_id": str(group.tenant_id),
         "name": group.name,
@@ -94,12 +97,17 @@ def _group_to_dict(group: AssetGroup) -> dict:
         "created_at": group.created_at.isoformat() if group.created_at else None,
         "updated_at": group.updated_at.isoformat() if group.updated_at else None,
     }
+    if member_count is not None:
+        d["member_count"] = member_count
+    return d
 
 
 @router.get("")
 async def list_asset_groups(db: DBSession, user: Annotated[CurrentUser, Depends(get_current_user)]):
-    groups = await list_groups(db, user.tenant_id)
-    return [_group_to_dict(g) for g in groups]
+    """List groups with a `member_count` — the management page's list view
+    (32-05-PLAN) needs this without a per-group N+1 round trip."""
+    groups_with_counts = await list_groups_with_member_counts(db, user.tenant_id)
+    return [_group_to_dict(g, member_count=c) for g, c in groups_with_counts]
 
 
 @router.post("", status_code=201)
@@ -124,7 +132,38 @@ async def get_asset_group(
     group = await get_group(db, user.tenant_id, group_id)
     if group is None:
         raise HTTPException(status_code=404, detail="Asset group not found")
-    return _group_to_dict(group)
+    member_count = await count_members(db, group_id)
+    return _group_to_dict(group, member_count=member_count)
+
+
+@router.get("/{group_id}/members")
+async def get_asset_group_members(
+    group_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> list[dict[str, str | None]]:
+    """Lists the group's member assets (id + hostname) — read-only, any
+    authenticated tenant member may view (matches the list/detail gating);
+    powers the management page's member-management panel (32-05-PLAN)."""
+    members = await list_members(db, user.tenant_id, group_id)
+    if members is None:
+        raise HTTPException(status_code=404, detail="Asset group not found")
+    return [{"id": str(a.id), "hostname": a.hostname} for a in members]
+
+
+@router.get("/{group_id}/exposure-context")
+async def get_asset_group_exposure_context(
+    group_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> dict[str, str]:
+    """Returns the group's current field->value exposure overrides — powers
+    the management page's per-group override panel (32-05-PLAN) so an admin
+    can see/edit the existing override rather than only blind-setting one."""
+    overrides = await get_group_exposure_overrides(db, user.tenant_id, group_id)
+    if overrides is None:
+        raise HTTPException(status_code=404, detail="Asset group not found")
+    return overrides
 
 
 @router.patch("/{group_id}")
