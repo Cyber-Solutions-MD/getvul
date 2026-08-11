@@ -87,6 +87,7 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
 **Plans**: 5/5 plans complete
 
 Plans:
+
 - [x] 32-01-PLAN.md — TRACER: business_criticality end-to-end (migration + enums/columns + inference + per-asset override + audit + response dicts) *(complete 2026-08-10 — migration 037 + exposure.py + PATCH/POST override+recompute endpoints + 6 keys in both inline dicts; 10/10 tests green, EXPO-01/02/03/05)*
 - [x] 32-02-PLAN.md — all 3 fields real inference + EXPO-06 calibration check + per-tenant cap config *(complete 2026-08-10 — real data_sensitivity/internet_facing inference completing the triad; check_criticality_calibration (AUTO-only CRITICAL proportion, overrides exempt) + migration 038 per-tenant cap/hard-cap-enabled + admin GET /assets/exposure-context/calibration; 16/16 tests green, EXPO-06 complete)*
 - [x] 32-03-PLAN.md — real AssetGroup entity (model + membership + admin CRUD) + group-scope override + per-asset>group>auto precedence *(complete 2026-08-10 — migrations 039/040 + AssetGroup/AssetGroupMember/AssetGroupExposureOverride models + groups_service/groups_router at /api/v1/asset-groups + apply_precedence_to_asset (GROUP_OVERRIDE tier, most-recently-updated tiebreak) + add_member/remove_member immediate re-apply + full audit trail; 24/24 tests green, EXPO-04/EXPO-05 complete)*
@@ -151,7 +152,7 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 |-------|-----------------|--------|-----------|
 | 30. Correlation Schema Fix | 2/2 | Complete    | 2026-08-05 |
 | 31. Connector Enrichment Rewrite | 5/5 | Complete    | 2026-08-10 |
-| 32. Asset Exposure Context | 1/5 | In Progress | - |
+| 32. Asset Exposure Context | 5/5 | Complete    | 2026-08-11 |
 | 33. Risk-Exposure Model Definition | 0/TBD | Not started | - |
 | 34. Historical Recompute & Consumer Cutover | 0/TBD | Not started | - |
 | 35. Source-Aware Filtering & Provenance Badges | 0/TBD | Not started | - |
