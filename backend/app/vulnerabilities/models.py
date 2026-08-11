@@ -84,6 +84,15 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # present with a falsy value = negative (vendor returned it falsy).
     # Mirrors Asset.mdm_details (assets/models.py:67).
     source_signals: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=dict)
+    # RISK-01/02/06 (Phase 33): the normalized per-finding score this file's
+    # own native_priority_score comment (above) promised. Shadow-computed
+    # only -- see risk_exposure_service.py. Nullable, no server_default:
+    # None until the first post-Phase-33 sync runs
+    # compute_finding_risk_scores. Zero automated consumer reads these in
+    # Phase 33 (RISK-06) -- the only reader is the GET /{vuln_id} display.
+    risk_exposure_score: Mapped[int | None] = mapped_column(Integer)
+    risk_exposure_breakdown: Mapped[dict | None] = mapped_column(JSONB)
+    risk_model_version: Mapped[str | None] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default=VulnStatus.OPEN.value, index=True)
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

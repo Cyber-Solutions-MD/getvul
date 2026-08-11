@@ -61,6 +61,14 @@ class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     nessus_host_id: Mapped[str | None] = mapped_column(String(100))
     risk_score: Mapped[int | None] = mapped_column(Integer)
 
+    # RISK-02 (Phase 33): shadow rollup, NOT the live risk_score above.
+    # MAX(risk_exposure_score) across the asset's OPEN/IN_PROGRESS
+    # findings -- a separate, additive column so risk_score.py's live curve
+    # is untouched. Left NULL by this tracer plan (Plan 03 populates the
+    # rollup); Phase 34 owns any cutover of consumers to this value.
+    risk_exposure_score: Mapped[int | None] = mapped_column(Integer)
+    risk_model_version: Mapped[str | None] = mapped_column(String(20))
+
     # Ignore status
     is_ignored: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     ignored_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
