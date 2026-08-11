@@ -653,4 +653,70 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       expect(mockMutateAsync).not.toHaveBeenCalled();
     });
   });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 33 Plan 04 (RISK-05): the shadow/preview "Risk exposure" section,
+  // between CVSS and Affected hosts. Read-only display of the backend's
+  // per-finding risk_exposure_score + risk_exposure_breakdown — the sole
+  // permitted reader of the shadow score this phase (RISK-06 zero-consumer
+  // gate). Data-driven over the breakdown array; KEV-floor chip conditioned
+  // on a `kev_floor` component; null-safe absent state.
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('Risk exposure section (RISK-05)', () => {
+    const breakdown = [
+      { key: 'severity_cvss', label: 'Severity / CVSS', raw_value: '10.0', points: 35, max_points: 35 },
+      { key: 'epss', label: 'EPSS', raw_value: '0.94', points: 18, max_points: 20 },
+      { key: 'native_exploitability', label: 'Native exploitability', raw_value: '0.8', points: 12, max_points: 15 },
+      { key: 'exposure_business_criticality', label: 'Business criticality', raw_value: 'CRITICAL', points: 10, max_points: 10 },
+      { key: 'corroboration', label: 'Corroboration', raw_value: '3 sources', points: 6.67, max_points: 10 },
+      { key: 'kev_floor', label: 'CISA KEV floor', raw_value: 'raised 78 -> 90', points: 12, max_points: 0 },
+    ];
+
+    it('renders the "Risk exposure" heading, overall score, one row per breakdown component, the preview caption, and the KEV-floor chip', () => {
+      useDetailMock.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: { ...detail, risk_exposure_score: 82, risk_exposure_breakdown: breakdown, risk_model_version: 'v1' },
+      } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      expect(screen.getByText('Risk exposure')).toBeInTheDocument();
+      expect(screen.getByText('82')).toBeInTheDocument();
+
+      breakdown.forEach((c) => {
+        expect(screen.getByText(c.label)).toBeInTheDocument();
+      });
+      expect(screen.getByText(/0\.94/)).toBeInTheDocument();
+
+      expect(
+        screen.getByText('Shadow score — not yet used for sorting or alerts.'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('★ KEV floor applied')).toBeInTheDocument();
+    });
+
+    it('does NOT render the KEV-floor chip when the breakdown has no kev_floor component', () => {
+      const breakdownNoKev = breakdown.filter((c) => c.key !== 'kev_floor');
+      useDetailMock.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: { ...detail, risk_exposure_score: 70, risk_exposure_breakdown: breakdownNoKev, risk_model_version: 'v1' },
+      } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      expect(screen.getByText('Risk exposure')).toBeInTheDocument();
+      expect(screen.queryByText('★ KEV floor applied')).toBeNull();
+    });
+
+    it('renders nothing (no crash) when risk_exposure_score / risk_exposure_breakdown are null', () => {
+      useDetailMock.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: { ...detail, risk_exposure_score: null, risk_exposure_breakdown: null, risk_model_version: null },
+      } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+      expect(() => render(<DrillPanel cveId="CVE-2024-3094" />)).not.toThrow();
+
+      expect(screen.queryByText('Risk exposure')).toBeNull();
+    });
+  });
 });

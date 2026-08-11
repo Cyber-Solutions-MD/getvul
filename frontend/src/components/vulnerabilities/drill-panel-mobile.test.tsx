@@ -25,6 +25,14 @@ vi.mock('@/lib/queries/use-vulnerability-detail', () => ({
       title: 'xz backdoor',
       severity: 'critical',
       cisa_kev: true,
+      // Phase 33 Plan 04 (RISK-05): shadow/preview risk-exposure fields —
+      // shared DrillContent renders the same section on mobile.
+      risk_exposure_score: 82,
+      risk_exposure_breakdown: [
+        { key: 'severity_cvss', label: 'Severity / CVSS', raw_value: '10.0', points: 35, max_points: 35 },
+        { key: 'kev_floor', label: 'CISA KEV floor', raw_value: 'raised 78 -> 90', points: 12, max_points: 0 },
+      ],
+      risk_model_version: 'v1',
     },
   }),
 }));
@@ -438,5 +446,17 @@ describe('<DrillPanelMobile> (UX-03-06 + D-P-03 — vaul bottom-sheet)', () => {
         within(nestedConfirm).queryByRole('button', { name: 'Draft remediation with AI' }),
       ).toBeNull();
     });
+  });
+
+  // Phase 33 Plan 04 (RISK-05): the shared DrillContent Risk Exposure
+  // section renders via the mobile wrapper too — at minimum the heading +
+  // overall score appear (full breakdown-row coverage lives in
+  // drill-panel.test.tsx).
+  it('renders the "Risk exposure" section (heading + score) via the mobile wrapper (RISK-05)', () => {
+    setMatchMedia(true);
+    render(<DrillPanelMobile cveId="CVE-2024-3094" />);
+    expect(screen.getByText('Risk exposure')).toBeInTheDocument();
+    expect(screen.getByText('82')).toBeInTheDocument();
+    expect(screen.getByText('★ KEV floor applied')).toBeInTheDocument();
   });
 });
