@@ -604,6 +604,42 @@ async def test_calibration_endpoint_admin_only(
 
 
 @pytest.mark.asyncio
+async def test_asset_detail_surfaces_driving_group_name(client_factory, db_session, tenant_a, admin_user):
+    """GET /assets/{id} surfaces `{field}_group_name` for a GROUP_OVERRIDE-
+    sourced field (32-05-PLAN's exposure card "group: {name}" badge) — a
+    pure read-side lookup, no new column on `Asset`. Non-GROUP_OVERRIDE
+    fields carry `None`."""
+    admin_client = client_factory(admin_user)
+
+    a = _seed_asset(tenant_a, f"host-{uuid.uuid4().hex[:6]}")
+    db_session.add(a)
+    await db_session.commit()
+    asset_id = a.id
+
+    r = await admin_client.post("/api/v1/asset-groups", json={"name": "Prod Tier"})
+    assert r.status_code == 201, r.text
+    group_id = r.json()["id"]
+
+    r = await admin_client.post(f"/api/v1/asset-groups/{group_id}/members/{asset_id}")
+    assert r.status_code == 201, r.text
+
+    r = await admin_client.patch(
+        f"/api/v1/asset-groups/{group_id}/exposure-context",
+        json={"field": "business_criticality", "value": "CRITICAL"},
+    )
+    assert r.status_code == 200, r.text
+
+    r = await admin_client.get(f"/api/v1/assets/{asset_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["business_criticality_source"] == "GROUP_OVERRIDE"
+    assert body["business_criticality_group_name"] == "Prod Tier"
+    # data_sensitivity has no group override — stays AUTO, no group name.
+    assert body["data_sensitivity_source"] == "AUTO"
+    assert body["data_sensitivity_group_name"] is None
+
+
+@pytest.mark.asyncio
 async def test_group_override_applies_to_group_members(client_factory, db_session, tenant_a, admin_user):
     """A group-scope override applies to every AUTO member asset, setting
     its value and flipping `*_source` to GROUP_OVERRIDE."""

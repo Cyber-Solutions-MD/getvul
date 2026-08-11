@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset
-from app.assets.exposure import EXPOSURE_FIELDS
+from app.assets.exposure import EXPOSURE_FIELDS, resolve_group_override_names
 from app.assets.models import Asset, BusinessCriticality, DataSensitivity
 from app.auth.dependencies import get_current_user, require_role
 from app.db.session import get_db
@@ -339,6 +339,11 @@ async def _build_asset_detail(db: AsyncSession, user, asset: Asset) -> dict:
     ).where(Vulnerability.asset_id == asset.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
     vc = (await db.execute(vuln_q)).one()
 
+    # Phase 32 Plan 05 — which group (if any) currently drives a
+    # GROUP_OVERRIDE-sourced field, for the frontend's "group: {name}" badge.
+    # Read-side only lookup (no new column) — see exposure.py docstring.
+    group_override_names = await resolve_group_override_names(db, asset.id)
+
     # NOTE (Phase 12 — fold-in #3): the inline `vulnerabilities[]` array previously
     # returned here was dropped. The v2.0 detail page uses `useAssetVulnerabilities`
     # (plan 12-05) to fetch the same data via `/api/v1/vulnerabilities?asset_id=<id>`,
@@ -412,10 +417,13 @@ async def _build_asset_detail(db: AsyncSession, user, asset: Asset) -> dict:
         # Anti-Patterns).
         "business_criticality": asset.business_criticality,
         "business_criticality_source": asset.business_criticality_source,
+        "business_criticality_group_name": group_override_names.get("business_criticality"),
         "data_sensitivity": asset.data_sensitivity,
         "data_sensitivity_source": asset.data_sensitivity_source,
+        "data_sensitivity_group_name": group_override_names.get("data_sensitivity"),
         "internet_facing": asset.internet_facing,
         "internet_facing_source": asset.internet_facing_source,
+        "internet_facing_group_name": group_override_names.get("internet_facing"),
     }
 
 

@@ -106,7 +106,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.assets.models import Asset, AssetGroupExposureOverride, AssetGroupMember
+from app.assets.models import Asset, AssetGroup, AssetGroupExposureOverride, AssetGroupMember
 from app.audit import AuditLog
 
 logger = structlog.get_logger()
@@ -287,6 +287,25 @@ async def _resolve_group_overrides_for_asset(db: AsyncSession, asset_id: uuid.UU
             best[field] = (value, group_id, updated_at)
 
     return {field: (value, group_id) for field, (value, group_id, _updated_at) in best.items()}
+
+
+async def resolve_group_override_names(db: AsyncSession, asset_id: uuid.UUID) -> dict[str, str]:
+    """For each exposure field currently driven by a GROUP_OVERRIDE, the name
+    of the group that wins the tiebreak (same most-recently-updated-wins
+    resolution as `_resolve_group_overrides_for_asset`, minus the value —
+    this is a pure read-side lookup, no persistence). Powers the frontend
+    exposure-context card's "group: {name}" source badge (32-05-PLAN) without
+    requiring a new column on `Asset` to durably track which group last won.
+    """
+    group_overrides = await _resolve_group_overrides_for_asset(db, asset_id)
+    if not group_overrides:
+        return {}
+    group_ids = {group_id for _value, group_id in group_overrides.values()}
+    rows = (await db.execute(select(AssetGroup.id, AssetGroup.name).where(AssetGroup.id.in_(group_ids)))).all()
+    names_by_id = {gid: name for gid, name in rows}
+    return {
+        field: names_by_id[group_id] for field, (_value, group_id) in group_overrides.items() if group_id in names_by_id
+    }
 
 
 async def apply_precedence_to_asset(db: AsyncSession, asset: Asset) -> list[dict]:
