@@ -110,7 +110,11 @@ Plans:
   5. An analyst can see the per-input score breakdown ("why is this an 82") for a finding in the DrillPanel
   6. The score carries a `risk_model_version` column and is shadow-computed for at least one full sync cycle with zero consumers reading it before cutover; the previously-triplicated severity-tier boundaries (`export.py`/`assets/router.py`/`dashboard.py`) are centralized to one constant
 
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response
+- [ ] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures
+- [ ] 33-03-PLAN.md — Asset MAX rollup + sortable index; severity-tier centralization (one constant) + characterization regression
+- [ ] 33-04-PLAN.md — DrillPanel per-input breakdown ("why is this an 82"), shadow/preview-labeled (RISK-05)
 **UI hint**: yes
 
 ### Phase 34: Historical Recompute & Consumer Cutover
@@ -140,7 +144,11 @@ Plans:
   4. Ticket source provenance resolves transitively through the linked vulnerability's correlation, with a defined and tested rule for multi-source-correlated cases
   5. Provenance and source-facet queries are batched (no per-row N+1) and stay performant at scale, provable with a query-count assertion
 
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response
+- [ ] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures
+- [ ] 33-03-PLAN.md — Asset MAX rollup + sortable index; severity-tier centralization (one constant) + characterization regression
+- [ ] 33-04-PLAN.md — DrillPanel per-input breakdown ("why is this an 82"), shadow/preview-labeled (RISK-05)
 **UI hint**: yes
 
 ## Progress
