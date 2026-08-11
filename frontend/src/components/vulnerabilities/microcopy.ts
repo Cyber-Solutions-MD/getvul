@@ -41,11 +41,20 @@ export const microcopy = {
   drill: {
     sections: {
       cvss: 'CVSS',
+      riskExposure: 'Risk exposure',
       hosts: 'Affected hosts',
       description: 'Description',
       remediation: 'Remediation',
       activity: 'Activity',
       actions: 'Actions',
+    },
+    // Phase 33 Plan 04 (RISK-05): the shadow/preview Risk Exposure section
+    // sitting between CVSS and Affected hosts. RISK-06 lock — this caption
+    // must make it unmistakable that the score is not yet a triage driver.
+    riskExposure: {
+      previewCaption: 'Shadow score — not yet used for sorting or alerts.',
+      kevFloorChip: '★ KEV floor applied',
+      scoreAriaLabel: (score: number) => `Risk exposure score ${score}`,
     },
     createTicket: 'Create ticket',
     snooze24h: 'Snooze 24h',
