@@ -167,14 +167,20 @@ _SENSITIVITY_FRACTION = {"RESTRICTED": 1.0, "CONFIDENTIAL": 0.67, "INTERNAL": 0.
 
 **Fixture (directly satisfies "low-severity KEV scores materially higher than identical non-KEV")**:
 ```python
+# Baseline is GENUINELY zero-contribution on every non-severity input: LOW criticality (fraction 0.0),
+# PUBLIC sensitivity (0.0), not internet-facing (0.0), no EPSS/native/corroboration. Only severity
+# contributes (cvss 3.1 -> 0.31*35 = ~10.85 -> subtotal ~11). This preserves the "nothing else
+# contributing" intent that an earlier MEDIUM/INTERNAL draft violated (~4.6 extra pts pushed it to 15).
 low_no_kev = FindingScoreInputs(severity="LOW", cvss_v3_score=Decimal("3.1"), epss_score=None,
                                   cisa_kev=False, source="DEFENDER", native_priority_score=None,
                                   native_priority_rating=None, sources_count=1,
-                                  business_criticality="MEDIUM", data_sensitivity="INTERNAL", internet_facing=False)
-low_with_kev = replace(low_no_kev, cisa_kev=True)
+                                  business_criticality="LOW", data_sensitivity="PUBLIC", internet_facing=False)
+low_with_kev = replace(low_no_kev, cisa_kev=True)   # identical EXCEPT cisa_kev — isolates the KEV effect
 
-assert score_finding(low_no_kev).final_score < 15       # LOW severity, nothing else contributing
-assert score_finding(low_with_kev).final_score == 90    # floor applied, materially higher
+# Primary RISK-03 proof: the KEV floor raises the score materially over the identical non-KEV twin.
+assert score_finding(low_with_kev).final_score > score_finding(low_no_kev).final_score + 60
+assert score_finding(low_no_kev).final_score < 20      # LOW severity, nothing else contributing (margin)
+assert score_finding(low_with_kev).final_score == 90   # floor applied
 ```
 
 ### Corroboration Mechanics (RISK-04)
@@ -341,19 +347,21 @@ risk_stats = await compute_risk_scores(db, connector_config.tenant_id)
 
 **If this table is empty:** N/A — six assumptions requiring confirmation, none of which block starting the plan (all are tunable constants or a scope-boundary interpretation, not structural blockers).
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should `compute_finding_risk_scores` also be called from the ~9 other `compute_risk_scores` call sites** (status update, bulk update, snooze, ticket-triggered recompute — `vulnerabilities/router.py` lines 508/523, 544/557, 576/609, 745/770, 804/818; `ticketing/router.py:463`), or is the single `sync.py:172-173` hook sufficient for "at least one full sync cycle"?
+> All three resolved in 33-CONTEXT.md during discuss-phase — see the [RESOLVED Q1/Q2/Q3] locked decisions there.
+
+1. **[RESOLVED Q1 — 33-CONTEXT.md: single sync hook only this phase]** **Should `compute_finding_risk_scores` also be called from the ~9 other `compute_risk_scores` call sites** (status update, bulk update, snooze, ticket-triggered recompute — `vulnerabilities/router.py` lines 508/523, 544/557, 576/609, 745/770, 804/818; `ticketing/router.py:463`), or is the single `sync.py:172-173` hook sufficient for "at least one full sync cycle"?
    - What we know: `sync.py`'s call is a FULL tenant recompute (covers every open finding, not incremental), so it alone satisfies the literal "one full sync cycle" requirement.
    - What's unclear: whether an analyst updating a finding's status mid-cycle (before the next sync) should see an immediately-fresh shadow score, or whether staleness-until-next-sync is acceptable for a shadow-only feature.
    - Recommendation: Phase 33 only needs the `sync.py` hook (staleness is fine for a not-yet-consumed shadow value); defer the other call sites to Phase 34 if/when the score becomes consumer-facing and staleness starts to matter.
 
-2. **Should the `Asset.risk_exposure_score` rollup use MAX or a volume-sensitive curve** (mirroring the existing `_normalize_raw_score` curve)?
+2. **[RESOLVED Q2 — 33-CONTEXT.md: MAX rollup this phase, curve deferred to Phase 34]** **Should the `Asset.risk_exposure_score` rollup use MAX or a volume-sensitive curve** (mirroring the existing `_normalize_raw_score` curve)?
    - What we know: MAX is simpler, more explainable, and directly matches the "most urgent finding" framing.
    - What's unclear: whether tenants expect an asset with 20 HIGH findings to score higher than an asset with 1 identical HIGH finding (a MAX rollup treats them identically).
    - Recommendation: Ship MAX in Phase 33 (shadow, low stakes); Phase 34 can A/B or reconsider before cutover since nothing consumes it yet.
 
-3. **Does a real, specific "BOD-26-04" directive exist with prescriptive requirements** beyond "treat KEV as near-automatic"?
+3. **[RESOLVED Q3 — 33-CONTEXT.md: KEV floor is internal design expressing CISA BOD 22-01 spirit, no external prescriptive numbers]** **Does a real, specific "BOD-26-04" directive exist with prescriptive requirements** beyond "treat KEV as near-automatic"?
    - What we know: The real, verifiable CISA directive on KEV remediation is BOD 22-01 (binding for federal agencies, establishes required remediation timelines for cataloged KEV entries).
    - What's unclear: whether "BOD-26-04" is this project's own future-dated internal alias/shorthand or references something the user has specific external knowledge of.
    - Recommendation: Treat as internal shorthand per Assumption A6 unless the user corrects this during planning.
