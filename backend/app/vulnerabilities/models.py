@@ -91,7 +91,7 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # compute_finding_risk_scores. Zero automated consumer reads these in
     # Phase 33 (RISK-06) -- the only reader is the GET /{vuln_id} display.
     risk_exposure_score: Mapped[int | None] = mapped_column(Integer)
-    risk_exposure_breakdown: Mapped[dict | None] = mapped_column(JSONB)
+    risk_exposure_breakdown: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     risk_model_version: Mapped[str | None] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default=VulnStatus.OPEN.value, index=True)
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

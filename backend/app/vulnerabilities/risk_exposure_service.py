@@ -234,7 +234,7 @@ def score_finding(inputs: FindingScoreInputs) -> RiskBreakdown:
     )
 
 
-async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
+async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) -> dict[str, int]:
     """Full-tenant recompute (mirrors compute_risk_scores's shape,
     risk_score.py:84-147). Bulk-fetches every OPEN/IN_PROGRESS Vulnerability
     row for the tenant, outer-joined to its Asset for exposure fields, calls
