@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 33
 current_phase_name: Risk-Exposure Model Definition
 status: in_progress
-stopped_at: Phase 33 Plan 01 (LEAD TRACER) complete — migration 042 lands the 5-column risk-exposure schema spine (3 on vulnerabilities, 2 on assets); new app/vulnerabilities/risk_exposure_service.py implements score_finding (pure, deterministic, additive 100-point weighted-sum; severity/CVSS + EPSS + KEV floor REAL, native/exposure/corroboration zeroed Plan-33-02 placeholders) + compute_finding_risk_scores (DB-orchestration, bulk-fetch + per-row persist); wired into the single sync.py post-sync hook alongside compute_risk_scores; GET /vulnerabilities/{id} reads the 3 new fields directly off the persisted row (no live recompute). 5 new backend tests green (determinism, KEV-floor fixture proving exactly 90, EPSS, persistence, response-shape); zero-consumer grep gate confirmed (RISK-06); one auto-fixed mypy-baseline deviation. Phase 33 is 1/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI) — continue with Plan 02.
-last_updated: "2026-08-11T13:17:08.000Z"
+stopped_at: Phase 33 Plan 02 (Full formula expansion) complete — score_finding now computes the FULL 6-category 100-point formula; _normalize_native_signal maps each source's native_priority_score to 0-1 on its own scale (soft-null, never raises); exposure context is a real 3-row split (business_criticality/internet_facing/data_sensitivity) driven by Phase 32 Asset fields; cross-scanner corroboration is a capped linear fraction fed by a single tenant-scoped VulnerabilityCorrelation bulk-join in compute_finding_risk_scores (no N+1); KEV floor now emits an explicit kev_floor breakdown row when it changes the outcome. RISK-03 re-proven under the full formula, RISK-04 proven (corroboration component delta exactly 6.67). 10/10 tests green (5 Plan 01 regression + 5 new). Phase 33 is 2/4 plans complete (tracer → full formula → rollup+tier centralization → DrillPanel UI) — continue with Plan 03.
+last_updated: "2026-08-11T14:00:27.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 33 Plan 01 (LEAD TRACER) complete — per-finding risk-exposure schema + scoring spine landed, shadow-computed, zero automated consumer
+last_activity_desc: Phase 33 Plan 02 (Full formula expansion) complete — native per-source normalization, exposure sub-split, corroboration bulk-join, KEV floor under full formula
 progress:
   total_phases: 3
   completed_phases: 3
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 14
+  completed_plans: 14
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 32 — Asset Exposure Context (5/5 plans complete, pending `/gsd-verify-work 32`)
+**Current focus:** Phase 33 — Risk-Exposure Model Definition (2/4 plans complete, continue with `/gsd-plan-phase 33` Plan 03)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 33 — Risk-Exposure Model Definition
-Plan: 01 complete (LEAD TRACER) — Plan 02 next
+Plan: 02 complete (Full formula expansion) — Plan 03 next
 Status: In progress
-Last activity: 2026-08-11 — Plan 33-01 complete (schema spine + pure/impure score_finding + compute_finding_risk_scores + single sync hook + GET /vulnerabilities/{id} persisted-column read; RISK-01/02/03/06)
+Last activity: 2026-08-11 — Plan 33-02 complete (native per-source normalization, exposure sub-split, corroboration bulk-join, KEV floor under full formula; RISK-01/03/04)
 
 ## v4.0 Phase Map
 
@@ -347,6 +347,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 33]: 33-01: Asset.risk_exposure_score/risk_model_version columns landed in migration 042 but deliberately left NULL -- Plan 33-03 owns the MAX rollup
 - [Phase 33]: 33-01: BLOCKER (Rule 3 auto-fix) -- Mapped[dict | None] (the plan interfaces block's literal annotation) for Vulnerability.risk_exposure_breakdown and a bare `-> dict` return type on compute_finding_risk_scores both tripped mypy-baseline as NEW "Missing type arguments for generic type dict" violations (the file already carries 2 baselined bare-dict occurrences; a 3rd counts as new). Fixed with `list[dict[str, Any]] | None` (the column's true shape) and `-> dict[str, int]`; verified 0 new mypy-baseline errors via the project's actual CI invocation (`mypy app/ | mypy-baseline filter --allow-unsynced`)
 - [Phase 33]: 33-01: RISK-01/02/03/06 deliberately left [ ] Pending in REQUIREMENTS.md -- shared-ID gate: RISK-01/03 are also declared by 33-02 (full formula), RISK-02/06 also by 33-03 (asset rollup); each flips only when its LAST declaring plan lands, mirroring the AIE-01/02/AID-01/CORR-01 precedent. RISK-04 (33-02) and RISK-05 (33-04) are untouched by this plan.
+- [Phase 33]: 33-02: CrowdStrike native signal uses ONLY native_priority_rating (categorical, confirmed field) -- its numeric native_priority_score (exprt_score) is never touched, per CONTEXT lock + Phase 31's own flagged unverified-field risk
+- [Phase 33]: 33-02: exposure emitted as 3 separate breakdown rows (exposure_business_criticality/exposure_internet_facing/exposure_data_sensitivity), not one combined row -- matches the shape Plan 01 already reserved
+- [Phase 33]: 33-02: BUG (Rule 1 auto-fix) -- the RESEARCH-verbatim corroboration fixture (HIGH/cvss 7.5/QUALYS native 60/MEDIUM/INTERNAL, 1-vs-3 sources) produces a final_score delta of exactly 7, not 6.7, because RiskBreakdown.final_score is a rounded int and the two subtotals (41.87->42, 48.54->49) round across an integer boundary in opposite directions -- a real int-rounding artifact, not a formula bug (confirmed via manual arithmetic: the underlying corroboration component's exact pre-rounding delta is 6.667). Fixed by asserting on the underlying "corroboration" breakdown component's exact points delta (the value the DrillPanel actually renders) plus a looser correct final_score direction/magnitude check, instead of a tight tolerance on the rounded aggregate
+- [Phase 33]: 33-02: RISK-01/03/04 flipped Complete in REQUIREMENTS.md (33-02 is their last declaring plan per the 33-01 shared-ID gate note above); RISK-02/06 remain Pending for 33-03
 
 ## Performance Metrics
 
@@ -396,9 +400,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 32 P04 | 20min | 3 tasks | 7 files |
 | Phase 32 P05 | 40min | 3 tasks | 21 files |
 | Phase 33 P01 | 55min | 3 tasks | 8 files |
+| Phase 33 P02 | 32min | 2 tasks | 2 files |
 
 ## Session
 
-**Last session:** 2026-08-11T13:17:08.000Z
-**Stopped at:** Phase 33 Plan 01 (LEAD TRACER) complete — migration 042 lands the 5-column risk-exposure schema spine; risk_exposure_service.py's score_finding (pure, severity/CVSS+EPSS+KEV-floor real, native/exposure/corroboration zeroed Plan-33-02 placeholders) + compute_finding_risk_scores (DB-orchestration) wired into the single sync.py post-sync hook; GET /vulnerabilities/{id} reads the 3 new fields directly off the persisted row. 5 new backend tests green, zero-consumer grep gate confirmed, one auto-fixed mypy-baseline deviation. Phase 33 is 1/4 plans complete — continue with Plan 02 (full formula: native normalization + corroboration + real exposure context).
+**Last session:** 2026-08-11T14:00:27.000Z
+**Stopped at:** Phase 33 Plan 02 (Full formula expansion) complete — score_finding now computes the FULL 6-category 100-point formula: _normalize_native_signal (per-source 0-1, soft-null, never raises), exposure 3-row split driven by real Asset fields, corroboration capped linear fraction fed by a single tenant-scoped VulnerabilityCorrelation bulk-join (no N+1), kev_floor breakdown row emitted when the floor changes the outcome. RISK-03 re-proven under the full formula, RISK-04 proven. 10/10 tests green (5 Plan 01 regression + 5 new). Phase 33 is 2/4 plans complete — continue with Plan 03 (asset MAX rollup + severity-tier centralization).
 **Resume file:** None

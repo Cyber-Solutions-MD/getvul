@@ -112,7 +112,7 @@ Plans:
 
 **Plans**: 4 plans
 - [x] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response *(complete 2026-08-11 — migration 042 (5 nullable columns); risk_exposure_service.py's score_finding (pure, severity/CVSS+EPSS+KEV-floor real, native/exposure/corroboration zeroed Plan-33-02 placeholders) + compute_finding_risk_scores (DB-orchestration); single sync.py post-sync hook wire; GET /vulnerabilities/{id} persisted-column read. 5 new backend tests green, zero-consumer grep gate confirmed.)*
-- [ ] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures
+- [x] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures *(complete 2026-08-11 — _normalize_native_signal (per-source 0-1, soft-null, never raises); exposure 3-row split (business_criticality/internet_facing/data_sensitivity) driven by real Asset fields; corroboration capped linear fraction fed by a single tenant-scoped VulnerabilityCorrelation bulk-join (no N+1); kev_floor breakdown row emitted when the floor changes the outcome. RISK-03 re-proven under the full formula, RISK-04 proven (corroboration component delta exactly 6.67). 10/10 tests green (5 Plan 01 regression + 5 new).)*
 - [ ] 33-03-PLAN.md — Asset MAX rollup + sortable index; severity-tier centralization (one constant) + characterization regression
 - [ ] 33-04-PLAN.md — DrillPanel per-input breakdown ("why is this an 82"), shadow/preview-labeled (RISK-05)
 **UI hint**: yes
