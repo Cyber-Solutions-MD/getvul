@@ -157,3 +157,45 @@ class CisaKev(Base, TimestampMixin):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     known_ransomware_campaign_use: Mapped[str | None] = mapped_column(String(10))
     catalog_version: Mapped[str | None] = mapped_column(String(20))
+
+
+class RiskExposureBackfillJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Phase 34 Plan 01 (RISK-07) — durable, per-tenant, resumable
+    historical-recompute job state. Mirrors `AiBatchJob`'s shape
+    (`app/ai/models.py:52-90`: Base/mixins, tenant_id FK-CASCADE-index,
+    plain String(20) status -- no Python enum, codebase convention) plus a
+    `cursor_vuln_id` keyset-resume column `AiBatchJob` doesn't need (that
+    job delegates state to Anthropic's own batch API; this job chunks
+    within Postgres itself).
+
+    `UniqueConstraint(tenant_id)` -- ONE row per tenant, EVER, updated in
+    place every chunk (`cursor_vuln_id`/`rows_migrated`/`last_heartbeat_at`
+    advance); this also makes "is tenant X's backfill done" a single
+    indexed lookup, which Plan 03's flag-flip gate needs
+    (`status == "completed"`).
+
+    Idempotency is NOT this row -- it's the risk_model_version WHERE-guard
+    in `risk_backfill_service.process_backfill_chunk`. This row is the
+    resumability + throttling + per-tenant-isolation mechanism: `status`
+    (pending|in_progress|completed|failed) + `last_heartbeat_at` is the
+    claim-row concurrency guard (a stale-or-null heartbeat lets a crashed
+    process's job be reclaimed rather than wedging forever); `cursor_vuln_id`
+    is an EFFICIENCY optimization only (avoids rescanning an already-done
+    prefix), never a correctness requirement.
+    """
+
+    __tablename__ = "risk_exposure_backfill_jobs"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_risk_backfill_job_tenant"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")  # pending|in_progress|completed|failed
+    cursor_vuln_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    rows_migrated: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    rows_total_estimate: Mapped[int | None] = mapped_column(Integer)
+    chunk_size: Mapped[int] = mapped_column(Integer, default=500, server_default="500")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)

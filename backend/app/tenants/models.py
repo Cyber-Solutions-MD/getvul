@@ -51,6 +51,14 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     exposure_criticality_cap: Mapped[float] = mapped_column(Float, default=0.15, server_default="0.15")
     exposure_hard_cap_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Phase 34 (RISK-07..10) — historical-recompute + consumer-cutover config. UNLIKE
+    # exposure_hard_cap_enabled above, cutover_risk_exposure_scoring is a REAL behavioral
+    # branch in every consumer (34-CONTEXT locked). Default OFF; a human flips it on a
+    # validated live stack via POST /risk-cutover/enable (Plan 03), never in this env.
+    cutover_risk_exposure_scoring: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    risk_cutover_threshold_ack_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # RISK-09 ack gate (Plan 03)
+    risk_cutover_threshold_ack_diff_hash: Mapped[str | None] = mapped_column(String(64))  # RISK-09 staleness detection (Plan 03)
+
     users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 
 
