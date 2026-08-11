@@ -26,7 +26,7 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
 
 - [x] **Phase 30: Correlation Schema Fix** — Replace the hardcoded 4-of-6-source correlation FK columns with a `sources ARRAY(String)` + GIN shape, migrate existing data with no loss, generalize `correlation_service.py` over the full `VulnSource` enum (completed 2026-08-05)
 - [x] **Phase 31: Connector Enrichment Rewrite** — All 6 connectors thread native signals (VPR, ExPRT.AI, EPSS, real KEV) from the raw payload through ingestion; new global EPSS/KEV reference tables refreshed by a daily scheduler job (completed 2026-08-10)
-- [ ] **Phase 32: Asset Exposure Context** — Auto-infer criticality/data-sensitivity/internet-facing at asset upsert; per-asset and asset-group admin override with audit trail and criticality-inflation calibration bound
+- [x] **Phase 32: Asset Exposure Context** — Auto-infer criticality/data-sensitivity/internet-facing at asset upsert; per-asset and asset-group admin override with audit trail and criticality-inflation calibration bound (completed 2026-08-11)
 - [ ] **Phase 33: Risk-Exposure Model Definition** — Deterministic, versioned, explainable per-finding risk-exposure score; shadow-computed for a full sync cycle before any consumer reads it
 - [ ] **Phase 34: Historical Recompute & Consumer Cutover** — Idempotent/resumable/throttled per-tenant backfill; SLA/sort/trend/AI-batch-selector cutover; per-tenant threshold re-tuning acknowledgment; version-boundary guards on alerts/trends
 - [ ] **Phase 35: Source-Aware Filtering & Provenance Badges** — Per-entity OR/AND scanner-source filtering (Vulnerabilities, Assets, CSPM, Tickets) and a `SourceBadgeGroup` provenance component, batched queries
@@ -84,14 +84,14 @@ GetVul is a unified vulnerability management platform. Prior milestones (v1.0 Pr
   4. Every exposure-context override (auto or manual) is audit-logged with actor, asset/group, field, old value, and new value
   5. A calibration check caps or flags the proportion of assets auto-classified at the highest criticality tier, provable against a realistic seed-data fixture (guards against criticality inflation cascading into score/SLA distortion)
 
-**Plans**: 4/5 plans complete
+**Plans**: 5/5 plans complete
 
 Plans:
 - [x] 32-01-PLAN.md — TRACER: business_criticality end-to-end (migration + enums/columns + inference + per-asset override + audit + response dicts) *(complete 2026-08-10 — migration 037 + exposure.py + PATCH/POST override+recompute endpoints + 6 keys in both inline dicts; 10/10 tests green, EXPO-01/02/03/05)*
 - [x] 32-02-PLAN.md — all 3 fields real inference + EXPO-06 calibration check + per-tenant cap config *(complete 2026-08-10 — real data_sensitivity/internet_facing inference completing the triad; check_criticality_calibration (AUTO-only CRITICAL proportion, overrides exempt) + migration 038 per-tenant cap/hard-cap-enabled + admin GET /assets/exposure-context/calibration; 16/16 tests green, EXPO-06 complete)*
 - [x] 32-03-PLAN.md — real AssetGroup entity (model + membership + admin CRUD) + group-scope override + per-asset>group>auto precedence *(complete 2026-08-10 — migrations 039/040 + AssetGroup/AssetGroupMember/AssetGroupExposureOverride models + groups_service/groups_router at /api/v1/asset-groups + apply_precedence_to_asset (GROUP_OVERRIDE tier, most-recently-updated tiebreak) + add_member/remove_member immediate re-apply + full audit trail; 24/24 tests green, EXPO-04/EXPO-05 complete)*
 - [x] 32-04-PLAN.md — real per-connector internet-facing detection (detected-signal>proxy) + honest coverage doc *(complete 2026-08-11 — migration 041 Asset.internet_facing_detected + NormalizedVulnerability.internet_facing + sync.py passthrough + infer_exposure_context detected-signal-beats-proxy precedence; all 6 connectors (CrowdStrike/Wiz/Qualys/Nessus/Rapid7/Defender) directly inspected and honestly documented FALLBACK — none currently exposes a distinct internet-facing signal; 31/31 new+regression tests green, EXPO-02 complete)*
-- [ ] 32-05-PLAN.md — frontend: exposure card + inline override + AssetGroup management page (sketch-findings, mandatory states, admin gating)
+- [x] 32-05-PLAN.md — frontend: exposure card + inline override + AssetGroup management page (sketch-findings, mandatory states, admin gating) *(complete 2026-08-11 — exposure-context-card.tsx (3 fields + source badges incl. "group: {name}") + admin flip-edit override wired into assets/[id]'s rail; /dashboard/asset-groups management page (list/create/edit/delete + membership + per-group override) + nav entry; backend deviation added member_count + GET members/exposure-context read endpoints + group-name read-side lookup (Rule 2/3, no schema change). 18 new frontend tests + 6 new backend tests green, full frontend suite 922/922 + full backend exposure/groups suite green, tsc/eslint clean. Task 3 human-verify checkpoint recorded as accepted verification debt — no live browser in this environment.)*
 
 **UI hint**: yes
 

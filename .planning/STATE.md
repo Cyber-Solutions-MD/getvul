@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 32
 current_phase_name: Asset Exposure Context
 status: executing
-stopped_at: Phase 32 Plan 04 complete — real per-connector internet_facing detection spine (migration 041 Asset.internet_facing_detected, NormalizedVulnerability.internet_facing, sync.py create+update passthrough, infer_exposure_context detected-signal-beats-proxy precedence); all 6 connectors inspected and honestly documented FALLBACK (no vendor currently exposes a distinct signal); 31/31 new+regression tests green, 3/3 tasks, EXPO-02 complete
-last_updated: "2026-08-11T09:00:00.000Z"
+stopped_at: Phase 32 Plan 05 complete (final plan) — frontend exposure-context card (3 fields + source badges incl. "group: {name}") with admin flip-edit override on the asset detail rail, plus the /dashboard/asset-groups management page (list/create/edit/delete + membership + per-group exposure override) and nav entry; backend deviation added member_count + GET members/exposure-context read endpoints + a read-side group-name lookup (Rule 2/3, no schema change). 18 new frontend tests + 6 new backend tests green, full frontend suite 922/922 + full backend exposure/groups/owner-reassign suites green, tsc/eslint clean. Phase 32 is now 5/5 plans complete — pending /gsd-verify-work 32. Task 3 (human-verify checkpoint) recorded as accepted verification debt (no live browser in this environment), matching the milestone's established manual-UAT pattern.
+last_updated: "2026-08-11T11:10:00.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 32 Plan 04 complete, 4/5 plans
+last_activity_desc: Phase 32 Plan 05 complete, 5/5 plans — Phase 32 fully executed
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 13
-  completed_plans: 11
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 32 — Asset Exposure Context (Plan 04/5 complete)
+**Current focus:** Phase 32 — Asset Exposure Context (5/5 plans complete, pending `/gsd-verify-work 32`)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 32 — Asset Exposure Context
-Plan: 04/5 complete
+Plan: 5/5 complete — phase fully executed, pending `/gsd-verify-work 32`
 Status: In progress
-Last activity: 2026-08-11 — Phase 32 Plan 04 complete — real per-connector internet_facing detection: migration 041 adds Asset.internet_facing_detected (nullable, no default, mirrors external_ip's raw-provenance shape); NormalizedVulnerability.internet_facing (bool | None) is the per-connector real-signal contract; sync.py::_upsert_asset passthrough in create + update branches (update branch gated on `is not None`, distinguishing a genuine vendor False from "vendor said nothing"); infer_exposure_context(internet_facing_detected=...) — the detected signal wins over the v1 external_ip/tag proxy when not None, proxy applies otherwise, ASSET_OVERRIDE/GROUP_OVERRIDE still permanently wins over both. Directly inspected all 6 connectors' real raw payload/GraphQL shape (CrowdStrike, Wiz, Qualys, Nessus, Rapid7, Defender) — zero currently expose a distinct internet-facing signal; all honestly documented FALLBACK in exposure.py's module docstring coverage table (re-confirms 32-PATTERNS.md's "No Analog Found", no field name guessed). 31/31 new+regression tests green (test_connector_internet_facing.py cross-6 sweep + 4 new precedence/override tests), 146 total tests across full connector+exposure suite green, 3/3 tasks committed, EXPO-02 complete
+Last activity: 2026-08-11 — Phase 32 Plan 05 complete (final plan) — frontend surfaces the exposure-context precedence stack landed by Plans 01-04. Task 1: `ExposureContextCard` (business_criticality/data_sensitivity/internet_facing) on the asset detail page rail, each with a source badge (auto / manually set / group: {name}) driven by the `*_source` (+ new `*_group_name`) fields; admin inline flip-edit override (select/toggle) calls `useSetExposureOverride` (PATCH `/assets/{id}/exposure-context`), non-admins read-only. Task 2: `/dashboard/asset-groups` management page — list (name/description/member_count) with mandatory loading/error/explained-empty states, admin-gated create/edit/delete (ConfirmModal + ResponsiveDialog reuse), a per-group "Manage" panel (any tenant member can view) for membership (list + admin add/remove, debounced add-member search against `/api/v1/assets`) and the group-scope exposure override; nav entry added. Backend deviation (Rule 2/3, no schema change): Plan 03's `/api/v1/asset-groups` surface had no GET for member count/list or current group overrides, and no way to know which group drives a `GROUP_OVERRIDE`-sourced field — added `member_count` to the list/detail responses, two new `get_current_user`-gated read endpoints (`GET .../members`, `GET .../exposure-context`), and `exposure.py::resolve_group_override_names` (a pure read-side lookup reusing the existing tiebreak query, surfaced as `{field}_group_name` on the asset detail response) so the card's "group: {name}" badge is real, not aspirational. 18 new frontend tests (9 card + 6 page + 3 fixture updates) + 6 new backend tests (member_count, members/exposure-context read endpoints incl. non-admin read + cross-tenant 404, driving-group-name) all green; full frontend suite 922/922 green, tsc/eslint clean; backend exposure/groups/owner-reassign suites green, ruff + mypy-baseline clean (0 new violations). Task 3 (human-verify checkpoint: live visual/role-gating verification) recorded as accepted verification debt in the SUMMARY — no live browser in this environment, matching the milestone's established manual-UAT pattern (see Deferred Items). **Phase 32 is now 5/5 plans complete — ready for `/gsd-verify-work 32`.** Prior: 2026-08-11 — Phase 32 Plan 04 complete — real per-connector internet_facing detection: migration 041 adds Asset.internet_facing_detected (nullable, no default, mirrors external_ip's raw-provenance shape); NormalizedVulnerability.internet_facing (bool | None) is the per-connector real-signal contract; sync.py::_upsert_asset passthrough in create + update branches (update branch gated on `is not None`, distinguishing a genuine vendor False from "vendor said nothing"); infer_exposure_context(internet_facing_detected=...) — the detected signal wins over the v1 external_ip/tag proxy when not None, proxy applies otherwise, ASSET_OVERRIDE/GROUP_OVERRIDE still permanently wins over both. Directly inspected all 6 connectors' real raw payload/GraphQL shape (CrowdStrike, Wiz, Qualys, Nessus, Rapid7, Defender) — zero currently expose a distinct internet-facing signal; all honestly documented FALLBACK in exposure.py's module docstring coverage table (re-confirms 32-PATTERNS.md's "No Analog Found", no field name guessed). 31/31 new+regression tests green (test_connector_internet_facing.py cross-6 sweep + 4 new precedence/override tests), 146 total tests across full connector+exposure suite green, 3/3 tasks committed, EXPO-02 complete
 
 ## v4.0 Phase Map
 
@@ -337,6 +337,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 32]: 32-02: check_criticality_calibration counts ONLY business_criticality=='CRITICAL' AND business_criticality_source=='AUTO' in the numerator -- admin/group overrides are exempt (EXPO-06 CONTEXT.md decision, resolves tension with EXPO-03's override-permanence guarantee); reads cap/hard_cap_enabled inline off the Tenant row (migration 038, default 0.15/False)
 - [Phase 32]: 32-02: hard_cap_enabled is a documented, deliberately unwired flag in this plan -- no enforcement code path exists anywhere; flag+report only per CONTEXT.md, even when a tenant sets the flag True
 - [Phase 32]: 32-02: EXPO-06 marked [x] Complete in REQUIREMENTS.md (only declaring plan); EXPO-01/EXPO-02 remain Pending -- shared-ID gate, EXPO-01 also needs Plan 05 (frontend), EXPO-02 also needs Plan 04 (real per-connector internet-facing)
+- [Phase 32]: 32-05: Rule 2/3 backend deviation -- Plan 03's `/api/v1/asset-groups` surface had create/update/delete/add-member/remove-member/set-override but NO read endpoint for member count, member list, or current group overrides; the frontend management page cannot show "member_count", let an admin see/remove existing members, or see/edit an existing group override without them. Added `member_count` to the list+detail group responses (single outer-join+GROUP BY, no N+1), and two new `get_current_user`-gated (not `require_admin` -- matches the existing list/detail view gating) read endpoints: `GET /{group_id}/members` and `GET /{group_id}/exposure-context`. No schema change, no new tables -- pure additive read-side queries against already-existing tables.
+- [Phase 32]: 32-05: the exposure-context card's "group: {name}" source badge (32-CONTEXT.md truths) needs to know WHICH group currently wins the GROUP_OVERRIDE tiebreak, but no `Asset` column persists that (the tiebreak in `apply_precedence_to_asset` is resolved transiently, never written back). Added `exposure.py::resolve_group_override_names` -- reuses the existing `_resolve_group_overrides_for_asset` tiebreak query plus a name join, surfaced as `{field}_group_name` on `GET /assets/{id}` (and the per-asset override PATCH response, since it shares `_build_asset_detail`). Deliberately NOT a new column -- avoids a migration for a value that's cheap to recompute at read time and only needed for display.
+- [Phase 32]: 32-05: `useSetExposureOverride`'s mutation response IS the full asset-detail dict (same shape as `useAsset`'s GET, since the backend's PATCH handler shares `_build_asset_detail`) -- `onSuccess` writes it straight into the `byId` cache via `setQueryData` (instant, no re-fetch) rather than relying on `invalidateQueries` alone; both are called for defense-in-depth, matching the plan's literal "invalidates the asset-detail query" instruction while being faster in practice.
+- [Phase 32]: 32-05: the AssetGroup management page's membership editor has no dedicated "asset picker" endpoint -- reused the existing `useAssets({filters:{search}})` list hook (debounced 250ms, mirroring `ReassignCombobox`'s idiom) against `/api/v1/assets` rather than adding a new search-scoped endpoint; candidates already in the group are filtered out client-side against the `useGroupMembers` result.
+- [Phase 32]: 32-05: EXPO-01/EXPO-03 marked [x] Complete in REQUIREMENTS.md -- the last declaring plan (EXPO-04 was already Complete from Plan 03). All 6 EXPO requirements are now Complete; Phase 32 is 5/5 plans executed. Task 3 (human-verify checkpoint) recorded as accepted verification debt in 32-05-SUMMARY.md rather than blocking -- no live browser in this execution environment, matching the milestone's established manual-UAT precedent (24-06/25-05/26-05/27's waived-on-trust checkpoints).
 
 ## Performance Metrics
 
@@ -382,9 +387,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 31 P05 | 23min | 2 tasks | 3 files |
 | Phase 32 P01 | 30min | 3 tasks | 10 files |
 | Phase 32 P02 | 25min | 2 tasks | 6 files |
+| Phase 32 P03 | 45min | 3 tasks | 11 files |
+| Phase 32 P04 | 20min | 3 tasks | 7 files |
+| Phase 32 P05 | 40min | 3 tasks | 21 files |
 
 ## Session
 
-**Last session:** 2026-08-10T13:40:00.000Z
-**Stopped at:** Phase 32 Plan 02 complete — real data_sensitivity + internet_facing inference, EXPO-06 calibration check + per-tenant cap + admin report endpoint, 16/16 tests green, 2/2 tasks
+**Last session:** 2026-08-11T11:10:00.000Z
+**Stopped at:** Phase 32 Plan 05 complete (final plan) — exposure-context card + admin inline override on the asset detail page, /dashboard/asset-groups management page (list/CRUD/membership/group-override) + nav entry, backend read-endpoint deviation (member_count, GET members/exposure-context, group-name lookup). 18 new frontend tests + 6 new backend tests green, full frontend suite 922/922 + backend exposure/groups suites green. Phase 32 is 5/5 plans complete — pending `/gsd-verify-work 32`.
 **Resume file:** None
