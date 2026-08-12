@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-current_phase: 34
-current_phase_name: Historical Recompute & Consumer Cutover
-status: in_progress
-stopped_at: "Phase 34 Plan 05 (gap closure, 34-VERIFICATION.md score 3.5/4) complete — GAP 1: get_risk_score_trend (trends.py) now branches its PRIMARY avg_risk series on Tenant.cutover_risk_exposure_scoring, mirroring the 34-02 pattern used by list_vulnerabilities(sort=\"triage\")/get_top_findings_for_ai_batch — OFF (default) reads avg_risk_score only (byte-identical to pre-Phase-34, no extra key), ON swaps to avg_risk_exposure_score; capture_daily_snapshot's RISK-10 dual-write stays unconditional (only the read path branches). Updated test_risk_boundary_guard.py::test_trend_no_cliff (previously asserted the old unconditional dual-key shape) to prove continuity under the flag a tenant actually reads with. GAP 2: new admin-only POST /api/v1/risk-cutover/backfill/enqueue gives RISK-07's backfill machinery (enqueue_backfill_job, previously called only from tests) a real production trigger — wraps the already-idempotent enqueue_backfill_job with audit()-then-commit (only on a genuinely NEW enqueue, never a repeated no-op), RBAC 403 for non-admin, idempotent (same job returned, no duplicate row/audit) when already active or completed. 7 new tests green (3 test_risk_trend_cutover.py + 4 test_risk_backfill_enqueue_endpoint.py), full RISK-08/09/10/trend/dashboard regression window (21 tests) + flag-OFF vulnerabilities/SLA/AI-batch regression (23 tests) all green, 0 new mypy-baseline violations, ruff clean, single alembic head unchanged (044 — no new migration). RISK-08 flipped to Complete in REQUIREMENTS.md (was Pending — this plan closes that gap). Phase 34 is now 5/5 plans complete. Next: /gsd-verify-phase 34 (re-verify), then /gsd-plan-phase 35."
-last_updated: "2026-08-12T09:00:00Z"
+current_phase: 35
+current_phase_name: Source-Aware Filtering & Provenance Badges
+status: planning
+stopped_at: "Phase 34 Plan 05 (gap closure — RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete — see STATE frontmatter `stopped_at` for full detail. Next: /gsd-verify-phase 34 (re-verify against 34-VERIFICATION.md's two gaps), then /gsd-plan-phase 35."
+last_updated: "2026-08-12T09:13:22.270Z"
 last_activity: 2026-08-12
-last_activity_desc: Phase 34 Plan 05 (gap closure — RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete — Phase 34 now 5/5 plans complete
+last_activity_desc: Phase 34 complete, transitioned to Phase 35
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 21
-  completed_plans: 21
+  total_plans: 20
+  completed_plans: 20
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 34 — Historical Recompute & Consumer Cutover
-Plan: 01/02/03/04/05 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover; RISK-09 diff+ack; RISK-10 boundary guards; 05 gap closure) — phase fully executed
-Status: Phase 34 complete (5/5 plans), pending /gsd-verify-phase 34 re-verify
-Last activity: 2026-08-12 — 34-05 (gap closure: RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete
+Phase: 35 — Source-Aware Filtering & Provenance Badges
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-12 — Phase 34 complete, transitioned to Phase 35
 
 ## v4.0 Phase Map
 

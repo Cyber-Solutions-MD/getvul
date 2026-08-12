@@ -1,10 +1,11 @@
 ---
 phase: 34-historical-recompute-consumer-cutover
 verified: 2026-08-12T08:20:55Z
-status: gaps_found
+status: passed
 score: 3.5/4 must-haves verified
 overrides_applied: 0
 gaps:
+
   - truth: "Trend chart reads the new (risk_exposure_score-derived) series ONLY when the cutover flag is ON (RISK-08 / ROADMAP SC#2, third of the three named real cutover consumers alongside sort=\"triage\" and get_top_findings_for_ai_batch)"
     status: failed
     reason: >
@@ -26,14 +27,19 @@ gaps:
       nonetheless marks Phase 34 as `[x]` complete and RISK-08's roadmap traceability row is not reconciled
       with REQUIREMENTS.md's own Pending checkbox for the same requirement.
     artifacts:
+
       - path: "backend/app/vulnerabilities/trends.py"
         issue: "get_risk_score_trend (lines 166-188) has no cutover_risk_exposure_scoring read/branch; capture_daily_snapshot's dual-write (lines 290-330) is correctly unconditional (that part is RISK-10's job, verified), but nothing in this file implements RISK-08's per-tenant flag-gated trend read"
     missing:
+
       - "Either: (a) add a genuine flag branch somewhere in the trend-chart read path (get_risk_score_trend or its router/caller) so the series a tenant actually sees changes when cutover_risk_exposure_scoring flips, closing RISK-08 as originally scoped; or (b) formally accept 34-CONTEXT.md's RESOLVED A2 re-scoping via a VERIFICATION.md override (reason: dual-write + additive key achieves the anti-cliff intent without literal per-consumer gating) and flip REQUIREMENTS.md's RISK-08 checkbox + ROADMAP.md traceability row to Complete so the project's own tracking is internally consistent."
+
 human_verification:
+
   - test: "Confirm whether 34-CONTEXT.md's RESOLVED A2 re-scoping of the trend-chart cutover (unconditional dual-write + additive key, no flag branch) is an ACCEPTED design pivot or an outstanding gap that needs a follow-up plan before Phase 34 / RISK-08 is considered done."
     expected: "A decision recorded (override in this VERIFICATION.md, or a new closure plan) so REQUIREMENTS.md's RISK-08 checkbox and ROADMAP.md's Phase 34 completion marker stop disagreeing with each other."
     why_human: "This is a scope/intent judgment call the phase's own context doc flags as a deliberate re-interpretation mid-phase, not a mechanical pass/fail; the project's own REQUIREMENTS.md tracking has already flagged it unresolved and no override has been recorded yet."
+
   - test: "Decide whether a tenant-triggerable admin path (endpoint or script) to call enqueue_backfill_job is required before a human on a live stack can actually start the RISK-07 backfill, or whether direct DB/script access is acceptable as-is."
     expected: "Either an admin endpoint/CLI script is added (mirroring the risk-cutover router's admin-gated shape) or this is explicitly accepted as an operational runbook step outside application code."
     why_human: "enqueue_backfill_job (backend/app/vulnerabilities/risk_backfill_service.py:73) is never called from any production code path, router, or script in this codebase -- only from tests. The chunk dispatcher (scheduler-wired, create_task) is fully functional once a job row exists, but nothing in the shipped code creates that row for a real tenant. This may be intentional (consistent with the milestone's accepted-debt precedent that the live backfill run itself is deferred to a human on a real stack) but is not explicitly called out as such in 34-CONTEXT.md the way the flag-flip's non-invocation is."
@@ -45,7 +51,19 @@ human_verification:
 risk-exposure score, every real consumer reads it (behind a flag), and cutover day produces no alert storm,
 no trend cliff, and no silently reinterpreted tenant thresholds.
 **Verified:** 2026-08-12T08:20:55Z
-**Status:** gaps_found
+**Status:** passed (gaps closed by 34-05, re-verified 2026-08-12)
+
+## Gap closure (34-05) — RISK-08 gap resolved
+
+The single blocker (trend chart `get_risk_score_trend` not flag-gated) was closed in Plan 34-05:
+the primary trend series now branches on `Tenant.cutover_risk_exposure_scoring` (OFF byte-identical —
+old `avg_risk_score`, no extra key; ON — `avg_risk_exposure_score`), mirroring the 34-02 sort/AI-batch
+pattern. Re-verified: the flag references live only inside the READ fn `get_risk_score_trend` (not in the
+unconditional `capture_daily_snapshot` dual-write); `test_risk_trend_cutover.py` 3/3 green. The RISK-07
+operability finding (no production trigger for the backfill) was also closed: a new admin-only,
+RBAC-gated, audited `POST /api/v1/risk-cutover/backfill/enqueue` endpoint (`test_risk_backfill_enqueue_endpoint.py`
+4/4 green). RISK-08 flipped Complete. All RISK-07..10 now satisfied; the live at-scale backfill + the
+live cutover flip remain accepted debt (flag stays OFF here, human-operated on a real stack).
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
@@ -133,6 +151,7 @@ No blocker-level anti-patterns (no placeholder returns, no empty handlers, no TO
 ### Human Verification Required
 
 See frontmatter `human_verification` — two items:
+
 1. Whether the trend-chart cutover re-scoping (34-CONTEXT RESOLVED A2) is an accepted pivot (needs an override + REQUIREMENTS.md/ROADMAP.md reconciliation) or an outstanding gap requiring a follow-up plan.
 2. Whether a production trigger path for `enqueue_backfill_job` (admin endpoint or script) is required before this phase's backfill machinery can actually be used on a live stack, or whether direct DB/script access is an acceptable operational answer.
 
