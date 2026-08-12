@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset
+from app.assets.constants import ENRICHMENT_SOURCES, SCANNER_SOURCES
 from app.assets.exposure import EXPOSURE_FIELDS, resolve_group_override_names
 from app.assets.models import Asset, BusinessCriticality, DataSensitivity
 from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
@@ -126,7 +127,9 @@ async def list_assets(
     page_size: int = Query(25, ge=1, le=100),
     search: str = Query("", description="Search hostname or OS"),
     device_category: str = Query("", description="WORKSTATION,SERVER,NETWORK,MOBILE,OTHER"),
-    scanner: str = Query("", description="CROWDSTRIKE,NESSUS,DEFENDER,WIZ,JAMF"),
+    scanner: str = Query("", description="CROWDSTRIKE,NESSUS,DEFENDER,WIZ,QUALYS,RAPID7 (scanner sources only)"),
+    source_mode: str = Query("or", description="'or' (default, any selected scanner) or 'and' (all selected)"),
+    enrichment_source: str = Query("", description="JAMF,HUMAANS,INTUNE — OR-only facet, no AND semantics"),
     min_risk: int = Query(0, ge=0, le=100),
     sort_by: str = Query("risk_score", description="risk_score,hostname,os_name,device_category"),
     sort_dir: str = Query("desc", description="asc or desc"),
@@ -136,6 +139,17 @@ async def list_assets(
     db: AsyncSession = Depends(get_db),
 ):
     """List assets with filtering, pagination, sorting."""
+    from fastapi import HTTPException
+
+    # SRC-02: source_mode is a plain str Query param (this router builds
+    # filters from explicit params, not a Pydantic Depends(Filter) model —
+    # see os_family's identical inline-parse convention below), so the
+    # or|and clamp is an explicit check here rather than a Literal[...]
+    # field. Anything else is rejected with 422, never silently defaulted.
+    mode = (source_mode or "or").strip().lower()
+    if mode not in {"or", "and"}:
+        raise HTTPException(422, "source_mode must be 'or' or 'and'")
+
     query = select(Asset).where(Asset.tenant_id == user.tenant_id)
 
     # Ignored filter
@@ -152,11 +166,49 @@ async def list_assets(
         if categories:
             query = query.where(Asset.device_category.in_(categories))
     if scanner:
-        # Filter by seen_by_sources containing the scanner
-        # seen_by_sources is a JSONB array like ["CROWDSTRIKE", "NESSUS"]
+        # seen_by_sources is a JSONB array like ["CROWDSTRIKE", "NESSUS"].
+        #
+        # SRC-03 bug fix: this used to be a chained `.where(...)` loop, one
+        # call per selected scanner — SQLAlchemy ANDs successive `.where()`
+        # calls, so a multi-select silently meant "seen by ALL" (the
+        # opposite of the intended OR-default). Now OR-default via
+        # `or_(*contains)`, with the true-AND (real multi-scanner
+        # corroboration) gated behind the explicit `source_mode=and` toggle.
+        # SRC-06: clamped to SCANNER_SOURCES so an enrichment source (JAMF/
+        # HUMAANS/INTUNE) can never leak into a scanner-corroboration filter.
+        from sqlalchemy import false, or_
+
         scanners = [s.strip().upper() for s in scanner.split(",") if s.strip()]
-        for s in scanners:
-            query = query.where(Asset.seen_by_sources.contains([s]))
+        scanners = [s for s in scanners if s in SCANNER_SOURCES]
+        if scanners:
+            if mode == "and":
+                for s in scanners:  # explicit AND — true multi-scanner corroboration
+                    query = query.where(Asset.seen_by_sources.contains([s]))
+            else:
+                query = query.where(or_(*[Asset.seen_by_sources.contains([s]) for s in scanners]))  # OR default
+        else:
+            # `scanner=` was given but every value was clamped out (e.g. an
+            # enrichment-only source) — match nothing rather than silently
+            # falling through to "no filter" (which would leak
+            # enrichment-tagged assets into a scanner-only view).
+            query = query.where(false())
+
+    if enrichment_source:
+        # SRC-06: plain OR facet, NO AND-corroboration semantics — these are
+        # presence facts (an asset was seen by JAMF/HUMAANS/Intune), not
+        # multi-tool corroboration signals, so there is no `source_mode`
+        # equivalent here.
+        from sqlalchemy import false, or_
+
+        enr = [e.strip().upper() for e in enrichment_source.split(",") if e.strip()]
+        enr = [e for e in enr if e in ENRICHMENT_SOURCES]
+        # if/else (not a ternary) intentionally mirrors the scanner block's
+        # shape above for readability at this call site.
+        if enr:  # noqa: SIM108
+            query = query.where(or_(*[Asset.seen_by_sources.contains([e]) for e in enr]))
+        else:
+            query = query.where(false())
+
     if min_risk > 0:
         query = query.where(Asset.risk_score >= min_risk)
 
@@ -230,6 +282,13 @@ async def list_assets(
                 "device_category": a.device_category or "OTHER",
                 "risk_score": a.risk_score or 0,
                 "seen_by_sources": a.seen_by_sources or {},
+                # SRC-01/08 (assets side): derived in-Python from the
+                # already-selected seen_by_sources column — NO extra query,
+                # so list_assets stays page-size-invariant in statement
+                # count (SRC-08). sources_count counts SCANNER_SOURCES only
+                # (excludes enrichment sources like JAMF, SRC-06).
+                "sources": a.seen_by_sources or [],
+                "sources_count": len([s for s in (a.seen_by_sources or []) if s in SCANNER_SOURCES]),
                 "assigned_user": a.assigned_user,
                 "department": a.department,
                 "model": a.model,

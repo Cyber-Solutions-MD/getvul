@@ -24,9 +24,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.assets.constants import SCANNER_SOURCES
 from app.assets.models import Asset
 from app.ticketing.dispatch import build_ticketing_client
 from app.ticketing.models import Ticket, TicketRule
@@ -66,11 +67,22 @@ async def find_matching_assets(
     if min_risk is not None and min_risk > 0:
         query = query.where(Asset.risk_score >= min_risk)
 
-    # Scanner filter (from "scanner" or "source" conditions)
+    # Scanner filter (from "scanner" or "source" conditions).
+    #
+    # SRC-03 bug fix: this used to be a chained `.where(...)` loop (one call
+    # per condition scanner), the IDENTICAL AND-bug as assets/router.py's
+    # pre-fix scanner filter — SQLAlchemy ANDs successive `.where()` calls,
+    # so a rule listing 2+ scanners silently required "seen by ALL" instead
+    # of "seen by ANY" (CONTEXT.md "Real bug to fix"). Now OR-default via
+    # `or_(*contains)`, clamped to SCANNER_SOURCES (shared with the assets
+    # router) so an enrichment source can't masquerade as a scanner
+    # condition. No AND toggle here — the rule schema has no such axis
+    # today; OR-default is the correct fix (interfaces block note).
     scanners = conditions.get("scanner") or conditions.get("source")
     if scanners and isinstance(scanners, list):
-        for s in scanners:
-            query = query.where(Asset.seen_by_sources.contains([s]))
+        scanners = [s for s in (x.strip().upper() for x in scanners) if s in SCANNER_SOURCES]
+        if scanners:
+            query = query.where(or_(*[Asset.seen_by_sources.contains([s]) for s in scanners]))
 
     assets = (await db.execute(query)).scalars().all()
 
