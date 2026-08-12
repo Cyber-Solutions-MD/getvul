@@ -45,6 +45,10 @@ const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const;
 const STATUSES = ['OPEN', 'IN_PROGRESS', 'REMEDIATED', 'SUPPRESSED', 'FALSE_POSITIVE'] as const;
 const SOURCES = ['CROWDSTRIKE', 'WIZ', 'DEFENDER', 'QUALYS', 'RAPID7', 'NESSUS'] as const;
 const CLOUD_PROVIDERS = ['ALL', 'AWS', 'AZURE', 'GCP'] as const;
+// Phase 35 SRC-02/05: OR (any selected tool, default) vs AND (true
+// multi-tool corroboration via the backend's read-time
+// GROUP BY(tenant_id, rule_id, resource_id) — Plan 04).
+const SOURCE_MODES = ['or', 'and'] as const;
 
 type Severity = typeof SEVERITIES[number];
 type Status = typeof STATUSES[number];
@@ -110,6 +114,13 @@ function CspmPageInner() {
   const [status, setStatus] = useUrlStateList<Status>('status', STATUSES, []);
   const [source, setSource] = useUrlStateList<Source>('source', SOURCES, []);
   const [cloudProvider, setCloudProvider] = useUrlState<string>('cloud_provider', CLOUD_PROVIDERS as unknown as readonly string[], 'ALL');
+  // Phase 35 SRC-02/05 — OR/AND source_mode toggle, sibling to the source
+  // axis (mirrors vulnerabilities/chip-bar.tsx's Plan-02 pattern). Disabled
+  // below 2 selected sources (Pitfall 1) — the backend documents AND-with-<2
+  // as a no-op OR fallback.
+  const [sourceMode, setSourceMode] = useUrlState<(typeof SOURCE_MODES)[number]>('source_mode', SOURCE_MODES, 'or');
+  const sourceModeDisabled = source.length < 2;
+  const sourceModeIsAnd = sourceMode === 'and';
 
   const search = params?.get('search') ?? '';
   const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
@@ -125,9 +136,10 @@ function CspmPageInner() {
     severity: severity.length > 0 ? severity : undefined,
     status: status.length > 0 ? status : undefined,
     source: source.length > 0 ? source : undefined,
+    source_mode: sourceMode,
     cloud_provider: cloudProvider !== 'ALL' ? cloudProvider : undefined,
     search: search || undefined,
-  }), [severity, status, source, cloudProvider, search]);
+  }), [severity, status, source, sourceMode, cloudProvider, search]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const findingsQ = useCspmFindings({ filters, page: pageNum });
@@ -192,6 +204,37 @@ function CspmPageInner() {
             searchPlaceholder="Search rule, resource…"
             searchAriaLabel="Search CSPM findings"
           />
+        )}
+
+        {/* Phase 35 SRC-02/05 — OR/AND source_mode toggle, sibling to the
+            source axis (ChipAxis has no mode field). Disabled below 2
+            selected sources — a no-op AND is worse UX than an inert
+            control. Mirrors chip-bar.tsx's (Plan 02) toggle shape + copy
+            verbatim. */}
+        {!isEmptyFiltered && (
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-xs uppercase tracking-wide text-text-muted">
+              {CSPM_MICROCOPY.chips.sourceModeLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSourceMode(sourceModeIsAnd ? 'or' : 'and')}
+              disabled={sourceModeDisabled}
+              aria-pressed={sourceModeIsAnd}
+              title={sourceModeDisabled ? CSPM_MICROCOPY.chips.sourceModeDisabledHint : undefined}
+              data-source-mode-toggle
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+                sourceModeIsAnd
+                  ? 'border-border bg-surface-2 text-text'
+                  : 'border-border-subtle bg-surface text-text-muted hover:bg-surface-2 hover:text-text',
+              )}
+            >
+              {sourceModeIsAnd ? CSPM_MICROCOPY.chips.sourceModeAll : CSPM_MICROCOPY.chips.sourceModeAny}
+            </button>
+          </div>
         )}
 
         {/* Cloud segmented control (D-CSPM-02) */}

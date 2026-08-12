@@ -232,6 +232,25 @@ describe('CSPM page - state patterns', () => {
   });
 });
 
+// ── Phase 35 SRC-02/05: OR/AND source_mode toggle ────────────────────────────
+describe('CSPM page - source_mode toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSuccessfulMocks();
+  });
+
+  it('renders the source_mode toggle, disabled by default (0 selected sources), with no AND/OR jargon', async () => {
+    const CSPMPage = (await import('./page')).default;
+    render(<CSPMPage />);
+
+    const toggle = document.querySelector('[data-source-mode-toggle]');
+    expect(toggle).toBeTruthy();
+    expect(toggle).toBeDisabled();
+    expect(screen.getByText(/any selected/i)).toBeInTheDocument();
+    expect(screen.queryByText(/\bAND\b|\bOR\b/)).toBeNull();
+  });
+});
+
 // ── Test 4: Bulk selection shows CspmBulkBar ─────────────────────────────────
 describe('CSPM page - bulk actions', () => {
   beforeEach(() => {

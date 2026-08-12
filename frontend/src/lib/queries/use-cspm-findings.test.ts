@@ -62,6 +62,18 @@ describe('useCspmFindings', () => {
   });
 });
 
+// Phase 35 SRC-02/05 — buildCspmParams source_mode wiring.
+describe('buildCspmParams', () => {
+  it('omits source_mode when "or" (the default) — only sends it when explicitly "and"', async () => {
+    const { buildCspmParams } = await import('./use-cspm-findings');
+    const spDefault = buildCspmParams({ filters: { source: ['WIZ', 'DEFENDER'], source_mode: 'or' }, page: 1 });
+    expect(spDefault.get('source_mode')).toBeNull();
+
+    const spAnd = buildCspmParams({ filters: { source: ['WIZ', 'DEFENDER'], source_mode: 'and' }, page: 1 });
+    expect(spAnd.get('source_mode')).toBe('and');
+  });
+});
+
 // ── Test 2: useComplianceFrameworks ──────────────────────────────────────────
 describe('useComplianceFrameworks', () => {
   beforeEach(() => { vi.clearAllMocks(); });

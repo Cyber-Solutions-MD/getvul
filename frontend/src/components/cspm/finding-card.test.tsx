@@ -89,4 +89,41 @@ describe('FindingCard', () => {
     // data-finding-card attribute
     expect(document.querySelector('[data-finding-card]')).toBeTruthy();
   });
+
+  // Phase 35 SRC-01/05 — shared SourceBadgeGroup on CSPM finding cards.
+  it('renders SourceBadgeGroup: single neutral mark when sources is a 1-tool group', async () => {
+    const { FindingCard } = await import('./finding-card');
+    const { container } = render(
+      <FindingCard
+        finding={{ ...mockFinding, sources: ['WIZ'], sources_count: 1 }}
+        selected={false}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('[data-source-badge-group="single"]')).toBeTruthy();
+    expect(container.textContent).not.toContain('confirmed');
+  });
+
+  it('renders SourceBadgeGroup: multi-source corroborated group + "N sources" label', async () => {
+    const { FindingCard } = await import('./finding-card');
+    const { container } = render(
+      <FindingCard
+        finding={{ ...mockFinding, sources: ['WIZ', 'DEFENDER'], sources_count: 2 }}
+        selected={false}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('[data-source-badge-group="multi"]')).toBeTruthy();
+    expect(screen.getByText('2 sources')).toBeTruthy();
+  });
+
+  it('falls back to [finding.source] when sources is absent (pre-Plan-04 shape)', async () => {
+    const { FindingCard } = await import('./finding-card');
+    const { container } = render(
+      <FindingCard finding={mockFinding} selected={false} onSelect={vi.fn()} onOpen={vi.fn()} />,
+    );
+    expect(container.querySelector('[data-source-badge-group="single"]')).toBeTruthy();
+  });
 });

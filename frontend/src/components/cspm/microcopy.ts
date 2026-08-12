@@ -31,6 +31,15 @@ export const CSPM_MICROCOPY = {
     reopened: (n: number) => `Reopened ${n} finding${n === 1 ? '' : 's'}.`,
     error: 'Bulk action failed. Please try again.',
   },
+  // Phase 35 SRC-02/05 — OR/AND source-mode toggle. Copy reused verbatim
+  // from vulnerabilities/microcopy.ts (Plan 02) so the label is identical
+  // across every surface. Avoids AND/OR jargon (copy-voice.md).
+  chips: {
+    sourceModeLabel: 'Match',
+    sourceModeAny: 'Any selected',
+    sourceModeAll: 'All selected',
+    sourceModeDisabledHint: 'Select 2 or more sources to match all of them',
+  },
 } as const;
 
 /** Severity glyphs per visual-language.md (CRITICAL ■ / HIGH ▲ / MEDIUM ◆ / LOW ○). */

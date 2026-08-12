@@ -35,11 +35,20 @@ export type MisconfigSummary = {
   cloud_provider: string;
   first_detected_at: string;
   last_seen_at: string;
+  /** Phase 35 SRC-05: page-scoped batched group provenance — every tool that
+   * flagged this (rule_id, resource_id) group. */
+  sources?: string[];
+  /** Count of distinct tools in that group; defaults server-side to 1 (no
+   * correlation row = single source, never "unknown"). */
+  sources_count?: number;
 };
 
 export type CspmFilters = {
   severity?: readonly string[];
   source?: readonly string[];
+  /** Phase 35 SRC-05: OR (default) vs AND (true multi-tool corroboration
+   * via a read-time GROUP BY(tenant_id, rule_id, resource_id)). */
+  source_mode?: 'or' | 'and';
   status?: readonly string[];
   cloud_provider?: string;
   resource_type?: string;
@@ -90,6 +99,12 @@ export function buildCspmParams(opts: {
 
   filters.severity?.forEach((s) => sp.append('severity', s));
   filters.source?.forEach((s) => sp.append('source', s));
+  // source_mode: OR (default, omitted) vs AND (explicit toggle) — SRC-05.
+  // Router binds a Literal["or","and"] Query param (auto-422 on anything
+  // else); only send it when non-default to keep the common OR case clean.
+  if (filters.source_mode && filters.source_mode !== 'or') {
+    sp.set('source_mode', filters.source_mode);
+  }
   filters.status?.forEach((s) => sp.append('status', s));
   if (filters.cloud_provider) sp.set('cloud_provider', filters.cloud_provider);
   if (filters.resource_type) sp.set('resource_type', filters.resource_type);

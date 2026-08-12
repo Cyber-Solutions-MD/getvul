@@ -30,6 +30,7 @@ import { ConnectorMark } from '@/components/connectors/connector-mark';
 import type { ConnectorProvider } from '@/components/connectors/types';
 import { CspmStatusPill } from './cspm-status-pill';
 import { SEVERITY_GLYPH, SEVERITY_CLASS } from './microcopy';
+import { SourceBadgeGroup } from '@/components/vulnerabilities/source-badge-group';
 import type { MisconfigSummary } from '@/lib/queries/use-cspm-findings';
 
 // T-14-12: literal lookup — unknown cloud_provider falls through to undefined (no gradient injection).
@@ -109,6 +110,16 @@ export function FindingCard({ finding, selected, onSelect, onOpen, frameworks = 
           <p className="font-mono text-xs text-text-muted truncate" title={finding.resource_id}>
             {finding.resource_id}
           </p>
+
+          {/* Phase 35 SRC-01/05 — shared SourceBadgeGroup: single vs
+              multi-tool corroboration for this (rule_id, resource_id)
+              group, never "confirmed" from one tool. Falls back to
+              [finding.source] for pre-Plan-04 responses that lack the
+              batched sources field. */}
+          <SourceBadgeGroup
+            sources={finding.sources ?? (finding.source ? [finding.source] : [])}
+            count={finding.sources_count}
+          />
 
           {/* Framework tags */}
           {frameworks.length > 0 && (
