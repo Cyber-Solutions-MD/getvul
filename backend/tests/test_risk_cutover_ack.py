@@ -101,11 +101,11 @@ async def test_threshold_diff_computation(client_factory, db_session, tenant_a, 
     await _seed_rule(db_session, tenant_a, min_risk_score=80)
     await _seed_saved_filter(db_session, tenant_a, min_risk_score=50)
 
-    # OLD (risk_score): 1 asset >= 80, 2 assets >= 50.
-    # NEW (risk_exposure_score): 2 assets >= 80, 3 assets >= 50.
+    # OLD (risk_score): 1 asset >= 80 (a1), 2 assets >= 50 (a1, a2).
+    # NEW (risk_exposure_score): 2 assets >= 80 (a1, a2), 3 assets >= 50 (a1, a2, a3).
     await _seed_asset(db_session, tenant_a, "a1", risk_score=90, risk_exposure_score=95)
     await _seed_asset(db_session, tenant_a, "a2", risk_score=60, risk_exposure_score=85)
-    await _seed_asset(db_session, tenant_a, "a3", risk_score=55, risk_exposure_score=55)
+    await _seed_asset(db_session, tenant_a, "a3", risk_score=45, risk_exposure_score=55)
     await _seed_asset(db_session, tenant_a, "a4", risk_score=10, risk_exposure_score=10)
     await db_session.commit()
 

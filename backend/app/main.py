@@ -39,6 +39,7 @@ from app.search import search_router
 from app.tenants.router import router as tenant_router
 from app.ticketing.router import router as tickets_router
 from app.users.router import router as users_router
+from app.vulnerabilities.risk_cutover_router import router as risk_cutover_router
 from app.vulnerabilities.router import router as vuln_router
 
 logger = structlog.get_logger()
@@ -318,6 +319,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
     app.include_router(search_router, prefix="/api/v1", tags=["Search"])
     app.include_router(ai_router)
+    app.include_router(risk_cutover_router, prefix="/api/v1/risk-cutover", tags=["Risk Cutover"])
 
     @app.get("/health")
     async def health_check():

@@ -66,6 +66,10 @@ class AuditLog(Base):
 #   asset_group.member_add, asset_group.member_remove,
 #   asset_group.exposure_override (Phase 32 Plan 03 — EXPO-04/EXPO-05; one row
 #   per group mutation, regardless of how many member assets it fans out to)
+# risk_cutover.threshold_ack (Phase 34 Plan 03 — RISK-09, admin-only, records
+#   the per-tenant re-tuning acknowledgment that gates the flag flip below),
+#   risk_cutover.flag_enable (admin-only, actor=admin email; the flip is
+#   consequential+rare, never actually invoked live in this environment)
 
 
 # ── Syslog forwarder ──
