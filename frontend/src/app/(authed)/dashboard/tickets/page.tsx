@@ -54,6 +54,10 @@ const STATUS_ALLOW = ['open', 'in_progress', 'completed', 'blocked'] as const;
 const PROVIDER_ALLOW = ['jira', 'asana', 'github'] as const;
 const SEVERITY_ALLOW = ['critical', 'high', 'medium', 'low'] as const;
 const SLA_ALLOW = ['overdue', 'soon', 'ok'] as const;
+// Phase 35 SRC-02/03: the real 6-value VulnSource scanner set — a REAL
+// server-side OR-default filter (Plan 04's `?source=`), mirrors
+// TicketsChipBar's SOURCE_ALLOW.
+const SOURCE_ALLOW = ['CROWDSTRIKE', 'NESSUS', 'DEFENDER', 'WIZ', 'QUALYS', 'RAPID7'] as const;
 const VIEW_ALLOW = ['list', 'board'] as const;
 type View = (typeof VIEW_ALLOW)[number];
 
@@ -116,6 +120,8 @@ function TicketsPageInner() {
   const [provider] = useUrlStateList<string>('provider', PROVIDER_ALLOW, []);
   const [severity] = useUrlStateList<string>('severity', SEVERITY_ALLOW, []);
   const [sla] = useUrlStateList<string>('sla', SLA_ALLOW, []);
+  // Phase 35 SRC-02 — real server-filtering source axis (TicketsChipBar).
+  const [source] = useUrlStateList<string>('source', SOURCE_ALLOW, []);
   const [view, setView] = useUrlState<View>('view', VIEW_ALLOW, 'list');
   const search = params?.get('search') ?? '';
   const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
@@ -130,9 +136,10 @@ function TicketsPageInner() {
       provider: provider.length ? provider : undefined,
       severity: severity.length ? severity : undefined,
       sla: sla.length ? sla : undefined,
+      source: source.length ? source : undefined,
       search: search || undefined,
     }),
-    [status, provider, severity, sla, search],
+    [status, provider, severity, sla, source, search],
   );
 
   const q = useTickets({ filters, page: pageNum, view });

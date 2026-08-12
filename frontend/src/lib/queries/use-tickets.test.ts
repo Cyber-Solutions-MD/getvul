@@ -71,4 +71,27 @@ describe('useTickets buildSearchParams', () => {
     const sp = buildSearchParams({ filters: { status: [] }, page: 1 });
     expect(sp.has('status')).toBe(false);
   });
+
+  // Phase 35 SRC-02 — real server-filtering source axis (repeated params,
+  // not comma-joined, matching the backend's `list[str] Query(None)` shape).
+  it('appends source as repeated params (not comma-joined)', () => {
+    const sp = buildSearchParams({
+      filters: { source: ['QUALYS', 'RAPID7'] },
+      page: 1,
+    });
+    expect(sp.getAll('source')).toEqual(['QUALYS', 'RAPID7']);
+  });
+
+  it('allow-list clamp — out-of-list source value is dropped', () => {
+    const sp = buildSearchParams({
+      filters: { source: ['QUALYS', 'TENABLE'] as unknown as string[] },
+      page: 1,
+    });
+    expect(sp.getAll('source')).toEqual(['QUALYS']);
+  });
+
+  it('does not emit source param when array is empty', () => {
+    const sp = buildSearchParams({ filters: { source: [] }, page: 1 });
+    expect(sp.has('source')).toBe(false);
+  });
 });

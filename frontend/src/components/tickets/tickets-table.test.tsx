@@ -24,6 +24,9 @@ const ROW: TicketSummary = {
   critical_count: 2,
   high_count: 1,
   external_ticket_url: 'https://example.atlassian.net/browse/PROJ-101',
+  // Phase 35 SRC-07: transitive union provenance — 2 scanners corroborate.
+  sources: ['QUALYS', 'RAPID7'],
+  sources_count: 2,
 };
 
 describe('TicketsTable', () => {
@@ -57,5 +60,24 @@ describe('TicketsTable', () => {
     // Both desktop table and mobile card render VulnCount; use getAllByText.
     const vulnTotals = screen.getAllByText('5');
     expect(vulnTotals.length).toBeGreaterThan(0);
+  });
+
+  // Phase 35 SRC-01/07 — shared SourceBadgeGroup: transitive union
+  // provenance, distinct from the ticket-provider mark.
+  it('renders SourceBadgeGroup (transitive union provenance) distinct from ProviderMark', () => {
+    render(<TicketsTable rows={[ROW]} onRowClick={vi.fn()} />);
+    const groups = screen.getAllByText('2 sources');
+    expect(groups.length).toBeGreaterThan(0);
+    const multiGroup = document.querySelectorAll('[data-source-badge-group="multi"]');
+    expect(multiGroup.length).toBeGreaterThan(0);
+    // Never overclaims "confirmed" from provenance.
+    expect(document.body.textContent).not.toContain('confirmed');
+  });
+
+  it('renders the neutral empty-source state (em-dash) when a ticket has no sources', () => {
+    const noSourceRow: TicketSummary = { ...ROW, sources: undefined, sources_count: undefined };
+    render(<TicketsTable rows={[noSourceRow]} onRowClick={vi.fn()} />);
+    const emptyGroups = document.querySelectorAll('[data-source-badge-group="empty"]');
+    expect(emptyGroups.length).toBeGreaterThan(0);
   });
 });

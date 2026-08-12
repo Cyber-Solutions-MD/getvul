@@ -12,12 +12,18 @@ const STATUS_ALLOW = ['open', 'in_progress', 'completed', 'blocked'] as const;
 const PROVIDER_ALLOW = ['jira', 'asana', 'github'] as const;
 const SEVERITY_ALLOW = ['critical', 'high', 'medium', 'low'] as const;
 const SLA_ALLOW = ['overdue', 'soon', 'ok'] as const;
+// Phase 35 SRC-02/03: the real 6-value VulnSource scanner set — the source
+// of the linked vulnerability, not the ticket's own provider (Jira/Asana).
+const SOURCE_ALLOW = ['CROWDSTRIKE', 'NESSUS', 'DEFENDER', 'WIZ', 'QUALYS', 'RAPID7'] as const;
 
 export type TicketsFilters = {
   status?: readonly string[];
   provider?: readonly string[];
   severity?: readonly string[];
   sla?: readonly string[];
+  /** Phase 35 SRC-02: REAL server-side OR-default filter joined through the
+   * linked Vulnerability (backend `?source=`, Plan 04) — not display-only. */
+  source?: readonly string[];
   search?: string;
 };
 
@@ -40,6 +46,13 @@ export type TicketSummary = {
   critical_count: number;
   high_count: number;
   external_ticket_url: string;
+  /** Phase 35 SRC-07: transitive union of every linked vuln's correlation
+   * sources — resolved through VulnerabilityCorrelation, not just the one
+   * vuln that triggered ticket creation. */
+  sources?: string[];
+  /** Distinct source count for the union above; defaults server-side to 1
+   * (no correlation row = single source, never "unknown"). */
+  sources_count?: number;
 };
 
 export type TicketsResponse = {
@@ -88,6 +101,14 @@ export function buildSearchParams(opts: {
     );
     if (clamped.length > 0) sp.set('sla', clamped.join(','));
   }
+
+  // Source — Phase 35 SRC-02: real server-side OR-default filter. Backend
+  // binds `source: list[str] | None = Query(None)` (repeated params), NOT
+  // the comma-joined shape the other axes in this function use — mirrors
+  // CSPM/Vulnerabilities' `sp.append('source', s)` convention.
+  filters.source
+    ?.filter((v) => (SOURCE_ALLOW as readonly string[]).includes(v))
+    .forEach((v) => sp.append('source', v));
 
   // Search — free-text, no allow-list (URL-encoded by URLSearchParams).
   if (filters.search) sp.set('search', filters.search);

@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import type { TicketSummary } from '@/lib/queries/use-tickets';
 import type { TicketProvider } from './types';
 import { SEVERITY_GLYPH, SEVERITY_CLASS } from './severity-glyph';
+import { SourceBadgeGroup } from '@/components/vulnerabilities/source-badge-group';
 
 function isTicketProvider(value: string | null): value is TicketProvider {
   return value === 'jira' || value === 'asana' || value === 'github';
@@ -153,11 +154,16 @@ export function TicketsTable({
                 <td className={cn('px-3 py-3 text-sm', severityClass)}>
                   <span aria-label={r.max_severity ?? 'unknown'}>{glyph}</span>
                 </td>
-                {/* Provider mark */}
+                {/* Provider mark · Phase 35 SourceBadgeGroup (transitive
+                    union provenance of the linked vuln — distinct from the
+                    ticket-provider mark, which is Jira/Asana/GitHub). */}
                 <td className="px-3 py-3">
-                  {isTicketProvider(r.provider) && (
-                    <ProviderMark provider={r.provider} />
-                  )}
+                  <span className="inline-flex items-center gap-1.5">
+                    {isTicketProvider(r.provider) && (
+                      <ProviderMark provider={r.provider} />
+                    )}
+                    <SourceBadgeGroup sources={r.sources ?? []} count={r.sources_count} />
+                  </span>
                 </td>
                 {/* ID (mono) */}
                 <td className="px-3 py-3 font-mono text-text">
@@ -244,6 +250,13 @@ export function TicketsTable({
                 {isTicketProvider(r.provider) && (
                   <ProviderMark provider={r.provider} className="mt-0.5 shrink-0" />
                 )}
+                {/* Phase 35 — transitive union provenance, distinct from
+                    the ticket-provider mark above. */}
+                <SourceBadgeGroup
+                  sources={r.sources ?? []}
+                  count={r.sources_count}
+                  className="mt-0.5 shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-mono text-xs text-text shrink-0">
