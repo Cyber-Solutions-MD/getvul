@@ -61,13 +61,15 @@ Note: real Fernet ENCRYPTION_KEY + JWT_SECRET_KEY; run per-file (MEMORY getvul-b
 | 04-T1/T3 | 35-04 | 2 | SRC-07 (transitive) | integration | `pytest tests/test_source_provenance_batched.py::test_ticket_transitive_provenance -x` | ⬜ pending |
 | 04-T1/T3 | 35-04 | 2 | SRC-07 (union rule A4) | integration | `pytest tests/test_source_provenance_batched.py::test_ticket_grouped_union -x` | ⬜ pending |
 | 04-T1/T3 | 35-04 | 2 | SRC-08 (tickets) | query-count | `pytest tests/test_source_provenance_batched.py::test_list_tickets_query_count_invariant -x` | ⬜ pending |
+| 04-T1/T3 | 35-04 | 2 | SRC-02 (ticket FILTER) | integration | `pytest tests/test_source_provenance_batched.py::test_ticket_list_filter_by_source -x` | ⬜ pending |
+| 04-T1/T2 | 35-04 | 2 | SRC-04 (cspm router binding) | integration | `pytest tests/test_cspm_corroboration.py::test_cspm_and_reaches_service_via_http -x` | ⬜ pending |
 | 05-T1 | 35-05 | 3 | SRC-01/02/06 (assets UI) | unit (fe) | `npx vitest run src/components/assets/` | ⬜ pending |
 | 05-T2 | 35-05 | 3 | SRC-01/02/04 (cspm UI) | unit (fe) | `npx vitest run src/components/cspm/ "src/app/(authed)/dashboard/cspm/"` | ⬜ pending |
 | 05-T3 | 35-05 | 3 | SRC-01/02 (tickets UI) | unit (fe) | `npx vitest run src/components/tickets/` | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
-**SRC → test coverage check:** SRC-01 (01,02,05) · SRC-02 (01,02,03,04,05) · SRC-03 (01,03,04) · SRC-04 (01,03) · SRC-05 (04) · SRC-06 (03,05) · SRC-07 (04) · SRC-08 (01,03,04). Every requirement ≥1 automated test.
+**SRC → test coverage check:** SRC-01 (01,02,05) · SRC-02 (01,02,03,04-tickets-filter,05 — all four entities) · SRC-03 (01,03,04) · SRC-04 (01,03,04-cspm-http-binding) · SRC-05 (04) · SRC-06 (03,05) · SRC-07 (04) · SRC-08 (01,03,04). Every requirement ≥1 automated test; SRC-02's Tickets filter and SRC-04's router-binding reachability are explicitly tested (plan-check fixes).
 
 ---
 
@@ -101,6 +103,8 @@ RED task; the shared query-count harness is a Wave-0 artifact created in Plan 01
 - [ ] CSPM multi-tool AND grouping proven (no silent OR)
 - [ ] transitive ticket provenance + multi-vuln union rule tested
 - [ ] SRC-08 query-count assertion proves no N+1 on all four list endpoints
+- [ ] SRC-02 delivered for ALL FOUR entities incl. a real ticket-list ?source= filter (not display-only)
+- [ ] source_mode is BOUND at vulnerabilities/router + cspm/router (HTTP ?source_mode=and reaches the @>/grouping branch)
 - [ ] SourceBadgeGroup single-source never renders "confirmed" (structural test)
 - [ ] No watch-mode flags
 - [ ] `nyquist_compliant: true` set in frontmatter

@@ -519,14 +519,14 @@ op.create_index(
 
 **If this table is empty:** N/A — 4 assumptions logged, all genuinely new design decisions this research could not resolve purely from existing code, flagged for explicit confirmation before being treated as locked.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does the planner want to fix the identical AND-loop bug in `ticketing/rule_engine.py:71-73` (ticket-automation-rule asset matching) in this same phase, since it's the same 2-line fix as the Assets router bug?**
+1. **[RESOLVED — Plan 35-03] Does the planner want to fix the identical AND-loop bug in `ticketing/rule_engine.py:71-73` (ticket-automation-rule asset matching) in this same phase, since it's the same 2-line fix as the Assets router bug?** RESOLVED: YES — Plan 35-03 fixes rule_engine.py to OR-default alongside the Assets router, reusing the shared SCANNER_SOURCES constants.
    - What we know: Same exact bug shape, same root cause, trivially cheap to fix alongside the Assets router fix.
    - What's unclear: Whether "Tickets" in SRC-02's entity list means ticket-provenance-display (this phase's clear scope, per the phase Goal) or also extends to ticket-automation-RULE matching (a different, adjacent surface not explicitly named in the Success Criteria).
    - Recommendation: Treat as out-of-scope-but-flag-for-planner; a one-line note in the plan is cheap insurance either way.
 
-2. **Should the new GIN index on `assets.seen_by_sources` be added in this phase, given the JSONB column currently has NO index at all for `.contains()` queries?**
+2. **[RESOLVED — Plan 35-03] Should the new GIN index on `assets.seen_by_sources` be added in this phase, given the JSONB column currently has NO index at all for `.contains()` queries?** RESOLVED: YES — Plan 35-03 adds migration 045_add_seen_by_sources_gin (mirrors 034) since this phase makes scanner-source filtering on Assets a first-class, higher-frequency query.
    - What we know: `tags` (also queried via `.contains()`-shaped operations conceptually) has a GIN index; `seen_by_sources` does not, and this phase is about to make scanner-source filtering on Assets a first-class, more heavily-used feature (OR/AND toggle likely increases query frequency, not just changes semantics).
    - What's unclear: Whether current Assets table sizes make this a real performance concern yet, or whether it's premature optimization for this phase specifically.
    - Recommendation: Include the GIN index migration — it's a cheap, mechanically-identical addition to `034_add_correlation_sources.py`'s precedent, and this phase is explicitly increasing filter usage on this exact column.
