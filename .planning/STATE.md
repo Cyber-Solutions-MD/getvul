@@ -4,16 +4,16 @@ milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 35
 current_phase_name: Source-Aware Filtering & Provenance Badges
-status: planning
-stopped_at: "Phase 34 Plan 05 (gap closure — RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete — see STATE frontmatter `stopped_at` for full detail. Next: /gsd-verify-phase 34 (re-verify against 34-VERIFICATION.md's two gaps), then /gsd-plan-phase 35."
-last_updated: "2026-08-12T09:13:22.270Z"
+status: executing
+stopped_at: "Phase 35 Plan 01 (LEAD TRACER — Vulnerabilities correlation-ARRAY OR/AND source filter + page-scoped batched provenance + before_cursor_execute query-count harness) complete. tuple_(...).in_(subquery) compiles cleanly against asyncpg (no EXISTS fallback needed); observed list_vulnerabilities statement count is 4, page-size-invariant. Next: 35-02-PLAN.md (frontend SourceBadgeGroup + chip-bar OR/AND toggle)."
+last_updated: "2026-08-12T11:32:38.000Z"
 last_activity: 2026-08-12
-last_activity_desc: Phase 34 complete, transitioned to Phase 35
+last_activity_desc: Phase 35 Plan 01 (lead tracer) complete — Vulnerabilities OR/AND source filter + batched provenance + query-count harness
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 25
+  completed_plans: 21
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (5/5 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover + 34-03 RISK-09 diff+ack + 34-04 RISK-10 boundary guards + 34-05 gap closure (RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) all shipped; pending `/gsd-verify-phase 34` re-verify)
+**Current focus:** Phase 35 — Source-Aware Filtering & Provenance Badges (1/5 plans complete — 35-01 LEAD TRACER: Vulnerabilities OR/AND correlation-array source filter + page-scoped batched provenance + query-count no-N+1 harness, shipped; Phase 34 fully shipped 5/5, pending `/gsd-verify-phase 34` re-verify)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 35 — Source-Aware Filtering & Provenance Badges
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-12 — Phase 34 complete, transitioned to Phase 35
+Plan: 01 complete (1/5) — LEAD TRACER (backend)
+Status: Executing — next 35-02-PLAN.md
+Last activity: 2026-08-12 — Phase 35 Plan 01 complete (Vulnerabilities OR/AND source filter + batched provenance + query-count harness)
 
 ## v4.0 Phase Map
 
@@ -358,6 +358,13 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 34]: 34-05 (gap closure, GAP 1): get_risk_score_trend's PRIMARY `avg_risk` key itself becomes flag-gated (not an additive second key) -- mirrors service.py's primary-order-key swap exactly: OFF reads avg_risk_score, ON reads avg_risk_exposure_score, no extra key on either path. The prior 34-04 design (unconditional dual-key: avg_risk + avg_risk_exposure) was re-scoped because 34-VERIFICATION.md found it didn't satisfy RISK-08's "reads the new score ONLY when the flag is ON" clause for this consumer -- test_risk_boundary_guard.py::test_trend_no_cliff was updated (not just left green) to prove continuity under the flag a tenant actually reads with, since its old assertions (unconditional avg_risk_exposure key) contradicted the corrected design
 - [Phase 34]: 34-05 (gap closure, GAP 2): enqueue_backfill audits only on a genuinely NEW enqueue (existing job row was None before the call) -- a repeat call against an already-active/completed job is a harmless idempotent no-op, not audited a second time, to avoid inflating the audit log with duplicate no-op entries while still auditing the one action that actually starts a tenant's backfill
 - [Phase 34]: 34-05: RISK-08 flipped to Complete in REQUIREMENTS.md (was left Pending after 34-02/34-04 because the trend-chart consumer wasn't literally flag-gated; this plan closes that gap)
+- [Phase 35]: 35-01 (LEAD TRACER): Vulnerabilities OR/AND source filter branches on `VulnerabilityCorrelation.sources` (the Phase-30 GIN-indexed ARRAY) via `.overlap()` (`&&`, OR default) / `.contains()` (`@>`, AND toggle) instead of the pre-Phase-35 per-row `Vulnerability.source.in_()` -- OR mode ORs the correlation-overlap match with the direct per-row source match so single-source findings (which have NO correlation row) still surface; AND mode requires a qualifying correlation, structurally excluding single-source findings
+- [Phase 35]: 35-01: AND-mode with fewer than 2 selected sources is a documented no-op (falls into the OR branch) -- proven by test_and_with_single_source_is_or, not just asserted in a comment
+- [Phase 35]: 35-01: `tuple_(cve_id, asset_id).in_(subquery)` compiles cleanly against asyncpg -- verified directly, no EXISTS-correlated-subquery fallback needed (the RESEARCH-flagged impl-detail risk did not materialize)
+- [Phase 35]: 35-01: list_vulnerabilities' page-scoped batched provenance fetch runs AFTER the paginated data query (not before), collecting `(cve_id, asset_id)` keys from ONLY the current page's rows, then one tenant-scoped `tuple_(...).in_(page_keys)` query -- observed fixed statement count is 4 (count query + tenant scalar fetch for the risk-exposure cutover flag + data query + batched correlation query), identical for page_size=5 and page_size=50
+- [Phase 35]: 35-01: `backend/tests/query_count.py`'s `count_queries()` is engine-wide (attaches to `engine.sync_engine`), not session/connection-scoped -- Plans 03/04 reusing it for their own query-count assertions must filter captured statements to their own SUT tables (this plan hit and fixed a real flake from an unrelated concurrent EPSS-refresh background task leaking in via the shared session-scoped event loop)
+- [Phase 35]: 35-01: `source_mode` is bound as an explicit router `Query(Literal["or","and"])` param, not just added to `VulnerabilityFilter` -- this router builds the filter from explicit Query params (not `Depends(Filter)`), so a schema-only field would be silently dropped and `?source_mode=and` would never reach the service
+- [Phase 35]: 35-01: SRC-01/02/03/04/08 left `[ ]` Pending in REQUIREMENTS.md -- each requirement's text spans multiple entities (Vulnerabilities/Assets/CSPM/Tickets) or the frontend badge (SRC-01), and this plan only ships the Vulnerabilities backend slice; mirrors the shared-ID-gate convention used throughout this project (e.g. RISK-01/03/04, AIE-01/02) -- each SRC-* ID flips Complete only when its LAST declaring plan (02/03/04/05) lands
 
 ## Performance Metrics
 
@@ -411,9 +418,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 33 P04 | 3min | 2 tasks | 5 files |
 | Phase 34 P03 | 9min | 3 tasks | 5 files |
 | Phase 34 P05 (gap closure) | 26min | 4 tasks | 7 files |
+| Phase 35 P01 | 28min | 2 tasks | 5 files |
 
 ## Session
 
-**Last session:** 2026-08-12T11:50:23+03:00
-**Stopped at:** Phase 34 Plan 05 (gap closure — RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete — see STATE frontmatter `stopped_at` for full detail. Next: /gsd-verify-phase 34 (re-verify against 34-VERIFICATION.md's two gaps), then /gsd-plan-phase 35.
+**Last session:** 2026-08-12T11:32:38+03:00
+**Stopped at:** Completed 35-01-PLAN.md
 **Resume file:** None

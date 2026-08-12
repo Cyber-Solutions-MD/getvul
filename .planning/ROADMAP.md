@@ -152,9 +152,9 @@ Plans:
   4. Ticket source provenance resolves transitively through the linked vulnerability's correlation, with a defined and tested rule for multi-source-correlated cases
   5. Provenance and source-facet queries are batched (no per-row N+1) and stay performant at scale, provable with a query-count assertion
 
-**Plans**: 5 plans
+**Plans**: 1/5 plans complete (Wave 1: 01 tracer done)
 
-- [ ] 35-01-PLAN.md — TRACER (backend): Vulnerabilities correlation-ARRAY OR/AND source filter (`&&`/`@>`) + page-scoped batched provenance (sources/sources_count) + the NEW before_cursor_execute query-count harness
+- [x] 35-01-PLAN.md — TRACER (backend): Vulnerabilities correlation-ARRAY OR/AND source filter (`&&`/`@>`) + page-scoped batched provenance (sources/sources_count) + the NEW before_cursor_execute query-count harness *(complete 2026-08-12 — `_apply_filters` branches on `VulnerabilityCorrelation.sources` overlap (`&&`, OR default + single-source direct-match fallback) / contains (`@>`, AND toggle, structurally excludes single-source findings); `list_vulnerabilities` gains a page-scoped `tuple_(cve_id,asset_id).in_(page_keys)` batched provenance fetch (tenant-scoped per T-35-01) populating `VulnerabilitySummary.sources`/`sources_count`, no per-row query; `source_mode: Literal["or","and"]` bound as an explicit router Query param (this router builds filters from explicit params, not Depends). New `backend/tests/query_count.py` `before_cursor_execute` harness proves `list_vulnerabilities` issues a fixed 4 statements regardless of page size — reusable by Plans 03/04. `tuple_(...).in_(subquery)` compiles cleanly against asyncpg, no EXISTS fallback needed. 6/6 new tests green + 4/4 regression (test_vuln_source_filter.py) green. One Rule-1 fix: a genuine flake in the new query-count test caused by the engine-wide `before_cursor_execute` listener also catching an unrelated background EPSS-refresh task from sibling tests sharing the session-scoped event loop — fixed by filtering counted statements to the SUT's own tables.)*
 - [ ] 35-02-PLAN.md — TRACER (frontend): shared SourceBadgeGroup component (non-overclaiming) wired into vuln-table + vuln chip-bar OR/AND toggle + reconciled 6-value VulnSource list
 - [ ] 35-03-PLAN.md — Assets: fix the shipped multi-select-ANDs bug to OR-default + AND toggle + scanner/enrichment partition (SRC-06) + batched sources + seen_by_sources GIN index (migration 045) + rule_engine.py same fix
 - [ ] 35-04-PLAN.md — CSPM read-time GROUP BY(tenant_id,rule_id,resource_id) AND corroboration (no silent OR) + Tickets transitive union provenance (array_agg, not func.min); both batched with query-count assertions
@@ -174,4 +174,4 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 | 32. Asset Exposure Context | 5/5 | Complete    | 2026-08-11 |
 | 33. Risk-Exposure Model Definition | 4/4 | Complete    | 2026-08-11 |
 | 34. Historical Recompute & Consumer Cutover | 5/4 | Complete    | 2026-08-12 |
-| 35. Source-Aware Filtering & Provenance Badges | 0/5 | Not started | - |
+| 35. Source-Aware Filtering & Provenance Badges | 1/5 | In progress | - |
