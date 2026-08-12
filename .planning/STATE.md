@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 34
 current_phase_name: Historical Recompute & Consumer Cutover
 status: in_progress
-stopped_at: "Phase 34 Plan 04 (RISK-10 version-boundary guards) complete — capture_daily_snapshot (trends.py) now dual-writes avg_risk_exposure_score/asset_risk_scores/asset_risk_exposure_scores/risk_model_version_snapshot into every DailySnapshot UNCONDITIONALLY (grep for the cutover flag name in trends.py returns nothing, confirming the write side never reads it); get_risk_score_trend exposes the new series as an additional avg_risk_exposure key, avg_risk name/source unchanged (no wire-contract break). _check_risk_score_changes (alerts.py) reads tenant.cutover_risk_exposure_scoring once and diffs same-version-only — new-vs-new when ON, old-vs-old when OFF, never cross-version — which ALSO fixes a genuine pre-existing dead-code bug: asset_risk_scores was never populated by capture_daily_snapshot before this phase, so the spike check had returned 0 for every tenant, every day, since it was written. New fixture suite test_risk_boundary_guard.py (5/5 green): dict-population shape, two Pitfall-2 non-zero controls (OFF and ON branches genuinely fire on a same-version spike — proving the check isn't dead before trusting a boundary-zero result), the core boundary fixture (flag flips OFF->ON between two snapshot days; same-version diff yields 0 storm alerts even though a naive cross-version diff would have produced a 46-point false spike), and a trend-continuity fixture (old avg_risk_score series jumps 65 points across the boundary day, new avg_risk_exposure series drifts only 2). test_severity_trends.py + test_dashboard_tiles.py regress clean (8/8), ruff check + format clean on all 3 touched files. Phase 34 (Historical Recompute & Consumer Cutover) is now 4/4 plans complete — RISK-07/08/09/10 all implemented; the live flag-flip on real tenant data remains accepted debt per 34-CONTEXT.md (no live/at-scale data in this environment, consistent with Phases 31/32/33's on-trust waivers). Next: /gsd-verify-phase 34, then /gsd-plan-phase 35."
-last_updated: "2026-08-12T08:15:00Z"
+stopped_at: "Phase 34 Plan 05 (gap closure, 34-VERIFICATION.md score 3.5/4) complete — GAP 1: get_risk_score_trend (trends.py) now branches its PRIMARY avg_risk series on Tenant.cutover_risk_exposure_scoring, mirroring the 34-02 pattern used by list_vulnerabilities(sort=\"triage\")/get_top_findings_for_ai_batch — OFF (default) reads avg_risk_score only (byte-identical to pre-Phase-34, no extra key), ON swaps to avg_risk_exposure_score; capture_daily_snapshot's RISK-10 dual-write stays unconditional (only the read path branches). Updated test_risk_boundary_guard.py::test_trend_no_cliff (previously asserted the old unconditional dual-key shape) to prove continuity under the flag a tenant actually reads with. GAP 2: new admin-only POST /api/v1/risk-cutover/backfill/enqueue gives RISK-07's backfill machinery (enqueue_backfill_job, previously called only from tests) a real production trigger — wraps the already-idempotent enqueue_backfill_job with audit()-then-commit (only on a genuinely NEW enqueue, never a repeated no-op), RBAC 403 for non-admin, idempotent (same job returned, no duplicate row/audit) when already active or completed. 7 new tests green (3 test_risk_trend_cutover.py + 4 test_risk_backfill_enqueue_endpoint.py), full RISK-08/09/10/trend/dashboard regression window (21 tests) + flag-OFF vulnerabilities/SLA/AI-batch regression (23 tests) all green, 0 new mypy-baseline violations, ruff clean, single alembic head unchanged (044 — no new migration). RISK-08 flipped to Complete in REQUIREMENTS.md (was Pending — this plan closes that gap). Phase 34 is now 5/5 plans complete. Next: /gsd-verify-phase 34 (re-verify), then /gsd-plan-phase 35."
+last_updated: "2026-08-12T09:00:00Z"
 last_activity: 2026-08-12
-last_activity_desc: Phase 34 Plan 04 (RISK-10 version-boundary guards) complete — Phase 34 now 4/4 plans complete
+last_activity_desc: Phase 34 Plan 05 (gap closure — RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete — Phase 34 now 5/5 plans complete
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 21
+  completed_plans: 21
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (4/4 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover + 34-03 RISK-09 diff+ack + 34-04 RISK-10 boundary guards all shipped; pending `/gsd-verify-phase 34`)
+**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (5/5 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover + 34-03 RISK-09 diff+ack + 34-04 RISK-10 boundary guards + 34-05 gap closure (RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) all shipped; pending `/gsd-verify-phase 34` re-verify)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 34 — Historical Recompute & Consumer Cutover
-Plan: 01/02/03/04 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover; RISK-09 diff+ack; RISK-10 boundary guards) — phase fully executed
-Status: Phase 34 complete (4/4 plans), pending /gsd-verify-phase 34
-Last activity: 2026-08-12 — 34-04 (RISK-10 version-boundary guards) complete
+Plan: 01/02/03/04/05 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover; RISK-09 diff+ack; RISK-10 boundary guards; 05 gap closure) — phase fully executed
+Status: Phase 34 complete (5/5 plans), pending /gsd-verify-phase 34 re-verify
+Last activity: 2026-08-12 — 34-05 (gap closure: RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete
 
 ## v4.0 Phase Map
 
@@ -355,6 +355,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 34]: 34-03: enable_cutover's 409 detail is gate-specific, not one generic string -- "backfill_incomplete" (gate a), "threshold_ack_missing" (gate b, never acked) vs "threshold_ack_stale" (gate b, acked but a threshold changed since, invalidating the stored hash) -- lets a future admin UI tell the operator exactly what to do next
 - [Phase 34]: 34-03: compute_threshold_diff deliberately replicates rule_engine.py's `min_risk is not None and min_risk > 0` check and saved_filters.py's truthy `filters.get("min_risk_score")` check verbatim rather than unifying them -- stays a faithful read-only mirror of each source file's own interpretation; rule_engine.py/saved_filters.py themselves are untouched (Pitfall 4, confirmed via git diff)
 - [Phase 34]: 34-03: RISK-09 marked [x] Complete in REQUIREMENTS.md (sole declaring plan)
+- [Phase 34]: 34-05 (gap closure, GAP 1): get_risk_score_trend's PRIMARY `avg_risk` key itself becomes flag-gated (not an additive second key) -- mirrors service.py's primary-order-key swap exactly: OFF reads avg_risk_score, ON reads avg_risk_exposure_score, no extra key on either path. The prior 34-04 design (unconditional dual-key: avg_risk + avg_risk_exposure) was re-scoped because 34-VERIFICATION.md found it didn't satisfy RISK-08's "reads the new score ONLY when the flag is ON" clause for this consumer -- test_risk_boundary_guard.py::test_trend_no_cliff was updated (not just left green) to prove continuity under the flag a tenant actually reads with, since its old assertions (unconditional avg_risk_exposure key) contradicted the corrected design
+- [Phase 34]: 34-05 (gap closure, GAP 2): enqueue_backfill audits only on a genuinely NEW enqueue (existing job row was None before the call) -- a repeat call against an already-active/completed job is a harmless idempotent no-op, not audited a second time, to avoid inflating the audit log with duplicate no-op entries while still auditing the one action that actually starts a tenant's backfill
+- [Phase 34]: 34-05: RISK-08 flipped to Complete in REQUIREMENTS.md (was left Pending after 34-02/34-04 because the trend-chart consumer wasn't literally flag-gated; this plan closes that gap)
 
 ## Performance Metrics
 
@@ -407,9 +410,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 33 P02 | 32min | 2 tasks | 2 files |
 | Phase 33 P04 | 3min | 2 tasks | 5 files |
 | Phase 34 P03 | 9min | 3 tasks | 5 files |
+| Phase 34 P05 (gap closure) | 26min | 4 tasks | 7 files |
 
 ## Session
 
-**Last session:** 2026-08-12T10:47:30+03:00
-**Stopped at:** Phase 34 Plan 03 (RISK-09 threshold diff + ack + gated flag-flip) complete — see STATE frontmatter `stopped_at` for full detail. Next: /gsd-plan-phase or /gsd-execute-phase for 34-04 (RISK-10 boundary guards).
+**Last session:** 2026-08-12T11:50:23+03:00
+**Stopped at:** Phase 34 Plan 05 (gap closure — RISK-08 trend-chart flag-gate + RISK-07 backfill-enqueue admin endpoint) complete — see STATE frontmatter `stopped_at` for full detail. Next: /gsd-verify-phase 34 (re-verify against 34-VERIFICATION.md's two gaps), then /gsd-plan-phase 35.
 **Resume file:** None
