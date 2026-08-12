@@ -131,9 +131,9 @@ Plans:
   3. Every tenant receives a pre/post diff report for its `min_risk_score` automation-rule and saved-filter thresholds and must give an explicit re-tuning acknowledgment before its data is cut over — no silent reinterpretation
   4. The day-over-day risk-spike notification (`_check_risk_score_changes`) and the trend chart are version-boundary-guarded, provable with a fixture spanning the cutover boundary that produces neither an alert storm nor a trend cliff
 
-**Plans**: 4 plans (Wave 1: 01 tracer; Wave 2: 02, 03, 04 — parallel, no file overlap)
+**Plans**: 2/4 plans complete (Wave 1: 01 tracer done; Wave 2: 02 done, 03/04 remaining — parallel, no file overlap)
 - [x] 34-01-PLAN.md — RISK-07 lead tracer: durable RiskExposureBackfillJob + migration 044 (+cutover flag +ack columns) → chunked idempotent resumable bulk UPDATE...FROM → scheduler dispatcher → kill-mid-chunk/restart/isolation/load fixtures *(complete 2026-08-11 — migration 044 lands the full Phase-34 schema spine (job table + 3 Tenant columns) additively, no data migration; risk_backfill_service.py implements claim-row/keyset-cursor/WHERE-guard chunked backfill reusing score_finding verbatim; scheduler dispatcher wired via asyncio.create_task, no in-memory gate. 9/9 RISK-07 fixture tests green incl. kill-mid-chunk-no-double-count + simulated-restart resume + per-tenant isolation + multi-chunk load. 2 Rule-1 bugs found+fixed during GREEN (heartbeat-clear-on-success; identity-map staleness after raw bulk UPDATE). alembic round-trip clean, single head 044; 0 new mypy-baseline violations. Pre-existing (non-Phase-34) test-isolation hang between test_risk_exposure_service.py + test_scheduler_enrichment_refresh.py logged to deferred-items.md, confirmed not a regression.)*
-- [ ] 34-02-PLAN.md — RISK-08 flag-gated cutover: sort="triage" + get_top_findings_for_ai_batch read the new score when ON (byte-identical OFF); SLA stays severity-keyed (untouched)
+- [x] 34-02-PLAN.md — RISK-08 flag-gated cutover: sort="triage" + get_top_findings_for_ai_batch read the new score when ON (byte-identical OFF); SLA stays severity-keyed (untouched) *(complete 2026-08-12 — once-per-call scalar Tenant fetch (mirrors sla_service.py:43) branches both consumers' primary order_by key on cutover_risk_exposure_scoring; OFF path byte-identical (proven by inverted-fixture tests + all 23 pre-existing regression tests staying green unmodified); ON path leads by risk_exposure_score desc for both. Asset outerjoin kept on both get_top_findings_for_ai_batch paths; stale "no risk_score field" docstring corrected. sla_service.py/rule_engine.py/saved_filters.py/trends.py untouched — confirmed via grep + git diff. 5/5 new RISK-08 tests green, 0 new mypy-baseline violations, ruff clean.)*
 - [ ] 34-03-PLAN.md — RISK-09 diff+ack: pre/post min_risk_score threshold diff + audited per-tenant ack + admin flag-flip endpoint gated on backfill-complete + fresh-ack (no live retarget)
 - [ ] 34-04-PLAN.md — RISK-10 boundary guards: unconditional DailySnapshot dual-write + dead _check_risk_score_changes fix + same-version-only diffing; boundary fixture proves no storm / no cliff
 
@@ -170,5 +170,5 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 | 31. Connector Enrichment Rewrite | 5/5 | Complete    | 2026-08-10 |
 | 32. Asset Exposure Context | 5/5 | Complete    | 2026-08-11 |
 | 33. Risk-Exposure Model Definition | 4/4 | Complete    | 2026-08-11 |
-| 34. Historical Recompute & Consumer Cutover | 0/TBD | Not started | - |
+| 34. Historical Recompute & Consumer Cutover | 2/4 | In Progress | - |
 | 35. Source-Aware Filtering & Provenance Badges | 0/TBD | Not started | - |

@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 34
 current_phase_name: Historical Recompute & Consumer Cutover
 status: in_progress
-stopped_at: "Phase 34 Plan 01 (RISK-07 lead tracer — resumable historical backfill) complete — migration 044 lands the full Phase-34 schema spine (risk_exposure_backfill_jobs table + 3 Tenant columns: cutover_risk_exposure_scoring, risk_cutover_threshold_ack_at, risk_cutover_threshold_ack_diff_hash) purely additively; risk_backfill_service.py implements claim-row/keyset-cursor/WHERE-guard chunked backfill reusing score_finding verbatim (one transaction per chunk, bulk UPDATE...FROM with per-column CAST bind syntax verified live against SQLAlchemy 2.0.50+asyncpg); scheduler._dispatch_risk_exposure_backfill wired via asyncio.create_task, no in-memory gate. 9/9 RISK-07 fixture tests green incl. kill-mid-chunk-no-double-count + simulated-restart resume + per-tenant isolation + multi-chunk load. Two Rule-1 bugs found+fixed during GREEN (heartbeat must clear to NULL on success or it blocks the next tick's reclaim; db.expire_all() needed after the raw bulk UPDATE to avoid stale identity-map reads). alembic round-trip clean (single head 044); 0 new mypy-baseline violations. A pre-existing (confirmed NOT Phase-34-caused) test-isolation hang between test_risk_exposure_service.py and test_scheduler_enrichment_refresh.py when run in the same pytest session was logged to 34/deferred-items.md, not fixed (out of scope). Next: 34-02 (RISK-08 flag-gated cutover)."
-last_updated: "2026-08-11T18:32:32+03:00"
-last_activity: 2026-08-11
-last_activity_desc: Phase 34 Plan 01 (RISK-07 lead tracer) complete
+stopped_at: "Phase 34 Plan 02 (RISK-08 flag-gated consumer cutover) complete — list_vulnerabilities(sort=\"triage\") and get_top_findings_for_ai_batch each gained a once-per-call scalar Tenant fetch (mirrors sla_service.py:43) branching their primary order_by key on cutover_risk_exposure_scoring: OFF (default) stays byte-identical to pre-Phase-34 behavior (KEV desc -> CVSS desc -> SLA-due asc for triage; Asset.risk_score desc for the AI batch selector), ON leads with the new per-finding risk_exposure_score desc. Asset outerjoin kept on both AI-batch paths; the stale \"Vulnerability has no risk_score field at all\" docstring corrected. 5/5 new RISK-08 fixture tests green (2 OFF-byte-identical inverted-fixture proofs, 2 ON-cutover proofs, 1 SLA-untouched structural guard); all 23 pre-existing regression tests (test_vulnerabilities.py/test_sla_service.py/test_top_findings_for_ai_batch.py) stayed green unmodified. sla_service.py/rule_engine.py/saved_filters.py/trends.py confirmed untouched via grep + git diff. 0 new mypy-baseline violations, ruff clean. Next: 34-03 (RISK-09 diff+ack) or 34-04 (RISK-10 boundary guards), both Wave 2 parallel with no file overlap."
+last_updated: "2026-08-12T10:28:15+03:00"
+last_activity: 2026-08-12
+last_activity_desc: Phase 34 Plan 02 (RISK-08 flag-gated consumer cutover) complete
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 18
+  completed_plans: 18
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (1/4 plans complete — 34-01 RISK-07 lead tracer shipped; 34-02/03/04 remain, Wave 2, parallel)
+**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (2/4 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover shipped; 34-03/04 remain, Wave 2, parallel)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 34 — Historical Recompute & Consumer Cutover
-Plan: 01 complete (RISK-07 lead tracer) — 02/03/04 pending (Wave 2, parallel)
+Plan: 01/02 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover) — 03/04 pending (Wave 2, parallel)
 Status: In progress
-Last activity: 2026-08-11 — 34-01 (RISK-07 resumable backfill) complete
+Last activity: 2026-08-12 — 34-02 (RISK-08 flag-gated consumer cutover) complete
 
 ## v4.0 Phase Map
 
