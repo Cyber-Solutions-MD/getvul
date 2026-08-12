@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 34
 current_phase_name: Historical Recompute & Consumer Cutover
 status: in_progress
-stopped_at: "Phase 34 Plan 02 (RISK-08 flag-gated consumer cutover) complete — list_vulnerabilities(sort=\"triage\") and get_top_findings_for_ai_batch each gained a once-per-call scalar Tenant fetch (mirrors sla_service.py:43) branching their primary order_by key on cutover_risk_exposure_scoring: OFF (default) stays byte-identical to pre-Phase-34 behavior (KEV desc -> CVSS desc -> SLA-due asc for triage; Asset.risk_score desc for the AI batch selector), ON leads with the new per-finding risk_exposure_score desc. Asset outerjoin kept on both AI-batch paths; the stale \"Vulnerability has no risk_score field at all\" docstring corrected. 5/5 new RISK-08 fixture tests green (2 OFF-byte-identical inverted-fixture proofs, 2 ON-cutover proofs, 1 SLA-untouched structural guard); all 23 pre-existing regression tests (test_vulnerabilities.py/test_sla_service.py/test_top_findings_for_ai_batch.py) stayed green unmodified. sla_service.py/rule_engine.py/saved_filters.py/trends.py confirmed untouched via grep + git diff. 0 new mypy-baseline violations, ruff clean. Next: 34-03 (RISK-09 diff+ack) or 34-04 (RISK-10 boundary guards), both Wave 2 parallel with no file overlap."
-last_updated: "2026-08-12T10:28:15+03:00"
+stopped_at: "Phase 34 Plan 03 (RISK-09 threshold diff + ack + gated flag-flip) complete — risk_cutover_service.py's compute_threshold_diff is backfill-completion gated (Pitfall 3: no job or non-completed job returns ready:false, never a misleading undercount), reports old (Asset.risk_score) vs new (Asset.risk_exposure_score) match counts for every TicketRule.conditions/SavedFilter.filters min_risk_score with a deterministic sorted-JSON sha256 diff_hash; record_threshold_ack stamps risk_cutover_threshold_ack_at + risk_cutover_threshold_ack_diff_hash, audited before commit; enable_cutover is the only path that can set Tenant.cutover_risk_exposure_scoring=True and requires BOTH backfill-complete AND a fresh hash-matching ack, else a gate-specific 409 (backfill_incomplete/threshold_ack_missing/threshold_ack_stale). 3 admin endpoints under /api/v1/risk-cutover (threshold-diff, threshold-ack, enable), all require_role(\"admin\"). audit.py gained risk_cutover.threshold_ack/risk_cutover.flag_enable action strings. 8/8 new RISK-09 fixture tests green (diff computation, backfill-gate x2, ack stamp+hash, ack-refused-incomplete, stale-ack-after-threshold-change, both-gates-flip across all 3 states, admin RBAC 403). rule_engine.py/saved_filters.py confirmed untouched via git diff (Pitfall 4 — no live retarget). 0 new mypy-baseline violations, ruff clean. The flip is never invoked against live tenant data in this environment (accepted debt, 34-CONTEXT.md locked). Next: 34-04 (RISK-10 boundary guards — unconditional DailySnapshot dual-write + dead _check_risk_score_changes fix + version-boundary guard fixture)."
+last_updated: "2026-08-12T10:47:30+03:00"
 last_activity: 2026-08-12
-last_activity_desc: Phase 34 Plan 02 (RISK-08 flag-gated consumer cutover) complete
+last_activity_desc: Phase 34 Plan 03 (RISK-09 threshold diff + ack + gated flag-flip) complete
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 19
+  completed_plans: 19
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (2/4 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover shipped; 34-03/04 remain, Wave 2, parallel)
+**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (3/4 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover + 34-03 RISK-09 diff+ack shipped; 34-04 remains)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 34 — Historical Recompute & Consumer Cutover
-Plan: 01/02 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover) — 03/04 pending (Wave 2, parallel)
+Plan: 01/02/03 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover; RISK-09 diff+ack) — 04 pending
 Status: In progress
-Last activity: 2026-08-12 — 34-02 (RISK-08 flag-gated consumer cutover) complete
+Last activity: 2026-08-12 — 34-03 (RISK-09 threshold diff + ack + gated flag-flip) complete
 
 ## v4.0 Phase Map
 
@@ -351,6 +351,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 33]: 33-02: exposure emitted as 3 separate breakdown rows (exposure_business_criticality/exposure_internet_facing/exposure_data_sensitivity), not one combined row -- matches the shape Plan 01 already reserved
 - [Phase 33]: 33-02: BUG (Rule 1 auto-fix) -- the RESEARCH-verbatim corroboration fixture (HIGH/cvss 7.5/QUALYS native 60/MEDIUM/INTERNAL, 1-vs-3 sources) produces a final_score delta of exactly 7, not 6.7, because RiskBreakdown.final_score is a rounded int and the two subtotals (41.87->42, 48.54->49) round across an integer boundary in opposite directions -- a real int-rounding artifact, not a formula bug (confirmed via manual arithmetic: the underlying corroboration component's exact pre-rounding delta is 6.667). Fixed by asserting on the underlying "corroboration" breakdown component's exact points delta (the value the DrillPanel actually renders) plus a looser correct final_score direction/magnitude check, instead of a tight tolerance on the rounded aggregate
 - [Phase 33]: 33-02: RISK-01/03/04 flipped Complete in REQUIREMENTS.md (33-02 is their last declaring plan per the 33-01 shared-ID gate note above); RISK-02/06 remain Pending for 33-03
+- [Phase 34]: 34-03: diff_hash = sha256 over the diff's `items` list sorted by (source_type, source_id) before `json.dumps(..., sort_keys=True)` -- list sort is needed in addition to sort_keys (which only orders dict keys within an item, not list order) so the hash is stable across repeated calls regardless of DB row-return order
+- [Phase 34]: 34-03: enable_cutover's 409 detail is gate-specific, not one generic string -- "backfill_incomplete" (gate a), "threshold_ack_missing" (gate b, never acked) vs "threshold_ack_stale" (gate b, acked but a threshold changed since, invalidating the stored hash) -- lets a future admin UI tell the operator exactly what to do next
+- [Phase 34]: 34-03: compute_threshold_diff deliberately replicates rule_engine.py's `min_risk is not None and min_risk > 0` check and saved_filters.py's truthy `filters.get("min_risk_score")` check verbatim rather than unifying them -- stays a faithful read-only mirror of each source file's own interpretation; rule_engine.py/saved_filters.py themselves are untouched (Pitfall 4, confirmed via git diff)
+- [Phase 34]: 34-03: RISK-09 marked [x] Complete in REQUIREMENTS.md (sole declaring plan)
 
 ## Performance Metrics
 
@@ -402,9 +406,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 33 P01 | 55min | 3 tasks | 8 files |
 | Phase 33 P02 | 32min | 2 tasks | 2 files |
 | Phase 33 P04 | 3min | 2 tasks | 5 files |
+| Phase 34 P03 | 9min | 3 tasks | 5 files |
 
 ## Session
 
-**Last session:** 2026-08-11T15:34:23.000Z
-**Stopped at:** Phase 33 Plan 04 (DrillPanel Risk Exposure breakdown, RISK-05) complete — new shadow/preview "Risk exposure" section in drill-content.tsx (desktop+mobile, one shared edit): RiskRing badge for the overall risk_exposure_score, data-driven row per risk_exposure_breakdown component, "★ KEV floor applied" chip keyed off a kev_floor component, "Shadow score — not yet used for sorting or alerts" preview caption; null-safe absent when unscored. 51/51 RTL tests green (both DrillPanel wrapper suites), full frontend suite 137 files/926 tests green, tsc/eslint clean. RISK-05 complete. Phase 33 is 4/4 plans complete (RISK-01..06 all Complete in REQUIREMENTS.md) — pending /gsd-verify-work 33 for phase-level closeout, then /gsd-plan-phase 34.
+**Last session:** 2026-08-12T10:47:30+03:00
+**Stopped at:** Phase 34 Plan 03 (RISK-09 threshold diff + ack + gated flag-flip) complete — see STATE frontmatter `stopped_at` for full detail. Next: /gsd-plan-phase or /gsd-execute-phase for 34-04 (RISK-10 boundary guards).
 **Resume file:** None
