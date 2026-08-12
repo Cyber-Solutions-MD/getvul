@@ -164,7 +164,33 @@ async def get_mttr_trend(db: AsyncSession, tenant_id: uuid.UUID, days: int = 90)
 
 
 async def get_risk_score_trend(db: AsyncSession, tenant_id: uuid.UUID) -> list[dict]:
-    """Get risk score trend from daily snapshots."""
+    """Get risk score trend from daily snapshots.
+
+    RISK-08 (Phase 34 Plan 05 — gap closure): the trend chart is the third
+    named real cutover consumer (alongside `list_vulnerabilities(sort=
+    "triage")` and `get_top_findings_for_ai_batch`, both flag-gated in
+    service.py) and now genuinely branches its PRIMARY series on
+    `Tenant.cutover_risk_exposure_scoring`, mirroring that exact pattern: a
+    once-per-call scalar Tenant fetch, then swap only the primary key's
+    SOURCE — never add an extra key on the OFF path.
+
+    OFF (default): `avg_risk` reads `avg_risk_score` only — byte-identical to
+    pre-Phase-34 (no `avg_risk_exposure` key, same shape as before RISK-10's
+    dual-write additive key was introduced).
+    ON: `avg_risk` reads `avg_risk_exposure_score` instead — the tenant's
+    trend chart now genuinely shows the new risk-exposure-score-derived
+    series once cut over, closing the gap the verifier found (dual-write
+    alone, RISK-10, populates the data; this is the flag-gated READ half,
+    RISK-08).
+    """
+    from app.tenants.models import Tenant
+
+    cutover_enabled = bool(
+        (
+            await db.execute(select(Tenant.cutover_risk_exposure_scoring).where(Tenant.id == tenant_id))
+        ).scalar_one_or_none()
+    )
+
     rows = (
         await db.execute(
             select(DailySnapshot.snapshot_date, DailySnapshot.metrics)
@@ -174,15 +200,12 @@ async def get_risk_score_trend(db: AsyncSession, tenant_id: uuid.UUID) -> list[d
         )
     ).all()
 
+    metric_key = "avg_risk_exposure_score" if cutover_enabled else "avg_risk_score"
+
     return [
         {
             "date": r.snapshot_date.isoformat(),
-            "avg_risk": r.metrics.get("avg_risk_score", 0),
-            # RISK-10 (Phase 34 Plan 04): additional key, NEW series, so a
-            # continuity-aware consumer can read the dual-written
-            # risk_exposure_score-based average without breaking the
-            # existing `avg_risk` wire contract (byte-identical source/name).
-            "avg_risk_exposure": r.metrics.get("avg_risk_exposure_score", 0),
+            "avg_risk": r.metrics.get(metric_key, 0),
             "open_vulns": r.metrics.get("open_vulns", 0),
             "critical": r.metrics.get("critical_open", 0),
             "sla_breached": r.metrics.get("sla_breached", 0),

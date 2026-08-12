@@ -18,8 +18,10 @@ that has never fired proves nothing):
   3. A fixture spanning the version-boundary (yesterday has both old+new dicts at real
      values; the flag flips OFF->ON; today's live scores reflect a small genuine
      same-version drift) produces ZERO storm alerts, because the diff is same-version-only
-     (new-vs-new), never cross-version (new-vs-old). The trend chart's new series is
-     likewise continuous (no cliff) across the same boundary.
+     (new-vs-new), never cross-version (new-vs-old). Once a tenant reads the trend chart
+     UNDER the flag it cut over with (Phase 34 Plan 05 — RISK-08 gap closure made
+     `get_risk_score_trend`'s primary `avg_risk` series itself flag-gated), that series
+     is likewise continuous (no cliff) across the same boundary.
 """
 
 from __future__ import annotations
@@ -183,8 +185,18 @@ async def test_cutover_boundary_no_storm_no_cliff(db_session, tenant_a):
 
 @pytest.mark.asyncio
 async def test_trend_no_cliff(db_session, tenant_a):
-    """get_risk_score_trend's new (avg_risk_exposure) series stays continuous
-    across a boundary day where avg_risk_score (old series) jumps sharply."""
+    """get_risk_score_trend's PRIMARY `avg_risk` series stays continuous
+    across a version boundary once a tenant reads it under the flag it
+    actually cut over with — never a cross-version cliff.
+
+    Phase 34 Plan 05 (RISK-08 gap closure) made `avg_risk` itself flag-gated
+    (mirrors service.py's primary-order-key swap): a tenant that has NOT cut
+    over reads the OLD series unconditionally (its own cliff, if the old
+    model happens to jump, is expected/pre-existing behavior — not this
+    guard's concern). A tenant that HAS cut over (flag ON) reads the NEW
+    series for its entire trend window, including days before the flip, so
+    the chart it actually sees is continuous even though the OLD series
+    beneath it would have cliffed."""
     day1 = (datetime.now(UTC) - timedelta(days=2)).date()
     day2 = (datetime.now(UTC) - timedelta(days=1)).date()
 
@@ -208,17 +220,27 @@ async def test_trend_no_cliff(db_session, tenant_a):
     )
     await db_session.commit()
 
-    rows = await get_risk_score_trend(db_session, tenant_a)
-    by_date = {r["date"]: r for r in rows}
+    # Flag OFF (default): avg_risk reads the OLD series, cliff and all -- this
+    # tenant hasn't cut over, so its chart is byte-identical to pre-Phase-34.
+    off_rows = await get_risk_score_trend(db_session, tenant_a)
+    off_by_date = {r["date"]: r for r in off_rows}
+    assert off_by_date[day1.isoformat()]["avg_risk"] == 20
+    assert off_by_date[day2.isoformat()]["avg_risk"] == 85
+    assert abs(off_by_date[day2.isoformat()]["avg_risk"] - off_by_date[day1.isoformat()]["avg_risk"]) >= 60
 
-    r1 = by_date[day1.isoformat()]
-    r2 = by_date[day2.isoformat()]
+    # Flag ON: avg_risk reads the NEW series for the WHOLE window (including
+    # day1, before the tenant ever flipped) -- continuous, no cliff, because
+    # RISK-10's unconditional dual-write already populated avg_risk_exposure_score
+    # for every historical day.
+    tenant = await _set_cutover_flag(db_session, tenant_a, True)
+    assert tenant.cutover_risk_exposure_scoring is True
 
-    assert "avg_risk_exposure" in r1
-    assert "avg_risk_exposure" in r2
-    # existing wire-contract field stays byte-identical (still reads avg_risk_score)
-    assert r1["avg_risk"] == 20
-    assert r2["avg_risk"] == 85
-    # the OLD series has a cliff (65-point jump); the NEW series must not.
-    assert abs(r2["avg_risk"] - r1["avg_risk"]) >= 60
-    assert abs(r2["avg_risk_exposure"] - r1["avg_risk_exposure"]) <= 5
+    on_rows = await get_risk_score_trend(db_session, tenant_a)
+    on_by_date = {r["date"]: r for r in on_rows}
+    r1 = on_by_date[day1.isoformat()]
+    r2 = on_by_date[day2.isoformat()]
+
+    assert "avg_risk_exposure" not in r1, "OFF/ON both swap the same avg_risk key, no extra key is added"
+    assert r1["avg_risk"] == 21
+    assert r2["avg_risk"] == 23
+    assert abs(r2["avg_risk"] - r1["avg_risk"]) <= 5

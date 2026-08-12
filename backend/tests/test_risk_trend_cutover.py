@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from app.tenants.models import Tenant
 from app.vulnerabilities.trends import DailySnapshot, get_risk_score_trend
