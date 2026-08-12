@@ -25,7 +25,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from app.assets.models import Asset
 from app.pagination import PaginationParams
@@ -71,9 +71,7 @@ def _seed_vuln(
 
 
 async def _set_cutover_flag(db_session, tenant_id: uuid.UUID, *, enabled: bool) -> None:
-    await db_session.execute(
-        update(Tenant).where(Tenant.id == tenant_id).values(cutover_risk_exposure_scoring=enabled)
-    )
+    await db_session.execute(update(Tenant).where(Tenant.id == tenant_id).values(cutover_risk_exposure_scoring=enabled))
     await db_session.commit()
 
 
@@ -194,10 +192,16 @@ async def test_ai_batch_selector_flag_off_is_identical(db_session, tenant_a):
     await db_session.flush()
 
     vuln_lo_asset = _seed_vuln(
-        tenant_a, asset_lo.id, cve_id="CVE-2024-AI-LO", risk_exposure_score=90  # inverted vs. its own asset
+        tenant_a,
+        asset_lo.id,
+        cve_id="CVE-2024-AI-LO",
+        risk_exposure_score=90,  # inverted vs. its own asset
     )
     vuln_hi_asset = _seed_vuln(
-        tenant_a, asset_hi.id, cve_id="CVE-2024-AI-HI", risk_exposure_score=10  # inverted vs. its own asset
+        tenant_a,
+        asset_hi.id,
+        cve_id="CVE-2024-AI-HI",
+        risk_exposure_score=10,  # inverted vs. its own asset
     )
     vuln_no_asset = _seed_vuln(tenant_a, None, cve_id="CVE-2024-AI-NULL", risk_exposure_score=None)
     db_session.add_all([vuln_lo_asset, vuln_hi_asset, vuln_no_asset])

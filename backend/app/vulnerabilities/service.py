@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
 from app.pagination import PaginatedResponse, PaginationParams
+from app.tenants.models import Tenant
 from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
@@ -89,14 +90,34 @@ async def list_vulnerabilities(
         .add_columns(Asset.hostname.label("asset_hostname"))
     )
 
+    # Phase 34 / RISK-08: scalar Tenant fetch (mirrors sla_service.py:43),
+    # tenant_id-scoped, once per call — read ONLY to branch the "triage" sort
+    # below on cutover_risk_exposure_scoring. Default OFF; the flag is never
+    # flipped in this environment (34-CONTEXT locked).
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
+    cutover_enabled = tenant.cutover_risk_exposure_scoring if tenant is not None else False
+
     # D-T-01: 'triage' sort = KEV desc → CVSS desc → SLA-due asc.
     # nulls_last() so missing CVSS / SLA dates don't bubble to the top.
+    # Phase 34 / RISK-08: with the cutover flag ON, the new per-finding
+    # risk_exposure_score leads as the PRIMARY key (a superset of the old
+    # intent -- it already folds in CVSS/KEV) while keeping the existing 3
+    # as tiebreakers; with the flag OFF (default), this branch is
+    # byte-identical to pre-Phase-34 behavior.
     if filters.sort == "triage":
-        data_q = data_q.order_by(
-            desc(Vulnerability.cisa_kev),
-            nulls_last(desc(Vulnerability.cvss_v3_score)),
-            nulls_last(asc(Vulnerability.sla_due_at)),
-        )
+        if cutover_enabled:
+            data_q = data_q.order_by(
+                nulls_last(desc(Vulnerability.risk_exposure_score)),
+                desc(Vulnerability.cisa_kev),
+                nulls_last(desc(Vulnerability.cvss_v3_score)),
+                nulls_last(asc(Vulnerability.sla_due_at)),
+            )
+        else:
+            data_q = data_q.order_by(
+                desc(Vulnerability.cisa_kev),
+                nulls_last(desc(Vulnerability.cvss_v3_score)),
+                nulls_last(asc(Vulnerability.sla_due_at)),
+            )
     elif filters.sort == "cve_id":
         # Phase 11 / D-T-01: lexicographic. cve_id is `String(20) NOT NULL`
         # in practice (NULL only on legacy rows that never had a CVE
@@ -539,15 +560,18 @@ async def get_top_findings_for_ai_batch(
     """D-01 batch-scope query (AIP-02): the tenant's top-N findings for the
     nightly Message Batch pre-warm (`app.ai.batch.run_batch_prewarm`).
 
-    Ranked by the ASSET-02 per-asset `Asset.risk_score` (PRIMARY sort key —
-    Assumption A1: "the existing deterministic ASSET-02 score" is a
-    per-asset aggregate computed by `assets/risk_score.py`, not a
-    per-finding column; `Vulnerability` has no `risk_score` field at all),
-    with a KEV desc -> CVSS desc -> SLA-due asc per-finding tiebreak
-    (mirrors this file's own `sort="triage"` idiom above) so two findings
-    on the SAME asset are still ordered sensibly. An asset-less finding
-    (`asset_id IS NULL` -> `Asset.risk_score` NULL) sorts LAST via
-    `nulls_last`, never crowding out a scored finding.
+    Ranked by the ASSET-02 per-asset `Asset.risk_score` (PRIMARY sort key when
+    the Phase 34 / RISK-08 cutover flag is OFF — the default, and
+    byte-identical to pre-Phase-34 behavior): "the existing deterministic
+    ASSET-02 score" is a per-asset aggregate computed by `assets/risk_score.py`.
+    With `Tenant.cutover_risk_exposure_scoring` ON, the PRIMARY key instead
+    becomes the per-finding `Vulnerability.risk_exposure_score` (Phase 33,
+    RISK-01/02/06) — a genuine improvement (per-finding vs. asset-level
+    ranking) plus a cutover. Either way, a KEV desc -> CVSS desc -> SLA-due
+    asc per-finding tiebreak (mirrors this file's own `sort="triage"` idiom
+    above) keeps two findings on the SAME asset ordered sensibly. An
+    asset-less finding (`asset_id IS NULL`) sorts LAST via `nulls_last` on
+    whichever primary key is active, never crowding out a scored finding.
 
     'OPEN' is interpreted as status IN ('OPEN', 'IN_PROGRESS') — matching
     `risk_score.py::compute_risk_scores()`'s own scoring input (D-01,
@@ -560,6 +584,19 @@ async def get_top_findings_for_ai_batch(
     deferred — revisit only if Phase 28 observability shows crowding from
     one asset materializes in practice).
     """
+    # Phase 34 / RISK-08: scalar Tenant fetch (mirrors sla_service.py:43 /
+    # list_vulnerabilities above), tenant_id-scoped, once per call.
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
+    cutover_enabled = tenant.cutover_risk_exposure_scoring if tenant is not None else False
+
+    # Asset outerjoin is kept on BOTH paths (simplest; the OFF path needs it
+    # for Asset.risk_score and dropping it on the ON path is an optional
+    # simplification not taken here, to keep the OFF path's query shape
+    # untouched).
+    primary_key = (
+        nulls_last(desc(Vulnerability.risk_exposure_score)) if cutover_enabled else nulls_last(desc(Asset.risk_score))
+    )
+
     result = await db.execute(
         select(Vulnerability.id)
         .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
@@ -568,7 +605,7 @@ async def get_top_findings_for_ai_batch(
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
         )
         .order_by(
-            nulls_last(desc(Asset.risk_score)),
+            primary_key,
             desc(Vulnerability.cisa_kev),
             nulls_last(desc(Vulnerability.cvss_v3_score)),
             nulls_last(asc(Vulnerability.sla_due_at)),
