@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -46,6 +46,15 @@ async def list_findings(
     cloud_provider: str | None = Query(None),
     resource_type: str | None = Query(None),
     search: str | None = Query(None),
+    # Phase 35 / SRC-02/05: OR (default, source.in_()) vs AND (true
+    # multi-tool corroboration via the (rule_id,resource_id) GROUP BY).
+    # Must be bound here (not just added to the schema) — this router builds
+    # MisconfigFilter from explicit Query(...) params, so a field with no
+    # matching Query param is silently dropped and never reaches the
+    # service, leaving ?source_mode=and unreachable via HTTP.
+    source_mode: Literal["or", "and"] = Query(
+        "or", description="OR (any selected tool) vs AND (corroborated by all selected tools)"
+    ),
 ):
     filters = MisconfigFilter(
         severity=severity,
@@ -55,6 +64,7 @@ async def list_findings(
         cloud_provider=cloud_provider,
         resource_type=resource_type,
         search=search,
+        source_mode=source_mode,
     )
     pagination = PaginationParams(page=page, page_size=page_size)
     return await list_misconfigurations(db, user.tenant_id, filters, pagination)

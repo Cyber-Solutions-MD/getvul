@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import Select, case, func, literal_column, or_, select, update
+from sqlalchemy import Select, case, func, literal_column, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cspm.models import Misconfiguration
@@ -30,7 +30,29 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: MisconfigFilter
     if filters.severity:
         query = query.where(Misconfiguration.severity.in_(filters.severity))
     if filters.source:
-        query = query.where(Misconfiguration.source.in_(filters.source))
+        # Phase 35 / SRC-05: AND mode is TRUE multi-tool corroboration via a
+        # read-time GROUP BY(tenant_id, rule_id, resource_id) over the
+        # existing per-tool Misconfiguration rows (uq_misconfig_dedup already
+        # produces one row per tool per group) — NEVER a silent
+        # Misconfiguration.source.in_() fallback for AND (the exact SRC-05
+        # anti-pattern). AND with <2 selected sources is a documented no-op
+        # (Pitfall 1 convention, matching Plans 01/03): falls into the OR
+        # branch below.
+        if filters.source_mode == "and" and len(filters.source) >= 2:
+            selected = set(filters.source)
+            grp = (
+                select(Misconfiguration.rule_id, Misconfiguration.resource_id)
+                .where(
+                    Misconfiguration.tenant_id == tenant_id,
+                    Misconfiguration.source.in_(filters.source),
+                )
+                .group_by(Misconfiguration.rule_id, Misconfiguration.resource_id)
+                .having(func.count(func.distinct(Misconfiguration.source)) >= len(selected))
+            )
+            query = query.where(tuple_(Misconfiguration.rule_id, Misconfiguration.resource_id).in_(grp))
+        else:
+            # OR (default) / AND-with-<2 no-op: unchanged, correct.
+            query = query.where(Misconfiguration.source.in_(filters.source))
     if filters.status:
         query = query.where(Misconfiguration.status.in_(filters.status))
     if filters.category:
@@ -77,7 +99,41 @@ async def list_misconfigurations(
     )
     results = (await db.execute(data_q)).scalars().all()
 
-    items = [MisconfigSummary.model_validate(m) for m in results]
+    # Phase 35 / SRC-05/SRC-08: page-scoped batched group-sources fetch.
+    # Mirrors vulnerabilities/service.py:201-224's page-scoped
+    # tuple_(...).in_(page_keys) precedent — ONE grouped query for the
+    # page's (rule_id, resource_id) keys, never a per-row lookup.
+    page_keys = {(m.rule_id, m.resource_id) for m in results}
+    group_by_key: dict[tuple[str, str], tuple[list[str], int]] = {}
+    if page_keys:
+        g = (
+            select(
+                Misconfiguration.rule_id,
+                Misconfiguration.resource_id,
+                func.array_agg(func.distinct(Misconfiguration.source)).label("sources"),
+                func.count(func.distinct(Misconfiguration.source)).label("sources_count"),
+            )
+            .where(
+                # T-35-01: scope the SECOND (batched) query to the tenant
+                # explicitly too, not just the primary query.
+                Misconfiguration.tenant_id == tenant_id,
+                tuple_(Misconfiguration.rule_id, Misconfiguration.resource_id).in_(page_keys),
+            )
+            .group_by(Misconfiguration.rule_id, Misconfiguration.resource_id)
+        )
+        group_by_key = {(r.rule_id, r.resource_id): (r.sources, r.sources_count) for r in (await db.execute(g)).all()}
+
+    items = []
+    for m in results:
+        grp = group_by_key.get((m.rule_id, m.resource_id))
+        # No group row (should not happen given m is itself in the group) or
+        # a single-tool group: fall back to [m.source]/1, never null/unknown.
+        sources = grp[0] if grp and grp[0] else [m.source]
+        sources_count = grp[1] if grp else 1
+        summary = MisconfigSummary.model_validate(m)
+        summary.sources = sources
+        summary.sources_count = sources_count
+        items.append(summary)
     return PaginatedResponse.create(items=items, total=total, params=pagination)
 
 

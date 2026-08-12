@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,13 @@ class MisconfigSummary(BaseModel):
     cloud_provider: str | None
     first_detected_at: datetime
     last_seen_at: datetime
+
+    # Phase 35 / SRC-05: page-scoped batched group provenance. Defaulting
+    # sources_count=1 mirrors the Vulnerabilities/Assets "no correlation row
+    # = single source, never unknown" convention — a (rule_id, resource_id)
+    # group flagged by only ONE tool always resolves to sources=[own source].
+    sources: list[str] = Field(default_factory=list)
+    sources_count: int = 1
 
     model_config = {"from_attributes": True}
 
@@ -58,13 +66,20 @@ class MisconfigResponse(BaseModel):
 
 
 class MisconfigFilter(BaseModel):
-    severity: list[str] | None = None
-    source: list[str] | None = None
-    status: list[str] | None = None
-    category: list[str] | None = None
+    # T-35-02: caps mirror VulnerabilityFilter's existing DoS-bound convention
+    # (schemas.py:111-113) — previously uncapped here.
+    severity: list[str] | None = Field(None, max_length=10)
+    source: list[str] | None = Field(None, max_length=10)
+    status: list[str] | None = Field(None, max_length=10)
+    category: list[str] | None = Field(None, max_length=10)
     cloud_provider: str | None = None
     resource_type: str | None = None
     search: str | None = None
+    # Phase 35 / SRC-05: OR-default (source.in_(), unchanged/correct) vs
+    # AND-toggle (true multi-tool corroboration via a read-time
+    # GROUP BY(tenant_id, rule_id, resource_id) — NEVER a silent
+    # source.in_() fallback for AND). Literal auto-422s on anything else.
+    source_mode: Literal["or", "and"] = "or"
 
 
 class MisconfigStatusUpdate(BaseModel):
