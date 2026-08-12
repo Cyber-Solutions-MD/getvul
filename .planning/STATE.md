@@ -5,15 +5,15 @@ milestone_name: Enriched Risk Exposure & Source-Aware Triage
 current_phase: 34
 current_phase_name: Historical Recompute & Consumer Cutover
 status: in_progress
-stopped_at: "Phase 34 Plan 03 (RISK-09 threshold diff + ack + gated flag-flip) complete — risk_cutover_service.py's compute_threshold_diff is backfill-completion gated (Pitfall 3: no job or non-completed job returns ready:false, never a misleading undercount), reports old (Asset.risk_score) vs new (Asset.risk_exposure_score) match counts for every TicketRule.conditions/SavedFilter.filters min_risk_score with a deterministic sorted-JSON sha256 diff_hash; record_threshold_ack stamps risk_cutover_threshold_ack_at + risk_cutover_threshold_ack_diff_hash, audited before commit; enable_cutover is the only path that can set Tenant.cutover_risk_exposure_scoring=True and requires BOTH backfill-complete AND a fresh hash-matching ack, else a gate-specific 409 (backfill_incomplete/threshold_ack_missing/threshold_ack_stale). 3 admin endpoints under /api/v1/risk-cutover (threshold-diff, threshold-ack, enable), all require_role(\"admin\"). audit.py gained risk_cutover.threshold_ack/risk_cutover.flag_enable action strings. 8/8 new RISK-09 fixture tests green (diff computation, backfill-gate x2, ack stamp+hash, ack-refused-incomplete, stale-ack-after-threshold-change, both-gates-flip across all 3 states, admin RBAC 403). rule_engine.py/saved_filters.py confirmed untouched via git diff (Pitfall 4 — no live retarget). 0 new mypy-baseline violations, ruff clean. The flip is never invoked against live tenant data in this environment (accepted debt, 34-CONTEXT.md locked). Next: 34-04 (RISK-10 boundary guards — unconditional DailySnapshot dual-write + dead _check_risk_score_changes fix + version-boundary guard fixture)."
-last_updated: "2026-08-12T10:47:30+03:00"
+stopped_at: "Phase 34 Plan 04 (RISK-10 version-boundary guards) complete — capture_daily_snapshot (trends.py) now dual-writes avg_risk_exposure_score/asset_risk_scores/asset_risk_exposure_scores/risk_model_version_snapshot into every DailySnapshot UNCONDITIONALLY (grep for the cutover flag name in trends.py returns nothing, confirming the write side never reads it); get_risk_score_trend exposes the new series as an additional avg_risk_exposure key, avg_risk name/source unchanged (no wire-contract break). _check_risk_score_changes (alerts.py) reads tenant.cutover_risk_exposure_scoring once and diffs same-version-only — new-vs-new when ON, old-vs-old when OFF, never cross-version — which ALSO fixes a genuine pre-existing dead-code bug: asset_risk_scores was never populated by capture_daily_snapshot before this phase, so the spike check had returned 0 for every tenant, every day, since it was written. New fixture suite test_risk_boundary_guard.py (5/5 green): dict-population shape, two Pitfall-2 non-zero controls (OFF and ON branches genuinely fire on a same-version spike — proving the check isn't dead before trusting a boundary-zero result), the core boundary fixture (flag flips OFF->ON between two snapshot days; same-version diff yields 0 storm alerts even though a naive cross-version diff would have produced a 46-point false spike), and a trend-continuity fixture (old avg_risk_score series jumps 65 points across the boundary day, new avg_risk_exposure series drifts only 2). test_severity_trends.py + test_dashboard_tiles.py regress clean (8/8), ruff check + format clean on all 3 touched files. Phase 34 (Historical Recompute & Consumer Cutover) is now 4/4 plans complete — RISK-07/08/09/10 all implemented; the live flag-flip on real tenant data remains accepted debt per 34-CONTEXT.md (no live/at-scale data in this environment, consistent with Phases 31/32/33's on-trust waivers). Next: /gsd-verify-phase 34, then /gsd-plan-phase 35."
+last_updated: "2026-08-12T08:15:00Z"
 last_activity: 2026-08-12
-last_activity_desc: Phase 34 Plan 03 (RISK-09 threshold diff + ack + gated flag-flip) complete
+last_activity_desc: Phase 34 Plan 04 (RISK-10 version-boundary guards) complete — Phase 34 now 4/4 plans complete
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 19
-  completed_plans: 19
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 20
+  completed_plans: 20
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (3/4 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover + 34-03 RISK-09 diff+ack shipped; 34-04 remains)
+**Current focus:** Phase 34 — Historical Recompute & Consumer Cutover (4/4 plans complete — 34-01 RISK-07 lead tracer + 34-02 RISK-08 flag-gated cutover + 34-03 RISK-09 diff+ack + 34-04 RISK-10 boundary guards all shipped; pending `/gsd-verify-phase 34`)
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 34 — Historical Recompute & Consumer Cutover
-Plan: 01/02/03 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover; RISK-09 diff+ack) — 04 pending
-Status: In progress
-Last activity: 2026-08-12 — 34-03 (RISK-09 threshold diff + ack + gated flag-flip) complete
+Plan: 01/02/03/04 complete (RISK-07 lead tracer; RISK-08 flag-gated cutover; RISK-09 diff+ack; RISK-10 boundary guards) — phase fully executed
+Status: Phase 34 complete (4/4 plans), pending /gsd-verify-phase 34
+Last activity: 2026-08-12 — 34-04 (RISK-10 version-boundary guards) complete
 
 ## v4.0 Phase Map
 

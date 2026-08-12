@@ -46,7 +46,7 @@ Requirements for the v4.0 release. Each maps to exactly one roadmap phase (see T
 - [x] **RISK-07**: The one-time historical recompute is idempotent, resumable, throttled, and per-tenant isolated (bulk `UPDATE … FROM`, reusing the shipped `backfill_sla_due_dates` + scheduler-tick idiom, never a blocking Alembic data migration) and provably survives a kill-mid-run-and-resume + a realistic single-VM load test
 - [ ] **RISK-08**: SLA breach detection, list sorting (`sort="triage"`), trend charts, and the v3.0 AI batch selector (`get_top_findings_for_ai_batch`) cut over to the new score; SLA windows remain severity-keyed; hardcoded severity-tier boundaries currently triplicated across `export.py`/`assets/router.py`/`dashboard.py` are centralized to one constant
 - [x] **RISK-09**: Before cutover, each tenant receives a pre/post diff report for its `min_risk_score` automation-rule and saved-filter thresholds, requiring explicit re-tuning acknowledgment (no silent reinterpretation)
-- [ ] **RISK-10**: The day-over-day risk-spike notification (`_check_risk_score_changes`) and the trend chart are version-boundary-guarded so cutover day produces neither an alert storm nor a trend cliff
+- [x] **RISK-10**: The day-over-day risk-spike notification (`_check_risk_score_changes`) and the trend chart are version-boundary-guarded so cutover day produces neither an alert storm nor a trend cliff
 
 ### Source-Aware Filtering & Provenance (SRC)
 
@@ -114,7 +114,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | RISK-07 | Phase 34 (Historical Recompute & Consumer Cutover) | Complete |
 | RISK-08 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
 | RISK-09 | Phase 34 (Historical Recompute & Consumer Cutover) | Complete |
-| RISK-10 | Phase 34 (Historical Recompute & Consumer Cutover) | Pending |
+| RISK-10 | Phase 34 (Historical Recompute & Consumer Cutover) | Complete |
 | SRC-01 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
 | SRC-02 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
 | SRC-03 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
