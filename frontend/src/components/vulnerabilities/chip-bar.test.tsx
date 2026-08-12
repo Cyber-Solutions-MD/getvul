@@ -29,7 +29,7 @@ const useSavedFiltersMock = vi.mocked(useSavedFilters);
 
 const baseFacets = {
   severity: { CRITICAL: 12, HIGH: 47, MEDIUM: 80, LOW: 3 },
-  source: { QUALYS: 287, TENABLE: 192 },
+  source: { QUALYS: 287, NESSUS: 192 },
   status: { OPEN: 322, SNOOZED: 14 },
 };
 
@@ -57,7 +57,7 @@ describe('<ChipBar> (UX-03-01 + D-F-01/02/03/05 — chip-bar filter row)', () =>
     expect(screen.getByText(/High/)).toBeInTheDocument();
     // Source chips from facets
     expect(screen.getByText(/QUALYS/)).toBeInTheDocument();
-    expect(screen.getByText(/TENABLE/)).toBeInTheDocument();
+    expect(screen.getByText(/NESSUS/)).toBeInTheDocument();
     // Clear all link
     expect(screen.getByRole('button', { name: /clear all/i })).toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe('<ChipBar> (UX-03-01 + D-F-01/02/03/05 — chip-bar filter row)', () =>
   it('source chips are rendered from facets.source (not hardcoded)', () => {
     render(<ChipBar facets={{ ...baseFacets, source: { QUALYS: 287 } }} />);
     expect(screen.getByText(/QUALYS/)).toBeInTheDocument();
-    expect(screen.queryByText(/TENABLE/)).toBeNull();
+    expect(screen.queryByText(/NESSUS/)).toBeNull();
   });
 
   it('Clear all wipes both chips AND search (planner default — UX-03-01 sibling)', () => {
@@ -143,5 +143,60 @@ describe('<ChipBar> (UX-03-01 + D-F-01/02/03/05 — chip-bar filter row)', () =>
     } as unknown as ReturnType<typeof useSavedFilters>);
     rerender(<ChipBar facets={baseFacets} />);
     expect(screen.getByText(/Today's triage/)).toBeInTheDocument();
+  });
+
+  // Phase 35 SRC-01/02/03/04 — source axis reconciliation + OR/AND toggle.
+  describe('Phase 35 — reconciled source list + OR/AND source_mode toggle', () => {
+    it('source axis never renders the fake TENABLE/AWS_INSPECTOR/MOCK values', () => {
+      render(
+        <ChipBar
+          facets={{
+            ...baseFacets,
+            source: { TENABLE: 5, AWS_INSPECTOR: 3, MOCK: 1, QUALYS: 10 },
+          }}
+        />,
+      );
+      expect(screen.queryByText(/TENABLE/)).toBeNull();
+      expect(screen.queryByText(/AWS_INSPECTOR/)).toBeNull();
+      expect(screen.queryByText(/MOCK/)).toBeNull();
+      expect(screen.getByText(/QUALYS/)).toBeInTheDocument();
+    });
+
+    it('source axis renders the real NESSUS/DEFENDER connectors when present in facets', () => {
+      render(
+        <ChipBar
+          facets={{ ...baseFacets, source: { NESSUS: 4, DEFENDER: 2 } }}
+        />,
+      );
+      expect(screen.getByText(/NESSUS/)).toBeInTheDocument();
+      expect(screen.getByText(/DEFENDER/)).toBeInTheDocument();
+    });
+
+    it('the source_mode toggle is disabled when fewer than 2 sources are selected', () => {
+      mockParams = new URLSearchParams('source=QUALYS');
+      render(<ChipBar facets={baseFacets} />);
+      const toggle = screen.getByRole('button', { name: /any selected/i });
+      expect(toggle).toBeDisabled();
+    });
+
+    it('the source_mode toggle is enabled once 2+ sources are selected and flips ?source_mode=and on click', () => {
+      mockParams = new URLSearchParams('source=QUALYS&source=NESSUS');
+      render(<ChipBar facets={baseFacets} />);
+      const toggle = screen.getByRole('button', { name: /any selected/i });
+      expect(toggle).not.toBeDisabled();
+      act(() => {
+        fireEvent.click(toggle);
+      });
+      expect(mockReplace).toHaveBeenCalledTimes(1);
+      const [target] = mockReplace.mock.calls[0];
+      expect(target).toContain('source_mode=and');
+    });
+
+    it('toggle copy avoids AND/OR jargon — shows "Any selected" / "All selected"', () => {
+      mockParams = new URLSearchParams('source=QUALYS&source=NESSUS');
+      render(<ChipBar facets={baseFacets} />);
+      expect(screen.getByRole('button', { name: /any selected/i })).toBeInTheDocument();
+      expect(screen.queryByText(/\bAND\b|\bOR\b/)).toBeNull();
+    });
   });
 });

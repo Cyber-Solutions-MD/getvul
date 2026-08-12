@@ -6,6 +6,9 @@
 // shape adapter. Visual contract + behavior live in the generic primitive.
 import { ChipBar as GenericChipBar, type ChipAxis } from '@/components/ui/ChipBar';
 import { useSavedFilters } from '@/lib/queries/use-saved-filters';
+import { useUrlState } from '@/hooks/use-url-state';
+import { useUrlStateList } from '@/hooks/use-url-state-list';
+import { cn } from '@/lib/utils';
 import { microcopy } from './microcopy';
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
@@ -22,8 +25,20 @@ const SEVERITY_GLYPH_COLOR: Record<Severity, string> = {
   info: 'text-severity-info',
 };
 
-// XSS allow-list for source chips (D-F-03). Adding a new connector means adding it here.
-const SOURCES = ['QUALYS', 'TENABLE', 'RAPID7', 'CROWDSTRIKE', 'AWS_INSPECTOR', 'WIZ', 'MOCK'] as const;
+// XSS allow-list for source chips (D-F-03). Reconciled to the real backend
+// VulnSource enum (vulnerabilities/models.py:32-38) — Phase 35 SRC-06/CONTEXT
+// dropped the non-existent placeholder scanner values this list previously
+// carried and added the two real connectors it was missing entirely.
+const SOURCES = ['CROWDSTRIKE', 'NESSUS', 'DEFENDER', 'WIZ', 'QUALYS', 'RAPID7'] as const;
+
+// Phase 35 SRC-02/03/04: OR (any selected source) is the default; AND
+// (corroborated by ALL selected sources) is an explicit opt-in toggle, bound
+// to ?source_mode via the same singular useUrlState sibling hook `?order=`
+// already uses. Disabled below 2 selected sources (Pitfall 1) — AND with
+// fewer than 2 sources is a documented no-op on the backend (35-01), so the
+// toggle is kept inert rather than letting the analyst flip a control with
+// no observable effect.
+const SOURCE_MODES = ['or', 'and'] as const;
 
 export type ChipBarFacets = {
   severity: Record<string, number>;
@@ -54,6 +69,16 @@ export function ChipBar({ facets }: Props) {
   const savedFilters = useSavedFilters();
   const firstSaved = savedFilters.data?.[0] as SavedFilterRow | undefined;
 
+  // SRC-04 / Pitfall 1 — the AND toggle only has an observable effect once
+  // 2+ sources are selected (the backend treats AND-with-<2 as a documented
+  // OR no-op, 35-01). Read the same `?source=` list the source axis chips
+  // write to, so the toggle disables itself the instant the analyst drops
+  // below 2 selections.
+  const [selectedSources] = useUrlStateList('source', SOURCES, []);
+  const [sourceMode, setSourceMode] = useUrlState('source_mode', SOURCE_MODES, 'or');
+  const sourceModeDisabled = selectedSources.length < 2;
+  const sourceModeIsAnd = sourceMode === 'and';
+
   const severityAxis: ChipAxis = {
     key: 'severity',
     allowList: SEVERITIES,
@@ -78,11 +103,39 @@ export function ChipBar({ facets }: Props) {
     : null;
 
   return (
-    <GenericChipBar
-      axes={[severityAxis, sourceAxis]}
-      savedFilter={savedFilter}
-      searchPlaceholder={microcopy.page.searchPlaceholder}
-      searchAriaLabel={microcopy.page.searchPlaceholder}
-    />
+    <div className="flex flex-col gap-2">
+      <GenericChipBar
+        axes={[severityAxis, sourceAxis]}
+        savedFilter={savedFilter}
+        searchPlaceholder={microcopy.page.searchPlaceholder}
+        searchAriaLabel={microcopy.page.searchPlaceholder}
+      />
+      {/* SRC-02/03/04 — OR/AND toggle, sibling to the source axis (ChipAxis
+          has no mode field, so this can't be an axis chip). Disabled below 2
+          selected sources — a no-op AND is worse UX than an inert control. */}
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-xs uppercase tracking-wide text-text-muted">
+          {microcopy.chips.sourceModeLabel}
+        </span>
+        <button
+          type="button"
+          onClick={() => setSourceMode(sourceModeIsAnd ? 'or' : 'and')}
+          disabled={sourceModeDisabled}
+          aria-pressed={sourceModeIsAnd}
+          title={sourceModeDisabled ? microcopy.chips.sourceModeDisabledHint : undefined}
+          data-source-mode-toggle
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors',
+            'focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            sourceModeIsAnd
+              ? 'border-border bg-surface-2 text-text'
+              : 'border-border-subtle bg-surface text-text-muted hover:bg-surface-2 hover:text-text',
+          )}
+        >
+          {sourceModeIsAnd ? microcopy.chips.sourceModeAll : microcopy.chips.sourceModeAny}
+        </button>
+      </div>
+    </div>
   );
 }

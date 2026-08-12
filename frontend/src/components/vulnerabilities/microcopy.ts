@@ -20,6 +20,12 @@ export const microcopy = {
     info: 'Info',
     kev: 'CISA KEV',
     exploit: 'Exploit available',
+    // Phase 35 SRC-02/03/04 — OR/AND source-mode toggle. Avoids AND/OR
+    // jargon per copy-voice.md; the button label reflects the current mode.
+    sourceModeLabel: 'Match',
+    sourceModeAny: 'Any selected',
+    sourceModeAll: 'All selected',
+    sourceModeDisabledHint: 'Select 2 or more sources to match all of them',
   },
   viewToggle: {
     byCve: 'By CVE',

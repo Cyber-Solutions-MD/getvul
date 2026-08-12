@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState, type KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { microcopy } from './microcopy';
+import { SourceBadgeGroup } from './source-badge-group';
 
 // UX-03-02 + UX-07-03 + D-V-04.
 // 7 columns: Severity / CVE / Title / Asset / CVSS / Status / SLA.
@@ -40,6 +41,11 @@ export type VulnTableRow = {
   cisa_kev?: boolean;
   exploit_available?: boolean;
   source: string;
+  // Phase 35 SRC-01: provenance carried by every list row (35-01 backend
+  // contract). Optional so pre-Phase-35 test fixtures without these fields
+  // still type-check — SourceBadgeGroup defaults an absent array to [].
+  sources?: string[];
+  sources_count?: number;
   sla_due_at: string | null;
 };
 
@@ -305,6 +311,10 @@ export function VulnTable({
                       ⚡
                     </span>
                   )}
+                  <SourceBadgeGroup
+                    sources={row.sources ?? [row.source]}
+                    count={row.sources_count}
+                  />
                   <span className="text-xs">{row.status}</span>
                 </span>
               </td>
@@ -396,7 +406,12 @@ export function VulnTable({
                   ⚡
                 </span>
               )}
-              <span className={cn('shrink-0 font-mono text-text', !row.cisa_kev && !row.exploit_available && 'ml-auto')}>
+              <SourceBadgeGroup
+                sources={row.sources ?? [row.source]}
+                count={row.sources_count}
+                className={cn('shrink-0', !row.cisa_kev && !row.exploit_available && 'ml-auto')}
+              />
+              <span className="shrink-0 font-mono text-text">
                 {cvss !== null ? cvss.toFixed(1) : '—'}
               </span>
             </div>
