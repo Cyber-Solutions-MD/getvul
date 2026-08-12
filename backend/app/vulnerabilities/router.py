@@ -77,6 +77,15 @@ async def list_vulns(
     # T-11-01: explicit direction. Default 'desc' preserves existing severity
     # / triage ordering for callers that pass neither sort= nor order=.
     order: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
+    # Phase 35 / SRC-02/03/04: OR-default vs AND-toggle for the `source`
+    # filter, via the correlation ARRAY `&&`/`@>` operators. Literal → 422 on
+    # anything else. Must be bound here (not just added to the schema) — this
+    # router builds VulnerabilityFilter from explicit Query(...) params, so a
+    # field with no matching Query param is silently dropped and never
+    # reaches the service.
+    source_mode: Literal["or", "and"] = Query(
+        "or", description="OR (any selected scanner) vs AND (corroborated by all selected scanners)"
+    ),
     # T-11-02 / D-V-01: grouping mode. Unknown values 422 via Literal.
     group: Literal["cve", "host"] = Query(
         "cve",
@@ -122,6 +131,7 @@ async def list_vulns(
         sort=sort,
         order=order,
         group=group,
+        source_mode=source_mode,
     )
 
     # `limit` is the Phase-10-friendly alias; page_size remains the canonical name.

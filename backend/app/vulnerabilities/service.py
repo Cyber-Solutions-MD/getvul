@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, update
+from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
@@ -38,7 +38,37 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: VulnerabilityFi
     if filters.severity:
         query = query.where(Vulnerability.severity.in_(filters.severity))
     if filters.source:
-        query = query.where(Vulnerability.source.in_(filters.source))
+        # Phase 35 / SRC-03/SRC-04: filter on the Phase-30 correlation ARRAY
+        # (VulnerabilityCorrelation.sources), NOT the per-row
+        # Vulnerability.source column — the correlation array is the only
+        # place true multi-scanner corroboration can be expressed.
+        #
+        # AND with <2 selected sources is a documented no-op (Pitfall 1):
+        # OR and AND are mathematically identical for a single-element set,
+        # so it falls into the OR branch below rather than the exclusive
+        # AND branch.
+        corr_subq = select(VulnerabilityCorrelation.cve_id, VulnerabilityCorrelation.asset_id).where(
+            VulnerabilityCorrelation.tenant_id == tenant_id,
+            VulnerabilityCorrelation.sources.contains(filters.source)
+            if filters.source_mode == "and" and len(filters.source) >= 2
+            else VulnerabilityCorrelation.sources.overlap(filters.source),
+        )
+        if filters.source_mode == "and" and len(filters.source) >= 2:
+            # AND: only rows with a qualifying correlation match — a
+            # single-source finding (no correlation row) structurally
+            # cannot corroborate, and must be excluded.
+            query = query.where(tuple_(Vulnerability.cve_id, Vulnerability.asset_id).in_(corr_subq))
+        else:
+            # OR (default) / AND-with-<2 no-op: correlation overlap OR
+            # direct per-row source match — the direct-source fallback is
+            # what lets single-source findings (which have NO correlation
+            # row at all) still match the OR filter.
+            query = query.where(
+                or_(
+                    tuple_(Vulnerability.cve_id, Vulnerability.asset_id).in_(corr_subq),
+                    Vulnerability.source.in_(filters.source),
+                )
+            )
     if filters.status:
         query = query.where(Vulnerability.status.in_(filters.status))
     if filters.cve_id:
@@ -166,10 +196,42 @@ async def list_vulnerabilities(
     data_q = data_q.offset(pagination.offset).limit(pagination.page_size)
     results = (await db.execute(data_q)).all()
 
+    page_rows = [row[0] if hasattr(row, "__getitem__") else row.Vulnerability for row in results]
+
+    # Phase 35 / SRC-01 / SRC-08: page-scoped batched provenance fetch.
+    # Extends risk_exposure_service.py:320-345's bulk-dict-lookup precedent,
+    # but PAGE-scoped (not tenant-wide) and carrying the sources ARRAY (not
+    # just the count) — exactly ONE extra query per page load, independent
+    # of page size, never a per-row correlation lookup (the literal SRC-08
+    # anti-pattern).
+    page_keys = {(v.cve_id, v.asset_id) for v in page_rows if v.cve_id and v.asset_id}
+    corr_by_key: dict[tuple[str, uuid.UUID], VulnerabilityCorrelation] = {}
+    if page_keys:
+        corr_rows = (
+            (
+                await db.execute(
+                    select(VulnerabilityCorrelation).where(
+                        # T-35-01: scope the SECOND (batched) query to the
+                        # tenant explicitly too, not just the primary query.
+                        VulnerabilityCorrelation.tenant_id == tenant_id,
+                        tuple_(VulnerabilityCorrelation.cve_id, VulnerabilityCorrelation.asset_id).in_(page_keys),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        corr_by_key = {(c.cve_id, c.asset_id): c for c in corr_rows}
+
     items = []
     for row in results:
         vuln = row[0] if hasattr(row, "__getitem__") else row.Vulnerability
         hostname = row.asset_hostname if hasattr(row, "asset_hostname") else None
+        corr = corr_by_key.get((vuln.cve_id, vuln.asset_id))
+        # No correlation row = single source, never unknown (mirrors
+        # risk_exposure_service.py:352's corr_by_key.get((...), 1) convention).
+        sources = corr.sources if corr and corr.sources else [vuln.source]
+        sources_count = corr.sources_count if corr else 1
         items.append(
             VulnerabilitySummary(
                 id=vuln.id,
@@ -184,6 +246,8 @@ async def list_vulnerabilities(
                 asset_hostname=hostname,
                 first_detected_at=vuln.first_detected_at,
                 last_seen_at=vuln.last_seen_at,
+                sources=sources,
+                sources_count=sources_count,
             )
         )
 

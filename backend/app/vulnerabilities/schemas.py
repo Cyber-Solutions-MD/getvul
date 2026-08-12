@@ -87,6 +87,14 @@ class VulnerabilitySummary(BaseModel):
     first_detected_at: datetime
     last_seen_at: datetime
 
+    # Phase 35 / SRC-01: provenance data spine. Defaulting sources_count=1 /
+    # sources=[] mirrors the risk_exposure_service.py corr_by_key.get((...), 1)
+    # "no correlation row = single source, never unknown" convention — a
+    # finding with no VulnerabilityCorrelation row always resolves to
+    # sources=[vuln.source], sources_count=1, never null.
+    sources: list[str] = Field(default_factory=list)
+    sources_count: int = 1
+
     model_config = {"from_attributes": True}
 
 
@@ -132,6 +140,12 @@ class VulnerabilityFilter(BaseModel):
     # severity / triage sorts (which today are inherently desc) keep the same
     # shape when callers don't pass `order=`.
     order: Literal["asc", "desc"] = "desc"
+    # Phase 35 / SRC-02/03/04: OR-default ("or", the correlation-array `&&`
+    # overlap, unioned with the direct per-row source fallback for
+    # single-source findings) vs AND-toggle ("and", the correlation-array
+    # `@>` contains — true multi-scanner corroboration). Literal auto-422s
+    # on anything else (no manual allow-list check needed at this layer).
+    source_mode: Literal["or", "and"] = "or"
     # Phase 11 / D-V-01 / T-11-02: grouping mode. "cve" preserves the legacy
     # one-row-per-vulnerability shape; "host" returns one row per asset with
     # denormalized severity counts.

@@ -193,10 +193,28 @@ async def test_list_query_count_is_page_size_invariant(db_session, tenant_a):
 
     filters = VulnerabilityFilter()
 
+    # count_queries() attaches to the ENGINE-level before_cursor_execute
+    # event, so it also captures statements from any OTHER concurrent
+    # activity sharing the same event loop — notably a fire-and-forget
+    # EPSS-cache-refresh background task started by the `client` fixture's
+    # app lifespan in sibling tests (this suite runs
+    # asyncio_default_test_loop_scope=session, so that task can still be
+    # in flight and interleave an unrelated INSERT during this test's
+    # window). Filter to statements that actually reference this SUT's
+    # tables so the assertion measures list_vulnerabilities' own query
+    # shape, not incidental cross-test noise.
+    _relevant_tables = ("vulnerabilities", "vulnerability_correlations", "tenants")
+
+    def _relevant(statements: list[str]) -> list[str]:
+        return [s for s in statements if any(t in s for t in _relevant_tables)]
+
     with count_queries() as statements_small:
         await list_vulnerabilities(db_session, tenant_a, filters, PaginationParams(page=1, page_size=5))
     with count_queries() as statements_large:
         await list_vulnerabilities(db_session, tenant_a, filters, PaginationParams(page=1, page_size=50))
+
+    statements_small = _relevant(statements_small)
+    statements_large = _relevant(statements_large)
 
     assert len(statements_small) == len(statements_large), (
         f"statement count must be page-size-invariant: "
