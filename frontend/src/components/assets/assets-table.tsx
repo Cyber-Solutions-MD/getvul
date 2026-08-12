@@ -18,6 +18,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { getRiskBand } from '@/components/ui/RiskRing';
 import { cn } from '@/lib/utils';
 import type { AssetSummary } from '@/lib/queries/use-assets';
+import { SourceBadgeGroup } from '@/components/vulnerabilities/source-badge-group';
 import { microcopy } from './microcopy';
 
 export type AssetsTableProps = {
@@ -38,6 +39,11 @@ const BAND_TINT: Record<string, string> = {
 };
 
 function sourcesOf(a: AssetSummary): string[] {
+  // Phase 35 SRC-01/08: prefer the backend's own `sources` field (the
+  // asset's full seen_by_sources provenance, including enrichment values)
+  // when present — falls back to deriving from seen_by_sources for older
+  // fixtures/responses that predate the Plan 03 backend contract.
+  if (Array.isArray(a.sources)) return a.sources;
   if (Array.isArray(a.seen_by_sources)) return a.seen_by_sources as string[];
   if (a.seen_by_sources && typeof a.seen_by_sources === 'object') {
     return Object.keys(a.seen_by_sources);
@@ -159,16 +165,13 @@ export function AssetsTable({ rows, onRowOpen, failedSources }: AssetsTableProps
                 </span>
               </td>
               <td className="px-3 py-3">
-                <span className="flex flex-wrap gap-1">
-                  {sources.map((s) => (
-                    <span
-                      key={s}
-                      className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-muted"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </span>
+                {/* Phase 35 SRC-01/06: shared SourceBadgeGroup — single vs
+                    multi-scanner corroboration, never "confirmed" from one
+                    scanner. `sources_count` is scanner-only (excludes
+                    enrichment codes like JAMF from the corroboration count,
+                    per the Plan 03 backend contract); `sources` still
+                    includes them so the mark group shows full provenance. */}
+                <SourceBadgeGroup sources={sources} count={r.sources_count} />
               </td>
             </tr>
           );
@@ -220,19 +223,17 @@ export function AssetsTable({ rows, onRowOpen, failedSources }: AssetsTableProps
                 <span className="max-w-[140px] truncate text-text">{r.assigned_user ?? 'Unassigned'}</span>
               </span>
             </div>
-            {/* Row 3: Tags · Sources */}
+            {/* Row 3: Tags · Sources (Phase 35 SourceBadgeGroup, D-V-04 mirrors vuln-table's mobile cluster) */}
             {((r.tags ?? []).length > 0 || sources.length > 0) && (
-              <div className="mt-2 flex flex-wrap gap-1">
+              <div className="mt-2 flex flex-wrap items-center gap-1">
                 {(r.tags ?? []).map((t) => (
                   <span key={t} className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-xs text-text-muted">
                     {t}
                   </span>
                 ))}
-                {sources.map((s) => (
-                  <span key={s} className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-muted">
-                    {s}
-                  </span>
-                ))}
+                {sources.length > 0 && (
+                  <SourceBadgeGroup sources={sources} count={r.sources_count} />
+                )}
               </div>
             )}
           </div>

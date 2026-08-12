@@ -13,8 +13,19 @@ export const microcopy = {
   chips: {
     category: 'Category',
     risk_band: 'Risk band',
-    source: 'Source',
+    // Phase 35 SRC-06: the stale single `source` axis is partitioned into a
+    // `scanner` axis (corroboration-eligible) and an `enrichment_source`
+    // facet (JAMF/HUMAANS/Intune — presence only, no AND semantics).
+    scanner: 'Scanner',
+    enrichment_source: 'Enrichment',
     os_family: 'OS',
+    // Phase 35 SRC-02/03/04 — OR/AND source-mode toggle, copy reused
+    // verbatim from vulnerabilities/microcopy.ts (Plan 02) so the label is
+    // identical across every surface. Avoids AND/OR jargon (copy-voice.md).
+    sourceModeLabel: 'Match',
+    sourceModeAny: 'Any selected',
+    sourceModeAll: 'All selected',
+    sourceModeDisabledHint: 'Select 2 or more scanners to match all of them',
   },
   empty: {
     noResults: {

@@ -39,7 +39,12 @@ import { useAssets, type AssetsFilters } from '@/lib/queries/use-assets';
 // the allow-list are silently dropped by useUrlStateList on read+write.
 const CATEGORIES = ['WORKSTATION', 'SERVER', 'NETWORK', 'MOBILE', 'OTHER'] as const;
 const RISK_BANDS = ['critical', 'high', 'medium', 'low'] as const;
-const SOURCES = ['QUALYS', 'TENABLE', 'RAPID7', 'CROWDSTRIKE', 'AWS_INSPECTOR', 'WIZ', 'MOCK'] as const;
+// Phase 35 SRC-03/06: reconciled to the real 6-value VulnSource enum,
+// partitioned from the non-scanner enrichment facet (mirrors
+// AssetsChipBar's SCANNER_SOURCES/ENRICHMENT_SOURCES split).
+const SCANNER_SOURCES = ['CROWDSTRIKE', 'NESSUS', 'DEFENDER', 'WIZ', 'QUALYS', 'RAPID7'] as const;
+const ENRICHMENT_SOURCES = ['JAMF', 'HUMAANS', 'INTUNE'] as const;
+const SOURCE_MODES = ['or', 'and'] as const;
 const OS_FAMILIES = ['linux', 'windows', 'macos', 'other'] as const;
 const ORDERS = ['asc', 'desc'] as const;
 type Order = (typeof ORDERS)[number];
@@ -77,7 +82,13 @@ function AssetsPageInner() {
 
   const [category] = useUrlStateList<string>('category', CATEGORIES, []);
   const [risk_band] = useUrlStateList<string>('risk_band', RISK_BANDS, []);
-  const [source] = useUrlStateList<string>('source', SOURCES, []);
+  // Phase 35 SRC-02/03/04/06 — scanner/enrichment partition + OR/AND toggle.
+  // URL keys align with AssetsChipBar's axis keys (`?scanner=`,
+  // `?enrichment_source=`, `?source_mode=`) so the chip UI and the fetch
+  // read/write the same params.
+  const [scanner] = useUrlStateList<string>('scanner', SCANNER_SOURCES, []);
+  const [enrichmentSource] = useUrlStateList<string>('enrichment_source', ENRICHMENT_SOURCES, []);
+  const [sourceMode] = useUrlState<(typeof SOURCE_MODES)[number]>('source_mode', SOURCE_MODES, 'or');
   const [os_family] = useUrlStateList<string>('os_family', OS_FAMILIES, []);
   const [order] = useUrlState<Order>('order', ORDERS, 'desc');
   const search = params?.get('search') ?? '';
@@ -90,11 +101,13 @@ function AssetsPageInner() {
     () => ({
       category: category.length ? category : undefined,
       risk_band: risk_band.length ? risk_band : undefined,
-      source: source.length ? source : undefined,
+      scanner: scanner.length ? scanner : undefined,
+      source_mode: sourceMode,
+      enrichment_source: enrichmentSource.length ? enrichmentSource : undefined,
       os_family: os_family.length ? os_family : undefined,
       search: search || undefined,
     }),
-    [category, risk_band, source, os_family, search],
+    [category, risk_band, scanner, sourceMode, enrichmentSource, os_family, search],
   );
 
   const q = useAssets({ filters, page: pageNum, sort: 'risk_score', order });
@@ -120,10 +133,11 @@ function AssetsPageInner() {
   const isLoading = q.isPending;
   const items = q.data?.items ?? [];
   const total = q.data?.total ?? 0;
-  // Backend doesn't emit asset facets yet — placeholder. AssetsChipBar's source
-  // axis renders nothing until counts arrive; other axes are static enums.
+  // Backend doesn't emit asset facets yet — placeholder. AssetsChipBar's
+  // scanner/enrichment_source axes render nothing until counts arrive
+  // (derivedFromCounts); other axes are static enums.
   const facets = useMemo(
-    () => ({ source: undefined, category: undefined }),
+    () => ({ scanner: undefined, enrichment_source: undefined, category: undefined }),
     [],
   );
 

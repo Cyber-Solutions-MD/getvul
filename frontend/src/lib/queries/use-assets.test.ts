@@ -28,14 +28,44 @@ describe('useAssets buildSearchParams', () => {
     expect(sp.get('device_category')).toBe('WORKSTATION,SERVER');
   });
 
-  it('joins source as CSV (scanner param)', () => {
+  it('joins scanner as CSV (scanner param)', () => {
     const sp = buildSearchParams({
-      filters: { source: ['QUALYS', 'TENABLE'] },
+      filters: { scanner: ['QUALYS', 'RAPID7'] },
       page: 1,
       sort: '',
       order: 'desc',
     });
-    expect(sp.get('scanner')).toBe('QUALYS,TENABLE');
+    expect(sp.get('scanner')).toBe('QUALYS,RAPID7');
+  });
+
+  // Phase 35 SRC-02/03/04/06 — scanner/enrichment partition + OR/AND toggle.
+  it('joins enrichment_source as CSV, independent of the scanner facet', () => {
+    const sp = buildSearchParams({
+      filters: { enrichment_source: ['JAMF', 'HUMAANS'] },
+      page: 1,
+      sort: '',
+      order: 'desc',
+    });
+    expect(sp.get('enrichment_source')).toBe('JAMF,HUMAANS');
+    expect(sp.get('scanner')).toBeNull();
+  });
+
+  it('omits source_mode when "or" (the default) — only sends it when explicitly "and"', () => {
+    const spDefault = buildSearchParams({
+      filters: { scanner: ['QUALYS', 'RAPID7'], source_mode: 'or' },
+      page: 1,
+      sort: '',
+      order: 'desc',
+    });
+    expect(spDefault.get('source_mode')).toBeNull();
+
+    const spAnd = buildSearchParams({
+      filters: { scanner: ['QUALYS', 'RAPID7'], source_mode: 'and' },
+      page: 1,
+      sort: '',
+      order: 'desc',
+    });
+    expect(spAnd.get('source_mode')).toBe('and');
   });
 
   it('joins multi-select os_family values with comma (W4)', () => {

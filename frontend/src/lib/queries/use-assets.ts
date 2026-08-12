@@ -8,7 +8,12 @@ import { queryKeys } from './keys';
 export type AssetsFilters = {
   category?: readonly string[];
   risk_band?: readonly string[];
-  source?: readonly string[];
+  /** Scanner-source facet (backend `?scanner=`, SRC-06 partition, Plan 03). */
+  scanner?: readonly string[];
+  /** OR (default) vs AND ("seen by ALL selected scanners") — SRC-04. */
+  source_mode?: 'or' | 'and';
+  /** Non-scanner enrichment facet (JAMF/HUMAANS/INTUNE) — plain OR, no AND. */
+  enrichment_source?: readonly string[];
   os_family?: readonly string[];
   search?: string;
 };
@@ -20,6 +25,10 @@ export type AssetSummary = {
   device_category: string | null;
   risk_score: number | null;
   seen_by_sources: string[] | Record<string, unknown>;
+  /** Phase 35 SRC-08: the asset's full provenance (scanners + enrichment), zero extra queries. */
+  sources?: string[];
+  /** Phase 35 SRC-08: scanner-only corroboration count (enrichment codes excluded). */
+  sources_count?: number;
   assigned_user: string | null;
   tags: string[] | null;
   total_vulns: number;
@@ -64,9 +73,21 @@ export function buildSearchParams(opts: {
     );
     if (min > 0) sp.set('min_risk', String(min));
   }
-  // Source → backend `scanner` accepts CSV (existing surface).
-  if (opts.filters.source && opts.filters.source.length > 0) {
-    sp.set('scanner', opts.filters.source.join(','));
+  // Scanner → backend `scanner` accepts CSV (Phase 35 SRC-06 partition —
+  // scanner sources only; enrichment sources are a separate facet below).
+  if (opts.filters.scanner && opts.filters.scanner.length > 0) {
+    sp.set('scanner', opts.filters.scanner.join(','));
+  }
+  // source_mode: OR (default, omitted) vs AND (explicit toggle) — SRC-04.
+  // Backend clamps to {or,and} itself (422 on anything else); only send it
+  // when non-default so the common OR case keeps the URL/query shape clean.
+  if (opts.filters.source_mode && opts.filters.source_mode !== 'or') {
+    sp.set('source_mode', opts.filters.source_mode);
+  }
+  // Enrichment source → backend `enrichment_source` accepts CSV, OR-only
+  // facet (no AND-corroboration semantics — SRC-06).
+  if (opts.filters.enrichment_source && opts.filters.enrichment_source.length > 0) {
+    sp.set('enrichment_source', opts.filters.enrichment_source.join(','));
   }
   // W4 — backend list_assets accepts a comma-separated os_family value (12-01 Task 2).
   // Multi-select chip selections all flow through; backend OR-joins the patterns.

@@ -15,7 +15,10 @@ const ROWS: AssetSummary[] = [
     os_name: 'Ubuntu 22.04 LTS',
     device_category: 'SERVER',
     risk_score: 85,
-    seen_by_sources: ['QUALYS', 'TENABLE'],
+    seen_by_sources: ['QUALYS', 'RAPID7'],
+    // Phase 35 SRC-01/08: real backend contract — 2 scanner sources.
+    sources: ['QUALYS', 'RAPID7'],
+    sources_count: 2,
     assigned_user: 'alice@example.com',
     tags: ['pci', 'tier-1'],
     total_vulns: 12,
@@ -32,6 +35,9 @@ const ROWS: AssetSummary[] = [
     device_category: 'SERVER',
     risk_score: 15,
     seen_by_sources: ['CROWDSTRIKE'],
+    // Single scanner — SourceBadgeGroup must never read as "confirmed".
+    sources: ['CROWDSTRIKE'],
+    sources_count: 1,
     assigned_user: null,
     tags: [],
     total_vulns: 3,
@@ -102,5 +108,19 @@ describe('AssetsTable', () => {
     expect(row1.getAttribute('data-stale')).toBe('true');
     const row2 = table().getByText('prod-web-02').closest('tr')!;
     expect(row2.getAttribute('data-stale')).toBeNull();
+  });
+
+  // Phase 35 SRC-01 — shared SourceBadgeGroup wired into asset rows.
+  it('renders SourceBadgeGroup: multi-source corroborated for row1, single neutral for row2', () => {
+    const { container } = render(<AssetsTable rows={ROWS} onRowOpen={vi.fn()} />);
+    const groups = container.querySelectorAll('[data-source-badge-group]');
+    // Desktop table renders one group per row (mobile card view is also in
+    // the DOM under jsdom's css:false, so at least 2 groups exist).
+    expect(groups.length).toBeGreaterThanOrEqual(2);
+    const kinds = Array.from(groups).map((g) => g.getAttribute('data-source-badge-group'));
+    expect(kinds).toContain('multi');
+    expect(kinds).toContain('single');
+    // Never reads as "confirmed" from a single scanner.
+    expect(container.textContent).not.toContain('confirmed');
   });
 });
