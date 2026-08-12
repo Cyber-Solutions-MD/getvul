@@ -2,18 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-current_phase: 35
-current_phase_name: Source-Aware Filtering & Provenance Badges
 status: executing
-stopped_at: "Phase 35 Plan 01 (LEAD TRACER — Vulnerabilities correlation-ARRAY OR/AND source filter + page-scoped batched provenance + before_cursor_execute query-count harness) complete. tuple_(...).in_(subquery) compiles cleanly against asyncpg (no EXISTS fallback needed); observed list_vulnerabilities statement count is 4, page-size-invariant. Next: 35-02-PLAN.md (frontend SourceBadgeGroup + chip-bar OR/AND toggle)."
-last_updated: "2026-08-12T11:32:38.000Z"
-last_activity: 2026-08-12
-last_activity_desc: Phase 35 Plan 01 (lead tracer) complete — Vulnerabilities OR/AND source filter + batched provenance + query-count harness
+stopped_at: Completed 35-02-PLAN.md
+last_updated: "2026-08-12T14:46:00.000Z"
+last_activity: 2026-08-12 — Phase 35 Plan 02 complete (frontend tracer — SourceBadgeGroup non-overclaiming provenance component + vuln-table wiring + chip-bar OR/AND source_mode toggle + reconciled 6-value SOURCES list)
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 25
-  completed_plans: 21
+  completed_plans: 24
+  percent: 96
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +22,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 35 — Source-Aware Filtering & Provenance Badges (1/5 plans complete — 35-01 LEAD TRACER: Vulnerabilities OR/AND correlation-array source filter + page-scoped batched provenance + query-count no-N+1 harness, shipped; Phase 34 fully shipped 5/5, pending `/gsd-verify-phase 34` re-verify)
+**Current focus:** Phase 35 — Source-Aware Filtering & Provenance Badges (2/5 plans complete — 35-01 LEAD TRACER: Vulnerabilities OR/AND correlation-array source filter + page-scoped batched provenance + query-count no-N+1 harness, shipped; 35-02 frontend tracer: shared SourceBadgeGroup non-overclaiming provenance component wired into the vuln table + chip-bar OR/AND `?source_mode` toggle + reconciled 6-value SOURCES list, shipped; Phase 34 fully shipped 5/5, pending `/gsd-verify-phase 34` re-verify)
 
 ## Deferred Items
 
@@ -45,9 +43,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 35 — Source-Aware Filtering & Provenance Badges
-Plan: 01 complete (1/5) — LEAD TRACER (backend)
-Status: Executing — next 35-02-PLAN.md
-Last activity: 2026-08-12 — Phase 35 Plan 01 complete (Vulnerabilities OR/AND source filter + batched provenance + query-count harness)
+Plan: 02 complete (2/5) — frontend tracer (SourceBadgeGroup + vuln-table wiring + chip-bar OR/AND toggle)
+Status: Executing — next 35-03-PLAN.md
+Last activity: 2026-08-12 — Phase 35 Plan 02 complete (SourceBadgeGroup non-overclaiming provenance component + vuln-table wiring + chip-bar OR/AND source_mode toggle + reconciled 6-value SOURCES list)
 
 ## v4.0 Phase Map
 
