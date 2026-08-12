@@ -152,12 +152,13 @@ Plans:
   4. Ticket source provenance resolves transitively through the linked vulnerability's correlation, with a defined and tested rule for multi-source-correlated cases
   5. Provenance and source-facet queries are batched (no per-row N+1) and stay performant at scale, provable with a query-count assertion
 
-**Plans**: 4 plans
+**Plans**: 5 plans
 
-- [ ] 33-01-PLAN.md — Tracer: per-finding score column + migration → deterministic score_finding (severity/CVSS+EPSS+KEV floor) → persist at sync hook → read into response
-- [ ] 33-02-PLAN.md — Full formula: native per-source 0-1 normalization + exposure context + corroboration; KEV-floor + 1-vs-3-scanner fixtures
-- [ ] 33-03-PLAN.md — Asset MAX rollup + sortable index; severity-tier centralization (one constant) + characterization regression
-- [ ] 33-04-PLAN.md — DrillPanel per-input breakdown ("why is this an 82"), shadow/preview-labeled (RISK-05)
+- [ ] 35-01-PLAN.md — TRACER (backend): Vulnerabilities correlation-ARRAY OR/AND source filter (`&&`/`@>`) + page-scoped batched provenance (sources/sources_count) + the NEW before_cursor_execute query-count harness
+- [ ] 35-02-PLAN.md — TRACER (frontend): shared SourceBadgeGroup component (non-overclaiming) wired into vuln-table + vuln chip-bar OR/AND toggle + reconciled 6-value VulnSource list
+- [ ] 35-03-PLAN.md — Assets: fix the shipped multi-select-ANDs bug to OR-default + AND toggle + scanner/enrichment partition (SRC-06) + batched sources + seen_by_sources GIN index (migration 045) + rule_engine.py same fix
+- [ ] 35-04-PLAN.md — CSPM read-time GROUP BY(tenant_id,rule_id,resource_id) AND corroboration (no silent OR) + Tickets transitive union provenance (array_agg, not func.min); both batched with query-count assertions
+- [ ] 35-05-PLAN.md — Frontend expansion: SourceBadgeGroup on Assets/CSPM/Tickets rows + assets scanner/enrichment split axes + CSPM/Tickets source chips (OR/AND where backend-supported)
 
 **UI hint**: yes
 
@@ -173,4 +174,4 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 | 32. Asset Exposure Context | 5/5 | Complete    | 2026-08-11 |
 | 33. Risk-Exposure Model Definition | 4/4 | Complete    | 2026-08-11 |
 | 34. Historical Recompute & Consumer Cutover | 5/4 | Complete    | 2026-08-12 |
-| 35. Source-Aware Filtering & Provenance Badges | 0/TBD | Not started | - |
+| 35. Source-Aware Filtering & Provenance Badges | 0/5 | Not started | - |
