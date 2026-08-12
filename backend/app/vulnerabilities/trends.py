@@ -15,6 +15,7 @@ from app.assets.models import Asset
 from app.db.base import Base
 from app.ticketing.models import Ticket
 from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.risk_exposure_service import RISK_MODEL_VERSION
 
 logger = structlog.get_logger()
 
@@ -177,6 +178,11 @@ async def get_risk_score_trend(db: AsyncSession, tenant_id: uuid.UUID) -> list[d
         {
             "date": r.snapshot_date.isoformat(),
             "avg_risk": r.metrics.get("avg_risk_score", 0),
+            # RISK-10 (Phase 34 Plan 04): additional key, NEW series, so a
+            # continuity-aware consumer can read the dual-written
+            # risk_exposure_score-based average without breaking the
+            # existing `avg_risk` wire contract (byte-identical source/name).
+            "avg_risk_exposure": r.metrics.get("avg_risk_exposure_score", 0),
             "open_vulns": r.metrics.get("open_vulns", 0),
             "critical": r.metrics.get("critical_open", 0),
             "sla_breached": r.metrics.get("sla_breached", 0),
@@ -284,6 +290,36 @@ async def capture_daily_snapshot(db: AsyncSession, tenant_id: uuid.UUID) -> dict
         )
     ).scalar_one()
 
+    # RISK-10 (Phase 34 Plan 04): dual-write the new-model risk metrics
+    # UNCONDITIONALLY (not gated on Tenant.cutover_risk_exposure_scoring) so
+    # real trend/spike-notification history exists before any tenant ever
+    # flips the flag — this is the structural fix for both the trend cliff
+    # and the alert storm (34-CONTEXT RESOLVED A2). Average of the NEW score:
+    avg_risk_exposure = (
+        await db.execute(
+            select(func.avg(Asset.risk_exposure_score)).where(
+                Asset.tenant_id == tenant_id, Asset.is_ignored.is_(False), Asset.risk_exposure_score.isnot(None)
+            )
+        )
+    ).scalar_one()
+
+    # One bulk fetch builds BOTH per-asset dicts (mirrors the total_assets
+    # filter shape below: tenant-scoped + is_ignored excluded). This also
+    # fixes the pre-existing dead-code bug in
+    # alerts._check_risk_score_changes, which has always read
+    # asset_risk_scores — a key this function never wrote until now.
+    asset_score_rows = (
+        await db.execute(
+            select(Asset.id, Asset.risk_score, Asset.risk_exposure_score).where(
+                Asset.tenant_id == tenant_id, Asset.is_ignored.is_(False)
+            )
+        )
+    ).all()
+    asset_risk_scores = {str(r.id): r.risk_score for r in asset_score_rows if r.risk_score is not None}
+    asset_risk_exposure_scores = {
+        str(r.id): r.risk_exposure_score for r in asset_score_rows if r.risk_exposure_score is not None
+    }
+
     # Total assets
     total_assets = (
         await db.execute(select(func.count(Asset.id)).where(Asset.tenant_id == tenant_id, Asset.is_ignored.is_(False)))
@@ -315,6 +351,11 @@ async def capture_daily_snapshot(db: AsyncSession, tenant_id: uuid.UUID) -> dict
         "open_tickets": open_tickets,
         "compliance_pct": sla.get("compliance_pct", 100),
         "kev_count": kev_count,  # D-S-01 — tile delta source
+        # RISK-10 (Phase 34 Plan 04) — unconditional dual-write, see above.
+        "avg_risk_exposure_score": round(float(avg_risk_exposure), 1) if avg_risk_exposure else 0,
+        "asset_risk_scores": asset_risk_scores,
+        "asset_risk_exposure_scores": asset_risk_exposure_scores,
+        "risk_model_version_snapshot": RISK_MODEL_VERSION,
     }
 
     snapshot = DailySnapshot(
