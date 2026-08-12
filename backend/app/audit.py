@@ -70,6 +70,9 @@ class AuditLog(Base):
 #   the per-tenant re-tuning acknowledgment that gates the flag flip below),
 #   risk_cutover.flag_enable (admin-only, actor=admin email; the flip is
 #   consequential+rare, never actually invoked live in this environment)
+# risk_cutover.backfill_enqueue (Phase 34 Plan 05 — RISK-07 gap closure,
+#   admin-only, the production trigger for a tenant's historical backfill;
+#   only logged on a genuinely NEW enqueue, not a repeated idempotent no-op)
 
 
 # ── Syslog forwarder ──

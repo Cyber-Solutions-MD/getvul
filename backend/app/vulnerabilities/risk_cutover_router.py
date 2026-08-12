@@ -1,11 +1,12 @@
 """Phase 34 Plan 03 (RISK-09) — admin router for the threshold diff report,
-the per-tenant re-tuning ack, and the gated cutover flag flip.
+the per-tenant re-tuning ack, and the gated cutover flag flip. Plan 05
+(RISK-07 gap closure) added the backfill-enqueue trigger.
 
-All three endpoints require `require_role("admin")` (T-34-08). The two
-mutating endpoints (`/threshold-ack`, `/enable`) are audited by the service
-layer BEFORE `db.commit()` (T-34-09, fail-closed AUDIT-01). `/enable` lets
-the service's `HTTPException(409, ...)` propagate on a gate failure — never
-a silent reinterpretation (T-34-10). Mirrors
+All four endpoints require `require_role("admin")` (T-34-08). The three
+mutating endpoints (`/backfill/enqueue`, `/threshold-ack`, `/enable`) are
+audited by the service layer BEFORE `db.commit()` (T-34-09, fail-closed
+AUDIT-01). `/enable` lets the service's `HTTPException(409, ...)` propagate
+on a gate failure — never a silent reinterpretation (T-34-10). Mirrors
 `app/assets/router.py:655-665`'s `require_role("admin")` + local
 service-import + thin handler shape.
 """
@@ -22,6 +23,23 @@ from app.auth.schemas import CurrentUser
 from app.db.session import get_db
 
 router = APIRouter()
+
+
+@router.post("/backfill/enqueue")
+async def backfill_enqueue(
+    user: CurrentUser = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """RISK-07 gap closure (34-05): admin-only production trigger for a
+    tenant's historical risk-exposure backfill. Previously
+    `enqueue_backfill_job` had no call site outside tests (34-VERIFICATION.md
+    GAP 2) -- this endpoint is the operator's actual entry point on a live
+    stack. Idempotent: calling this again while a job is already
+    pending/in_progress/completed returns the existing job's status rather
+    than creating a duplicate row."""
+    from app.vulnerabilities.risk_cutover_service import enqueue_backfill
+
+    return await enqueue_backfill(db, user)
 
 
 @router.get("/threshold-diff")

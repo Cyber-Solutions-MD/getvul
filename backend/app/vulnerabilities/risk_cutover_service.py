@@ -165,6 +165,47 @@ async def record_threshold_ack(db: AsyncSession, user: CurrentUser) -> dict[str,
     return {"acked_at": now.isoformat(), "diff_hash": diff["diff_hash"]}
 
 
+async def enqueue_backfill(db: AsyncSession, user: CurrentUser) -> dict[str, Any]:
+    """Admin-triggered production entry point for RISK-07's historical
+    backfill machinery (34-VERIFICATION.md GAP 2 / Human Verification #2):
+    `risk_backfill_service.enqueue_backfill_job` was fully correct and
+    fixture-proven but had NO production call site — only tests invoked it,
+    so a real tenant's backfill could never actually start on a live stack.
+
+    Idempotent: `enqueue_backfill_job`'s `UniqueConstraint(tenant_id)` means
+    calling this again while a job is already pending/in_progress/completed
+    returns the EXISTING row unchanged (never a duplicate, never an error).
+    Only a genuinely NEW enqueue (no job row existed before this call) is
+    audited — a repeated call against an already-active/completed job is a
+    harmless no-op, not a fresh mutation worth its own audit row.
+    """
+    from app.vulnerabilities.risk_backfill_service import enqueue_backfill_job
+
+    existing_status = await _backfill_status(db, user.tenant_id)
+    is_new = existing_status is None
+
+    job = await enqueue_backfill_job(db, user.tenant_id)
+
+    if is_new:
+        await audit(
+            db,
+            user,
+            "risk_cutover.backfill_enqueue",
+            "tenant",
+            str(user.tenant_id),
+            {"job_id": str(job.id), "rows_total_estimate": job.rows_total_estimate},
+        )
+    await db.commit()
+
+    return {
+        "job_id": str(job.id),
+        "status": job.status,
+        "rows_total_estimate": job.rows_total_estimate,
+        "rows_migrated": job.rows_migrated,
+        "already_active": not is_new,
+    }
+
+
 async def enable_cutover(db: AsyncSession, user: CurrentUser) -> dict[str, Any]:
     """The ONLY path that can set `Tenant.cutover_risk_exposure_scoring =
     True`. Requires BOTH gates:

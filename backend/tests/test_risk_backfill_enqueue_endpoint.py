@@ -32,6 +32,8 @@ ENQUEUE_URL = "/api/v1/risk-cutover/backfill/enqueue"
 
 @pytest.mark.asyncio
 async def test_admin_gate_rejects_non_admin(client_factory, db_session, tenant_a, analyst_user, viewer_user):
+    await db_session.commit()  # WR-13: make tenant_a/analyst_user/viewer_user visible cross-connection
+
     for user in (analyst_user, viewer_user):
         c = client_factory(user)
         r = await c.post(ENQUEUE_URL)
@@ -47,6 +49,13 @@ async def test_admin_gate_rejects_non_admin(client_factory, db_session, tenant_a
 
 @pytest.mark.asyncio
 async def test_enqueue_creates_job_and_audit_row(client_factory, db_session, tenant_a, admin_user):
+    # WR-13: the client hits the endpoint via a SEPARATE session
+    # (app.db.session.async_session_factory) from this test's own db_session
+    # — the tenant_a/admin_user fixtures only flush (uncommitted), so an
+    # explicit commit is required before the fixture rows are visible
+    # cross-connection (mirrors test_risk_cutover_ack.py's seeding pattern).
+    await db_session.commit()
+
     c = client_factory(admin_user)
     r = await c.post(ENQUEUE_URL)
     assert r.status_code == 200, r.text
@@ -80,6 +89,8 @@ async def test_enqueue_creates_job_and_audit_row(client_factory, db_session, ten
 
 @pytest.mark.asyncio
 async def test_enqueue_idempotent_when_already_active(client_factory, db_session, tenant_a, admin_user):
+    await db_session.commit()  # WR-13: make tenant_a/admin_user visible cross-connection
+
     c = client_factory(admin_user)
     r1 = await c.post(ENQUEUE_URL)
     assert r1.status_code == 200, r1.text
