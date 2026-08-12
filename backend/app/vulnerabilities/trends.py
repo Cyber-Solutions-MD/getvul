@@ -291,10 +291,12 @@ async def capture_daily_snapshot(db: AsyncSession, tenant_id: uuid.UUID) -> dict
     ).scalar_one()
 
     # RISK-10 (Phase 34 Plan 04): dual-write the new-model risk metrics
-    # UNCONDITIONALLY (not gated on Tenant.cutover_risk_exposure_scoring) so
-    # real trend/spike-notification history exists before any tenant ever
-    # flips the flag — this is the structural fix for both the trend cliff
-    # and the alert storm (34-CONTEXT RESOLVED A2). Average of the NEW score:
+    # UNCONDITIONALLY — no tenant-level consumer-cutover flag read anywhere
+    # in this function — so real trend/spike-notification history exists
+    # before any tenant ever flips the flag on the read side (see
+    # app/notifications/alerts.py for the flag-gated consumer). This is the
+    # structural fix for both the trend cliff and the alert storm
+    # (34-CONTEXT RESOLVED A2). Average of the NEW score:
     avg_risk_exposure = (
         await db.execute(
             select(func.avg(Asset.risk_exposure_score)).where(

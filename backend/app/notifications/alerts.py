@@ -187,7 +187,16 @@ async def _check_sync_failures(db: AsyncSession, tenant: Tenant) -> int:
 
 
 async def _check_risk_score_changes(db: AsyncSession, tenant: Tenant) -> int:
-    """Find assets where risk score spiked 20+ points since yesterday's snapshot."""
+    """Find assets where risk score spiked 20+ points since yesterday's snapshot.
+
+    RISK-10 (Phase 34 Plan 04) version-boundary guard: reads
+    `tenant.cutover_risk_exposure_scoring` once and diffs SAME-VERSION-only —
+    new-vs-new (Vulnerability/Asset.risk_exposure_score-derived) when ON,
+    old-vs-old (Asset.risk_score-derived) when OFF. NEVER cross-version
+    (new-vs-old or old-vs-new), so a risk_model_version change across the
+    day this flag flips cannot manufacture a synthetic scale-jump alert
+    storm — see 34-CONTEXT.md RESOLVED A2 / 34-RESEARCH.md:308-312.
+    """
     alerts_created = 0
     yesterday = (datetime.now(UTC) - timedelta(days=1)).date()
 
@@ -204,18 +213,22 @@ async def _check_risk_score_changes(db: AsyncSession, tenant: Tenant) -> int:
     if not snapshot or not snapshot.metrics:
         return 0
 
-    # Check if the snapshot has per-asset risk scores
-    asset_scores_yesterday = snapshot.metrics.get("asset_risk_scores", {})
+    cutover_enabled = tenant.cutover_risk_exposure_scoring
+    metrics_key = "asset_risk_exposure_scores" if cutover_enabled else "asset_risk_scores"
+    score_column = Asset.risk_exposure_score if cutover_enabled else Asset.risk_score
+
+    # Check if the snapshot has per-asset risk scores for the ACTIVE version
+    asset_scores_yesterday = snapshot.metrics.get(metrics_key, {})
     if not asset_scores_yesterday:
         return 0
 
-    # Get current assets with risk scores
+    # Get current assets with a populated score on the ACTIVE version
     assets = (
         (
             await db.execute(
                 select(Asset).where(
                     Asset.tenant_id == tenant.id,
-                    Asset.risk_score.isnot(None),
+                    score_column.isnot(None),
                 )
             )
         )
@@ -228,7 +241,7 @@ async def _check_risk_score_changes(db: AsyncSession, tenant: Tenant) -> int:
         if old_score is None:
             continue
 
-        new_score = asset.risk_score or 0
+        new_score = (asset.risk_exposure_score if cutover_enabled else asset.risk_score) or 0
         delta = new_score - old_score
 
         if delta >= 20:
