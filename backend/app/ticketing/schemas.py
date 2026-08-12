@@ -31,6 +31,12 @@ class TicketResponse(BaseModel):
     severity: str | None = None
     hostname: str | None = None
 
+    # Phase 35 / SRC-07: transitive union provenance (CONTEXT [RESOLVED A4]).
+    # Defaulting sources_count=1 mirrors the Vulnerabilities/CSPM "no
+    # correlation row = single source, never unknown" convention.
+    sources: list[str] = Field(default_factory=list)
+    sources_count: int = 1
+
     model_config = {"from_attributes": True}
 
 
@@ -45,6 +51,10 @@ class TicketSummary(BaseModel):
     severity: str | None
     hostname: str | None
     ticket_created_at: datetime | None
+
+    # Phase 35 / SRC-07: transitive union provenance (CONTEXT [RESOLVED A4]).
+    sources: list[str] = Field(default_factory=list)
+    sources_count: int = 1
 
 
 # ── Ticket requests ──

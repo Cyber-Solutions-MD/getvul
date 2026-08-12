@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import String, case, func, select, update
+from sqlalchemy import String, case, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
@@ -27,7 +27,7 @@ from app.ticketing.dispatch import TicketingClient
 from app.ticketing.models import Ticket
 from app.ticketing.providers import TicketProvider
 from app.ticketing.schemas import HostTicketCreateRequest, TicketCreateRequest, TicketStats, TicketSummary
-from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
 
 logger = structlog.get_logger()
 
@@ -716,6 +716,7 @@ async def list_tickets(
     severity: str | None = None,
     sla: str | None = None,
     search: str | None = None,
+    source: list[str] | None = None,
 ) -> dict:
     """List tickets grouped by Asana task (one row per task, not per CVE).
 
@@ -729,6 +730,15 @@ async def list_tickets(
     ticket id / assignee (ILIKE) at the SQL level. ``severity`` and ``sla`` are
     applied as a post-aggregate filter on the built items (the per-group
     max_severity and SLA tier are only knowable after the detail aggregate).
+
+    Phase 35 / SRC-02: ``source`` is a REAL server-side OR-default filter
+    (not display-only) — a ticket row survives if its linked Vulnerability's
+    own ``source`` is any of the selected values, joined through
+    ``Ticket.vulnerability_id`` via the same subquery-filter shape the
+    existing ``severity``/``asset_id`` filters already use in this function.
+    No AND toggle for Tickets (SRC-04's `@>` corroboration is scoped to
+    Vulnerabilities/Assets/CSPM) — provenance DISPLAY still unions
+    transitively below regardless of this filter.
     """
     from datetime import UTC, datetime, timedelta
 
@@ -769,6 +779,13 @@ async def list_tickets(
     if severity_vals:
         sev_ticket_ids = select(Vulnerability.id).where(Vulnerability.severity.in_(severity_vals)).scalar_subquery()
         base_filter.append(Ticket.vulnerability_id.in_(sev_ticket_ids))
+
+    # Phase 35 / SRC-02: real OR-default source filter, same subquery-filter
+    # shape as severity_vals above — a ticket row survives if its linked
+    # Vulnerability's own source is any of the selected values.
+    if source:
+        source_ticket_ids = select(Vulnerability.id).where(Vulnerability.source.in_(source)).scalar_subquery()
+        base_filter.append(Ticket.vulnerability_id.in_(source_ticket_ids))
 
     # WR-01: free-text search across the human ticket id and assignee.
     if search:
@@ -888,6 +905,14 @@ async def list_tickets(
                 # group CAN span >1 Vulnerability, so this is a
                 # representative pick, not a claim of single-CVE-per-ticket.
                 func.min(Vulnerability.cve_id).label("cve_id"),
+                # Phase 35 / SRC-07: the group's OWN sources (each linked
+                # vuln's own `source` column, not correlation-resolved) —
+                # array_agg(DISTINCT ...) is a real UNION over the full
+                # group, unlike the func.min aggregates above (which are
+                # documented representative picks). This is the FLOOR of
+                # each grouped row's provenance; the correlation merge below
+                # adds any additional sources a corroborated member reveals.
+                func.array_agg(func.distinct(Vulnerability.source)).label("own_sources"),
             )
             .select_from(Ticket)
             .join(Vulnerability, Ticket.vulnerability_id == Vulnerability.id)
@@ -899,6 +924,71 @@ async def list_tickets(
             .group_by(Ticket.external_ticket_url)
         )
         details_by_url = {d.url: d for d in (await db.execute(details_q)).all()}
+
+    # Phase 35 / SRC-07: batched transitive union provenance. Gather the
+    # (url, cve_id, asset_id) keys for every Vulnerability linked to a
+    # ticket on the page — ONE query, bounded by the page's own ticket rows,
+    # never one query per grouped row — then ONE batched
+    # VulnerabilityCorrelation fetch for the distinct (cve_id, asset_id)
+    # keys. Per CONTEXT.md [RESOLVED A4]: a grouped ticket-task row unions
+    # its own_sources (above) with EVERY linked vuln's correlation.sources
+    # (multi-source if ANY linked vuln is corroborated) — a Python set
+    # union, NEVER func.min (a representative pick, not a union).
+    keys_by_url: dict[str, set[tuple[str, uuid.UUID]]] = {}
+    if page_urls:
+        keys_q = (
+            select(
+                Ticket.external_ticket_url.label("url"),
+                Vulnerability.cve_id,
+                Vulnerability.asset_id,
+            )
+            .select_from(Ticket)
+            .join(Vulnerability, Ticket.vulnerability_id == Vulnerability.id)
+            .where(
+                Ticket.external_ticket_url.in_(page_urls),
+                Ticket.tenant_id == tenant_id,
+            )
+        )
+        key_rows = (await db.execute(keys_q)).all()
+        for r in key_rows:
+            if r.cve_id and r.asset_id:
+                keys_by_url.setdefault(r.url, set()).add((r.cve_id, r.asset_id))
+
+        page_vuln_keys: set[tuple[str, uuid.UUID]] = set().union(*keys_by_url.values()) if keys_by_url else set()
+        corr_by_key: dict[tuple[str, uuid.UUID], VulnerabilityCorrelation] = {}
+        if page_vuln_keys:
+            corr_rows = (
+                (
+                    await db.execute(
+                        select(VulnerabilityCorrelation).where(
+                            # T-35-01: scope the batched correlation query to
+                            # the tenant explicitly too, not just the outer
+                            # Ticket.tenant_id filter above.
+                            VulnerabilityCorrelation.tenant_id == tenant_id,
+                            tuple_(VulnerabilityCorrelation.cve_id, VulnerabilityCorrelation.asset_id).in_(
+                                page_vuln_keys
+                            ),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            corr_by_key = {(c.cve_id, c.asset_id): c for c in corr_rows}
+    else:
+        corr_by_key = {}
+
+    def _resolve_sources(url: str) -> set[str]:
+        detail_row = details_by_url.get(url)
+        # No correlation row for a member = single source, never unknown
+        # (mirrors the Vulnerabilities/CSPM corr_by_key.get((...), 1)
+        # convention) — own_sources already covers that floor.
+        resolved = set(detail_row.own_sources) if detail_row and detail_row.own_sources else set()
+        for key in keys_by_url.get(url, ()):
+            corr = corr_by_key.get(key)
+            if corr and corr.sources:
+                resolved.update(corr.sources)
+        return resolved
 
     sev_map = {4: "CRITICAL", 3: "HIGH", 2: "MEDIUM", 1: "LOW", 0: "INFO"}
 
@@ -913,6 +1003,7 @@ async def list_tickets(
 
         # WR-04: per-remediation iff ALL rows in the group carry created_by_rule.
         is_per_remediation = bool(detail.all_by_rule) if detail else False
+        row_sources = sorted(_resolve_sources(row.external_ticket_url))
         if is_per_remediation:
             title = f"{detail.affected_product or 'Unknown'}: {(detail.remediation_action or '')[:80]}"
             subtitle = f"{host_count} host{'s' if host_count != 1 else ''}"
@@ -948,6 +1039,10 @@ async def list_tickets(
                 "blocked": bool(row.blocked),
                 "blocked_reason": row.blocked_reason,
                 "sla_due_at": row.sla_due_at.isoformat() if row.sla_due_at else None,
+                # Phase 35 / SRC-07: transitive union provenance across ALL
+                # linked vulns in this grouped ticket-task row.
+                "sources": row_sources,
+                "sources_count": len(row_sources),
             }
         )
 

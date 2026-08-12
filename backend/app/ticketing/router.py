@@ -170,6 +170,12 @@ async def list_all_tickets(
     severity: str | None = Query(None, description="Comma-separated severities (critical,high,...)"),
     sla: str | None = Query(None, description="SLA tier: overdue | soon | ok"),
     search: str | None = Query(None, description="Free-text match on ticket id / assignee"),
+    # Phase 35 / SRC-02: real OR-default source filter, joined through the
+    # linked Vulnerability. Must be bound here (not just added to
+    # list_tickets' signature) — this router passes explicit positional/kw
+    # args into list_tickets, so an unbound param would be silently dropped
+    # and never reach the service.
+    source: list[str] | None = Query(None, description="Filter to tickets whose linked vuln source is any of these"),
 ):
     """List all tickets with filtering and pagination.
 
@@ -191,6 +197,7 @@ async def list_all_tickets(
         severity=severity,
         sla=sla,
         search=search,
+        source=source,
     )
 
 
