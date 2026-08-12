@@ -51,13 +51,13 @@ Requirements for the v4.0 release. Each maps to exactly one roadmap phase (see T
 ### Source-Aware Filtering & Provenance (SRC)
 
 - [ ] **SRC-01**: Every finding row shows a source-provenance badge indicating which scanner(s) reported it, visually distinguishing single-source from multi-source-corroborated (badges must never imply "confirmed" from a single scanner)
-- [ ] **SRC-02**: A scanner-source filter is available on Vulnerabilities, Assets, CSPM, and Tickets
+- [x] **SRC-02**: A scanner-source filter is available on Vulnerabilities, Assets, CSPM, and Tickets
 - [ ] **SRC-03**: Selecting multiple sources defaults to OR (findings seen by any selected scanner)
 - [ ] **SRC-04**: An AND toggle filters to findings corroborated by all selected scanners (Vulnerabilities/Assets via the correlation-array `@>` operator)
-- [ ] **SRC-05**: CSPM supports true multi-tool AND corroboration via a new resource + rule-id grouping concept (not a silent OR fallback)
+- [x] **SRC-05**: CSPM supports true multi-tool AND corroboration via a new resource + rule-id grouping concept (not a silent OR fallback)
 - [ ] **SRC-06**: The Assets source filter partitions scanner sources from non-scanner enrichment sources (JAMF/HUMAANS/Intune) so enrichment providers don't leak into a scanner-source filter
-- [ ] **SRC-07**: Ticket source provenance resolves transitively through the linked vulnerability's correlation, with a defined rule for multi-source-correlated cases
-- [ ] **SRC-08**: Provenance and source-facet queries are batched (no per-row N+1) and performant at scale
+- [x] **SRC-07**: Ticket source provenance resolves transitively through the linked vulnerability's correlation, with a defined rule for multi-source-correlated cases
+- [x] **SRC-08**: Provenance and source-facet queries are batched (no per-row N+1) and performant at scale
 
 ## v2 Requirements
 
@@ -116,13 +116,13 @@ Which phases cover which requirements. Populated during roadmap creation.
 | RISK-09 | Phase 34 (Historical Recompute & Consumer Cutover) | Complete |
 | RISK-10 | Phase 34 (Historical Recompute & Consumer Cutover) | Complete |
 | SRC-01 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
-| SRC-02 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-02 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Complete |
 | SRC-03 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
 | SRC-04 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
-| SRC-05 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-05 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Complete |
 | SRC-06 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
-| SRC-07 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
-| SRC-08 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Pending |
+| SRC-07 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Complete |
+| SRC-08 | Phase 35 (Source-Aware Filtering & Provenance Badges) | Complete |
 
 **Coverage:**
 
