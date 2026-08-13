@@ -201,3 +201,43 @@ class RiskExposureBackfillJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class SlaEscalationEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Phase 36 Plan 02 (D-07) -- the durable once-only escalation-fire gate
+    AND the user-visible, auditable escalation history. One row per
+    (tenant, vulnerability, to_state, channel) EVER fired; the
+    `UniqueConstraint` below is both the identity key and the correctness
+    backstop for "exactly once per transition" (mirrors
+    `RiskExposureBackfillJob.uq_risk_backfill_job_tenant` above / 36-RESEARCH
+    Pattern 2), even though this project's single-process scheduler has no
+    concurrent-writer race today.
+
+    `delivery_status`/`error_message` record a channel POST's outcome per
+    row -- a failed send (Pattern 1: caught, never raised) is recorded here,
+    not silently dropped.
+
+    This plan defines the table shape + the channel senders
+    (`app/notifications/escalation_channels.py`) only. The transition-
+    detection + firing loop that actually INSERTs a row -- and the
+    `audit()` call that must accompany every fire (D-07) -- is Plan 03's
+    job, not this one's.
+    """
+
+    __tablename__ = "sla_escalation_events"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "vulnerability_id", "to_state", "channel", name="uq_escalation_once"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    vulnerability_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    from_state: Mapped[str] = mapped_column(String(20), nullable=False)
+    to_state: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    fired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    delivery_status: Mapped[str] = mapped_column(String(20), nullable=False, default="sent", server_default="sent")
+    error_message: Mapped[str | None] = mapped_column(Text)
