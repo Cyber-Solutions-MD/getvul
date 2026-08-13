@@ -1,7 +1,7 @@
 ---
 phase: 36
 slug: remediation-sla-engine-escalation
-status: draft
+status: approved
 shadcn_initialized: true
 preset: new-york / zinc base / cssVariables=true / prefix="" / iconLibrary=lucide (frontend/components.json — pre-existing, not re-run this phase)
 created: 2026-08-13
@@ -147,19 +147,58 @@ No real logos (licensing + existing convention). Same chip chrome as `.provider`
 > error / populated / partial / overflow / zero-one-many / long-text). Empty-state and error-state COPY
 > live in `## Copywriting Contract` above — this section covers state coverage and references those rows.
 
-Applicable state considerations resolved: 7 covered, 2 backstop, 0 unresolved.
+Applicable state considerations resolved (ui-consideration-probe, 4 surfaces × 8/7 categories = 31 applicable): **31 covered, 0 backstop, 0 unresolved.** The two former backstops (per-event retry affordance; long-string overflow) were resolved to `covered` at Step 9.5 by explicit user decision — audit-only failed rows (no retry button, per D-08); truncate + `title`-attr full value on hover.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| loading | SLA & Escalation settings pane (initial fetch) | ✅ covered | Reuses `SkeletonTable` verbatim, identical to `NotificationsPane`'s existing loading branch — no new skeleton shape authored |
-| error | SLA & Escalation settings pane (fetch failure) | ✅ covered | Reuses `PartialFailureBanner` verbatim, identical to `NotificationsPane`'s existing error branch |
-| empty | Escalation history list (drill panel, finding never escalated) | ✅ covered | "No escalations yet" copy row above, styled as a compact inline empty (not the full gradient-icon empty-card shell — that shell is reserved for filtered-to-zero list views per `state-patterns.md`, not a sub-section inside an already-open drill panel) |
-| empty | Escalation channels card (zero channels configured) | ✅ covered | Reuses the `EmptyState` component pattern exactly as `NotificationsPane`'s Card 3 ("Alert categories coming soon") already does |
-| populated | Finding row + drill panel SLA-state pill | ✅ covered | Direct 1:1 reuse of `SlaPill`'s existing 4-tone tier vocabulary (table above) — no new visual language |
-| partial | NULL-`risk_exposure_score` fallback findings (D-03, severity-keyed SLA) | ✅ covered | Renders through the identical `SlaPill` component as tier-keyed findings — the fallback is a data-sourcing decision, not a visual one; the UI never needs to distinguish "tier-derived" vs "severity-fallback-derived" state visually |
-| zero-one-many | Escalation channels list (0 / 1 / all 4 configured) | ✅ covered | Card-based layout (one row per configured channel type) degrades gracefully at zero (empty state above) and doesn't reflow awkwardly at 1 vs 4 — matches `NotificationsPane`'s card-per-integration precedent |
-| error | Per-event delivery failure inside escalation history (a fired-but-failed channel POST) | 🧪 backstop | Copy locked above; whether a `Retry now` button attaches to the failed row (vs. audit-only, D-08's "audit + surface, don't block" discretion) is explicitly unresolved in RESEARCH.md's Open Question #6 — visual treatment (amber-tinted row per `state-patterns.md`'s "stale-row" convention) is prescribed, but the interactive affordance needs planner confirmation |
-| overflow | Long webhook URL / long `error_message` text in escalation-history rows and channel-config inputs | 🧪 backstop | Truncate with `text-ellipsis overflow-hidden` + a `title` attribute for the full value on hover, matching no existing precedent exactly (webhook URLs are the first long-freeform-string input in a settings pane) — needs a quick visual QA pass at execution time, not a blocking design question |
+**Surface E1 — SLA & Escalation settings pane**
+
+| Category | Status | Resolution / truth |
+|----------|--------|---------------------|
+| loading | ✅ covered | Initial fetch reuses `SkeletonTable` verbatim, identical to `NotificationsPane`'s existing loading branch — no new skeleton shape |
+| error | ✅ covered | Fetch failure reuses `PartialFailureBanner` verbatim (HTTP code + request ID + retry) |
+| empty | ✅ covered | Zero channels → `No escalation channels configured` `EmptyState` (Copywriting Contract) |
+| populated | ✅ covered | Three surface/border/text-token section cards (SLA policy / Escalation channels / Escalation floor); the `SaveBar` `Save changes` CTA is the sole gradient element (Visual Hierarchy) |
+| partial | ✅ covered | Each policy field renders independently with its own helper copy — no all-or-nothing gate; partially-filled policy is a valid intermediate state |
+| overflow | ✅ covered | Long webhook-URL / API-key input value → `text-ellipsis overflow-hidden` + `title` attr with full value on hover (**user decision, Step 9.5**) |
+| zero-one-many | ✅ covered | Card-per-channel list: empty state at 0, no awkward reflow 1→4 (`NotificationsPane` card-per-integration precedent) |
+| long-text | ✅ covered | Long freeform strings in inputs → same truncate + `title`-on-hover treatment as overflow above |
+
+**Surface E2 — SLA-state pill (`SlaPill`, finding row + drill panel)**
+
+| Category | Status | Resolution / truth |
+|----------|--------|---------------------|
+| populated | ✅ covered | Direct 1:1 reuse of `SlaPill`'s existing 4-tone vocabulary (on_track / approaching / breached / not_tracked) — no new visual language |
+| partial | ✅ covered | NULL-`risk_exposure_score` severity-fallback findings (D-03) render through the identical `SlaPill`; the UI never distinguishes tier-derived vs severity-fallback-derived state |
+| empty | ✅ covered | A finding with no SLA data / below the escalation floor → `not_tracked` faint `No SLA` tone (never a blank pill) |
+| loading | ✅ covered | The pill has no independent loader — it inherits the finding-row `SkeletonTable` while the row loads |
+| error | ✅ covered | Server state absent/unresolvable → falls back to `not_tracked` faint `No SLA` (never a broken/empty pill) |
+| overflow | ✅ covered | Pill label is a bounded short mono string (`7d left`, `−2h`) — no overflow is possible by construction |
+| zero-one-many | ✅ covered | Exactly one pill per finding row; multiplicity is the table's row count, handled by existing `vuln-table` rendering |
+
+**Surface E3 — Escalation-history list (drill panel)**
+
+| Category | Status | Resolution / truth |
+|----------|--------|---------------------|
+| empty | ✅ covered | `No escalations yet` compact inline empty (not the full gradient-icon empty-card shell — reserved for filtered-to-zero list views per `state-patterns.md`, not a sub-section inside an open drill panel) |
+| populated | ✅ covered | `ActivityTimeline`-style chronological event list |
+| error | ✅ covered | Per-event delivery failure → amber-tinted row (`state-patterns.md` stale-row convention) + `{Channel} delivery failed — HTTP {code}...` copy; **audit-only, NO retry button** (**user decision, Step 9.5**, per D-08); the transition record stays visible even when delivery failed (D-07) |
+| partial | ✅ covered | A fired-but-failed event still shows its transition record with the failure annotation — a partial delivery is never a hidden event |
+| loading | ✅ covered | Opens inside an already-loaded drill panel; the sub-list uses the drill panel's existing load treatment (no separate skeleton for a sub-section) |
+| overflow | ✅ covered | Long `error_message` → truncate + `title`-attr full value on hover (**user decision, Step 9.5**) |
+| long-text | ✅ covered | Long `error_message` / URL text → same truncate + `title`-on-hover treatment |
+| zero-one-many | ✅ covered | 0 (empty state) / 1 / many events — the timeline handles varying counts without reflow |
+
+**Surface E4 — Escalation channel chips + channel-config list**
+
+| Category | Status | Resolution / truth |
+|----------|--------|---------------------|
+| empty | ✅ covered | `No escalation channels configured` `EmptyState`, as `NotificationsPane`'s card pattern already does |
+| populated | ✅ covered | One tinted chip per channel (Slack violet / Teams blue / PagerDuty red / Email neutral) with card-per-channel config rows |
+| partial | ✅ covered | A configured-but-unmapped channel renders its chip with unchecked `Approaching`/`Breach` boxes — no error, just an unmapped channel |
+| loading | ✅ covered | Shares the settings-pane `SkeletonTable` (same fetch as E1) |
+| error | ✅ covered | Shares the settings-pane `PartialFailureBanner` (same fetch as E1) |
+| overflow | ✅ covered | Long webhook URL in a channel-config input → truncate + `title`-attr full value on hover (**user decision, Step 9.5**) |
+| long-text | ✅ covered | Long webhook URL / channel label → same truncate + `title`-on-hover treatment |
+| zero-one-many | ✅ covered | Card-based layout: empty at 0, no awkward reflow 1→4 (`NotificationsPane` card-per-integration precedent) |
 
 <!-- Status vocabulary (locked by probe-core projectTruths):
      ✅ covered   → a plain truth string lifted into must_haves.truths
@@ -183,11 +222,11 @@ No third-party registry declared for this phase. `components.json` was found alr
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (gsd-ui-checker, 2026-08-13)
