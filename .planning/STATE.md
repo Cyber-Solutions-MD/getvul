@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
 status: executing
-stopped_at: Completed 35-04-PLAN.md
-last_updated: "2026-08-12T13:58:53.000Z"
-last_activity: 2026-08-12 — Phase 35 Plan 04 complete (CSPM read-time GROUP BY AND corroboration + batched group sources; Tickets transitive union provenance via VulnerabilityCorrelation + real OR-default ?source= filter, delivering SRC-02 for all four entities)
+stopped_at: Completed 35-05-PLAN.md
+last_updated: "2026-08-12T15:19:00.000Z"
+last_activity: 2026-08-12 — Phase 35 Plan 05 complete (final plan of Phase 35 and of v4.0 — SourceBadgeGroup wired onto Assets/CSPM/Tickets rows; Assets chip-bar split into scanner/enrichment_source axes + OR/AND source_mode toggle; CSPM source_mode OR/AND toggle; Tickets real server-filtering ?source= axis. Phase 35 is now 5/5 plans complete — pending /gsd-verify-phase 35 and v4.0 milestone closeout)
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 26
-  completed_plans: 25
-  percent: 96
+  completed_plans: 26
+  percent: 100
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -22,7 +22,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 35 — Source-Aware Filtering & Provenance Badges (4/5 plans complete — 35-01 LEAD TRACER: Vulnerabilities OR/AND correlation-array source filter + page-scoped batched provenance + query-count no-N+1 harness, shipped; 35-02 frontend tracer: shared SourceBadgeGroup non-overclaiming provenance component wired into the vuln table + chip-bar OR/AND `?source_mode` toggle + reconciled 6-value SOURCES list, shipped; 35-03 Assets: fixed the shipped multi-select-ANDs bug (OR-default via `or_(*contains)`, AND toggle, scanner/enrichment partition, batched sources, seen_by_sources GIN index) + identical fix in ticketing/rule_engine.py, shipped; 35-04 CSPM read-time GROUP BY AND corroboration + batched group sources + Tickets transitive union provenance (array_agg, not func.min) + real OR-default ?source= ticket filter, shipped — SRC-02 now delivered for all four entities; Phase 34 fully shipped 5/5, pending `/gsd-verify-phase 34` re-verify)
+**Current focus:** Phase 35 — Source-Aware Filtering & Provenance Badges (5/5 plans complete — 35-01 LEAD TRACER: Vulnerabilities OR/AND correlation-array source filter + page-scoped batched provenance + query-count no-N+1 harness, shipped; 35-02 frontend tracer: shared SourceBadgeGroup non-overclaiming provenance component wired into the vuln table + chip-bar OR/AND `?source_mode` toggle + reconciled 6-value SOURCES list, shipped; 35-03 Assets: fixed the shipped multi-select-ANDs bug (OR-default via `or_(*contains)`, AND toggle, scanner/enrichment partition, batched sources, seen_by_sources GIN index) + identical fix in ticketing/rule_engine.py, shipped; 35-04 CSPM read-time GROUP BY AND corroboration + batched group sources + Tickets transitive union provenance (array_agg, not func.min) + real OR-default ?source= ticket filter, shipped; 35-05 (FINAL plan of Phase 35 and of v4.0): SourceBadgeGroup replicated onto Assets/CSPM/Tickets rows, Assets chip-bar split scanner/enrichment axes + OR/AND toggle, CSPM OR/AND toggle, Tickets real ?source= filter axis, shipped — Phase 35 now 5/5 complete, pending `/gsd-verify-phase 35`; Phase 34 fully shipped 5/5, pending `/gsd-verify-phase 34` re-verify)
 
 ## Deferred Items
 
@@ -43,9 +43,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 35 — Source-Aware Filtering & Provenance Badges
-Plan: 04 complete (4/5) — CSPM read-time GROUP BY AND corroboration + batched group sources; Tickets transitive union provenance + real OR-default ?source= filter
-Status: Executing — next 35-05-PLAN.md
-Last activity: 2026-08-12 — Phase 35 Plan 04 complete (CSPM AND corroboration via a read-time GROUP BY(tenant_id,rule_id,resource_id), never a silent source.in_() fallback; MisconfigSummary.sources/sources_count batched page-scoped; Tickets resolve provenance transitively through VulnerabilityCorrelation, union all linked vulns' sources per grouped ticket-task row via array_agg — never func.min; a real OR-default ?source= filter on the ticket list, delivering SRC-02 for all four entities)
+Plan: 05 complete (5/5) — Frontend expansion: SourceBadgeGroup on Assets/CSPM/Tickets rows; Assets chip-bar scanner/enrichment split + OR/AND toggle; CSPM OR/AND toggle; Tickets real ?source= filter axis
+Status: Phase 35 complete — pending /gsd-verify-phase 35 (and v4.0 milestone closeout, since Phase 35 is the last phase in the v4.0 Phase Map)
+Last activity: 2026-08-12 — Phase 35 Plan 05 complete (final plan of Phase 35 and of v4.0 — replicated Plan 02's SourceBadgeGroup + OR/AND chip-bar toggle pattern across Assets/CSPM/Tickets: Assets chip-bar splits the stale single source axis into a `scanner` axis + independent `enrichment_source` facet with an OR/AND `?source_mode` toggle on the scanner axis; CSPM page gains the same toggle reaching Plan 04's true multi-tool corroboration; Tickets chip-bar gains a REAL server-filtering `?source=` axis (OR-default, no AND toggle) distinct from the display-only SourceBadgeGroup on rows. Necessary Rule-3 plumbing beyond the plan's stated files: threaded the new filters end-to-end through use-assets.ts/use-cspm-findings.ts/use-tickets.ts and the assets/tickets pages so the new controls are real, not cosmetic. Full frontend regression 961/961 green, tsc/eslint clean.)
 
 ## v4.0 Phase Map
 
