@@ -1,18 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Enriched Risk Exposure & Source-Aware Triage
-status: Awaiting next milestone
-stopped_at: Completed 35-01-PLAN.md
-last_updated: "2026-08-13T08:33:21.828Z"
+milestone: v5.0
+milestone_name: Close the Loop — Remediation Orchestration & Assurance
+status: planning
+last_updated: "2026-08-13T08:56:28.944Z"
 last_activity: 2026-08-13
-last_activity_desc: Milestone v4.0 completed and archived
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 25
-  completed_plans: 25
-current_phase: 35
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -43,10 +41,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: Milestone v4.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-08-13 — Milestone v4.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-08-13 — Milestone v5.0 started
 
 ## v4.0 Phase Map
 

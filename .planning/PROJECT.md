@@ -179,12 +179,13 @@ A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlate
 
 **Tech debt (tracked in [BACKLOG.md](BACKLOG.md), non-blocking):** legacy-route 308 redirects; dead `/integrations` redirect; `useDocumentTitle` missing on 5 pages; dark-theme contrast DESIGN-SYSTEM GAPs to reconcile into sketch-findings; Nyquist validation partial on 5 phases; Safari.app glyph human spot-check.
 
-## Next Milestone: v5.0 — Close the Loop (PROPOSED, not started)
+## Current Milestone: v5.0 — Close the Loop: Remediation Orchestration & Assurance
 
-v4.0 shipped 2026-08-13 (all 33 v1 requirements). The next milestone is drafted but not started —
-activate via `/gsd-new-milestone`, which seeds a fresh REQUIREMENTS.md from the v5.0 stub.
+**Goal:** Turn GetVul from *see & decide* into *operationalize, close, and prove* — route findings to owners,
+drive them to fixed under risk-based SLAs, verify the fix, govern exceptions, and prove the program to
+leadership. Started 2026-08-13 (v4.0 shipped with all 33 v1 requirements).
 
-**Theme:** turn GetVul from *see & decide* into *operationalize, close, and prove*. Research-grounded
+**Theme (research-grounded):** turn GetVul from *see & decide* into *operationalize, close, and prove*. Research-grounded
 (2026 RBVM/CTEM market): prioritization is largely solved (and v4.0 delivers it) — the unmet need has moved
 downstream to remediation orchestration and assurance.
 
