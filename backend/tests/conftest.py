@@ -289,6 +289,12 @@ async def admin_user(db_session, tenant_a):
 
 
 @pytest_asyncio.fixture(scope="function")
+async def owner_user(db_session, tenant_a):
+    """OWNER role user in tenant_a (top of the role hierarchy — require_owner-gated routes)."""
+    return await _make_user(db_session, tenant_a, "OWNER", "owner-a")
+
+
+@pytest_asyncio.fixture(scope="function")
 async def analyst_user_b(db_session, tenant_b):
     """ANALYST role user in tenant_b — used for IDOR / cross-tenant tests."""
     return await _make_user(db_session, tenant_b, "ANALYST", "analyst-b")
