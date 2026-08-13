@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 status: planning
-last_updated: "2026-08-13T08:56:28.944Z"
+last_updated: "2026-08-13T09:30:00.000Z"
 last_activity: 2026-08-13
 progress:
-  total_phases: 0
+  total_phases: 10
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -41,10 +41,39 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 36 — Remediation SLA Engine & Escalation (roadmap created; not yet planned)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-08-13 — Milestone v5.0 started
+Status: Roadmap created — ready for `/gsd-plan-phase 36`
+Last activity: 2026-08-13 — v5.0 ROADMAP.md created (Phases 36-45, 34/34 requirements mapped, no orphans)
+
+## v5.0 Phase Map
+
+| Phase | Name | Requirements | Depends on |
+|-------|------|--------------|------------|
+| 36 | Remediation SLA Engine & Escalation | SLA-01..04 | Nothing (first phase; extends the v4.0 risk model, shipped) |
+| 37 | Two-Way Ticket Sync & Remediation Verification | SYNC-01..04 | Nothing (independent; extends existing ticketing connectors) |
+| 38 | Remediation Campaigns | CAMP-01..04 | Nothing new (independent; existing cross-asset-by-CVE grouping + owner routing) |
+| 39 | Exception & Risk-Acceptance Workflow | EXC-01..04 | Nothing new (independent; extends existing asset-ignored/exposure-override precedent) |
+| 40 | Proactive Alerting & Digests | ALERT-01..03 | Phase 36 (SLA breach/approaching states feed the digest content) |
+| 41 | Coverage & Blind-Spot Detection | COV-01..03 | Nothing new (independent; existing IdP/MDM/HR asset data) |
+| 42 | Risk Trend Analytics & Burndown | TREND-01..03 | Nothing new (independent; v4.0 Phase 34 score history, already shipped) |
+| 43 | Executive & Compliance Reporting | RPT-01..03 | Phase 36 (MTTR/SLA) + Phase 42 (trends) |
+| 44 | Natural-Language Query Assistant | NLQ-01..03 | Nothing hard (extends v3.0 AI scaffold, shipped); sequenced late so answers can span the full v5.0 data surface |
+| 45 | Public API, Webhooks & SDK | API-01..03 | Phases 36-39 (event surface: findings/SLA/tickets/exceptions/campaigns) |
+
+Coverage: 34/34 v5.0 v1 requirements mapped, no orphans. (The proposal and REQUIREMENTS.md header both
+said "32" — the literal per-family bullet count is actually 34; corrected here, no scope dropped/added.)
+Dependency refinement vs. the proposal: Phase 40 (ALERT) now depends on Phase 36 because ALERT-02's
+"breaching" digest content needs Phase 36's SLA state machine — the proposal understated this as
+depending only on already-shipped v4.0 feeds. All other phases are independent of one another and could
+execute in any order, but are sequenced 36->45 to match the proposal's narrative arc.
+
+**Hard constraints (apply across every v5.0 phase):** single-VM Docker Compose, in-process asyncio
+scheduler only (no new infra); every query tenant_id-scoped; audit events required for every new mutating
+action (SLA policy changes, exceptions/risk-acceptance, campaign actions, API writes); BYOK-only AI for
+NLQ (Phase 44), inert until the tenant configures their own key; the deterministic v4.0 risk-exposure
+score stays authoritative — v5.0 acts on it, never re-derives it; no new scanner, patch-deployer, or
+agent (lane discipline).
 
 ## v4.0 Phase Map
 
@@ -425,4 +454,4 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan Phase 36 with /gsd-plan-phase 36

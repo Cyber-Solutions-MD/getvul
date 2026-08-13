@@ -89,20 +89,55 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 - [ ] **API-02**: Signed event webhooks with retry (finding created / SLA breached / ticket synced / exception granted)
 - [ ] **API-03**: Published OpenAPI spec + a minimal client SDK covering the core read/write surface
 
-## Traceability (to fill at activation)
+## Traceability
 
-| Requirement family | Proposed phase | Depends on |
-|--------------------|----------------|------------|
-| SLA-01..04 | 36 | v4.0 risk model |
-| SYNC-01..04 | 37 | ticketing connectors |
-| CAMP-01..04 | 38 | cross-asset-by-CVE grouping, owner routing |
-| EXC-01..04 | 39 | asset-ignored / exposure-override precedent |
-| ALERT-01..03 | 40 | v4.0 enrichment feeds, notifications |
-| COV-01..03 | 41 | IdP/MDM/HR asset data |
-| TREND-01..03 | 42 | v4.0 Phase 34 recompute (score history) |
-| RPT-01..03 | 43 | SLA (36) + TREND (42) |
-| NLQ-01..03 | 44 | v3.0 AI scaffold |
-| API-01..03 | 45 | event surface from 36–39 |
+| Requirement | Phase | Depends on |
+|-------------|-------|------------|
+| SLA-01 | 36 | v4.0 risk model (shipped) |
+| SLA-02 | 36 | v4.0 risk model (shipped) |
+| SLA-03 | 36 | v4.0 risk model (shipped) |
+| SLA-04 | 36 | v4.0 risk model (shipped) |
+| SYNC-01 | 37 | existing ticketing connectors |
+| SYNC-02 | 37 | existing ticketing connectors |
+| SYNC-03 | 37 | existing ticketing connectors |
+| SYNC-04 | 37 | existing ticketing connectors |
+| CAMP-01 | 38 | cross-asset-by-CVE grouping, owner routing |
+| CAMP-02 | 38 | cross-asset-by-CVE grouping, owner routing |
+| CAMP-03 | 38 | cross-asset-by-CVE grouping, owner routing |
+| CAMP-04 | 38 | cross-asset-by-CVE grouping, owner routing |
+| EXC-01 | 39 | asset-ignored / exposure-override precedent |
+| EXC-02 | 39 | asset-ignored / exposure-override precedent |
+| EXC-03 | 39 | asset-ignored / exposure-override precedent |
+| EXC-04 | 39 | asset-ignored / exposure-override precedent |
+| ALERT-01 | 40 | v4.0 enrichment feeds (KEV/EPSS, shipped) |
+| ALERT-02 | 40 | Phase 36 (SLA state feeds digest content) |
+| ALERT-03 | 40 | v4.0 enrichment feeds, notifications |
+| COV-01 | 41 | IdP/MDM/HR asset data |
+| COV-02 | 41 | IdP/MDM/HR asset data |
+| COV-03 | 41 | IdP/MDM/HR asset data |
+| TREND-01 | 42 | v4.0 Phase 34 recompute (score history, shipped) |
+| TREND-02 | 42 | v4.0 Phase 34 recompute (score history, shipped) |
+| TREND-03 | 42 | v4.0 Phase 34 recompute (score history, shipped) |
+| RPT-01 | 43 | Phase 36 (MTTR/SLA) + Phase 42 (trends) |
+| RPT-02 | 43 | Phase 36 (MTTR/SLA) + Phase 42 (trends) |
+| RPT-03 | 43 | Phase 36 (MTTR/SLA) + Phase 42 (trends) |
+| NLQ-01 | 44 | v3.0 AI scaffold (shipped) |
+| NLQ-02 | 44 | v3.0 AI scaffold (shipped) |
+| NLQ-03 | 44 | v3.0 AI scaffold (shipped) |
+| API-01 | 45 | event surface from Phases 36-39 |
+| API-02 | 45 | event surface from Phases 36-39 |
+| API-03 | 45 | event surface from Phases 36-39 |
 
-**Coverage:** 32 proposed requirements across 10 families → 10 phases. Re-confirm scope, wording, and
-IDs at activation (market shifts; re-validate against fresh research).
+**Coverage:** 34/34 v5.0 requirements mapped, 100% coverage, no orphans. Note: the proposal
+([v5.0-PROPOSAL.md](milestones/v5.0-PROPOSAL.md)) and this file's own header both said "32 proposed
+requirements" — the literal per-family bullet count above (SLA x4 + SYNC x4 + CAMP x4 + EXC x4 +
+ALERT x3 + COV x3 + TREND x3 + RPT x3 + NLQ x3 + API x3) is actually **34**; corrected here at
+roadmap creation, no scope was dropped or added.
+
+Dependency refinement vs. the proposal (flagged per roadmapper review, not silently applied): Phase 40
+(ALERT) is sequenced to depend on Phase 36 because ALERT-02's "breaching" digest content needs Phase 36's
+SLA state machine to exist first — the proposal listed ALERT's dependency only as "v4.0 enrichment feeds
++ existing notification primitives" (both already shipped), which under-stated this one real intra-v5.0
+dependency. All other phase pairs are independent of one another and could execute in any order; they are
+sequenced 36->45 to match the proposal's narrative arc (route -> verify -> orchestrate-in-bulk ->
+govern-exceptions -> alert -> find-blind-spots -> analyze-trend -> report -> ask-questions -> integrate).
