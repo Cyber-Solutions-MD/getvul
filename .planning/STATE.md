@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 36
 current_phase_name: Remediation SLA Engine & Escalation
 status: executing
-stopped_at: Completed 36-01-PLAN.md
-last_updated: "2026-08-13T11:43:47.601Z"
+stopped_at: Completed 36-05-PLAN.md
+last_updated: "2026-08-13T12:17:28.292Z"
 last_activity: 2026-08-13
-last_activity_desc: Phase 36 Plan 01 complete — lead tracer risk-tier SLA engine (sla_tier_service.py, sla_state/sla_due_at on both vuln schemas, scheduler wiring, server-truth SlaPill state prop on the finding row)
+last_activity_desc: "Phase 36 Plan 05 complete (sla_config settings API: mask-on-read, Fernet-at-rest, keep-on-masked-write, validation, dedicated sla.policy_update audit — backend contract for Plan 06's admin pane)"
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 33
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,9 +46,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 36 (remediation-sla-engine-escalation) — EXECUTING
-Plan: 2 of 6 (Plan 01 complete — lead tracer risk-tier SLA engine shipped)
-Status: Ready to execute Plan 02
-Last activity: 2026-08-13 — Phase 36 Plan 01 complete (sla_tier_service.py + sla_state/sla_due_at schema wiring + scheduler + server-truth SlaPill state prop)
+Plan: 2 of 6 complete (01, 05) — non-sequential wave execution; 02, 03, 04, 06 remain
+Status: Ready to execute Plan 02 (wave 2, depends_on: [36-01] — unblocked). Plan 03 (wave 3) still needs 02; Plan 04 (wave 4) needs 01+02+03; Plan 06 (wave 4, frontend) needs 01+03+05 — 05 is now done but 06 stays blocked until 03 also lands (ground-truth per each plan's own depends_on frontmatter, not the wave-index tool)
+Last activity: 2026-08-13 — Phase 36 Plan 05 complete (sla_config settings API: mask-on-read, Fernet-at-rest, keep-on-masked-write, validation, dedicated sla.policy_update audit — backend contract for Plan 06's admin pane)
 
 ## v5.0 Phase Map
 
@@ -398,6 +398,7 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 36]: sla_tier_service.get_tier_policy/resolve_state_for_vuln typed dict[str, Any] not TypedDict — keeps the mypy-baseline gate at 0 new errors with minimal footprint, matching the Any-import precedent already used elsewhere in app.vulnerabilities
 - [Phase 36]: SlaPill not_tracked state reuses the unknown tier tone but renders distinct 'No SLA' copy — D-12 below-floor signal and a null-dueAt client signal are different situations to the analyst even though they share a tone (UI-SPEC requirement)
 - [Phase 36]: run_sla_tier_pass recomputes all OPEN/IN_PROGRESS vulns + resyncs every ticket group unconditionally every tick, no incremental filtering — matches the plan's explicit start-simple recompute-all guidance (Open Question #5); optimize only if tick duration is measured to be a problem
+- [Phase 36]: 36-05: SLA config validation models live inline in tenants/router.py (not schemas.py) -- mirrors assets/router.py's endpoint-local Pydantic precedent; approaching_pct validated as a 0-1 fraction (matches Plan 01's shipped DEFAULT_APPROACHING_PCT representation); sla_config excluded from the generic settings.update audit + syslog forward so channel secrets (even ciphertext) never reach a second logging path; SLA-01/SLA-03 left `[ ]` Pending in REQUIREMENTS.md per the #2388 shared-ID gate (`requirements ready-ids` confirmed both still blocked on not-yet-run sibling plans 02/03/06)
 
 ## Performance Metrics
 
@@ -453,13 +454,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 34 P05 (gap closure) | 26min | 4 tasks | 7 files |
 | Phase 35 P01 | 28min | 2 tasks | 5 files |
 | Phase 36 P01 | 30min | 3 tasks | 9 files |
+| Phase 36 P05 | 24min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-08-13T11:43:47.595Z
-**Stopped at:** Completed 36-01-PLAN.md
+**Last session:** 2026-08-13T12:16:30.724Z
+**Stopped at:** Completed 36-05-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps
 
-- Continue Phase 36 execution with /gsd-execute-phase 36 (Plan 01/6 complete — Plan 02 next)
+- Continue Phase 36 execution with /gsd-execute-phase 36 (2/6 plans complete — 01, 05; Plans 02, 03, 04, 06 remain)
