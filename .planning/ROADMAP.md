@@ -174,4 +174,4 @@ Phases 30 and 31 and 32 can execute in any order/parallel (no interdependency); 
 | 32. Asset Exposure Context | 5/5 | Complete    | 2026-08-11 |
 | 33. Risk-Exposure Model Definition | 4/4 | Complete    | 2026-08-11 |
 | 34. Historical Recompute & Consumer Cutover | 5/4 | Complete    | 2026-08-12 |
-| 35. Source-Aware Filtering & Provenance Badges | 4/5 | In progress | - |
+| 35. Source-Aware Filtering & Provenance Badges | 5/5 | Complete    | 2026-08-13 |

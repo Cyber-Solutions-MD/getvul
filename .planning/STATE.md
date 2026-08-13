@@ -2,16 +2,17 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-status: executing
-stopped_at: Completed 35-05-PLAN.md
-last_updated: "2026-08-12T15:19:00.000Z"
-last_activity: 2026-08-12 — Phase 35 Plan 05 complete (final plan of Phase 35 and of v4.0 — SourceBadgeGroup wired onto Assets/CSPM/Tickets rows; Assets chip-bar split into scanner/enrichment_source axes + OR/AND source_mode toggle; CSPM source_mode OR/AND toggle; Tickets real server-filtering ?source= axis. Phase 35 is now 5/5 plans complete — pending /gsd-verify-phase 35 and v4.0 milestone closeout)
+current_phase: 35
+status: completed
+stopped_at: Completed 35-01-PLAN.md
+last_updated: "2026-08-13T07:52:46.945Z"
+last_activity: 2026-08-13
+last_activity_desc: Phase 35 complete
 progress:
   total_phases: 6
   completed_phases: 6
-  total_plans: 26
-  completed_plans: 26
-  percent: 100
+  total_plans: 25
+  completed_plans: 25
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -42,10 +43,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 35 — Source-Aware Filtering & Provenance Badges
-Plan: 05 complete (5/5) — Frontend expansion: SourceBadgeGroup on Assets/CSPM/Tickets rows; Assets chip-bar scanner/enrichment split + OR/AND toggle; CSPM OR/AND toggle; Tickets real ?source= filter axis
-Status: Phase 35 complete — pending /gsd-verify-phase 35 (and v4.0 milestone closeout, since Phase 35 is the last phase in the v4.0 Phase Map)
-Last activity: 2026-08-12 — Phase 35 Plan 05 complete (final plan of Phase 35 and of v4.0 — replicated Plan 02's SourceBadgeGroup + OR/AND chip-bar toggle pattern across Assets/CSPM/Tickets: Assets chip-bar splits the stale single source axis into a `scanner` axis + independent `enrichment_source` facet with an OR/AND `?source_mode` toggle on the scanner axis; CSPM page gains the same toggle reaching Plan 04's true multi-tool corroboration; Tickets chip-bar gains a REAL server-filtering `?source=` axis (OR-default, no AND toggle) distinct from the display-only SourceBadgeGroup on rows. Necessary Rule-3 plumbing beyond the plan's stated files: threaded the new filters end-to-end through use-assets.ts/use-cspm-findings.ts/use-tickets.ts and the assets/tickets pages so the new controls are real, not cosmetic. Full frontend regression 961/961 green, tsc/eslint clean.)
+Phase: 35
+Plan: Not started
+Status: All phases complete
+Last activity: 2026-08-13 — Phase 35 complete
 
 ## v4.0 Phase Map
 
