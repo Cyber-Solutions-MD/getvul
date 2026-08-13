@@ -579,9 +579,16 @@ mttr_by_tier_q = (
 
 **Note:** The Microsoft Teams webhook-retirement finding (Pitfall 7 / State of the Art) is **not** in this table — it was independently confirmed by a live fetch of an official, dated Microsoft Learn page during this session, so it is `[CITED]`, not `[ASSUMED]`.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What SLA (if any) applies to a finding scoring below the MEDIUM tier boundary (`risk_exposure_score < 20`)?**
+> All six questions were resolved on 2026-08-13 during post-research decision locking. Resolution map:
+> - **Q1 + Q2 → D-12**: no SLA below the MEDIUM floor (score < 20 → always `on_track`, no due date, never escalates; stays 3 tiers, no 4th "low" tier). Severity fallback: CRITICAL→critical, HIGH→high, MEDIUM/LOW/INFO→moderate (small explicit tested lookup).
+> - **Q3 → D-13**: PagerDuty fires on approaching/breach only; NO `event_action=resolve` this phase — limitation documented explicitly in the admin pane + code.
+> - **Q4 → CONTEXT Claude's Discretion**: centralize the 6 REMEDIATED write sites behind one `mark_vulnerability_remediated()` helper (implemented in Plan 36-04).
+> - **Q5 → CONTEXT Claude's Discretion**: recompute-all-groups per tick to start (correctness-first, matches existing precedent); revisit for efficiency only if tick duration becomes a measured problem.
+> - **Q6 → D-14**: new channel secrets ARE Fernet-encrypted at rest (`encrypt_value`/`decrypt_value`) + mask-on-read; does NOT retroactively re-encrypt the pre-existing `smtp_config.password` (out of scope).
+
+1. **What SLA (if any) applies to a finding scoring below the MEDIUM tier boundary (`risk_exposure_score < 20`)?** — **RESOLVED → D-12**
    - What we know: The default policy names three tiers (critical 7d / high 30d / moderate 90d); `RISK_SCORE_TIER_MEDIUM=20` is the floor of "moderate."
    - What's unclear: Nothing in CONTEXT.md or the roadmap specifies behavior below 20 — no `RISK_SCORE_TIER_LOW` constant exists.
    - Recommendation: Resolve explicitly before writing tier-state tasks. Simplest options: (a) no SLA tracking below 20 (always `on_track`, no due date), or (b) add a 4th configurable "low" tier following the same day-budget shape. Flag to discuss-phase if not already implicitly decided.

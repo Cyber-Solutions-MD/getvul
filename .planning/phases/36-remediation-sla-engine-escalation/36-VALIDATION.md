@@ -23,7 +23,7 @@ created: 2026-08-13
 |----------|-------|
 | **Framework** | pytest 7.x (backend) + vitest/RTL (frontend) |
 | **Config file** | backend/pyproject.toml; frontend/vitest config |
-| **Quick run command** | `cd backend && ENCRYPTION_KEY=... JWT_SECRET_KEY=... pytest tests/test_sla_engine.py -q` (per-file — see memory: getvul-backend-pytest-env) |
+| **Quick run command** | `cd backend && ENCRYPTION_KEY=... JWT_SECRET_KEY=... pytest tests/test_sla_tier_service.py -q` (per-file — see memory: getvul-backend-pytest-env) |
 | **Full suite command** | `cd backend && pytest -q` then `cd frontend && npm test` |
 | **Estimated runtime** | ~60–120 seconds (backend per-file); full suite longer |
 
@@ -60,7 +60,7 @@ created: 2026-08-13
 
 ## Wave 0 Requirements
 
-- [ ] `backend/tests/test_sla_engine.py` — tier-state computation incl. approaching-% scaling, NULL-score fallback, sub-MEDIUM on-track (D-12)
+- [ ] `backend/tests/test_sla_tier_service.py` — tier-state computation incl. approaching-% scaling, NULL-score fallback, sub-MEDIUM on-track (D-12)
 - [ ] `backend/tests/test_sla_policy.py` — policy CRUD + RBAC (admin/owner only)
 - [ ] `backend/tests/test_escalation_engine.py` — exactly-once transition firing + D-08 reconciliation + audit coverage
 - [ ] `backend/tests/test_escalation_channels.py` — per-channel payload shaping (Slack/Teams-Workflows/PagerDuty/SMTP) + Fernet encryption/masking + failure handling

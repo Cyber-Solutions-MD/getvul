@@ -4,15 +4,15 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 36
 current_phase_name: Remediation SLA Engine & Escalation
-status: planning
-stopped_at: Phase 36 context gathered
-last_updated: "2026-08-13T09:13:43.852Z"
+status: planned
+stopped_at: Phase 36 planned (6 plans, 4 waves)
+last_updated: "2026-08-13T10:12:19.463Z"
 last_activity: 2026-08-13
-last_activity_desc: v5.0 ROADMAP.md created (Phases 36-45, 34/34 requirements mapped, no orphans)
+last_activity_desc: Phase 36 planned — 6 plans in 4 waves (tracer-first); plan-checker PASSED (0 blockers); requirements 4/4 + decisions 15/15 covered
 progress:
   total_phases: 10
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
   percent: 0
 ---
@@ -452,9 +452,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-08-13T09:13:43.839Z
-**Stopped at:** Phase 36 context gathered
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/36-remediation-sla-engine-escalation/36-CONTEXT.md
+**Last session:** 2026-08-13T10:12:19.451Z
+**Stopped at:** Phase 36 planned (6 plans, 4 waves)
+**Resume file:** .planning/phases/36-remediation-sla-engine-escalation/36-01-PLAN.md
 
 ## Operator Next Steps
 
