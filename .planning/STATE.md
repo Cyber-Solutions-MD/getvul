@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 36
 current_phase_name: Remediation SLA Engine & Escalation
 status: executing
-stopped_at: Completed 36-05-PLAN.md
-last_updated: "2026-08-13T12:17:28.292Z"
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-08-13T14:02:23.060Z"
 last_activity: 2026-08-13
-last_activity_desc: "Phase 36 Plan 05 complete (sla_config settings API: mask-on-read, Fernet-at-rest, keep-on-masked-write, validation, dedicated sla.policy_update audit — backend contract for Plan 06's admin pane)"
+last_activity_desc: "Phase 36 Plan 02 complete (escalation delivery infrastructure: sla_escalation_events table + migration 046, SSRF-guarded Slack/Teams/PagerDuty/email channel senders in escalation_channels.py — Plan 03's transition-detection + firing logic consumes this next)"
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
-  percent: 33
+  completed_plans: 3
+  percent: 50
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,9 +46,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 36 (remediation-sla-engine-escalation) — EXECUTING
-Plan: 2 of 6 complete (01, 05) — non-sequential wave execution; 02, 03, 04, 06 remain
-Status: Ready to execute Plan 02 (wave 2, depends_on: [36-01] — unblocked). Plan 03 (wave 3) still needs 02; Plan 04 (wave 4) needs 01+02+03; Plan 06 (wave 4, frontend) needs 01+03+05 — 05 is now done but 06 stays blocked until 03 also lands (ground-truth per each plan's own depends_on frontmatter, not the wave-index tool)
-Last activity: 2026-08-13 — Phase 36 Plan 05 complete (sla_config settings API: mask-on-read, Fernet-at-rest, keep-on-masked-write, validation, dedicated sla.policy_update audit — backend contract for Plan 06's admin pane)
+Plan: 3 of 6 complete (01, 02, 05) — non-sequential wave execution; 03, 04, 06 remain
+Status: Ready to execute Plan 03 (wave 3, depends_on: [36-01, 36-02] — both done, unblocked). Plan 04 (wave 4) still needs 03; Plan 06 (wave 4, frontend) needs 03 too (01+05 already done) — ground-truth per each plan's own depends_on frontmatter, not the wave-index tool
+Last activity: 2026-08-13 — Phase 36 Plan 02 complete (escalation delivery infrastructure: sla_escalation_events table + migration 046, SSRF-guarded Slack/Teams/PagerDuty/email channel senders in escalation_channels.py — Plan 03's transition-detection + firing logic consumes this next)
 
 ## v5.0 Phase Map
 
@@ -399,6 +399,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 36]: SlaPill not_tracked state reuses the unknown tier tone but renders distinct 'No SLA' copy — D-12 below-floor signal and a null-dueAt client signal are different situations to the analyst even though they share a tone (UI-SPEC requirement)
 - [Phase 36]: run_sla_tier_pass recomputes all OPEN/IN_PROGRESS vulns + resyncs every ticket group unconditionally every tick, no incremental filtering — matches the plan's explicit start-simple recompute-all guidance (Open Question #5); optimize only if tick duration is measured to be a problem
 - [Phase 36]: 36-05: SLA config validation models live inline in tenants/router.py (not schemas.py) -- mirrors assets/router.py's endpoint-local Pydantic precedent; approaching_pct validated as a 0-1 fraction (matches Plan 01's shipped DEFAULT_APPROACHING_PCT representation); sla_config excluded from the generic settings.update audit + syslog forward so channel secrets (even ciphertext) never reach a second logging path; SLA-01/SLA-03 left `[ ]` Pending in REQUIREMENTS.md per the #2388 shared-ID gate (`requirements ready-ids` confirmed both still blocked on not-yet-run sibling plans 02/03/06)
+- [Phase 36]: Phase 36-02: Task 1 checkpoint resolved to option-a (two separate migrations) per pre-resolved orchestrator instruction -- 046 is a standalone escalation-event migration; 047 remediation_events is Plan 04's job, not combined
+- [Phase 36]: 36-02: dispatch_channel's email config shape is {to:[...], smtp_config:{...}} -- Plan 03's firing loop must merge Tenant.smtp_config into the per-call config since dispatch_channel's signature is fixed at (channel,config,context)
+- [Phase 36]: 36-02: PagerDuty tier-to-severity mapping (critical->critical, high->error, moderate->warning, unknown->warning) is new Claude's-Discretion -- RESEARCH only locked the 4-value severity enum, not an exact mapping
+- [Phase 36]: 36-02: chose the simple Teams {text:...} payload form over the richer adaptive-card envelope -- satisfies D-15's never-MessageCard requirement with the smallest payload
+- [Phase 36]: 36-02: SLA-03 intentionally left Pending in REQUIREMENTS.md -- also declared by not-yet-executed Plans 03/06 (shared-ID gate); do not flip until all declaring plans are done
 
 ## Performance Metrics
 
@@ -455,11 +460,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 35 P01 | 28min | 2 tasks | 5 files |
 | Phase 36 P01 | 30min | 3 tasks | 9 files |
 | Phase 36 P05 | 24min | 2 tasks | 4 files |
+| Phase 36 P02 | 30min | 3 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-08-13T12:16:30.724Z
-**Stopped at:** Completed 36-05-PLAN.md
+**Last session:** 2026-08-13T14:02:23.053Z
+**Stopped at:** Completed 36-02-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps

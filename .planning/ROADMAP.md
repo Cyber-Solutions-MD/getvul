@@ -86,7 +86,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 36-02-PLAN.md — Escalation channel infra: escalation-event table + Slack/Teams/PagerDuty/email senders (SLA-03)
+- [x] 36-02-PLAN.md — Escalation channel infra: escalation-event table + Slack/Teams/PagerDuty/email senders (SLA-03)
 - [x] 36-05-PLAN.md — SLA policy + channel-config settings backend: Fernet + mask + validation + RBAC + audit (SLA-01/03)
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -233,7 +233,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|-----------------|--------|-----------|
-| 36. Remediation SLA Engine & Escalation | 2/6 | In Progress | - |
+| 36. Remediation SLA Engine & Escalation | 3/6 | In Progress | - |
 | 37. Two-Way Ticket Sync & Remediation Verification | 0/? | Not started | - |
 | 38. Remediation Campaigns | 0/? | Not started | - |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |
