@@ -79,7 +79,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
   3. An approaching-or-breach state transition fires the tenant-configured escalation channel (Slack / Microsoft Teams / email / PagerDuty) exactly once per transition, and every escalation is audited
   4. MTTR is captured per risk tier and is queryable (feeds Phase 42 trend + Phase 43 reporting)
 
-**Plans**: 2/6 plans executed
+**Plans**: 4/6 plans executed
 **Wave 1**
 
 - [x] 36-01-PLAN.md — LEAD TRACER: tier-SLA engine + live SLA state on the finding row (SLA-01/02)
@@ -91,7 +91,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 36-03-PLAN.md — Escalation dispatch: exactly-once transition firing + D-08 reconcile + history endpoint (SLA-03)
+- [x] 36-03-PLAN.md — Escalation dispatch: exactly-once transition firing + D-08 reconcile + history endpoint (SLA-03)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -233,7 +233,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|-----------------|--------|-----------|
-| 36. Remediation SLA Engine & Escalation | 3/6 | In Progress | - |
+| 36. Remediation SLA Engine & Escalation | 4/6 | In Progress | - |
 | 37. Two-Way Ticket Sync & Remediation Verification | 0/? | Not started | - |
 | 38. Remediation Campaigns | 0/? | Not started | - |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |

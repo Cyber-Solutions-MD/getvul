@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 36
 current_phase_name: Remediation SLA Engine & Escalation
 status: executing
-stopped_at: Completed 36-02-PLAN.md
-last_updated: "2026-08-13T14:02:23.060Z"
+stopped_at: Completed 36-03-PLAN.md
+last_updated: "2026-08-13T14:43:21.480Z"
 last_activity: 2026-08-13
-last_activity_desc: "Phase 36 Plan 02 complete (escalation delivery infrastructure: sla_escalation_events table + migration 046, SSRF-guarded Slack/Teams/PagerDuty/email channel senders in escalation_channels.py — Plan 03's transition-detection + firing logic consumes this next)"
+last_activity_desc: "Phase 36 Plan 03 complete (escalation firing engine: detect_and_escalate wired into the scheduler tick — tier-floor + per-transition routing, insert-first once-only reservation, fail-closed sla.escalation_fire audit, single sla_escalation in-app twin per breach, D-08 legacy-path reconciliation, tenant-scoped escalation-history endpoint — Plan 04 (MTTR) and Plan 06 (frontend admin pane + drill-panel history) consume this next)"
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 67
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,9 +46,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 36 (remediation-sla-engine-escalation) — EXECUTING
-Plan: 3 of 6 complete (01, 02, 05) — non-sequential wave execution; 03, 04, 06 remain
-Status: Ready to execute Plan 03 (wave 3, depends_on: [36-01, 36-02] — both done, unblocked). Plan 04 (wave 4) still needs 03; Plan 06 (wave 4, frontend) needs 03 too (01+05 already done) — ground-truth per each plan's own depends_on frontmatter, not the wave-index tool
-Last activity: 2026-08-13 — Phase 36 Plan 02 complete (escalation delivery infrastructure: sla_escalation_events table + migration 046, SSRF-guarded Slack/Teams/PagerDuty/email channel senders in escalation_channels.py — Plan 03's transition-detection + firing logic consumes this next)
+Plan: 4 of 6 complete (01, 02, 03, 05) — non-sequential wave execution; 04, 06 remain
+Status: Plan 03 complete (wave 3, depends_on: [36-01, 36-02] — both done). Plan 04 (wave 4, MTTR capture) and Plan 06 (wave 4, frontend admin pane + drill-panel history) are both now unblocked — ground-truth per each plan's own depends_on frontmatter, not the wave-index tool
+Last activity: 2026-08-13 — Phase 36 Plan 03 complete (escalation firing engine: detect_and_escalate wired into the scheduler tick — tier-floor + per-transition routing, insert-first once-only reservation, fail-closed sla.escalation_fire audit, single sla_escalation in-app twin per breach, D-08 legacy-path reconciliation, tenant-scoped escalation-history endpoint — Plan 04/06 consume this next)
 
 ## v5.0 Phase Map
 
@@ -404,6 +404,8 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 36]: 36-02: PagerDuty tier-to-severity mapping (critical->critical, high->error, moderate->warning, unknown->warning) is new Claude's-Discretion -- RESEARCH only locked the 4-value severity enum, not an exact mapping
 - [Phase 36]: 36-02: chose the simple Teams {text:...} payload form over the richer adaptive-card envelope -- satisfies D-15's never-MessageCard requirement with the smallest payload
 - [Phase 36]: 36-02: SLA-03 intentionally left Pending in REQUIREMENTS.md -- also declared by not-yet-executed Plans 03/06 (shared-ID gate); do not flip until all declaring plans are done
+- [Phase 36]: Phase 36-03: scheduler-originated sla.escalation_fire audit rows construct AuditLog directly with the real tenant_id + user_email=system:scheduler (mirrors app/ai/audit.py precedent), not the shared audit() helper's nil-tenant user=None branch
+- [Phase 36]: Phase 36-03: escalation tier_floor defaults to moderate (escalate every tracked tier) when a tenant hasn't configured one; the sla_escalation in-app notification twin fires only on breach and only when a channel was newly reserved this pass (any_new_fire), never re-notifying an already-fully-escalated breach
 
 ## Performance Metrics
 
@@ -461,13 +463,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 36 P01 | 30min | 3 tasks | 9 files |
 | Phase 36 P05 | 24min | 2 tasks | 4 files |
 | Phase 36 P02 | 30min | 3 tasks | 4 files |
+| Phase 36 P03 | 35min | 2 tasks | 6 files |
 
 ## Session
 
-**Last session:** 2026-08-13T14:02:23.053Z
-**Stopped at:** Completed 36-02-PLAN.md
+**Last session:** 2026-08-13T14:43:21.463Z
+**Stopped at:** Completed 36-03-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps
 
-- Continue Phase 36 execution with /gsd-execute-phase 36 (2/6 plans complete — 01, 05; Plans 02, 03, 04, 06 remain)
+- Continue Phase 36 execution with /gsd-execute-phase 36 (4/6 plans complete — 01, 02, 03, 05; Plans 04, 06 remain)
