@@ -18,8 +18,12 @@ tier mapping) are deliberately different values.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import structlog
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.risk_score import (
     RISK_SCORE_TIER_CRITICAL,
@@ -28,6 +32,8 @@ from app.assets.risk_score import (
 )
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import Vulnerability
+
+logger = structlog.get_logger()
 
 # D-01: default tier-keyed SLA policy (days per tier) — critical 7d / high
 # 30d / moderate 90d, per the roadmap's SLA-01 default. A tenant may
@@ -145,3 +151,67 @@ def resolve_state_for_vuln(
         approaching_pct=approaching_pct,
         now=now,
     )
+
+
+async def run_sla_tier_pass(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
+    """Scheduler-tick entrypoint (D-01/D-02/D-08) — replaces the old
+    `backfill_sla_due_dates` + `check_sla_breaches` calls in scheduler.py.
+
+    For every OPEN/IN_PROGRESS finding belonging to `tenant`: resolves the
+    tier-based `sla_due_at` (via `resolve_state_for_vuln` + the tenant's
+    policy) and writes it, plus the `sla_breached` DERIVED MIRROR (D-08) so
+    already-shipped consumers (ticket SlaPill, metrics, dashboard) keep
+    working unmodified. After flushing, resyncs every affected ticket
+    group's materialized SLA (Pitfall 2 — ticket `sla_due_at` is a MIN
+    aggregate over linked vulns and goes stale otherwise).
+
+    Own-session/own-try-except/own-commit isolation (Pattern 1) is the
+    CALLER's responsibility (scheduler.py's existing shape) — this function
+    only flushes, it does not commit.
+    """
+    now = datetime.now(UTC)
+    policy = get_tier_policy(tenant)
+
+    result = await db.execute(
+        select(Vulnerability).where(
+            Vulnerability.tenant_id == tenant.id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        )
+    )
+    vulns = result.scalars().all()
+
+    updated = 0
+    for vuln in vulns:
+        due_at, state = resolve_state_for_vuln(vuln, policy, now)
+        breached = state == "breached"
+        if vuln.sla_due_at != due_at or vuln.sla_breached != breached:
+            vuln.sla_due_at = due_at
+            vuln.sla_breached = breached
+            updated += 1
+
+    # Pitfall 2: flush so the new sla_due_at values are visible to the
+    # ticket-group MIN aggregate inside recompute_ticket_sla below.
+    await db.flush()
+
+    from sqlalchemy import distinct
+    from sqlalchemy import select as _select
+
+    from app.ticketing.models import Ticket
+    from app.ticketing.service import recompute_ticket_sla
+
+    ticket_urls = (
+        (await db.execute(_select(distinct(Ticket.external_ticket_url)).where(Ticket.tenant_id == tenant.id)))
+        .scalars()
+        .all()
+    )
+    for ticket_url in ticket_urls:
+        await recompute_ticket_sla(db, ticket_url, tenant.id)
+
+    logger.info(
+        "sla_tier_pass_completed",
+        tenant_id=str(tenant.id),
+        updated=updated,
+        ticket_groups=len(ticket_urls),
+    )
+
+    return {"tenant_id": str(tenant.id), "updated": updated}

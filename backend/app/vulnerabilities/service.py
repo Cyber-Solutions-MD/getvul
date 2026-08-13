@@ -24,6 +24,7 @@ from app.vulnerabilities.schemas import (
     VulnerabilityResponse,
     VulnerabilitySummary,
 )
+from app.vulnerabilities.sla_tier_service import get_tier_policy, resolve_state_for_vuln
 
 # Phase 11 / T-11-03: only these facet groups are allowed via ?facets=
 # CSV. Anything outside this set surfaces as HTTP 400 (not 500) so the
@@ -126,6 +127,13 @@ async def list_vulnerabilities(
     # flipped in this environment (34-CONTEXT locked).
     tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
     cutover_enabled = tenant.cutover_risk_exposure_scoring if tenant is not None else False
+
+    # Phase 36 / SLA-01/SLA-02: resolve the tenant's tier policy ONCE per
+    # request, then attach a freshly read-time-computed sla_state/sla_due_at
+    # to every row below (D-01/D-02 — server-authoritative "live" state;
+    # Pitfall 3 — the schema fields only populate if something sets them).
+    sla_policy = get_tier_policy(tenant)
+    sla_now = datetime.now(UTC)
 
     # D-T-01: 'triage' sort = KEV desc → CVSS desc → SLA-due asc.
     # nulls_last() so missing CVSS / SLA dates don't bubble to the top.
@@ -232,6 +240,7 @@ async def list_vulnerabilities(
         # risk_exposure_service.py:352's corr_by_key.get((...), 1) convention).
         sources = corr.sources if corr and corr.sources else [vuln.source]
         sources_count = corr.sources_count if corr else 1
+        sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, sla_now)
         items.append(
             VulnerabilitySummary(
                 id=vuln.id,
@@ -248,6 +257,8 @@ async def list_vulnerabilities(
                 last_seen_at=vuln.last_seen_at,
                 sources=sources,
                 sources_count=sources_count,
+                sla_state=sla_state,
+                sla_due_at=sla_due_at,
             )
         )
 
@@ -284,6 +295,12 @@ async def get_vulnerability(
         corr_result = (await db.execute(corr_q)).scalar_one_or_none()
         corr_count = corr_result
 
+    # Phase 36 / SLA-01/SLA-02: same read-time resolution as list_vulnerabilities
+    # above — detail view must ALSO carry sla_state/sla_due_at (must_haves).
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
+    sla_policy = get_tier_policy(tenant)
+    sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, datetime.now(UTC))
+
     return VulnerabilityResponse(
         id=vuln.id,
         tenant_id=vuln.tenant_id,
@@ -317,6 +334,8 @@ async def get_vulnerability(
         risk_exposure_score=vuln.risk_exposure_score,
         risk_exposure_breakdown=vuln.risk_exposure_breakdown,
         risk_model_version=vuln.risk_model_version,
+        sla_state=sla_state,
+        sla_due_at=sla_due_at,
     )
 
 

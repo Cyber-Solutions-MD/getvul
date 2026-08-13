@@ -311,18 +311,23 @@ async def _scheduler_loop() -> None:
         except Exception as e:
             logger.error("scheduled_reports_error", error=str(e))
 
-        # SLA breach check (runs every loop — lightweight query)
+        # SLA tier-engine pass (Phase 36 / SLA-01/SLA-02 — runs every loop,
+        # lightweight per-tenant query). Replaces the flat severity-keyed
+        # due-date-backfill + breach-detection calls from sla_service.py:
+        # run_sla_tier_pass now owns sla_due_at + the sla_breached derived
+        # mirror (D-08). A NULL risk_exposure_score still gets a due date via
+        # the severity fallback resolve_state_for_vuln applies internally
+        # (D-03) — no separate backfill pass is needed.
         try:
             async with async_session_factory() as db:
                 from sqlalchemy import select as _sel  # noqa: N814
 
                 from app.tenants.models import Tenant as TenantModel
-                from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
+                from app.vulnerabilities.sla_tier_service import run_sla_tier_pass
 
                 tenants = (await db.execute(_sel(TenantModel).where(TenantModel.is_active.is_(True)))).scalars().all()
                 for t in tenants:
-                    await backfill_sla_due_dates(db, t.id)
-                    await check_sla_breaches(db, t.id)
+                    await run_sla_tier_pass(db, t)
                 await db.commit()
         except Exception as e:
             logger.error("sla_check_error", error=str(e))
