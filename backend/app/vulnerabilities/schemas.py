@@ -68,6 +68,14 @@ class VulnerabilityResponse(BaseModel):
     risk_exposure_breakdown: list[RiskBreakdownComponent] | None = None
     risk_model_version: str | None = None
 
+    # Phase 36 / SLA-01/SLA-02 (Pitfall 3 — blocking prerequisite for D-11):
+    # server-computed risk-tier SLA state, read-time resolved by service.py
+    # via sla_tier_service.resolve_state_for_vuln. Never re-derived
+    # client-side (D-01/D-02, T-36-01). "not_tracked" + sla_due_at=None is
+    # the valid below-floor state (D-12), not an error condition.
+    sla_state: str | None = None
+    sla_due_at: datetime | None = None
+
     model_config = {"from_attributes": True}
 
 
@@ -94,6 +102,11 @@ class VulnerabilitySummary(BaseModel):
     # sources=[vuln.source], sources_count=1, never null.
     sources: list[str] = Field(default_factory=list)
     sources_count: int = 1
+
+    # Phase 36 / SLA-01/SLA-02: see VulnerabilityResponse's sla_state comment
+    # above — identical contract, list view.
+    sla_state: str | None = None
+    sla_due_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
