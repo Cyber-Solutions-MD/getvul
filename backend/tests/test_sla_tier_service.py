@@ -6,20 +6,27 @@ state formula (D-02), the custom-or-default tenant policy merge (mirrors
 `sla_service.get_sla_days`), and end-to-end per-vuln state resolution
 (scored / NULL-score fallback / below-floor not_tracked).
 
-All functions under test are pure (no DB I/O) — unlike test_sla_service.py's
-async DB-backed tests, none of these need `db_session`/`tenant_a` fixtures:
-`get_tier_policy` takes a plain `Tenant` (or None) with no query inside it,
-and `resolve_state_for_vuln` takes a plain `Vulnerability` with no query
-inside it either. Frozen `now` datetimes are always derived FROM the same
-tier_days/approaching_pct constants used by the formula under test (never
-hardcoded calendar dates) so boundary assertions stay exact regardless of
-when the suite runs.
+Almost every function under test is pure (no DB I/O) — unlike
+test_sla_service.py's async DB-backed tests, none of these need
+`db_session`/`tenant_a` fixtures: `get_tier_policy` takes a plain `Tenant`
+(or None) with no query inside it, and `resolve_state_for_vuln` takes a
+plain `Vulnerability` with no query inside it either. Frozen `now`
+datetimes are always derived FROM the same tier_days/approaching_pct
+constants used by the formula under test (never hardcoded calendar dates)
+so boundary assertions stay exact regardless of when the suite runs.
+
+The lone exception is `run_sla_tier_pass` (the scheduler-tick entrypoint,
+added in Task 3) — it DOES perform DB I/O (queries + writes + a ticket-SLA
+resync), so its test at the bottom of this file uses `db_session`/`tenant_a`
+like test_sla_service.py's DB-backed tests.
 """
 
 from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import Vulnerability
@@ -29,6 +36,7 @@ from app.vulnerabilities.sla_tier_service import (
     compute_sla_state,
     get_tier_policy,
     resolve_state_for_vuln,
+    run_sla_tier_pass,
     severity_to_tier,
     tier_for_score,
 )
@@ -36,18 +44,25 @@ from app.vulnerabilities.sla_tier_service import (
 
 def _vuln(
     *,
+    tenant_id: uuid.UUID | None = None,
     severity: str = "CRITICAL",
+    status: str = "OPEN",
     risk_exposure_score: int | None = None,
     first_detected_at: datetime | None = None,
 ) -> Vulnerability:
-    """Bare, unpersisted Vulnerability — pure attribute access only, no DB."""
+    """Bare Vulnerability — pure attribute access, no DB by default.
+
+    `tenant_id` defaults to a fresh random UUID for the pure-function tests
+    above (which never persist this object); pass a real tenant fixture's
+    UUID to seed a row for the DB-backed `run_sla_tier_pass` test below.
+    """
     now = datetime.now(UTC)
     return Vulnerability(
-        tenant_id=uuid.uuid4(),
+        tenant_id=tenant_id or uuid.uuid4(),
         cve_id=f"CVE-{uuid.uuid4().hex[:8]}",
         severity=severity,
         source="CROWDSTRIKE",
-        status="OPEN",
+        status=status,
         risk_exposure_score=risk_exposure_score,
         first_detected_at=first_detected_at or now,
         last_seen_at=now,
@@ -326,3 +341,70 @@ def test_resolve_state_for_vuln_scored_on_track_moderate():
     due, state = resolve_state_for_vuln(vuln, _policy(), now)
     assert state == "on_track"
     assert due == vuln.first_detected_at + timedelta(days=DEFAULT_TIER_POLICY["moderate"])
+
+
+# ── run_sla_tier_pass (scheduler-tick entrypoint, D-01/D-02/D-08) ──────────
+#
+# The only DB-backed test in this file — everything above is a pure
+# function. This proves the scheduler-tick WRITE path itself (queries the
+# tenant's OPEN/IN_PROGRESS vulns, writes tier-based sla_due_at + the
+# sla_breached derived mirror) actually persists correctly, since the live
+# GET /vulnerabilities integration tests in test_vuln_sort.py exercise the
+# INDEPENDENT read-time resolution path in service.py, not this function.
+
+
+@pytest.mark.asyncio
+async def test_run_sla_tier_pass_writes_due_date_and_breached_mirror(db_session, tenant_a):
+    """A CRITICAL-severity, NULL-score OPEN vuln detected 10 days ago (>
+    critical's 7d fallback window, D-03) must come out of run_sla_tier_pass
+    with sla_due_at = first_detected_at + 7d AND sla_breached=True (D-08
+    derived mirror) — proving the write path, not just the pure formula."""
+    from sqlalchemy import select
+
+    from app.tenants.models import Tenant
+
+    now = datetime.now(UTC)
+    vuln = _vuln(
+        tenant_id=tenant_a,
+        severity="CRITICAL",
+        status="OPEN",
+        first_detected_at=now - timedelta(days=10),
+    )
+    db_session.add(vuln)
+    await db_session.commit()
+
+    tenant = (await db_session.execute(select(Tenant).where(Tenant.id == tenant_a))).scalar_one()
+    result = await run_sla_tier_pass(db_session, tenant)
+    await db_session.commit()
+
+    await db_session.refresh(vuln)
+    assert vuln.sla_due_at == vuln.first_detected_at + timedelta(days=DEFAULT_TIER_POLICY["critical"])
+    assert vuln.sla_breached is True
+    assert result["updated"] == 1
+
+
+@pytest.mark.asyncio
+async def test_run_sla_tier_pass_ignores_remediated_vulns(db_session, tenant_a):
+    """Only OPEN/IN_PROGRESS vulns are touched — a REMEDIATED vuln's
+    sla_due_at must stay untouched (None), never backfilled retroactively."""
+    from sqlalchemy import select
+
+    from app.tenants.models import Tenant
+
+    now = datetime.now(UTC)
+    vuln = _vuln(
+        tenant_id=tenant_a,
+        severity="CRITICAL",
+        status="REMEDIATED",
+        first_detected_at=now - timedelta(days=10),
+    )
+    db_session.add(vuln)
+    await db_session.commit()
+
+    tenant = (await db_session.execute(select(Tenant).where(Tenant.id == tenant_a))).scalar_one()
+    result = await run_sla_tier_pass(db_session, tenant)
+    await db_session.commit()
+
+    await db_session.refresh(vuln)
+    assert vuln.sla_due_at is None
+    assert result["updated"] == 0
