@@ -647,3 +647,6 @@ app/main.py:0: error: Function is missing a type annotation for one or more para
 app/main.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 app/main.py:0: error: Function is missing a type annotation  [no-untyped-def]
 app/main.py:0: error: Function is missing a type annotation  [no-untyped-def]
+app/tenants/router.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+app/tenants/router.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+app/tenants/router.py:0: error: Missing type arguments for generic type "dict"  [type-arg]

@@ -68,7 +68,9 @@ async def _get_tenant(db_session: Any, tenant_id: uuid.UUID) -> Tenant:
 # ── PATCH persists the full policy (owner) ──────────────────────────────────
 
 
-async def test_patch_as_owner_persists_full_policy(client_factory: Any, owner_user: Any, db_session: Any, tenant_a: uuid.UUID) -> None:
+async def test_patch_as_owner_persists_full_policy(
+    client_factory: Any, owner_user: Any, db_session: Any, tenant_a: uuid.UUID
+) -> None:
     await db_session.commit()
     client = client_factory(owner_user)
     resp = await client.patch(SETTINGS_URL, json={"sla_config": _full_sla_config()})
@@ -218,7 +220,9 @@ async def test_patch_rejects_non_positive_tier_day(client_factory: Any, owner_us
     assert resp.status_code in (400, 422), resp.text
 
 
-async def test_patch_rejects_approaching_pct_out_of_range(client_factory: Any, owner_user: Any, db_session: Any) -> None:
+async def test_patch_rejects_approaching_pct_out_of_range(
+    client_factory: Any, owner_user: Any, db_session: Any
+) -> None:
     await db_session.commit()
     client = client_factory(owner_user)
     resp = await client.patch(
@@ -243,11 +247,7 @@ async def test_patch_rejects_non_https_webhook(client_factory: Any, owner_user: 
     client = client_factory(owner_user)
     resp = await client.patch(
         SETTINGS_URL,
-        json={
-            "sla_config": _full_sla_config(
-                channels={"slack": {"url": "http://hooks.slack.com/x", "enabled": True}}
-            )
-        },
+        json={"sla_config": _full_sla_config(channels={"slack": {"url": "http://hooks.slack.com/x", "enabled": True}})},
     )
     assert resp.status_code in (400, 422), resp.text
 
@@ -262,7 +262,9 @@ async def test_patch_accepts_masked_placeholder_despite_https_check(
     # Seed a real secret first so the mask on the second call is meaningful.
     seed = await client.patch(
         SETTINGS_URL,
-        json={"sla_config": _full_sla_config(channels={"slack": {"url": "https://hooks.slack.com/a", "enabled": True}})},
+        json={
+            "sla_config": _full_sla_config(channels={"slack": {"url": "https://hooks.slack.com/a", "enabled": True}})
+        },
     )
     assert seed.status_code == 200, seed.text
 
@@ -300,7 +302,9 @@ async def test_patch_writes_sla_policy_update_audit(
     assert "channels" not in rows[0].details or rows[0].details.get("channels") is None
 
 
-async def test_rejected_patch_writes_no_audit_row(client_factory: Any, owner_user: Any, db_session: Any, tenant_a: uuid.UUID) -> None:
+async def test_rejected_patch_writes_no_audit_row(
+    client_factory: Any, owner_user: Any, db_session: Any, tenant_a: uuid.UUID
+) -> None:
     """A validation failure must not leave a partial/rolled-back audit row
     (fail-closed means the mutation + its audit succeed together or not at
     all — a rejected PATCH persists nothing, audit included)."""
