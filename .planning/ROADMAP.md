@@ -95,7 +95,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 36-04-PLAN.md — MTTR capture: remediation-event table + mark_vulnerability_remediated helper + MTTR-by-tier (SLA-04)
+- [x] 36-04-PLAN.md — MTTR capture: remediation-event table + mark_vulnerability_remediated helper + MTTR-by-tier (SLA-04)
 - [ ] 36-06-PLAN.md — Frontend: SLA & Escalation admin pane + drill-panel SLA pill + escalation history (SLA-01/02/03)
 
 **UI hint**: yes
@@ -233,7 +233,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|-----------------|--------|-----------|
-| 36. Remediation SLA Engine & Escalation | 4/6 | In Progress | - |
+| 36. Remediation SLA Engine & Escalation | 5/6 | In Progress | - |
 | 37. Two-Way Ticket Sync & Remediation Verification | 0/? | Not started | - |
 | 38. Remediation Campaigns | 0/? | Not started | - |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |

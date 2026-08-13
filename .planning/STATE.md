@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 36
 current_phase_name: Remediation SLA Engine & Escalation
 status: executing
-stopped_at: Completed 36-03-PLAN.md
-last_updated: "2026-08-13T14:43:21.480Z"
+stopped_at: Completed 36-04-PLAN.md
+last_updated: "2026-08-13T15:24:20.726Z"
 last_activity: 2026-08-13
-last_activity_desc: "Phase 36 Plan 03 complete (escalation firing engine: detect_and_escalate wired into the scheduler tick — tier-floor + per-transition routing, insert-first once-only reservation, fail-closed sla.escalation_fire audit, single sla_escalation in-app twin per breach, D-08 legacy-path reconciliation, tenant-scoped escalation-history endpoint — Plan 04 (MTTR) and Plan 06 (frontend admin pane + drill-panel history) consume this next)"
+last_activity_desc: Phase 36 Plan 04 complete — MTTR-by-tier capture (remediation_events table + mark_vulnerability_remediated helper routing all 6 REMEDIATED sites + get_mttr_by_tier aggregate + GET /vulnerabilities/mttr/by-tier)
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,9 +46,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 36 (remediation-sla-engine-escalation) — EXECUTING
-Plan: 4 of 6 complete (01, 02, 03, 05) — non-sequential wave execution; 04, 06 remain
-Status: Plan 03 complete (wave 3, depends_on: [36-01, 36-02] — both done). Plan 04 (wave 4, MTTR capture) and Plan 06 (wave 4, frontend admin pane + drill-panel history) are both now unblocked — ground-truth per each plan's own depends_on frontmatter, not the wave-index tool
-Last activity: 2026-08-13 — Phase 36 Plan 03 complete (escalation firing engine: detect_and_escalate wired into the scheduler tick — tier-floor + per-transition routing, insert-first once-only reservation, fail-closed sla.escalation_fire audit, single sla_escalation in-app twin per breach, D-08 legacy-path reconciliation, tenant-scoped escalation-history endpoint — Plan 04/06 consume this next)
+Plan: 5 of 6 complete (01, 02, 03, 04, 05) — Wave 4 in progress; 06 remains (human-verify UAT)
+Status: Executing Wave 4
+Last activity: 2026-08-13 — Plan 04 complete (MTTR-by-tier capture)
 
 ## v5.0 Phase Map
 
@@ -406,6 +406,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 36]: 36-02: SLA-03 intentionally left Pending in REQUIREMENTS.md -- also declared by not-yet-executed Plans 03/06 (shared-ID gate); do not flip until all declaring plans are done
 - [Phase 36]: Phase 36-03: scheduler-originated sla.escalation_fire audit rows construct AuditLog directly with the real tenant_id + user_email=system:scheduler (mirrors app/ai/audit.py precedent), not the shared audit() helper's nil-tenant user=None branch
 - [Phase 36]: Phase 36-03: escalation tier_floor defaults to moderate (escalate every tracked tier) when a tenant hasn't configured one; the sla_escalation in-app notification twin fires only on breach and only when a channel was newly reserved this pass (any_new_fire), never re-notifying an already-fully-escalated breach
+- [Phase 36]: 36-04: Task 1 pre-resolved to option-a (047 chains off 046, matching Plan 02's own Task 1) -- not re-prompted
+- [Phase 36]: 36-04: routed all seven physical REMEDIATED write sites (not six as the phase docs' prose label said) through mark_vulnerability_remediated -- an off-by-one in prior documentation, not a scope decision
+- [Phase 36]: 36-04: no UniqueConstraint on remediation_events -- correctness comes from centralizing every write through the one helper, not a DB constraint
 
 ## Performance Metrics
 
@@ -464,11 +467,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 36 P05 | 24min | 2 tasks | 4 files |
 | Phase 36 P02 | 30min | 3 tasks | 4 files |
 | Phase 36 P03 | 35min | 2 tasks | 6 files |
+| Phase 36 P04 | 30min | 2 tasks | 8 files |
 
 ## Session
 
-**Last session:** 2026-08-13T14:43:21.463Z
-**Stopped at:** Completed 36-03-PLAN.md
+**Last session:** 2026-08-13T15:24:20.721Z
+**Stopped at:** Completed 36-04-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps

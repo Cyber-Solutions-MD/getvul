@@ -30,7 +30,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 - [ ] **SLA-01**: Risk-tier SLA policy (default critical 7d / high 30d / moderate 90d), tenant-configurable, computed off the v4.0 risk-exposure tier
 - [ ] **SLA-02**: Each open finding shows a live SLA state (on-track / approaching / breached) derived from that policy
 - [ ] **SLA-03**: Approaching/breach transitions auto-escalate to a configured channel (Slack / Microsoft Teams / email / PagerDuty), fired exactly once per transition, audited
-- [ ] **SLA-04**: MTTR is captured per risk tier and exposed for reporting (feeds RPT/TREND)
+- [x] **SLA-04**: MTTR is captured per risk tier and exposed for reporting (feeds RPT/TREND)
 
 ### Two-Way Ticket Sync & Remediation Verification (SYNC) — Phase 37
 
