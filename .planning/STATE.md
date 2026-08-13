@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Enriched Risk Exposure & Source-Aware Triage
-current_phase: 35
-status: completed
+status: Awaiting next milestone
 stopped_at: Completed 35-01-PLAN.md
-last_updated: "2026-08-13T07:52:46.945Z"
+last_updated: "2026-08-13T08:33:21.828Z"
 last_activity: 2026-08-13
-last_activity_desc: Phase 35 complete
+last_activity_desc: Milestone v4.0 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 25
   completed_plans: 25
+current_phase: 35
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -43,10 +43,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 35
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-08-13 — Phase 35 complete
+Phase: Milestone v4.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-13 — Milestone v4.0 completed and archived
 
 ## v4.0 Phase Map
 
@@ -424,3 +424,7 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 **Last session:** 2026-08-12T11:32:38+03:00
 **Stopped at:** Completed 35-01-PLAN.md
 **Resume file:** None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
