@@ -98,49 +98,20 @@ async def _check_new_critical_vulns(db: AsyncSession, tenant: Tenant) -> int:
 
 
 async def _check_sla_breaches(db: AsyncSession, tenant: Tenant) -> int:
-    """Find vulns with SLA due within 24 hours that are still open."""
-    now = datetime.now(UTC)
-    sla_window = now + timedelta(hours=24)
-    alerts_created = 0
+    """D-08 reconciliation (Phase 36 Plan 03): retired to a no-op.
 
-    vulns = (
-        await db.execute(
-            select(Vulnerability, Asset)
-            .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
-            .where(
-                Vulnerability.tenant_id == tenant.id,
-                Vulnerability.sla_due_at.isnot(None),
-                Vulnerability.sla_due_at <= sla_window,
-                Vulnerability.sla_due_at > now,
-                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-            )
-        )
-    ).all()
-
-    for vuln, asset in vulns:
-        resource_id = vuln.cve_id or str(vuln.id)
-
-        # Only create if no existing sla_breach notification in last 24h
-        if await _notification_exists(db, tenant.id, "sla_breach", "vulnerability", resource_id, hours=24):
-            continue
-
-        hostname = asset.hostname if asset else "Unknown host"
-        hours_remaining = max(0, int((vuln.sla_due_at - now).total_seconds() / 3600))
-
-        await create_notification(
-            db,
-            tenant_id=tenant.id,
-            title=f"SLA Breach Warning: {resource_id}",
-            message=f"{resource_id} on {hostname} — SLA due in {hours_remaining}h",
-            severity="high",
-            category="sla_breach",
-            resource_type="vulnerability",
-            resource_id=resource_id,
-            details={"sla_due_at": vuln.sla_due_at.isoformat(), "hours_remaining": hours_remaining},
-        )
-        alerts_created += 1
-
-    return alerts_created
+    This was a flat, severity-agnostic 24h-lookahead in-app breach warning.
+    It has been superseded by the risk-tier SLA engine's own in-app twin
+    (`app.vulnerabilities.sla_tier_service.detect_and_escalate`, category=
+    "sla_escalation") -- keeping both alive would double-fire two unrelated
+    in-app signals for the same finding on every breach (36-RESEARCH.md
+    Pitfall 1). Kept as a callable no-op (rather than deleted + removing
+    its call site in `run_alert_checks`) so the diff stays minimal and the
+    reconciliation intent is self-documented at the retired function's own
+    definition. `tenant`/`db` are accepted but unused -- preserved for
+    call-site compatibility.
+    """
+    return 0
 
 
 async def _check_sync_failures(db: AsyncSession, tenant: Tenant) -> int:

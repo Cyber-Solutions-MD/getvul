@@ -317,17 +317,24 @@ async def _scheduler_loop() -> None:
         # run_sla_tier_pass now owns sla_due_at + the sla_breached derived
         # mirror (D-08). A NULL risk_exposure_score still gets a due date via
         # the severity fallback resolve_state_for_vuln applies internally
-        # (D-03) — no separate backfill pass is needed.
+        # (D-03) — no separate backfill pass is needed. detect_and_escalate
+        # (Plan 03 / SLA-03) runs immediately after in the SAME isolated
+        # block -- it re-resolves the just-written state and fires any
+        # approaching/breached transition's routed channels exactly once
+        # (D-05/D-06/D-07), audited, with a single in-app twin per breach
+        # (D-08). No new scheduler is registered — this extends the
+        # existing tick block in place.
         try:
             async with async_session_factory() as db:
                 from sqlalchemy import select as _sel  # noqa: N814
 
                 from app.tenants.models import Tenant as TenantModel
-                from app.vulnerabilities.sla_tier_service import run_sla_tier_pass
+                from app.vulnerabilities.sla_tier_service import detect_and_escalate, run_sla_tier_pass
 
                 tenants = (await db.execute(_sel(TenantModel).where(TenantModel.is_active.is_(True)))).scalars().all()
                 for t in tenants:
                     await run_sla_tier_pass(db, t)
+                    await detect_and_escalate(db, t)
                 await db.commit()
         except Exception as e:
             logger.error("sla_check_error", error=str(e))

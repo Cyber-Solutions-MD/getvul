@@ -588,6 +588,7 @@ app/vulnerabilities/router.py:0: error: Function is missing a return type annota
 app/vulnerabilities/router.py:0: error: "Result[Any]" has no attribute "rowcount"  [attr-defined]
 app/vulnerabilities/router.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 app/vulnerabilities/router.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+app/vulnerabilities/router.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 app/connectors/scheduler.py:0: error: Missing type arguments for generic type "Task"  [type-arg]
 app/connectors/scheduler.py:0: error: Missing type arguments for generic type "Task"  [type-arg]
 app/connectors/scheduler.py:0: error: Incompatible types in assignment (expression has type "dict[Any, Any]", variable has type "Result[tuple[ConnectorConfig]]")  [assignment]

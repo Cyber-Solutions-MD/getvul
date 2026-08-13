@@ -704,6 +704,57 @@ async def get_vuln_correlation(
     return {"correlated": True, **corr}
 
 
+# ── Escalation history (Phase 36 Plan 03 / SLA-03, D-07) ──
+
+
+@router.get("/{vuln_id}/escalations")
+async def get_vuln_escalations(
+    vuln_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    """Get the escalation-fire history for a vulnerability (D-07
+    user-visible history), tenant-scoped, ordered by fired_at ascending.
+
+    `get_vulnerability` performs the tenant-scope + existence check (IDOR
+    pattern: a cross-tenant vuln_id is indistinguishable from a missing
+    one, 404 not 403 — matches `get_vuln_correlation` above).
+    """
+    from app.vulnerabilities.models import SlaEscalationEvent
+
+    vuln = await get_vulnerability(db, user.tenant_id, vuln_id)
+    if vuln is None:
+        raise HTTPException(status_code=404, detail="Vulnerability not found")
+
+    rows = (
+        (
+            await db.execute(
+                select(SlaEscalationEvent)
+                .where(
+                    SlaEscalationEvent.tenant_id == user.tenant_id,
+                    SlaEscalationEvent.vulnerability_id == vuln_id,
+                )
+                .order_by(SlaEscalationEvent.fired_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    return [
+        {
+            "id": str(row.id),
+            "from_state": row.from_state,
+            "to_state": row.to_state,
+            "channel": row.channel,
+            "fired_at": row.fired_at.isoformat(),
+            "delivery_status": row.delivery_status,
+            "error_message": row.error_message,
+        }
+        for row in rows
+    ]
+
+
 # ── Remediation views ──
 
 

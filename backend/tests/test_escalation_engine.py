@@ -35,7 +35,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import pytest
 from sqlalchemy import func, select
 
 import app.notifications.escalation_channels as ec
@@ -125,9 +124,7 @@ async def _get_tenant(db_session: Any, tenant_id: uuid.UUID) -> Tenant:
 
 
 async def _escalation_rows(db_session: Any, vuln_id: uuid.UUID) -> list[SlaEscalationEvent]:
-    result = await db_session.execute(
-        select(SlaEscalationEvent).where(SlaEscalationEvent.vulnerability_id == vuln_id)
-    )
+    result = await db_session.execute(select(SlaEscalationEvent).where(SlaEscalationEvent.vulnerability_id == vuln_id))
     return list(result.scalars().all())
 
 

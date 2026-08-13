@@ -18,20 +18,26 @@ tier mapping) are deliberately different values.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.assets.models import Asset
 from app.assets.risk_score import (
     RISK_SCORE_TIER_CRITICAL,
     RISK_SCORE_TIER_HIGH,
     RISK_SCORE_TIER_MEDIUM,
 )
+from app.audit import AuditLog
+from app.encryption import decrypt_value
+from app.notifications.service import create_notification
 from app.tenants.models import Tenant
-from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.models import SlaEscalationEvent, Vulnerability
 
 logger = structlog.get_logger()
 
@@ -215,3 +221,288 @@ async def run_sla_tier_pass(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
     )
 
     return {"tenant_id": str(tenant.id), "updated": updated}
+
+
+# ── Escalation firing (Phase 36 Plan 03 / SLA-03, D-05/D-06/D-07/D-08) ──────
+#
+# detect_and_escalate is called immediately after run_sla_tier_pass in the
+# SAME scheduler-tick isolation block (scheduler.py) -- it re-resolves each
+# OPEN/IN_PROGRESS finding's live sla_state via the SAME resolve_state_for_
+# vuln Plan 01 already ships, and for every approaching/breached transition
+# at or above the tenant's configured tier floor, fires that transition's
+# routed channels EXACTLY ONCE -- gated by a DB check-before-insert
+# (_escalation_already_fired) backstopped by the uq_escalation_once
+# UniqueConstraint (Plan 02) so the once-only guarantee holds even under a
+# hypothetical concurrent double-tick (D-07). Every fire is audited
+# (sla.escalation_fire) and a breach's channel fan-out is twinned by exactly
+# one in-app notification (category="sla_escalation", D-08) -- reconciled
+# against the legacy alerts.py::_check_sla_breaches, which this plan retires
+# to a no-op so a breach never double-fires two unrelated in-app signals.
+
+# D-06/Pitfall 5: ordered tier rank so a NULL-score severity-fallback tier
+# (severity_to_tier) gates against tier_floor identically to a scored
+# finding's tier (tier_for_score) -- both resolve to the same 3-value
+# vocabulary before this comparison ever runs.
+_TIER_RANK: dict[str, int] = {"moderate": 1, "high": 2, "critical": 3}
+
+# D-07: the escalation-event row's `from_state` records the natural
+# predecessor of `to_state` in the on_track -> approaching -> breached
+# progression -- informational context for the auditable history; NOT part
+# of the once-only gate's identity key (that's tenant+vulnerability+
+# to_state+channel only, see uq_escalation_once).
+_PREDECESSOR_STATE: dict[str, str] = {"approaching": "on_track", "breached": "approaching"}
+
+
+def _tier_meets_floor(tier: str | None, tier_floor: str | None) -> bool:
+    """D-06: does `tier` meet or exceed the tenant's configured tier floor?
+
+    Default floor is "moderate" (the lowest tracked tier) when the tenant
+    hasn't configured one -- escalation is ON by default for every tracked
+    tier until a tenant deliberately dials it down.
+    """
+    if tier is None:
+        return False
+    floor = tier_floor or "moderate"
+    return _TIER_RANK.get(tier, 0) >= _TIER_RANK.get(floor, 0)
+
+
+async def _escalation_already_fired(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    vuln_id: uuid.UUID,
+    to_state: str,
+    channel: str,
+) -> bool:
+    """D-07 check-before-insert -- mirrors `alerts.py::_notification_exists`
+    but with NO time window: "ever fired for this exact transition+channel",
+    not a lookback."""
+    result = await db.execute(
+        select(func.count(SlaEscalationEvent.id)).where(
+            SlaEscalationEvent.tenant_id == tenant_id,
+            SlaEscalationEvent.vulnerability_id == vuln_id,
+            SlaEscalationEvent.to_state == to_state,
+            SlaEscalationEvent.channel == channel,
+        )
+    )
+    return result.scalar_one() > 0
+
+
+def _build_channel_config(sla_config: dict[str, Any], channel: str, tenant: Tenant) -> dict[str, Any]:
+    """Assembles the per-call `config` dict `dispatch_channel` expects,
+    decrypting the Fernet-at-rest secret server-side (D-14, Plan 05).
+    Email's config lives across TWO different Tenant columns
+    (`sla_config.channels.email.to` + the separate `Tenant.smtp_config`) --
+    36-02-SUMMARY's documented merge contract."""
+    channels = sla_config.get("channels") or {}
+    chan = channels.get(channel) or {}
+    if channel in ("slack", "teams"):
+        url = chan.get("url")
+        return {"url": decrypt_value(url) if url else None}
+    if channel == "pagerduty":
+        routing_key = chan.get("routing_key")
+        return {"routing_key": decrypt_value(routing_key) if routing_key else None}
+    if channel == "email":
+        return {"to": chan.get("to") or [], "smtp_config": tenant.smtp_config or {}}
+    return {}
+
+
+async def _audit_escalation_fire(
+    db: AsyncSession,
+    tenant: Tenant,
+    vuln: Vulnerability,
+    *,
+    from_state: str,
+    to_state: str,
+    channel: str,
+    tier: str | None,
+    delivery_status: str,
+    error_message: str | None,
+) -> None:
+    """D-07: every escalation fire is audited. Constructs `AuditLog`
+    directly rather than calling the shared `app.audit.audit()` helper with
+    `user=None` -- that helper's None-user branch writes
+    `tenant_id=uuid.UUID(int=0)` (a nil tenant), which would mis-bucket this
+    genuinely tenant-scoped row and break the "every audit row tenant_id-
+    scoped" convention. Mirrors this codebase's existing scheduler-
+    originated-audit precedent for the identical problem:
+    `app/ai/audit.py::audit_log_ai_call` / `encryption.py::rotate_
+    credentials`, both of which write `AuditLog` directly with a real
+    tenant_id + a `"system:scheduler"`/`"system:cli"` `user_email`.
+    """
+    log = AuditLog(
+        tenant_id=tenant.id,
+        user_id=None,
+        user_email="system:scheduler",
+        action="sla.escalation_fire",
+        resource_type="vulnerability",
+        resource_id=str(vuln.id),
+        details={
+            "channel": channel,
+            "from_state": from_state,
+            "to_state": to_state,
+            "tier": tier,
+            "delivery_status": delivery_status,
+            "error_message": error_message,
+        },
+        ip_address=None,
+        created_at=datetime.now(UTC),
+    )
+    db.add(log)
+
+
+async def detect_and_escalate(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
+    """Scheduler-tick entrypoint (SLA-03, D-05/D-06/D-07/D-08) -- called
+    immediately after `run_sla_tier_pass` in the same isolated tick block
+    (scheduler.py). For every OPEN/IN_PROGRESS finding whose live sla_state
+    is `approaching` or `breached` AND whose tier meets the tenant's
+    configured floor, fires every channel routed to that transition type
+    EXACTLY ONCE (check-before-insert + the uq_escalation_once
+    UniqueConstraint backstop), audits every fire, and -- for a breach that
+    newly fired at least one channel this pass -- emits exactly one in-app
+    `category="sla_escalation"` notification twin (D-08).
+
+    Pattern 1 isolation: a single channel's decrypt/dispatch failure (or a
+    concurrent-double-tick's uq_escalation_once collision) is caught at the
+    per-channel level and never propagates -- one bad channel/tenant/vuln
+    cannot stall this pass for any other channel/tenant/vuln in the same
+    tick. Own-flush/no-own-commit -- matches `run_sla_tier_pass`'s isolation
+    contract; the CALLER (scheduler.py) commits once per tick.
+    """
+    from app.notifications.escalation_channels import dispatch_channel
+
+    now = datetime.now(UTC)
+    policy = get_tier_policy(tenant)
+    sla_config = tenant.sla_config or {}
+    tier_floor = sla_config.get("tier_floor")
+    routing = sla_config.get("routing") or {}
+
+    result = await db.execute(
+        select(Vulnerability, Asset)
+        .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
+        .where(
+            Vulnerability.tenant_id == tenant.id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        )
+    )
+    rows = result.all()
+
+    fired = 0
+    notified = 0
+    for vuln, asset in rows:
+        _due_at, to_state = resolve_state_for_vuln(vuln, policy, now)
+        if to_state not in ("approaching", "breached"):
+            continue
+
+        score = vuln.risk_exposure_score
+        tier = tier_for_score(score) if score is not None else severity_to_tier(vuln.severity)
+        if not _tier_meets_floor(tier, tier_floor):
+            continue
+
+        channels = routing.get(to_state) or []
+        hostname = asset.hostname if asset else None
+        any_new_fire = False
+
+        for channel in channels:
+            try:
+                if await _escalation_already_fired(db, tenant.id, vuln.id, to_state, channel):
+                    continue
+
+                from_state = _PREDECESSOR_STATE.get(to_state, "on_track")
+                event = SlaEscalationEvent(
+                    tenant_id=tenant.id,
+                    vulnerability_id=vuln.id,
+                    from_state=from_state,
+                    to_state=to_state,
+                    channel=channel,
+                    fired_at=now,
+                    delivery_status="pending",
+                )
+                try:
+                    async with db.begin_nested():
+                        db.add(event)
+                        await db.flush()
+                except IntegrityError:
+                    # W4 hardening: another pass already reserved this exact
+                    # (finding, to_state, channel) -- skip the POST entirely,
+                    # the UniqueConstraint guards the outbound send itself.
+                    continue
+
+                try:
+                    config = _build_channel_config(sla_config, channel, tenant)
+                    outcome = await dispatch_channel(
+                        channel,
+                        config,
+                        {
+                            "vuln_id": str(vuln.id),
+                            "cve_id": vuln.cve_id,
+                            "hostname": hostname,
+                            "tier": tier,
+                            "tier_days": policy["tier_days"].get(tier) if tier else None,
+                            "to_state": to_state,
+                        },
+                    )
+                except Exception as e:  # decrypt/dispatch failure -- never blocks the reservation
+                    outcome = {"ok": False, "error": str(e)}
+
+                event.delivery_status = "sent" if outcome.get("ok") else "failed"
+                event.error_message = None if outcome.get("ok") else outcome.get("error")
+
+                await _audit_escalation_fire(
+                    db,
+                    tenant,
+                    vuln,
+                    from_state=from_state,
+                    to_state=to_state,
+                    channel=channel,
+                    tier=tier,
+                    delivery_status=event.delivery_status,
+                    error_message=event.error_message,
+                )
+                await db.flush()
+
+                fired += 1
+                any_new_fire = True
+            except Exception as e:
+                logger.error(
+                    "sla_escalation_channel_error",
+                    tenant_id=str(tenant.id),
+                    vuln_id=str(vuln.id),
+                    channel=channel,
+                    to_state=to_state,
+                    error=str(e),
+                )
+                continue
+
+        if to_state == "breached" and any_new_fire:
+            try:
+                resource_id = vuln.cve_id or str(vuln.id)
+                await create_notification(
+                    db,
+                    tenant_id=tenant.id,
+                    title=f"SLA Breach: {resource_id}",
+                    message=(
+                        f"{resource_id} on {hostname or 'an unassigned host'} — "
+                        f"breached the {tier or 'unscored'} tier SLA"
+                    ),
+                    severity="critical",
+                    category="sla_escalation",
+                    resource_type="vulnerability",
+                    resource_id=resource_id,
+                    details={"tier": tier, "to_state": to_state, "channels_notified": channels},
+                )
+                notified += 1
+            except Exception as e:
+                logger.error(
+                    "sla_escalation_notify_error",
+                    tenant_id=str(tenant.id),
+                    vuln_id=str(vuln.id),
+                    error=str(e),
+                )
+
+    logger.info(
+        "sla_escalation_pass_completed",
+        tenant_id=str(tenant.id),
+        fired=fired,
+        notified=notified,
+    )
+    return {"tenant_id": str(tenant.id), "fired": fired, "notified": notified}
