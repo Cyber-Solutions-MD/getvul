@@ -4,17 +4,17 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 36
 current_phase_name: Remediation SLA Engine & Escalation
-status: planned
-stopped_at: Phase 36 planned (6 plans, 4 waves)
-last_updated: "2026-08-13T10:12:19.463Z"
+status: executing
+stopped_at: Completed 36-01-PLAN.md
+last_updated: "2026-08-13T11:43:47.601Z"
 last_activity: 2026-08-13
-last_activity_desc: Phase 36 planned — 6 plans in 4 waves (tracer-first); plan-checker PASSED (0 blockers); requirements 4/4 + decisions 15/15 covered
+last_activity_desc: Phase 36 Plan 01 complete — lead tracer risk-tier SLA engine (sla_tier_service.py, sla_state/sla_due_at on both vuln schemas, scheduler wiring, server-truth SlaPill state prop on the finding row)
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -25,7 +25,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 35 — Source-Aware Filtering & Provenance Badges (5/5 plans complete — 35-01 LEAD TRACER: Vulnerabilities OR/AND correlation-array source filter + page-scoped batched provenance + query-count no-N+1 harness, shipped; 35-02 frontend tracer: shared SourceBadgeGroup non-overclaiming provenance component wired into the vuln table + chip-bar OR/AND `?source_mode` toggle + reconciled 6-value SOURCES list, shipped; 35-03 Assets: fixed the shipped multi-select-ANDs bug (OR-default via `or_(*contains)`, AND toggle, scanner/enrichment partition, batched sources, seen_by_sources GIN index) + identical fix in ticketing/rule_engine.py, shipped; 35-04 CSPM read-time GROUP BY AND corroboration + batched group sources + Tickets transitive union provenance (array_agg, not func.min) + real OR-default ?source= ticket filter, shipped; 35-05 (FINAL plan of Phase 35 and of v4.0): SourceBadgeGroup replicated onto Assets/CSPM/Tickets rows, Assets chip-bar split scanner/enrichment axes + OR/AND toggle, CSPM OR/AND toggle, Tickets real ?source= filter axis, shipped — Phase 35 now 5/5 complete, pending `/gsd-verify-phase 35`; Phase 34 fully shipped 5/5, pending `/gsd-verify-phase 34` re-verify)
+**Current focus:** Phase 36 — remediation-sla-engine-escalation
 
 ## Deferred Items
 
@@ -45,10 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 36 — Remediation SLA Engine & Escalation (roadmap created; not yet planned)
-Plan: —
-Status: Roadmap created — ready for `/gsd-plan-phase 36`
-Last activity: 2026-08-13 — v5.0 ROADMAP.md created (Phases 36-45, 34/34 requirements mapped, no orphans)
+Phase: 36 (remediation-sla-engine-escalation) — EXECUTING
+Plan: 2 of 6 (Plan 01 complete — lead tracer risk-tier SLA engine shipped)
+Status: Ready to execute Plan 02
+Last activity: 2026-08-13 — Phase 36 Plan 01 complete (sla_tier_service.py + sla_state/sla_due_at schema wiring + scheduler + server-truth SlaPill state prop)
 
 ## v5.0 Phase Map
 
@@ -395,6 +395,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 35]: 35-01: `backend/tests/query_count.py`'s `count_queries()` is engine-wide (attaches to `engine.sync_engine`), not session/connection-scoped -- Plans 03/04 reusing it for their own query-count assertions must filter captured statements to their own SUT tables (this plan hit and fixed a real flake from an unrelated concurrent EPSS-refresh background task leaking in via the shared session-scoped event loop)
 - [Phase 35]: 35-01: `source_mode` is bound as an explicit router `Query(Literal["or","and"])` param, not just added to `VulnerabilityFilter` -- this router builds the filter from explicit Query params (not `Depends(Filter)`), so a schema-only field would be silently dropped and `?source_mode=and` would never reach the service
 - [Phase 35]: 35-01: SRC-01/02/03/04/08 left `[ ]` Pending in REQUIREMENTS.md -- each requirement's text spans multiple entities (Vulnerabilities/Assets/CSPM/Tickets) or the frontend badge (SRC-01), and this plan only ships the Vulnerabilities backend slice; mirrors the shared-ID-gate convention used throughout this project (e.g. RISK-01/03/04, AIE-01/02) -- each SRC-* ID flips Complete only when its LAST declaring plan (02/03/04/05) lands
+- [Phase 36]: sla_tier_service.get_tier_policy/resolve_state_for_vuln typed dict[str, Any] not TypedDict — keeps the mypy-baseline gate at 0 new errors with minimal footprint, matching the Any-import precedent already used elsewhere in app.vulnerabilities
+- [Phase 36]: SlaPill not_tracked state reuses the unknown tier tone but renders distinct 'No SLA' copy — D-12 below-floor signal and a null-dueAt client signal are different situations to the analyst even though they share a tone (UI-SPEC requirement)
+- [Phase 36]: run_sla_tier_pass recomputes all OPEN/IN_PROGRESS vulns + resyncs every ticket group unconditionally every tick, no incremental filtering — matches the plan's explicit start-simple recompute-all guidance (Open Question #5); optimize only if tick duration is measured to be a problem
 
 ## Performance Metrics
 
@@ -449,13 +452,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 34 P03 | 9min | 3 tasks | 5 files |
 | Phase 34 P05 (gap closure) | 26min | 4 tasks | 7 files |
 | Phase 35 P01 | 28min | 2 tasks | 5 files |
+| Phase 36 P01 | 30min | 3 tasks | 9 files |
 
 ## Session
 
-**Last session:** 2026-08-13T10:12:19.451Z
-**Stopped at:** Phase 36 planned (6 plans, 4 waves)
-**Resume file:** .planning/phases/36-remediation-sla-engine-escalation/36-01-PLAN.md
+**Last session:** 2026-08-13T11:43:47.595Z
+**Stopped at:** Completed 36-01-PLAN.md
+**Resume file:** None
 
 ## Operator Next Steps
 
-- Plan Phase 36 with /gsd-plan-phase 36
+- Continue Phase 36 execution with /gsd-execute-phase 36 (Plan 01/6 complete — Plan 02 next)

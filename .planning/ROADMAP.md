@@ -82,7 +82,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 **Plans**: 6 plans (4 waves)
 **Wave 1**
 
-- [ ] 36-01-PLAN.md — LEAD TRACER: tier-SLA engine + live SLA state on the finding row (SLA-01/02)
+- [x] 36-01-PLAN.md — LEAD TRACER: tier-SLA engine + live SLA state on the finding row (SLA-01/02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -233,7 +233,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|-----------------|--------|-----------|
-| 36. Remediation SLA Engine & Escalation | 0/? | Not started | - |
+| 36. Remediation SLA Engine & Escalation | 1/6 | In Progress | - |
 | 37. Two-Way Ticket Sync & Remediation Verification | 0/? | Not started | - |
 | 38. Remediation Campaigns | 0/? | Not started | - |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |
