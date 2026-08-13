@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, tuple_, update
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.assets.models import Asset
 from app.pagination import PaginatedResponse, PaginationParams
 from app.tenants.models import Tenant
-from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
+from app.vulnerabilities.models import RemediationEvent, Vulnerability, VulnerabilityCorrelation
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
     DashboardStats,
@@ -24,7 +25,12 @@ from app.vulnerabilities.schemas import (
     VulnerabilityResponse,
     VulnerabilitySummary,
 )
-from app.vulnerabilities.sla_tier_service import get_tier_policy, resolve_state_for_vuln
+from app.vulnerabilities.sla_tier_service import (
+    get_tier_policy,
+    resolve_state_for_vuln,
+    severity_to_tier,
+    tier_for_score,
+)
 
 # Phase 11 / T-11-03: only these facet groups are allowed via ?facets=
 # CSV. Anything outside this set surfaces as HTTP 400 (not 500) so the
@@ -339,20 +345,119 @@ async def get_vulnerability(
     )
 
 
+# ── Phase 36 Plan 04 / SLA-04 / D-09 / Pitfall 6 ─────────────────────────────
+#
+# mark_vulnerability_remediated is the SINGLE helper every REMEDIATED write
+# site (vulnerabilities/service.py x2 below, ticketing/service.py x2,
+# ticketing/daily_sync.py x3) must route through. Missing it at any one
+# site silently drops that path's MTTR data -- see 36-RESEARCH.md Pitfall 6.
+
+
+def _freeze_tier_at_remediation(vuln: Vulnerability) -> str:
+    """D-09/D-12/Pitfall 13: freeze the FINAL risk tier at the moment of
+    remediation -- never tier-at-detection. Mirrors `resolve_state_for_vuln`'s
+    scored/NULL-fallback branch, but returns the literal "not_tracked"
+    string (rather than a `None` tier) for a scored-but-below-floor finding
+    so its remediation event is still written, just bucketed distinctly
+    instead of dropped (specless SLA-04 probe)."""
+    score = vuln.risk_exposure_score
+    if score is None:
+        return severity_to_tier(vuln.severity)
+    tier = tier_for_score(score)
+    return tier if tier is not None else "not_tracked"
+
+
+async def mark_vulnerability_remediated(db: AsyncSession, vuln: Vulnerability) -> RemediationEvent:
+    """The single REMEDIATED-transition helper (D-09/Pitfall 6).
+
+    Sets `status="REMEDIATED"` + `remediated_at=now` (matching the
+    pre-existing canonical write every call site already performed) AND
+    inserts a durable `RemediationEvent` row freezing `tier_at_remediation`
+    + `duration_seconds` (first_detected_at -> remediated_at). Callers pass
+    an already-loaded, already-tenant-scoped ORM `Vulnerability` (every one
+    of the six/seven pre-existing call sites already fetches the row before
+    this point) -- this function trusts `vuln.tenant_id`/`vuln.id`, it does
+    not re-derive or re-check tenant scope itself.
+
+    Does not flush/commit -- matches every pre-existing call site's own
+    transaction-boundary convention (none of them commit inline either);
+    the caller's existing `await db.commit()` covers this too.
+    """
+    now = datetime.now(UTC)
+    vuln.status = "REMEDIATED"
+    vuln.remediated_at = now
+
+    tier = _freeze_tier_at_remediation(vuln)
+    duration_seconds = int((now - vuln.first_detected_at).total_seconds())
+
+    event = RemediationEvent(
+        tenant_id=vuln.tenant_id,
+        vulnerability_id=vuln.id,
+        tier_at_remediation=tier,
+        duration_seconds=duration_seconds,
+        first_detected_at=vuln.first_detected_at,
+        remediated_at=now,
+    )
+    db.add(event)
+    return event
+
+
+async def get_mttr_by_tier(db: AsyncSession, tenant_id: uuid.UUID) -> list[dict[str, Any]]:
+    """SLA-04: tier-grouped MTTR aggregate over the durable `RemediationEvent`
+    table -- mirrors `trends.py`'s `get_mttr_trend` shape (group by tier
+    instead of week). Does NOT touch the pre-existing flat MTTR queries in
+    this file's `get_dashboard_stats`, `dashboard.py`, or `trends.py`
+    (Pitfall 11 -- those stay untouched, this is purely additive)."""
+    mttr_q = (
+        select(
+            RemediationEvent.tier_at_remediation,
+            func.avg(RemediationEvent.duration_seconds).label("avg_seconds"),
+            func.count().label("count"),
+        )
+        .where(RemediationEvent.tenant_id == tenant_id)
+        .group_by(RemediationEvent.tier_at_remediation)
+    )
+    rows = (await db.execute(mttr_q)).all()
+    return [
+        {
+            "tier_at_remediation": r.tier_at_remediation,
+            "avg_seconds": float(r.avg_seconds) if r.avg_seconds is not None else None,
+            "count": r.count,
+        }
+        for r in rows
+    ]
+
+
 async def update_vulnerability_status(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     vuln_id: uuid.UUID,
     new_status: str,
 ) -> bool:
-    """Update status of a single vulnerability."""
+    """Update status of a single vulnerability.
+
+    D-09/Pitfall 6: a REMEDIATED transition fetches the row and routes it
+    through `mark_vulnerability_remediated` (so the durable MTTR
+    remediation-event row is never missed); every other status transition
+    keeps the original single-statement bulk `update()`.
+    """
     now = datetime.now(UTC)
-    values: dict = {"status": new_status, "updated_at": now}
+
     if new_status == "REMEDIATED":
-        values["remediated_at"] = now
+        vuln = (
+            await db.execute(
+                select(Vulnerability).where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id)
+            )
+        ).scalar_one_or_none()
+        if vuln is None:
+            return False
+        await mark_vulnerability_remediated(db, vuln)
+        return True
 
     result = await db.execute(
-        update(Vulnerability).where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id).values(**values)
+        update(Vulnerability)
+        .where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id)
+        .values(status=new_status, updated_at=now)
     )
     return result.rowcount > 0
 
@@ -362,11 +467,32 @@ async def bulk_update_status(
     tenant_id: uuid.UUID,
     body: BulkStatusUpdate,
 ) -> int:
-    """Bulk update status for multiple vulnerabilities."""
+    """Bulk update status for multiple vulnerabilities.
+
+    D-09/Pitfall 6: REMEDIATED fetches every matching row and routes each
+    one through `mark_vulnerability_remediated` (fetch-then-mutate per row)
+    instead of the single-statement bulk `update()`, so every remediated
+    row in the batch gets its own remediation-event row with its own
+    frozen tier (which can differ per row).
+    """
     now = datetime.now(UTC)
-    values: dict = {"status": body.status, "updated_at": now}
+
     if body.status == "REMEDIATED":
-        values["remediated_at"] = now
+        vulns = (
+            (
+                await db.execute(
+                    select(Vulnerability).where(
+                        Vulnerability.id.in_(body.vulnerability_ids),
+                        Vulnerability.tenant_id == tenant_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for vuln in vulns:
+            await mark_vulnerability_remediated(db, vuln)
+        return len(vulns)
 
     result = await db.execute(
         update(Vulnerability)
@@ -374,7 +500,7 @@ async def bulk_update_status(
             Vulnerability.id.in_(body.vulnerability_ids),
             Vulnerability.tenant_id == tenant_id,
         )
-        .values(**values)
+        .values(status=body.status, updated_at=now)
     )
     return result.rowcount
 

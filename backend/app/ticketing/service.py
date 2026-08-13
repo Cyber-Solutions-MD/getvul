@@ -1171,12 +1171,15 @@ async def sync_ticket_status(
                 ticket.external_status = "completed"
                 ticket.resolved_at = datetime.now(UTC)
                 resolved += 1
-                # Mark vulnerability as remediated
+                # Mark vulnerability as remediated -- D-09/Pitfall 6: routed
+                # through the single mark_vulnerability_remediated helper so
+                # the durable MTTR remediation-event row is never missed.
                 vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
                 vuln = vuln_result.scalar_one_or_none()
                 if vuln and vuln.status != "REMEDIATED":
-                    vuln.status = "REMEDIATED"
-                    vuln.remediated_at = datetime.now(UTC)
+                    from app.vulnerabilities.service import mark_vulnerability_remediated
+
+                    await mark_vulnerability_remediated(db, vuln)
             else:
                 ticket.external_status = "open"
 
@@ -1324,8 +1327,12 @@ async def close_ticket(
         vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
         vuln = vuln_result.scalar_one_or_none()
         if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-            vuln.status = "REMEDIATED"
-            vuln.remediated_at = now
+            # D-09/Pitfall 6: routed through the single
+            # mark_vulnerability_remediated helper so the durable MTTR
+            # remediation-event row is never missed.
+            from app.vulnerabilities.service import mark_vulnerability_remediated
+
+            await mark_vulnerability_remediated(db, vuln)
             resolved_vulns += 1
 
     return {"closed": True, "tickets_resolved": len(tickets), "vulns_remediated": resolved_vulns}

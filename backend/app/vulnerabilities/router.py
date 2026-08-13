@@ -12,7 +12,7 @@ from sqlalchemy import case, distinct, func, select
 from sqlalchemy import update as sql_update
 
 from app.assets.models import Asset
-from app.auth.rbac import require_analyst, require_viewer
+from app.auth.rbac import require_admin, require_analyst, require_viewer
 from app.auth.schemas import CurrentUser
 from app.dependencies import DBSession
 from app.pagination import PaginationParams
@@ -261,6 +261,26 @@ async def sla_recalculate(
     await audit(db, user, "sla.recalculate", "vulnerability", None, {**result, **breaches})
     await db.commit()
     return {**result, **breaches}
+
+
+# ── MTTR by tier (Phase 36 Plan 04 / SLA-04, D-09) ──
+
+
+@router.get("/mttr/by-tier")
+async def mttr_by_tier(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Tier-grouped MTTR aggregate (avg duration_seconds + count per
+    tier_at_remediation), read from the durable `remediation_events` table.
+
+    Admin-gated + tenant-scoped (T-36-mttr-rbac / T-36-mttr-tenant) — feeds
+    Phase 42/43 reporting. Does not touch the pre-existing flat MTTR tiles
+    on `/stats`/`/trends` (Pitfall 11).
+    """
+    from app.vulnerabilities.service import get_mttr_by_tier
+
+    return await get_mttr_by_tier(db, user.tenant_id)
 
 
 # ── Saved Filters (must be before /{vuln_id} to avoid route conflicts) ──

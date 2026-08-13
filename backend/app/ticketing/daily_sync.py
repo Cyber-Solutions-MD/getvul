@@ -241,8 +241,12 @@ async def _sync_asana_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) ->
                 await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
             ).scalar_one_or_none()
             if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-                vuln.status = "REMEDIATED"
-                vuln.remediated_at = datetime.now(UTC)
+                # D-09/Pitfall 6: routed through the single
+                # mark_vulnerability_remediated helper so the durable MTTR
+                # remediation-event row is never missed.
+                from app.vulnerabilities.service import mark_vulnerability_remediated
+
+                await mark_vulnerability_remediated(db, vuln)
         else:
             ticket.external_status = "open"
 
@@ -325,8 +329,12 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
                 await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
             ).scalar_one_or_none()
             if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-                vuln.status = "REMEDIATED"
-                vuln.remediated_at = datetime.now(UTC)
+                # D-09/Pitfall 6: routed through the single
+                # mark_vulnerability_remediated helper so the durable MTTR
+                # remediation-event row is never missed.
+                from app.vulnerabilities.service import mark_vulnerability_remediated
+
+                await mark_vulnerability_remediated(db, vuln)
         else:
             ticket.external_status = jira_status.lower()
 
@@ -415,8 +423,12 @@ async def _sync_github_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -
                 await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
             ).scalar_one_or_none()
             if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-                vuln.status = "REMEDIATED"
-                vuln.remediated_at = datetime.now(UTC)
+                # D-09/Pitfall 6: routed through the single
+                # mark_vulnerability_remediated helper so the durable MTTR
+                # remediation-event row is never missed.
+                from app.vulnerabilities.service import mark_vulnerability_remediated
+
+                await mark_vulnerability_remediated(db, vuln)
         else:
             ticket.external_status = "open"
 
