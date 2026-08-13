@@ -40,8 +40,16 @@ Delivers success criteria SLA-01..04. This is a *how-to-implement* boundary — 
 - **D-10:** New **"SLA & Escalation" pane** in the existing `/settings` sidebar-of-categories (RBAC-gated to admin/owner). Exposes the **full policy**: per-tier SLA days + the approaching % threshold, channel config (webhook URLs / API keys + per-transition routing + tier floor). Follows the established `SettingsSidebarShell` + `SaveBar` + `useDirtyState` pattern from Phase 14.
 - **D-11:** Live SLA state renders on the **finding row and drill panel**. Reuse/extend the existing `SlaPill` primitive (Phase 13, tickets) for the on-track/approaching/breached visual language rather than inventing a new component.
 
+### Post-Research Decisions (resolved 2026-08-13 from RESEARCH.md open questions)
+- **D-12:** **No SLA below the MEDIUM tier floor** (`risk_exposure_score < 20`). Such findings are always `on-track`, carry no due date, and never escalate. The policy stays at three tiers (critical/high/moderate) — do **not** add a 4th "low" tier. (Resolves RESEARCH Open Question #1.) The D-03 severity fallback mapping follows suit: CRITICAL→critical, HIGH→high, MEDIUM/LOW/INFO→moderate (small explicit tested lookup; resolves Open Question #2).
+- **D-13:** **PagerDuty fires on approaching/breach transitions only** (matches D-07 exactly-once scope). Do **not** send an `event_action=resolve` on remediation/un-breach this phase. **Document the limitation explicitly** in the admin pane + code (PagerDuty incidents require manual resolution). (Resolves RESEARCH Open Question #3.)
+- **D-14:** **New channel secrets are Fernet-encrypted at rest** via the existing `app/encryption.py` `encrypt_value`/`decrypt_value` (as `ConnectorConfig.credentials` already does), plus **mask-on-read** so webhook URLs / routing keys never round-trip to the browser in plaintext. This does **not** retroactively re-encrypt the pre-existing `smtp_config.password` (out of scope). (Resolves RESEARCH Open Question #6.)
+- **D-15 (fact, not a choice):** The classic Office 365 "Incoming Webhook" connector (MessageCard) is being retired — new connectors can no longer be created (Microsoft Learn, 2026-08-03). The Teams channel targets the **Workflows app** (`webhook.office.com` URL) which still accepts a simple JSON POST; the wire pattern ("paste webhook URL, POST JSON") matches the Slack channel. Admin-pane setup copy must describe the Workflows flow, not the retired connector.
+
 ### Claude's Discretion
 - Exact schema/column names, migration structure, and whether the escalation-event + remediation-event tables share infrastructure.
+- Whether to centralize the 6 `REMEDIATED` write sites behind one `mark_vulnerability_remediated()` helper (research recommends centralize) vs. edit in place (RESEARCH Open Question #4).
+- Whether to recompute all ticket SLA groups every tick vs. only affected groups (research recommends start-simple/recompute-all; RESEARCH Open Question #5).
 - Where in the scheduler loop the transition-detection + escalation-firing runs (currently SLA check runs every 60s tick — [scheduler.py:314](../../../backend/app/connectors/scheduler.py#L314)).
 - Webhook payload shapes and per-channel formatting (following each vendor's incoming-webhook / Events API contract).
 - The default approaching-% value (80% is illustrative).
