@@ -34,6 +34,14 @@ created: 2026-08-13
 
 ---
 
+## Visual Hierarchy
+
+**Settings pane (SLA & Escalation):** The primary first-read is the `SaveBar`'s `Save changes` CTA — it is the only sunset-gradient element on the pane, so the accent color itself does the work of drawing the eye to the pending-changes affordance. Everything else on the pane (section cards, inputs, chips) uses only surface/border/text tokens, keeping the CTA visually uncontested.
+
+**Finding row + drill panel:** The primary first-read is the `SlaPill` — its color-coded semantic-state tone (green `on_track` / amber `approaching` / red `breached` / faint `not_tracked`) is the fastest urgency signal on the row and sits in the identical position to today's existing SLA badge, so no new element competes with it for attention.
+
+---
+
 ## Spacing Scale
 
 Declared values (must be multiples of 4), per `foundation.md`:
@@ -57,13 +65,15 @@ Exceptions: **none new this phase.** Pre-existing exceptions inherited unchanged
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px (`text-sm`) | 400 regular | 1.5 |
-| Label | 12px (`text-xs`) | 500 medium | 1.4 |
+| Label | 12px (`text-xs`) | 400 regular | 1.4 |
 | Heading | 16px (`text-base`) | 600 semibold | 1.3 |
 | Display | 20px (`text-xl`) | 600 semibold | 1.2 |
 
+Two-weight scale, locked: 400 regular (Body, Label) / 600 semibold (Heading, Display). No 500/medium weight is used anywhere in this phase.
+
 Mapping to this phase's new elements:
 - **Body (14px/400)** — form inputs (tier-day number fields, webhook URL/API-key inputs, helper copy under each field), escalation-history timeline body text, MTTR aggregate row labels.
-- **Label (12px/500)** — the SLA-state pill text itself (matches `SlaPill`'s existing `text-xs font-mono` — see Color below for why the pill is mono, not the general Label role), channel chip text, per-transition routing checkbox labels ("Approaching" / "Breach"), section eyebrow labels inside the drill panel (`<h4>`-as-uppercase-label per `interaction-patterns.md`).
+- **Label (12px/400)** — the SLA-state pill text itself (matches `SlaPill`'s existing `text-xs font-mono` — see Color below for why the pill is mono, not the general Label role), channel chip text, per-transition routing checkbox labels ("Approaching" / "Breach"), section eyebrow labels inside the drill panel (`<h4>`-as-uppercase-label per `interaction-patterns.md`). Distinguished from Body purely by size (12px vs 14px), not by weight.
 - **Heading (16px/600)** — the 3 new settings-pane section-card titles: "SLA policy", "Escalation channels", "Escalation floor" (matches `NotificationsPane`'s `<h2 className="text-base font-semibold text-text">` verbatim — do not introduce a different heading size for this pane).
 - **Display (20px/600)** — reserved for a tier-grouped MTTR summary number if one is surfaced inline in this phase (e.g., a "critical: 4.2d avg" stat chip); not required by the 4 locked success criteria but declared so the planner has a locked size if SLA-04's "queryable" MTTR gets any inline numeric display beyond a raw table. If no such display ships this phase, this row is unused — do not invent a hero/stat card layout to use it (that's Phase 42/43 territory, explicitly deferred).
 
