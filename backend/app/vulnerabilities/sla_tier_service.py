@@ -444,21 +444,42 @@ async def detect_and_escalate(db: AsyncSession, tenant: Tenant) -> dict[str, Any
                 except Exception as e:  # decrypt/dispatch failure -- never blocks the reservation
                     outcome = {"ok": False, "error": str(e)}
 
-                event.delivery_status = "sent" if outcome.get("ok") else "failed"
-                event.error_message = None if outcome.get("ok") else outcome.get("error")
+                delivery_status = "sent" if outcome.get("ok") else "failed"
+                error_message = None if outcome.get("ok") else outcome.get("error")
 
-                await _audit_escalation_fire(
-                    db,
-                    tenant,
-                    vuln,
-                    from_state=from_state,
-                    to_state=to_state,
-                    channel=channel,
-                    tier=tier,
-                    delivery_status=event.delivery_status,
-                    error_message=event.error_message,
-                )
-                await db.flush()
+                try:
+                    # Own savepoint: if the status-update+audit write itself
+                    # fails (e.g. a transient DB error), roll back ONLY this
+                    # bookkeeping -- the reservation from the savepoint above
+                    # is already merged into the outer transaction, so the
+                    # once-only guarantee holds regardless, and this failure
+                    # cannot abort the outer transaction for other channels/
+                    # vulns/tenants in the same tick (Pattern 1 / T-36-fire-
+                    # isolation).
+                    async with db.begin_nested():
+                        event.delivery_status = delivery_status
+                        event.error_message = error_message
+                        await _audit_escalation_fire(
+                            db,
+                            tenant,
+                            vuln,
+                            from_state=from_state,
+                            to_state=to_state,
+                            channel=channel,
+                            tier=tier,
+                            delivery_status=delivery_status,
+                            error_message=error_message,
+                        )
+                        await db.flush()
+                except Exception as e:
+                    logger.error(
+                        "sla_escalation_bookkeeping_error",
+                        tenant_id=str(tenant.id),
+                        vuln_id=str(vuln.id),
+                        channel=channel,
+                        to_state=to_state,
+                        error=str(e),
+                    )
 
                 fired += 1
                 any_new_fire = True
@@ -476,20 +497,25 @@ async def detect_and_escalate(db: AsyncSession, tenant: Tenant) -> dict[str, Any
         if to_state == "breached" and any_new_fire:
             try:
                 resource_id = vuln.cve_id or str(vuln.id)
-                await create_notification(
-                    db,
-                    tenant_id=tenant.id,
-                    title=f"SLA Breach: {resource_id}",
-                    message=(
-                        f"{resource_id} on {hostname or 'an unassigned host'} — "
-                        f"breached the {tier or 'unscored'} tier SLA"
-                    ),
-                    severity="critical",
-                    category="sla_escalation",
-                    resource_type="vulnerability",
-                    resource_id=resource_id,
-                    details={"tier": tier, "to_state": to_state, "channels_notified": channels},
-                )
+                # Own savepoint (same Pattern-1 reasoning as the per-channel
+                # bookkeeping above): create_notification() does its own
+                # db.add()+flush() -- isolate it so a notification-write
+                # failure cannot abort the outer tick transaction.
+                async with db.begin_nested():
+                    await create_notification(
+                        db,
+                        tenant_id=tenant.id,
+                        title=f"SLA Breach: {resource_id}",
+                        message=(
+                            f"{resource_id} on {hostname or 'an unassigned host'} — "
+                            f"breached the {tier or 'unscored'} tier SLA"
+                        ),
+                        severity="critical",
+                        category="sla_escalation",
+                        resource_type="vulnerability",
+                        resource_id=resource_id,
+                        details={"tier": tier, "to_state": to_state, "channels_notified": channels},
+                    )
                 notified += 1
             except Exception as e:
                 logger.error(
