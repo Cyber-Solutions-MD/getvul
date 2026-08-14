@@ -46,9 +46,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 36 (remediation-sla-engine-escalation) — EXECUTING
-Plan: 5 of 6 complete (01, 02, 03, 04, 05) — Wave 4 in progress; 06 remains (human-verify UAT)
-Status: Executing Wave 4
-Last activity: 2026-08-13 — Plan 04 complete (MTTR-by-tier capture)
+Plan: 6 of 6 built; 36-06 code (Tasks 1–2) complete, Task 3 human-verify AWAITING sign-off
+Status: Awaiting human-verify UAT on 36-06 (admin pane + drill panel — live channel delivery)
+Last activity: 2026-08-14 — Plan 06 code built (SLA & Escalation pane + drill escalation history); manual UAT pending
 
 ## v5.0 Phase Map
 
