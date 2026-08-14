@@ -42,6 +42,12 @@ import { useAiStatus } from '@/lib/queries/use-ai-status';
 // 4) -- the same per-resource SSE trigger the drill panel's own sections
 // already use, no new endpoint.
 import { useExplainStream, type ExplainStreamState } from '@/lib/ai/use-explain-stream';
+// Phase 36 (SLA-01/02, D-11): server-truth SLA state pill, matching the
+// finding row (vuln-table.tsx). Phase 36 (SLA-03, D-07): the escalation-fire
+// history list, its own query hook mirroring the drill panel's other
+// per-resource data hooks.
+import { SlaPill, type SlaPillState } from '@/components/tickets/sla-pill';
+import { useVulnEscalations, type VulnEscalationEvent } from '@/lib/queries/use-vuln-escalations';
 
 // D-P-05 — shared section order: Header → CVSS → Affected hosts →
 // Description → Remediation → Activity → Actions. Used by both desktop
@@ -82,6 +88,12 @@ type FlexibleDetail = {
   risk_exposure_score?: number | null;
   risk_exposure_breakdown?: RiskBreakdownComponent[] | null;
   risk_model_version?: string | null;
+  // Phase 36 (SLA-01/02, D-11): server-computed risk-tier SLA state. Never
+  // re-derived client-side — absent/undefined means "server didn't send a
+  // state" (older detail shape / test mock), in which case the pill is not
+  // rendered rather than falling back to a client-computed guess (T-36-01).
+  sla_state?: SlaPillState | null;
+  sla_due_at?: string | null;
 };
 
 // Phase 27 (AID-01, Plan 03): the gap-fill row's per-section render state.
@@ -185,6 +197,110 @@ function renderGapFillItem(item: GapFillItemState, kind: 'description' | 'remedi
         <p className="mt-1 text-xs font-medium text-amber">AI busy — try again in a moment</p>
       )}
     </div>
+  );
+}
+
+// ── Escalation-history list (Phase 36, SLA-03, D-07) ─────────────────────────
+//
+// Module-level (not a hook) — pure render of the escalationsQuery result,
+// mirroring the gap-fill row's own module-level render helpers above.
+// ActivityTimeline-style (dot + connecting line + chronological rows) but a
+// local implementation rather than importing the shared `ActivityTimeline`
+// component: that component's TimelineEntry union (comment | sync) has no
+// slot for a failed-delivery amber tint / audit-only "no retry" contract, and
+// this plan's file scope does not include activity-timeline.tsx.
+
+const CHANNEL_LABEL: Record<string, string> = {
+  slack: 'Slack',
+  teams: 'Microsoft Teams',
+  pagerduty: 'PagerDuty',
+  email: 'Email',
+};
+
+const STATE_LABEL: Record<string, string> = {
+  on_track: 'On track',
+  approaching: 'Approaching',
+  breached: 'Breached',
+  not_tracked: 'Not tracked',
+};
+
+function formatFiredAt(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  return `${d.toISOString().slice(11, 16)} UTC`;
+}
+
+function EscalationHistoryList({
+  isPending,
+  isError,
+  events,
+}: {
+  isPending: boolean;
+  isError: boolean;
+  events: VulnEscalationEvent[];
+}) {
+  if (isPending) {
+    return <p className="text-sm text-text-muted">Loading…</p>;
+  }
+  if (isError) {
+    return <p className="text-sm text-danger">Couldn’t load escalation history.</p>;
+  }
+  if (events.length === 0) {
+    // E3 empty: compact inline empty — NOT the full gradient-icon EmptyState
+    // shell (that shell is reserved for filtered-to-zero list views, not a
+    // sub-section inside an already-open drill panel).
+    return (
+      <div>
+        <p className="text-sm font-medium text-text">No escalations yet</p>
+        <p className="mt-1 text-sm text-text-faint">
+          This finding hasn&apos;t crossed the approaching or breach threshold — new
+          entries appear here the moment it does.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <ul role="list" className="space-y-2">
+      {events.map((ev) => {
+        const failed = ev.delivery_status === 'failed';
+        const channelLabel = CHANNEL_LABEL[ev.channel] ?? ev.channel;
+        const fromLabel = STATE_LABEL[ev.from_state] ?? ev.from_state;
+        const toLabel = STATE_LABEL[ev.to_state] ?? ev.to_state;
+        const firedLabel = formatFiredAt(ev.fired_at);
+
+        return (
+          <li
+            key={ev.id}
+            className={
+              failed
+                ? 'rounded-md border border-amber bg-amber-soft p-3'
+                : 'rounded-md border border-border-subtle bg-surface-2 p-3'
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-md border border-border-subtle bg-surface px-2 py-0.5 font-mono text-[11px] font-medium text-text-muted">
+                {channelLabel}
+              </span>
+              <span className="text-text">
+                {fromLabel} → {toLabel}
+              </span>
+              <span className="ml-auto font-mono text-text-faint">{firedLabel}</span>
+            </div>
+            {/* D-08: audit-only — amber-tinted, no retry button. The
+                transition record above stays visible even on failure (D-07). */}
+            {failed && (
+              <p
+                className="mt-1 truncate text-xs text-[var(--color-amber-on-soft)]"
+                title={`${channelLabel} delivery failed — ${ev.error_message ?? 'unknown error'} · fired ${firedLabel}`}
+              >
+                {channelLabel} delivery failed — {ev.error_message ?? 'unknown error'} · fired {firedLabel}
+              </p>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -360,6 +476,11 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // the drill panel's own sections already use; no new endpoint.
   const explainGapFill = useExplainStream('vuln', v.id ?? idOrCve);
   const remediationGapFill = useExplainStream('remediation-guidance', v.id ?? idOrCve);
+
+  // Phase 36 (SLA-03, D-07): escalation-fire history for the drill panel's
+  // new "Escalation history" section. Called unconditionally (before the
+  // pending/error early returns) like the other per-resource hooks above.
+  const escalationsQuery = useVulnEscalations(v.id ?? idOrCve);
 
   // Phase 27 (AID-01, Plan 02, D-02/D-04): compose-on-open. Runs once per
   // resourceId, the first time the confirm dialog transitions open --
@@ -590,6 +711,13 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             >
               {sevLabel}
             </span>
+            {/* Phase 36 (SLA-01/02, D-11): server-truth SLA state, matching
+                the finding row (vuln-table.tsx). Only rendered when the
+                server actually sent a state — never a client-computed
+                fallback guess for the drill panel (T-36-01). */}
+            {v.sla_state != null && (
+              <SlaPill state={v.sla_state} dueAt={v.sla_due_at ?? null} />
+            )}
             {v.cisa_kev && (
               <span className="rounded-md bg-pink-soft px-2 py-0.5 font-mono text-[10px] font-medium uppercase text-[var(--color-severity-critical-on-soft)]">
                 ★ CISA KEV
@@ -759,6 +887,28 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
               ? ` · last seen ${new Date(v.last_seen_at).toLocaleDateString()}`
               : ''}
           </p>
+        </section>
+
+        {/* Phase 36 (SLA-03, D-07): escalation-fire history — an
+            ActivityTimeline-style chronological list of every approaching/
+            breach transition fired for this finding, audit-only (D-08: no
+            retry affordance on a failed delivery row; the transition record
+            itself always stays visible). Opens inside an already-loaded
+            drill panel — the sub-list uses a plain muted "Loading…" text,
+            matching this panel's own top-level loading treatment (line
+            ~474), rather than a separate skeleton (UI-SPEC E3 loading). */}
+        <section aria-labelledby="drill-escalations-h">
+          <h4
+            id="drill-escalations-h"
+            className="mb-2 text-xs uppercase tracking-wide text-text-muted"
+          >
+            Escalation history
+          </h4>
+          <EscalationHistoryList
+            isPending={escalationsQuery.isPending}
+            isError={escalationsQuery.isError}
+            events={escalationsQuery.data ?? []}
+          />
         </section>
 
         <section aria-labelledby="drill-actions-h">

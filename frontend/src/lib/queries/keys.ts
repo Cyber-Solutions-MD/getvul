@@ -19,6 +19,8 @@ export const queryKeys = {
       order: string;
     }) => ['vulnerabilities', 'list', opts] as const,
     detail: (id: string) => ['vulnerabilities', 'detail', id] as const,
+    // Phase 36 (SLA-03, D-07): escalation-fire history list in the drill panel.
+    escalations: (id: string) => ['vulnerabilities', id, 'escalations'] as const,
   },
   notifications: {
     all: ['notifications'] as const,

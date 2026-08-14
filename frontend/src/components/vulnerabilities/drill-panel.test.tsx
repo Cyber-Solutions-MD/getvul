@@ -80,6 +80,15 @@ vi.mock('@/lib/ai/use-explain-stream', () => ({
   useExplainStream: (...args: unknown[]) => mockUseExplainStream(...args),
 }));
 
+// Phase 36 (SLA-03, D-07): the new escalation-history section (inside
+// DrillContent) uses a real useQuery-backed hook -- mock it so this
+// pre-existing suite doesn't need a QueryClientProvider wrapper, mirroring
+// the use-explain-cache/use-ai-status rationale above.
+const mockUseVulnEscalations = vi.fn();
+vi.mock('@/lib/queries/use-vuln-escalations', () => ({
+  useVulnEscalations: (...args: unknown[]) => mockUseVulnEscalations(...args),
+}));
+
 // Phase 25 Plan 07 Task 2: a cache-hit/grounded mock (needed to unlock the
 // "Copy into ticket description" button) renders <AiFeedbackControl>, which
 // calls the REAL useAiFeedback() mutation -- requires a QueryClientProvider
@@ -138,17 +147,20 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     mockStart.mockReset();
     mockUseExplainStream.mockReset();
     mockUseExplainStream.mockReturnValue({ state: { phase: 'idle' }, start: mockStart });
+    mockUseVulnEscalations.mockReset();
+    mockUseVulnEscalations.mockReturnValue({ isPending: false, isError: false, data: [] });
   });
 
-  it('renders 10 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Prioritization / Remediation / Remediation guidance / Activity / Actions)', () => {
+  it('renders 11 sections in order (Header / CVSS / Affected hosts / Description / AI Explanation / Prioritization / Remediation / Remediation guidance / Activity / Escalation history / Actions)', () => {
     render(<DrillPanel cveId="CVE-2024-3094" />);
     const headings = screen.getAllByRole('heading').map((h) => h.textContent ?? '');
-    // 10 named sections, in the documented order (Phase 24-05 / UI-SPEC D-11
+    // 11 named sections, in the documented order (Phase 24-05 / UI-SPEC D-11
     // inserts AI Explanation between Description and Remediation; Phase 25
     // Plan 04 D-06 inserts "Remediation guidance" between the raw
     // Remediation text and Activity; Phase 26 Plan 04 (D-03/D-09) inserts
     // the NEW "Prioritization" section between AI Explanation and the raw
-    // Remediation text).
+    // Remediation text; Phase 36 Plan 06 (SLA-03, D-07) inserts "Escalation
+    // history" between Activity and Actions).
     const expectedOrder = [
       /CVE-2024-3094|Drill|Header/i,
       /CVSS/i,
@@ -159,6 +171,7 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       /Remediation$/i,
       /Remediation guidance/i,
       /Activity/i,
+      /Escalation history/i,
       /Actions/i,
     ];
     expectedOrder.forEach((re, idx) => {
@@ -717,6 +730,116 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
       expect(() => render(<DrillPanel cveId="CVE-2024-3094" />)).not.toThrow();
 
       expect(screen.queryByText('Risk exposure')).toBeNull();
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 36 Plan 06 (SLA-01/02, D-11): the extended SlaPill rendering the
+  // server-computed sla_state on the drill panel, matching the finding row.
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('SLA state pill (SLA-01/02, D-11)', () => {
+    it('renders the SlaPill with the server sla_state (breached)', () => {
+      useDetailMock.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: { ...detail, sla_state: 'breached', sla_due_at: '2024-01-01T00:00:00Z' },
+      } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      // Overdue tone renders a mono "−Nh"/"−Nd" label (sla-pill.tsx TIER_CONFIG).
+      expect(screen.getByText(/^−\d+[hd]$/)).toBeInTheDocument();
+    });
+
+    it('renders "No SLA" for a not_tracked (below-floor) finding, never a client-computed fallback', () => {
+      useDetailMock.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: { ...detail, sla_state: 'not_tracked', sla_due_at: null },
+      } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      expect(screen.getByText('No SLA')).toBeInTheDocument();
+    });
+
+    it('renders no SlaPill at all when the server sends no sla_state (never falls back to client-side computeTier)', () => {
+      useDetailMock.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: { ...detail, sla_state: undefined, sla_due_at: undefined },
+      } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      expect(screen.queryByText('No SLA')).toBeNull();
+      expect(screen.queryByText('Unknown')).toBeNull();
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 36 Plan 06 (SLA-03, D-07): the escalation-history list — empty /
+  // populated / failed-delivery audit-only (D-08, no retry) states.
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('Escalation history (SLA-03, D-07)', () => {
+    it('renders the compact inline "No escalations yet" empty state', () => {
+      mockUseVulnEscalations.mockReturnValue({ isPending: false, isError: false, data: [] });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      expect(screen.getByText('No escalations yet')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "This finding hasn't crossed the approaching or breach threshold — new entries appear here the moment it does.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('renders a populated chronological timeline (channel chip + transition + fired_at)', () => {
+      mockUseVulnEscalations.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: [
+          {
+            id: 'e1',
+            from_state: 'on_track',
+            to_state: 'approaching',
+            channel: 'slack',
+            fired_at: '2024-06-01T14:03:00Z',
+            delivery_status: 'sent',
+            error_message: null,
+          },
+        ],
+      });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      expect(screen.getByText('Slack')).toBeInTheDocument();
+      expect(screen.getByText(/On track.*Approaching/)).toBeInTheDocument();
+    });
+
+    it('a failed delivery renders an amber-tinted row with the exact copy, and NO retry button (D-08 audit-only) — the transition record stays visible (D-07)', () => {
+      mockUseVulnEscalations.mockReturnValue({
+        isPending: false,
+        isError: false,
+        data: [
+          {
+            id: 'e2',
+            from_state: 'approaching',
+            to_state: 'breached',
+            channel: 'slack',
+            fired_at: '2024-06-01T14:03:00Z',
+            delivery_status: 'failed',
+            error_message: 'Slack webhook returned HTTP 404',
+          },
+        ],
+      });
+      render(<DrillPanel cveId="CVE-2024-3094" />);
+
+      // Transition record stays visible even though delivery failed (D-07).
+      expect(screen.getByText(/Approaching.*Breached/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Slack delivery failed — Slack webhook returned HTTP 404 · fired/),
+      ).toBeInTheDocument();
+      // Audit-only: no retry button/clickable element anywhere in this row (D-08).
+      expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
     });
   });
 });
