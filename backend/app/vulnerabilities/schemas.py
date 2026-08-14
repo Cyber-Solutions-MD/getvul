@@ -5,9 +5,19 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PlainSerializer
+
+# Emit numeric score columns as JSON numbers (float), not Pydantic v2's default
+# Decimal-as-string form ("10.0"). Frontend consumers do arithmetic/.toFixed on
+# these, and the string form silently crashed the drill panel (a `number`-typed
+# field arriving as a string). `when_used="json"` keeps Python-mode/from_attributes
+# reads as Decimal for any in-process caller; only the wire form changes.
+ScoreDecimal = Annotated[
+    Decimal,
+    PlainSerializer(lambda v: float(v), return_type=float, when_used="json"),
+]
 
 # ── Responses ──
 
@@ -29,10 +39,10 @@ class VulnerabilityResponse(BaseModel):
     tenant_id: uuid.UUID
     cve_id: str | None
     vulnerability_name: str | None
-    cvss_v3_score: Decimal | None
+    cvss_v3_score: ScoreDecimal | None
     cvss_v3_vector: str | None
     severity: str
-    epss_score: Decimal | None
+    epss_score: ScoreDecimal | None
     exploit_available: bool
     cisa_kev: bool
     asset_id: uuid.UUID | None
@@ -45,8 +55,8 @@ class VulnerabilityResponse(BaseModel):
     remediation_action: str | None = None
     exploit_status_id: int | None = None
     exploit_status_name: str | None = None
-    epss_percentile: Decimal | None = None
-    native_priority_score: Decimal | None = None
+    epss_percentile: ScoreDecimal | None = None
+    native_priority_score: ScoreDecimal | None = None
     native_priority_rating: str | None = None
     source_signals: dict[str, Any] | None = None
     remediation_info: str | None
@@ -224,7 +234,7 @@ class TopVuln(BaseModel):
     cve_id: str | None = None
     host: str | None = None
     path: str | None = None
-    cvss: Decimal | None = None
+    cvss: ScoreDecimal | None = None
     on_kev: bool = False
     exploited: bool = False
 
@@ -280,7 +290,7 @@ class VulnerabilityByHost(BaseModel):
     high_count: int
     medium_count: int
     low_count: int
-    top_cvss: Decimal | None = None
+    top_cvss: ScoreDecimal | None = None
 
     model_config = {"from_attributes": True}
 
