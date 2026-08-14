@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
-current_phase: 36
-current_phase_name: Remediation SLA Engine & Escalation
+current_phase: 37
+current_phase_name: two-way-ticket-sync-remediation-verification
 status: executing
 stopped_at: Completed 36-04-PLAN.md
-last_updated: "2026-08-13T15:24:20.726Z"
-last_activity: 2026-08-13
-last_activity_desc: Phase 36 Plan 04 complete — MTTR-by-tier capture (remediation_events table + mark_vulnerability_remediated helper routing all 6 REMEDIATED sites + get_mttr_by_tier aggregate + GET /vulnerabilities/mttr/by-tier)
+last_updated: "2026-08-14T12:16:50.382Z"
+last_activity: 2026-08-14
+last_activity_desc: Phase 37 execution started
 progress:
   total_phases: 10
   completed_phases: 0
@@ -25,7 +25,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 36 — remediation-sla-engine-escalation
+**Current focus:** Phase 37 — two-way-ticket-sync-remediation-verification
 
 ## Deferred Items
 
@@ -45,10 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 36 (remediation-sla-engine-escalation) — EXECUTING
-Plan: 6 of 6 built; 36-06 code (Tasks 1–2) complete, Task 3 human-verify AWAITING sign-off
-Status: Awaiting human-verify UAT on 36-06 (admin pane + drill panel — live channel delivery)
-Last activity: 2026-08-14 — Plan 06 code built (SLA & Escalation pane + drill escalation history); manual UAT pending
+Phase: 37 (two-way-ticket-sync-remediation-verification) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 37
+Last activity: 2026-08-14 — Phase 37 execution started
 
 ## v5.0 Phase Map
 
