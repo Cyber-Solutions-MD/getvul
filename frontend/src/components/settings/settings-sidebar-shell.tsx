@@ -45,6 +45,8 @@ const ALL_CATEGORIES: Category[] = [
   'api-tokens',
   'audit',
   'ai',
+  // Phase 36 (D-10): SLA & Escalation admin pane — admin/owner-gated.
+  'sla',
 ];
 
 /**
@@ -57,6 +59,7 @@ const ADMIN_ONLY: Set<Category> = new Set([
   'notifications',
   'audit',
   'ai',
+  'sla',
 ]);
 
 export function SettingsSidebarShell({

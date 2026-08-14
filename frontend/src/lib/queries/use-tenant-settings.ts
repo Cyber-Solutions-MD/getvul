@@ -53,6 +53,30 @@ export type SmtpConfig = {
   use_starttls?: boolean;
 } | null;
 
+// Phase 36 (SLA-01/SLA-03, D-10): shape of Tenant.sla_config as returned by
+// GET /tenant/settings (masked secrets) / accepted by PATCH (mirrors
+// backend/app/tenants/router.py's SlaConfigUpdate + nested models). Loosely
+// typed (all-optional) since the JSONB column may be null/partial for a
+// tenant that hasn't configured this yet.
+export type SlaWebhookChannelConfig = { enabled: boolean; url?: string } | null;
+export type SlaPagerDutyChannelConfig = { enabled: boolean; routing_key?: string } | null;
+export type SlaEmailChannelConfig = { enabled: boolean; to?: string[] } | null;
+export type SlaChannelsConfig = {
+  slack?: SlaWebhookChannelConfig;
+  teams?: SlaWebhookChannelConfig;
+  pagerduty?: SlaPagerDutyChannelConfig;
+  email?: SlaEmailChannelConfig;
+} | null;
+export type SlaRoutingConfig = { approaching?: string[]; breached?: string[] } | null;
+export type SlaTierPolicyConfig = { critical?: number; high?: number; moderate?: number } | null;
+export type SlaConfig = {
+  tier_policy?: SlaTierPolicyConfig;
+  approaching_pct?: number;
+  tier_floor?: 'critical' | 'high' | 'moderate';
+  channels?: SlaChannelsConfig;
+  routing?: SlaRoutingConfig;
+} | null;
+
 export type TenantSettings = {
   sso_enforced: boolean;
   /** "LOCAL" | "GOOGLE" | "AZURE" */
