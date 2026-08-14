@@ -179,6 +179,18 @@ describe('<DrillPanel> (UX-03-03 + D-P-01/02/05/06)', () => {
     });
   });
 
+  it('renders a CVSS score the API sent as a STRING ("10.0") without crashing (regression: Decimal is JSON-serialized as a string, not a number)', () => {
+    useDetailMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { ...detail, cvss_v3_score: '10.0' },
+    } as unknown as ReturnType<typeof useVulnerabilityDetail>);
+    render(<DrillPanel cveId="CVE-2024-3094" />);
+    // Before the fix this threw `v.cvss_v3_score.toFixed is not a function`
+    // and the error boundary replaced the whole panel.
+    expect(screen.getByText(/Score:\s*10\.0/)).toBeInTheDocument();
+  });
+
   it('close × button closes the panel (URL setter removes open=drill)', () => {
     render(<DrillPanel cveId="CVE-2024-3094" />);
     const close = screen.getByRole('button', { name: /close/i });

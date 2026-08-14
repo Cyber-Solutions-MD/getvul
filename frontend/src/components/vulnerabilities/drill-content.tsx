@@ -69,7 +69,11 @@ type FlexibleDetail = {
   affected_hosts?: Array<{ host?: string; ip?: string }>;
   activity?: Array<unknown>;
   // Production-shape fields:
-  cvss_v3_score?: number | null;
+  // Backend serializes the Postgres numeric(3,1) as a JSON STRING ("10.0"),
+  // not a number — so this must tolerate string at runtime and be coerced
+  // before any numeric formatting (see cvssLabel below). Typing it `number`
+  // alone let `.toFixed()` compile but crash live.
+  cvss_v3_score?: number | string | null;
   cvss_v3_vector?: string | null;
   severity?: string;
   cisa_kev?: boolean;
@@ -404,6 +408,10 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // resolves, `v` reflects it exactly as it did before this restructure.
   const v = (q.data ?? {}) as unknown as FlexibleDetail;
   const cveLabel = v.cve_id ?? v.id ?? idOrCve;
+  // CVSS arrives as a string ("10.0") — coerce before formatting so a present
+  // score renders and null/absent/non-numeric falls back to the em dash.
+  const cvssNum = v.cvss_v3_score == null ? null : Number(v.cvss_v3_score);
+  const cvssLabel = cvssNum != null && Number.isFinite(cvssNum) ? cvssNum.toFixed(1) : '—';
   const hostsLine =
     v.affected_hosts && v.affected_hosts.length > 0
       ? v.affected_hosts.map((h) => h.host ?? h.ip ?? '—').join(', ')
@@ -754,7 +762,7 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             {microcopy.drill.sections.cvss}
           </h4>
           <div className="font-mono text-sm text-text">
-            Score: {v.cvss_v3_score?.toFixed(1) ?? '—'} · Vector:{' '}
+            Score: {cvssLabel} · Vector:{' '}
             {v.cvss_v3_vector ?? '—'}
           </div>
         </section>

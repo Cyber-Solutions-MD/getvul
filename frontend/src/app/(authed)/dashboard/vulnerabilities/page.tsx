@@ -17,7 +17,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useUrlState } from '@/hooks/use-url-state';
 import { useUrlStateList } from '@/hooks/use-url-state-list';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { useVulnerabilities, type VulnerabilitiesFilters } from '@/lib/queries/use-vulnerabilities';
+import { useVulnerabilities, type VulnerabilitiesFilters, type VulnerabilitySummary } from '@/lib/queries/use-vulnerabilities';
 import { useConnectors } from '@/lib/queries/use-connectors';
 import { queryKeys } from '@/lib/queries/keys';
 
@@ -141,6 +141,25 @@ function VulnerabilitiesPageInner() {
 
   const isEmptyFiltered = !!q.data && q.data.items.length === 0 && hasActiveFilters;
 
+  // Deep-link + row-open contract carries `?cve=<value>`, where <value> is a
+  // CVE string (top5-card deep-link, group-by-cve rows) OR already a UUID.
+  // The detail/escalations endpoints accept ONLY a UUID, so resolve the value
+  // to the loaded list item's UUID `id` before it reaches the drill (the
+  // resolution use-vulnerability-detail.ts documents). Falls back to the raw
+  // value when the target isn't on the loaded page (e.g. a deep-linked CVE
+  // not in the current result set).
+  const resolvedDrillId = useMemo(() => {
+    if (!cveDeepLink) return null;
+    // Only the group-by-cve shape (VulnerabilitySummary) carries id/cve_id;
+    // the group-by-host shape has neither, so the guard narrows the union and
+    // host-mode falls through to the raw value.
+    const match = (q.data?.items ?? []).find(
+      (it): it is VulnerabilitySummary =>
+        'id' in it && (it.cve_id === cveDeepLink || it.id === cveDeepLink),
+    );
+    return match?.id ?? cveDeepLink;
+  }, [cveDeepLink, q.data]);
+
   return (
     <>
       <h1 className="sr-only">{microcopy.page.h1}</h1>
@@ -224,8 +243,8 @@ function VulnerabilitiesPageInner() {
           mounts at a time: desktop covers ≥900px, mobile gates on <900px via
           useMediaQuery internally. cveDeepLink + drillOpen passed inline so the
           deep-link wiring stays greppable in this file. */}
-      <DrillPanel cveId={drillOpen ? cveDeepLink : null} />
-      <DrillPanelMobile cveId={drillOpen ? cveDeepLink : null} />
+      <DrillPanel cveId={drillOpen ? resolvedDrillId : null} />
+      <DrillPanelMobile cveId={drillOpen ? resolvedDrillId : null} />
     </>
   );
 }
