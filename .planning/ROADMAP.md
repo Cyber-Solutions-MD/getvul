@@ -79,7 +79,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
   3. An approaching-or-breach state transition fires the tenant-configured escalation channel (Slack / Microsoft Teams / email / PagerDuty) exactly once per transition, and every escalation is audited
   4. MTTR is captured per risk tier and is queryable (feeds Phase 42 trend + Phase 43 reporting)
 
-**Plans**: 4/6 plans executed
+**Plans**: 6/6 plans executed
 **Wave 1**
 
 - [x] 36-01-PLAN.md — LEAD TRACER: tier-SLA engine + live SLA state on the finding row (SLA-01/02)
@@ -96,7 +96,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 36-04-PLAN.md — MTTR capture: remediation-event table + mark_vulnerability_remediated helper + MTTR-by-tier (SLA-04)
-- [ ] 36-06-PLAN.md — Frontend: SLA & Escalation admin pane + drill-panel SLA pill + escalation history (SLA-01/02/03)
+- [x] 36-06-PLAN.md — Frontend: SLA & Escalation admin pane + drill-panel SLA pill + escalation history (SLA-01/02/03) *(committed + live-verified 2026-08-14; SLA-03 live webhook delivery is the one open manual gate — see 36-VERIFICATION.md addendum)*
 
 **UI hint**: yes
 
