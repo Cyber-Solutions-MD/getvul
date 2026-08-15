@@ -16,7 +16,11 @@ convention of driving `_sync_*_tickets` with a client double):
     _sync_github_tickets (duck-typed fake provider clients -- these
     functions only call a handful of named async methods on `client`, no
     isinstance/Protocol check, so a plain fake object exercises the exact
-    same GetVul-side branch a real client would)
+    same GetVul-side branch a real client would). Phase 37 Plan 03 (D-03):
+    a done ticket in these three functions no longer routes through
+    mark_vulnerability_remediated -- it drives IN_PROGRESS only, so the
+    three tests below assert NO RemediationEvent is written from this
+    path (closure is rescan-only, Plan 01's SUCCESS-branch sweep).
 
 Backend env gotcha (MEMORY.md `getvul-backend-pytest-env`): run with a REAL
 Fernet ENCRYPTION_KEY + JWT_SECRET_KEY set, per-file (not the whole tests/
@@ -294,7 +298,11 @@ class _FakeAsanaLikeClient:
         return True
 
 
-async def test_sync_asana_tickets_remediated_routes_through_helper(db_session, tenant_a):
+async def test_sync_asana_tickets_done_drives_in_progress_no_remediation_event(db_session, tenant_a):
+    """Phase 37 Plan 03 (D-03 fix): a done Asana task no longer routes
+    through mark_vulnerability_remediated -- it drives IN_PROGRESS only, so
+    NO RemediationEvent is written from this path (closure is rescan-only,
+    Plan 01)."""
     from app.ticketing.daily_sync import _sync_asana_tickets
 
     vuln = _vuln(tenant_id=tenant_a, risk_exposure_score=90)
@@ -309,12 +317,11 @@ async def test_sync_asana_tickets_remediated_routes_through_helper(db_session, t
     stats = await _sync_asana_tickets(db_session, tenant_a, client)
     await db_session.commit()
 
-    assert stats["resolved"] == 1
+    assert stats["synced"] == 1
     await db_session.refresh(vuln)
-    assert vuln.status == "REMEDIATED"
+    assert vuln.status == "IN_PROGRESS"
     events = await _events_for(db_session, vuln.id)
-    assert len(events) == 1
-    assert events[0].tier_at_remediation == "critical"
+    assert events == []
 
 
 class _FakeJiraLikeClient:
@@ -333,7 +340,9 @@ class _FakeJiraLikeClient:
         return None
 
 
-async def test_sync_jira_tickets_remediated_routes_through_helper(db_session, tenant_a):
+async def test_sync_jira_tickets_done_drives_in_progress_no_remediation_event(db_session, tenant_a):
+    """Phase 37 Plan 03 (D-03 fix): see the Asana test above -- a done Jira
+    issue drives IN_PROGRESS only, never a RemediationEvent."""
     from app.ticketing.daily_sync import _sync_jira_tickets
 
     vuln = _vuln(tenant_id=tenant_a, risk_exposure_score=None, severity="MEDIUM")
@@ -349,13 +358,11 @@ async def test_sync_jira_tickets_remediated_routes_through_helper(db_session, te
     stats = await _sync_jira_tickets(db_session, tenant_a, client)
     await db_session.commit()
 
-    assert stats["resolved"] == 1
+    assert stats["synced"] == 1
     await db_session.refresh(vuln)
-    assert vuln.status == "REMEDIATED"
+    assert vuln.status == "IN_PROGRESS"
     events = await _events_for(db_session, vuln.id)
-    assert len(events) == 1
-    # NULL score + MEDIUM severity -> severity_to_tier fallback -> "moderate".
-    assert events[0].tier_at_remediation == "moderate"
+    assert events == []
 
 
 class _FakeGitHubLikeClient:
@@ -374,7 +381,9 @@ class _FakeGitHubLikeClient:
         return None
 
 
-async def test_sync_github_tickets_remediated_routes_through_helper(db_session, tenant_a):
+async def test_sync_github_tickets_done_drives_in_progress_no_remediation_event(db_session, tenant_a):
+    """Phase 37 Plan 03 (D-03 fix): see the Asana test above -- a closed
+    GitHub issue drives IN_PROGRESS only, never a RemediationEvent."""
     from app.ticketing.daily_sync import _sync_github_tickets
 
     vuln = _vuln(tenant_id=tenant_a, risk_exposure_score=30)
@@ -389,12 +398,11 @@ async def test_sync_github_tickets_remediated_routes_through_helper(db_session, 
     stats = await _sync_github_tickets(db_session, tenant_a, client)
     await db_session.commit()
 
-    assert stats["resolved"] == 1
+    assert stats["synced"] == 1
     await db_session.refresh(vuln)
-    assert vuln.status == "REMEDIATED"
+    assert vuln.status == "IN_PROGRESS"
     events = await _events_for(db_session, vuln.id)
-    assert len(events) == 1
-    assert events[0].tier_at_remediation == "moderate"
+    assert events == []
 
 
 # ── 5. get_mttr_by_tier aggregate ────────────────────────────────────────────

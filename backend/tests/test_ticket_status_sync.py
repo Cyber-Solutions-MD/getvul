@@ -515,9 +515,7 @@ async def test_jira_recurrence_reopens_external_ticket_no_duplicate(db_session, 
                 json={"fields": {"status": {"statusCategory": {"key": "done"}, "name": "Done"}}},
             )
         if request.url.path == "/rest/api/3/issue/GV-3/transitions" and request.method == "GET":
-            return httpx.Response(
-                200, json={"transitions": [{"id": "11", "name": "To Do", "to": {"name": "To Do"}}]}
-            )
+            return httpx.Response(200, json={"transitions": [{"id": "11", "name": "To Do", "to": {"name": "To Do"}}]})
         if request.url.path == "/rest/api/3/issue/GV-3/transitions" and request.method == "POST":
             return httpx.Response(204)
         if request.url.path == "/rest/api/3/issue/GV-3/comment":

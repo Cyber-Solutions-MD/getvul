@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
@@ -12,11 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.assets.models import Asset
 from app.audit import AuditLog
 from app.connectors.service import get_decrypted_credentials
-from app.ticketing.models import ConnectorConfig, Ticket
+from app.connectors.sync import _sanitize_error
+from app.ticketing.models import ConnectorConfig, SyncLog, Ticket
 from app.ticketing.service import map_ticket_status
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
+
+# SYNC-04: bounded retry for a transient per-connector ticket-sync failure
+# (network blip / upstream 5xx). Reads are idempotent (no partial-write
+# risk from a retried poll), so a retry simply redoes the same GET(s).
+_MAX_SYNC_ATTEMPTS = 3
+_RETRY_BACKOFF_SECONDS = (1, 2, 4)
 
 # Phase 37 Plan 03 / D-03: the set of stored `Ticket.external_status` values
 # that mean "this ticket was already observed done/closed as of the LAST
@@ -36,9 +44,7 @@ _AWAITING_RESCAN_COMMENT = (
     "Ticket marked done — awaiting rescan verification before this finding is closed. "
     "GetVul only closes a finding once the scanner confirms it is gone (2 consecutive clean scans)."
 )
-_RECURRENCE_COMMENT = (
-    "Recurrence detected — the scanner re-detected this vulnerability. Reopening this ticket."
-)
+_RECURRENCE_COMMENT = "Recurrence detected — the scanner re-detected this vulnerability. Reopening this ticket."
 
 # Jira's default simplified-workflow "not started" status name -- the
 # `transition()` target for a recurrence reopen (matches `to.name`/`name`
@@ -54,6 +60,35 @@ def _was_previously_done(provider: str, external_status: str | None) -> bool:
     return external_status.lower() in _DONE_EXTERNAL_STATUSES.get(provider, set())
 
 
+async def _sync_with_retry(sync_coro_fn, *args):
+    """SYNC-04: run a provider `_sync_*` call with bounded retry (3 attempts,
+    ~1s/2s/4s exponential backoff) for a transient failure.
+
+    The final attempt's exception propagates to the caller's own per-
+    connector isolation `try/except` (T-37-12) -- a connector that exhausts
+    every retry surfaces FAILED but never aborts the pass for the other
+    connectors. Referenced by module-level name (not a bound closure) so
+    tests can monkeypatch `daily_sync._sync_asana_tickets` etc. and still
+    have this wrapper pick up the patched function.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_SYNC_ATTEMPTS):
+        try:
+            return await sync_coro_fn(*args)
+        except Exception as e:
+            last_exc = e
+            if attempt < _MAX_SYNC_ATTEMPTS - 1:
+                logger.warning(
+                    "ticket_sync_retry",
+                    attempt=attempt + 1,
+                    max_attempts=_MAX_SYNC_ATTEMPTS,
+                    error=_sanitize_error(e),
+                )
+                await asyncio.sleep(_RETRY_BACKOFF_SECONDS[attempt])
+    assert last_exc is not None  # noqa: S101 - unreachable without an exception
+    raise last_exc
+
+
 async def run_daily_ticket_sync(db: AsyncSession) -> dict:
     """Run daily ticket status sync for all tenants with ticketing connectors.
 
@@ -62,6 +97,14 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
     2. For each ticket, check the current state of linked vulnerabilities
     3. If progress was made (some vulns remediated), post a status comment
     4. If all vulns resolved, auto-close the ticket
+
+    SYNC-04: each connector's poll is retried (bounded, `_sync_with_retry`)
+    and always records a real `last_sync_at`/`last_sync_status`/
+    `last_sync_record_count`/`consecutive_failure_count`/`last_error`
+    outcome plus a `SyncLog` row -- mirrors the scanner-connector
+    resilience precedent (`connectors/sync.py::run_sync`). One connector
+    exhausting its retries and surfacing FAILED never aborts the pass for
+    the others (per-connector `try/except` isolation, unchanged).
     """
     # Find all tenants with ticketing connectors
     result = await db.execute(
@@ -79,6 +122,17 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
     tenants_processed = 0
 
     for connector in ticketing_connectors:
+        sync_start = datetime.now(UTC)
+        log = SyncLog(
+            connector_id=connector.id,
+            tenant_id=connector.tenant_id,
+            status="RUNNING",
+            started_at=sync_start,
+        )
+        db.add(log)
+        await db.flush()
+
+        client = None
         try:
             creds = get_decrypted_credentials(connector)
             tenant_id = connector.tenant_id
@@ -88,8 +142,7 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
                 from app.ticketing.asana_client import AsanaClient
 
                 client = AsanaClient(creds.get("access_token", ""))
-                stats = await _sync_asana_tickets(db, tenant_id, client)
-                await client.close()
+                stats = await _sync_with_retry(_sync_asana_tickets, db, tenant_id, client)
             elif provider == "JIRA":
                 from app.ticketing.jira_client import JiraClient
 
@@ -98,8 +151,7 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
                     api_token=creds.get("api_token", ""),
                     base_url=creds.get("url", ""),
                 )
-                stats = await _sync_jira_tickets(db, tenant_id, client)
-                await client.close()
+                stats = await _sync_with_retry(_sync_jira_tickets, db, tenant_id, client)
             elif provider == "GITHUB":
                 from app.ticketing.github_client import GitHubClient
 
@@ -109,15 +161,28 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
                     owner=connector_config.get("owner", ""),
                     repo=connector_config.get("repo", ""),
                 )
-                stats = await _sync_github_tickets(db, tenant_id, client)
-                await client.close()
+                stats = await _sync_with_retry(_sync_github_tickets, db, tenant_id, client)
             else:
+                log.status = "SUCCESS"
+                log.finished_at = datetime.now(UTC)
                 continue
 
             total_synced += stats.get("synced", 0)
             total_resolved += stats.get("resolved", 0)
             total_comments += stats.get("comments_added", 0)
             tenants_processed += 1
+
+            record_count = stats.get("synced", 0)
+            connector.last_sync_at = datetime.now(UTC)
+            connector.last_sync_status = "SUCCESS"
+            connector.last_sync_record_count = record_count
+            connector.consecutive_failure_count = 0
+            connector.last_error = None
+
+            log.status = "SUCCESS"
+            log.records_fetched = record_count
+            log.details = stats
+            log.finished_at = datetime.now(UTC)
 
             if stats.get("comments_added", 0) > 0 or stats.get("resolved", 0) > 0:
                 logger.info(
@@ -128,15 +193,28 @@ async def run_daily_ticket_sync(db: AsyncSession) -> dict:
                 )
 
         except Exception as e:
+            sanitized = _sanitize_error(e)
             logger.error(
                 "daily_ticket_sync_error",
                 tenant_id=str(connector.tenant_id),
                 provider=connector.connector_type,
-                error=str(e),
+                error=sanitized,
             )
+            connector.last_sync_status = "FAILED"
+            connector.consecutive_failure_count = (connector.consecutive_failure_count or 0) + 1
+            connector.last_error = sanitized
+            log.status = "FAILED"
+            log.error_message = sanitized
+            log.finished_at = datetime.now(UTC)
+        finally:
+            if client is not None:
+                await client.close()
 
-    if total_synced > 0:
-        await db.commit()
+    # SYNC-04: always commit (not gated on total_synced>0 as before) -- a
+    # zero-tickets-synced cycle still needs its SyncLog + connector
+    # last_sync_* resilience columns persisted so the connector list
+    # reflects a real outcome rather than going stale.
+    await db.commit()
 
     return {
         "tenants_processed": tenants_processed,
