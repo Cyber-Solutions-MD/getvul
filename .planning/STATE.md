@@ -46,9 +46,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 37 (two-way-ticket-sync-remediation-verification) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 37
-Last activity: 2026-08-14 — Phase 37 execution started
+Plan: 1 of 3 complete (37-01)
+Status: Executing Phase 37 sequentially on main (worktree isolation auto-disabled — #683 stale-base)
+Last activity: 2026-08-14 — 37-01 complete (rescan-verified auto-close tracer: migration 048 clean_scan_streak + SUCCESS-branch absent-sweep, SYNC-02)
 
 ## v5.0 Phase Map
 

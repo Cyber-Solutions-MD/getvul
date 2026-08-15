@@ -115,7 +115,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 37-01-PLAN.md — TRACER: rescan-verified auto-close (SYNC-02): clean_scan_streak column + SUCCESS-branch absent-sweep + single-helper close
+- [x] 37-01-PLAN.md — TRACER: rescan-verified auto-close (SYNC-02): clean_scan_streak column + SUCCESS-branch absent-sweep + single-helper close
 - [ ] 37-02-PLAN.md — SYNC-03: reopen-on-recurrence (soft-close resurrection of the same finding row, MTTR preserved)
 - [ ] 37-03-PLAN.md — SYNC-01 D-03 split (ticket status → IN_PROGRESS, never closes) + SYNC-04 resilience/last-sync + external-ticket reopen
 
@@ -241,7 +241,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|-----------------|--------|-----------|
 | 36. Remediation SLA Engine & Escalation | 5/6 | In Progress | - |
-| 37. Two-Way Ticket Sync & Remediation Verification | 0/? | Not started | - |
+| 37. Two-Way Ticket Sync & Remediation Verification | 1/3 | In Progress | - |
 | 38. Remediation Campaigns | 0/? | Not started | - |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
