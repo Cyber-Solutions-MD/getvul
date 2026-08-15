@@ -1109,6 +1109,70 @@ def _is_ticket_completed(provider: str, payload: dict[str, Any]) -> bool:
     return False
 
 
+# ── Phase 37 Plan 03 / SYNC-01 / D-03 ────────────────────────────────────────
+#
+# map_ticket_status is the D-03-safe superset of _is_ticket_completed above:
+# where that helper collapses a payload to a bare done/not-done bool (used by
+# the OUTBOUND auto-close paths, unaffected by this phase), this one maps a
+# provider's raw status payload to a workflow INTENT string that daily_sync.py
+# uses to drive INBOUND status back onto the linked finding. It intentionally
+# has no "remediated" intent value -- a done/closed/completed ticket can only
+# ever produce "done_awaiting_rescan" (drives IN_PROGRESS + a comment), never
+# a closure. T-37-08 (V5 input validation): every read is `.get(...)` with a
+# default, so a malformed/garbage/empty payload can never raise -- it falls
+# through to "unknown", which callers must treat as a no-op + log, never a
+# close.
+
+
+def map_ticket_status(provider: str, payload: dict[str, Any]) -> str:
+    """Map a provider's raw status payload to a workflow intent (D-03-safe).
+
+    Returns one of {"in_progress", "done_awaiting_rescan", "open", "unknown"}
+    -- NEVER "remediated". Rescan-verified closure (SYNC-02) is the only path
+    that may ever set REMEDIATED; a ticket, however "done", can at most drive
+    a finding to IN_PROGRESS (D-03).
+
+    - Jira: `statusCategory.key == "indeterminate"` -> in_progress;
+      `"done"` (or `status.name` in done/closed/resolved/completed) ->
+      done_awaiting_rescan; `"new"` -> open; anything else -> unknown.
+    - Asana: `completed` missing -> unknown; `True` -> done_awaiting_rescan;
+      `False` -> open.
+    - GitHub: `state == "closed"` -> done_awaiting_rescan; `"open"` -> open;
+      anything else (including missing) -> unknown.
+    - Empty/falsy payload (any provider) -> unknown.
+    """
+    if not payload:
+        return "unknown"
+
+    if provider == TicketProvider.JIRA:
+        fields = payload.get("fields") or {}
+        status = fields.get("status") or {}
+        category = status.get("statusCategory", {}).get("key", "")
+        name = (status.get("name") or "").lower()
+        if category == "done" or name in ("done", "closed", "resolved", "completed"):
+            return "done_awaiting_rescan"
+        if category == "indeterminate":
+            return "in_progress"
+        if category == "new":
+            return "open"
+        return "unknown"
+
+    if provider == TicketProvider.ASANA:
+        if "completed" not in payload:
+            return "unknown"
+        return "done_awaiting_rescan" if payload.get("completed") else "open"
+
+    if provider == TicketProvider.GITHUB:
+        state = payload.get("state")
+        if state == "closed":
+            return "done_awaiting_rescan"
+        if state == "open":
+            return "open"
+        return "unknown"
+
+    return "unknown"
+
+
 async def sync_ticket_status(
     db: AsyncSession,
     tenant_id: uuid.UUID,
