@@ -161,7 +161,7 @@ def _mock_crowdstrike_handler(request: httpx.Request) -> httpx.Response:
     findings from the connector itself — the absent-sweep operates purely
     on pre-seeded rows, not on anything this mock returns."""
     if "oauth2/token" in request.url.path:
-        return httpx.Response(200, json={"access_token": "fake-token", "expires_in": 1800})
+        return httpx.Response(201, json={"access_token": "fake-token", "expires_in": 1800})
     if "/devices/queries/devices" in request.url.path or "/devices/entities/devices" in request.url.path:
         return httpx.Response(200, json={"resources": []})
     if "/detects/queries/detects" in request.url.path or "/detects/entities/summaries" in request.url.path:
