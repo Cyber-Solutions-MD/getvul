@@ -10,11 +10,48 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.audit import AuditLog
 from app.connectors.service import get_decrypted_credentials
 from app.ticketing.models import ConnectorConfig, Ticket
+from app.ticketing.service import map_ticket_status
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
+
+# Phase 37 Plan 03 / D-03: the set of stored `Ticket.external_status` values
+# that mean "this ticket was already observed done/closed as of the LAST
+# poll cycle" per provider. Used to distinguish a fresh done-transition
+# (fire the IN_PROGRESS + comment + audit branch, once) from a recurrence
+# (the ticket was ALREADY done and the linked finding is OPEN again --
+# SYNC-03/D-04: reopen the external ticket instead) from steady-state
+# (ticket still done, finding still IN_PROGRESS/REMEDIATED/SUPPRESSED --
+# no-op, avoids re-commenting every 24h cycle).
+_DONE_EXTERNAL_STATUSES: dict[str, set[str]] = {
+    "ASANA": {"completed"},
+    "JIRA": {"done", "closed", "resolved", "completed"},
+    "GITHUB": {"closed"},
+}
+
+_AWAITING_RESCAN_COMMENT = (
+    "Ticket marked done — awaiting rescan verification before this finding is closed. "
+    "GetVul only closes a finding once the scanner confirms it is gone (2 consecutive clean scans)."
+)
+_RECURRENCE_COMMENT = (
+    "Recurrence detected — the scanner re-detected this vulnerability. Reopening this ticket."
+)
+
+# Jira's default simplified-workflow "not started" status name -- the
+# `transition()` target for a recurrence reopen (matches `to.name`/`name`
+# case-insensitively; a tenant with a differently-named open status simply
+# logs a "no matching transition" warning via JiraClient.transition's own
+# existing no-op-on-no-match behavior, never raises).
+_JIRA_OPEN_TRANSITION_TARGET = "To Do"
+
+
+def _was_previously_done(provider: str, external_status: str | None) -> bool:
+    if not external_status:
+        return False
+    return external_status.lower() in _DONE_EXTERNAL_STATUSES.get(provider, set())
 
 
 async def run_daily_ticket_sync(db: AsyncSession) -> dict:
@@ -221,7 +258,9 @@ async def _sync_asana_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) ->
     task_cache: dict[str, dict | None] = {}
     commented_tasks: set[str] = set()
 
-    # First pass: sync completion status from Asana
+    # First pass: sync completion status from Asana (SYNC-01/SYNC-03, D-03:
+    # a done ticket drives workflow state only -- it NEVER closes a finding
+    # the scanner still detects; closure is rescan-only, Plan 01).
     for ticket in tickets:
         task_gid = ticket.external_ticket_id.split(":")[0]
         if task_gid not in task_cache:
@@ -233,22 +272,43 @@ async def _sync_asana_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) ->
 
         synced += 1
 
-        if task.get("completed"):
-            ticket.external_status = "completed"
-            ticket.resolved_at = datetime.now(UTC)
-            resolved += 1
-            vuln = (
-                await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
-            ).scalar_one_or_none()
-            if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-                # D-09/Pitfall 6: routed through the single
-                # mark_vulnerability_remediated helper so the durable MTTR
-                # remediation-event row is never missed.
-                from app.vulnerabilities.service import mark_vulnerability_remediated
+        intent = map_ticket_status("ASANA", task)
+        was_done_before = _was_previously_done("ASANA", ticket.external_status)
+        vuln = (
+            await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+        ).scalar_one_or_none()
 
-                await mark_vulnerability_remediated(db, vuln)
-        else:
+        if intent == "done_awaiting_rescan":
+            if vuln and was_done_before and vuln.status == "OPEN":
+                # SYNC-03/D-04: the finding was reopened (rescan re-detected
+                # it) while the ticket still shows completed on Asana --
+                # reopen the SAME task, never create a new Ticket row.
+                await client.update_task(task_gid, completed=False)
+                await client.add_comment(task_gid, _RECURRENCE_COMMENT)
+                ticket.external_status = "open"
+                ticket.resolved_at = None
+            else:
+                ticket.external_status = "completed"
+                if vuln and not was_done_before and vuln.status in ("OPEN", "IN_PROGRESS"):
+                    vuln.status = "IN_PROGRESS"
+                    await client.add_comment(task_gid, _AWAITING_RESCAN_COMMENT)
+                    db.add(
+                        AuditLog(
+                            tenant_id=vuln.tenant_id,
+                            user_id=None,
+                            user_email="system:ticket-sync",
+                            action="vuln.ticket_status_sync",
+                            resource_type="vulnerability",
+                            resource_id=str(vuln.id),
+                            details={"provider": "ASANA", "ticket_id": str(ticket.id), "new_status": "IN_PROGRESS"},
+                            ip_address=None,
+                            created_at=datetime.now(UTC),
+                        )
+                    )
+        elif intent == "open":
             ticket.external_status = "open"
+        else:
+            logger.warning("ticket_status_unknown", provider="ASANA", ticket_id=str(ticket.id))
 
     # Second pass: group open tickets by task and post progress comments
     task_tickets: dict[str, list[Ticket]] = {}
@@ -302,7 +362,8 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
     issue_cache: dict[str, dict | None] = {}
     commented_issues: set[str] = set()
 
-    # First pass: sync status from Jira
+    # First pass: sync status from Jira (SYNC-01/SYNC-03, D-03: a done ticket
+    # drives workflow state only -- closure is rescan-only, Plan 01).
     for ticket in tickets:
         issue_key = ticket.external_ticket_id.split(":")[0]
         if issue_key not in issue_cache:
@@ -317,26 +378,49 @@ async def _sync_jira_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -> 
 
         synced += 1
 
-        # Check if Jira issue is in a "done" category
-        status_category = issue.get("fields", {}).get("status", {}).get("statusCategory", {}).get("key", "")
-        jira_status = issue.get("fields", {}).get("status", {}).get("name", "")
+        intent = map_ticket_status("JIRA", issue)
+        jira_status_name = (issue.get("fields", {}).get("status", {}).get("name", "") or "").lower()
+        was_done_before = _was_previously_done("JIRA", ticket.external_status)
+        vuln = (
+            await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+        ).scalar_one_or_none()
 
-        if status_category == "done" or jira_status.lower() in ("done", "closed", "resolved", "completed"):
-            ticket.external_status = jira_status.lower()
-            ticket.resolved_at = datetime.now(UTC)
-            resolved += 1
-            vuln = (
-                await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
-            ).scalar_one_or_none()
-            if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-                # D-09/Pitfall 6: routed through the single
-                # mark_vulnerability_remediated helper so the durable MTTR
-                # remediation-event row is never missed.
-                from app.vulnerabilities.service import mark_vulnerability_remediated
-
-                await mark_vulnerability_remediated(db, vuln)
+        if intent == "done_awaiting_rescan":
+            if vuln and was_done_before and vuln.status == "OPEN":
+                # SYNC-03/D-04: the finding was reopened (rescan re-detected
+                # it) while the ticket still shows done on Jira -- transition
+                # the SAME issue back to an open status, never create a new
+                # Ticket row.
+                await client.transition(issue_key, _JIRA_OPEN_TRANSITION_TARGET)
+                await client.comment(issue_key, _RECURRENCE_COMMENT)
+                ticket.external_status = _JIRA_OPEN_TRANSITION_TARGET.lower()
+                ticket.resolved_at = None
+            else:
+                ticket.external_status = jira_status_name
+                if vuln and not was_done_before and vuln.status in ("OPEN", "IN_PROGRESS"):
+                    vuln.status = "IN_PROGRESS"
+                    await client.comment(issue_key, _AWAITING_RESCAN_COMMENT)
+                    db.add(
+                        AuditLog(
+                            tenant_id=vuln.tenant_id,
+                            user_id=None,
+                            user_email="system:ticket-sync",
+                            action="vuln.ticket_status_sync",
+                            resource_type="vulnerability",
+                            resource_id=str(vuln.id),
+                            details={"provider": "JIRA", "ticket_id": str(ticket.id), "new_status": "IN_PROGRESS"},
+                            ip_address=None,
+                            created_at=datetime.now(UTC),
+                        )
+                    )
+        elif intent == "in_progress":
+            ticket.external_status = jira_status_name
+            if vuln and vuln.status in ("OPEN", "IN_PROGRESS"):
+                vuln.status = "IN_PROGRESS"
+        elif intent == "open":
+            ticket.external_status = jira_status_name
         else:
-            ticket.external_status = jira_status.lower()
+            logger.warning("ticket_status_unknown", provider="JIRA", ticket_id=str(ticket.id))
 
     # Second pass: group open tickets by issue key and post progress comments
     issue_tickets: dict[str, list[Ticket]] = {}
@@ -400,7 +484,8 @@ async def _sync_github_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -
     issue_cache: dict[str, dict | None] = {}
     commented_issues: set[str] = set()
 
-    # First pass: sync state from GitHub
+    # First pass: sync state from GitHub (SYNC-01/SYNC-03, D-03: a done ticket
+    # drives workflow state only -- closure is rescan-only, Plan 01).
     for ticket in tickets:
         issue_number = ticket.external_ticket_id.split(":")[0]
         if issue_number not in issue_cache:
@@ -415,22 +500,43 @@ async def _sync_github_tickets(db: AsyncSession, tenant_id: uuid.UUID, client) -
 
         synced += 1
 
-        if issue.get("state") == "closed":
-            ticket.external_status = "closed"
-            ticket.resolved_at = datetime.now(UTC)
-            resolved += 1
-            vuln = (
-                await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
-            ).scalar_one_or_none()
-            if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-                # D-09/Pitfall 6: routed through the single
-                # mark_vulnerability_remediated helper so the durable MTTR
-                # remediation-event row is never missed.
-                from app.vulnerabilities.service import mark_vulnerability_remediated
+        intent = map_ticket_status("GITHUB", issue)
+        was_done_before = _was_previously_done("GITHUB", ticket.external_status)
+        vuln = (
+            await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+        ).scalar_one_or_none()
 
-                await mark_vulnerability_remediated(db, vuln)
-        else:
+        if intent == "done_awaiting_rescan":
+            if vuln and was_done_before and vuln.status == "OPEN":
+                # SYNC-03/D-04: the finding was reopened (rescan re-detected
+                # it) while the ticket still shows closed on GitHub --
+                # reopen the SAME issue, never create a new Ticket row.
+                await client.reopen_issue(int(issue_number))
+                await client.add_comment(int(issue_number), _RECURRENCE_COMMENT)
+                ticket.external_status = "open"
+                ticket.resolved_at = None
+            else:
+                ticket.external_status = "closed"
+                if vuln and not was_done_before and vuln.status in ("OPEN", "IN_PROGRESS"):
+                    vuln.status = "IN_PROGRESS"
+                    await client.add_comment(int(issue_number), _AWAITING_RESCAN_COMMENT)
+                    db.add(
+                        AuditLog(
+                            tenant_id=vuln.tenant_id,
+                            user_id=None,
+                            user_email="system:ticket-sync",
+                            action="vuln.ticket_status_sync",
+                            resource_type="vulnerability",
+                            resource_id=str(vuln.id),
+                            details={"provider": "GITHUB", "ticket_id": str(ticket.id), "new_status": "IN_PROGRESS"},
+                            ip_address=None,
+                            created_at=datetime.now(UTC),
+                        )
+                    )
+        elif intent == "open":
             ticket.external_status = "open"
+        else:
+            logger.warning("ticket_status_unknown", provider="GITHUB", ticket_id=str(ticket.id))
 
     # Second pass: group open tickets by issue number and post progress comments / auto-close
     issue_tickets: dict[str, list[Ticket]] = {}

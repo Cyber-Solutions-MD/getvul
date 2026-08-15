@@ -341,7 +341,7 @@ async def test_asana_ticket_done_drives_in_progress_never_remediated(db_session,
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
-            return httpx.Response(200, json={"gid": "9001", "completed": True})
+            return httpx.Response(200, json={"data": {"gid": "9001", "completed": True}})
         return httpx.Response(201, json={"data": {}})
 
     client = _mock_asana_client(handler)
@@ -435,14 +435,17 @@ async def test_asana_unknown_status_is_noop(db_session, tenant_a):
     await db_session.commit()
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"gid": "9002"})  # no "completed" key -> unknown
+        # no "completed" key -> unknown
+        return httpx.Response(200, json={"data": {"gid": "9002"}})
 
     client = _mock_asana_client(handler)
     try:
-        await m._sync_asana_tickets(db_session, tenant_a, client)
+        stats = await m._sync_asana_tickets(db_session, tenant_a, client)
         await db_session.commit()
     finally:
         await client.close()
+
+    assert stats["synced"] == 1
 
     await db_session.refresh(vuln)
     assert vuln.status == "OPEN"
@@ -552,7 +555,7 @@ async def test_asana_recurrence_reopens_external_ticket_no_duplicate(db_session,
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
         if request.method == "GET":
-            return httpx.Response(200, json={"gid": "9003", "completed": True})
+            return httpx.Response(200, json={"data": {"gid": "9003", "completed": True}})
         if request.method == "PUT":
             return httpx.Response(200, json={"data": {"gid": "9003", "completed": False}})
         if request.method == "POST":

@@ -137,7 +137,12 @@ async def test_run_sync_github_short_circuits_to_success_with_no_vuln_fetch(db_s
 
 @pytest.mark.asyncio
 async def test_github_daily_sync_inbound_closed_issue_marks_ticket_and_vuln(db_session, tenant_a):
-    """RED: a closed GitHub issue -> GetVul ticket 'closed' + linked vuln REMEDIATED."""
+    """Phase 37 Plan 03 (D-03 fix): a closed GitHub issue -> GetVul ticket
+    'closed' + linked vuln driven to IN_PROGRESS (awaiting rescan
+    verification) -- NEVER REMEDIATED. A done ticket can no longer
+    force-close a finding the scanner still detects; closure is rescan-only
+    (Plan 01). `ticket.resolved_at` stays unset so the ticket keeps being
+    polled next cycle (SYNC-03 recurrence-reopen needs it poll-able)."""
     vuln = _seed_vuln(tenant_a)
     db_session.add(vuln)
     await db_session.flush()
@@ -147,9 +152,12 @@ async def test_github_daily_sync_inbound_closed_issue_marks_ticket_and_vuln(db_s
     await db_session.commit()
 
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert request.url.path == "/repos/acme/widgets/issues/7"
-        return httpx.Response(200, json={"number": 7, "state": "closed"})
+        if request.method == "GET":
+            assert request.url.path == "/repos/acme/widgets/issues/7"
+            return httpx.Response(200, json={"number": 7, "state": "closed"})
+        # The awaiting-rescan comment posted alongside the IN_PROGRESS write.
+        assert request.url.path == "/repos/acme/widgets/issues/7/comments"
+        return httpx.Response(201, json={"id": 1})
 
     client = _mock_github_client(handler)
     try:
@@ -161,13 +169,13 @@ async def test_github_daily_sync_inbound_closed_issue_marks_ticket_and_vuln(db_s
         await client.close()
 
     assert stats["synced"] == 1
-    assert stats["resolved"] == 1
 
     await db_session.refresh(ticket)
     await db_session.refresh(vuln)
     assert ticket.external_status == "closed"
-    assert ticket.resolved_at is not None
-    assert vuln.status == "REMEDIATED"
+    assert ticket.resolved_at is None
+    assert vuln.status == "IN_PROGRESS"
+    assert vuln.status != "REMEDIATED"
 
 
 @pytest.mark.asyncio
