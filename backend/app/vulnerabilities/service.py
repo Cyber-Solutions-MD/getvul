@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import structlog
 from fastapi import HTTPException
 from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -352,6 +353,8 @@ async def get_vulnerability(
 # ticketing/daily_sync.py x3) must route through. Missing it at any one
 # site silently drops that path's MTTR data -- see 36-RESEARCH.md Pitfall 6.
 
+logger = structlog.get_logger()
+
 
 def _freeze_tier_at_remediation(vuln: Vulnerability) -> str:
     """D-09/D-12/Pitfall 13: freeze the FINAL risk tier at the moment of
@@ -367,7 +370,9 @@ def _freeze_tier_at_remediation(vuln: Vulnerability) -> str:
     return tier if tier is not None else "not_tracked"
 
 
-async def mark_vulnerability_remediated(db: AsyncSession, vuln: Vulnerability) -> RemediationEvent:
+async def mark_vulnerability_remediated(
+    db: AsyncSession, vuln: Vulnerability, *, verified_by: str | None = None
+) -> RemediationEvent:
     """The single REMEDIATED-transition helper (D-09/Pitfall 6).
 
     Sets `status="REMEDIATED"` + `remediated_at=now` (matching the
@@ -379,6 +384,18 @@ async def mark_vulnerability_remediated(db: AsyncSession, vuln: Vulnerability) -
     this point) -- this function trusts `vuln.tenant_id`/`vuln.id`, it does
     not re-derive or re-check tenant scope itself.
 
+    `verified_by` (Phase 37 Plan 01, SYNC-02) is an optional caller-supplied
+    provenance tag (e.g. "rescan") surfaced only via a structured log line
+    for the caller's own audit trail -- it does NOT change `remediated_at`
+    (resolved-open-question Q1: rescan is truth per D-03, so the honest MTTR
+    clock is the 2nd-clean-scan moment, not a separate fix moment) and does
+    NOT branch closure behavior. Omitting it (the default) reproduces the
+    exact pre-existing behavior for every regression caller.
+
+    Always resets `vuln.clean_scan_streak` to 0 -- a REMEDIATED row must
+    never carry a stale streak forward (e.g. into a later reopen-on-
+    recurrence cycle, SYNC-03).
+
     Does not flush/commit -- matches every pre-existing call site's own
     transaction-boundary convention (none of them commit inline either);
     the caller's existing `await db.commit()` covers this too.
@@ -386,6 +403,7 @@ async def mark_vulnerability_remediated(db: AsyncSession, vuln: Vulnerability) -
     now = datetime.now(UTC)
     vuln.status = "REMEDIATED"
     vuln.remediated_at = now
+    vuln.clean_scan_streak = 0
 
     tier = _freeze_tier_at_remediation(vuln)
     duration_seconds = int((now - vuln.first_detected_at).total_seconds())
@@ -399,6 +417,10 @@ async def mark_vulnerability_remediated(db: AsyncSession, vuln: Vulnerability) -
         remediated_at=now,
     )
     db.add(event)
+
+    if verified_by is not None:
+        logger.info("vuln_remediated", vuln_id=str(vuln.id), verified_by=verified_by)
+
     return event
 
 

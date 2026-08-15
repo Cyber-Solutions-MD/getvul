@@ -94,6 +94,13 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     risk_exposure_breakdown: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     risk_model_version: Mapped[str | None] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default=VulnStatus.OPEN.value, index=True)
+    # SYNC-02/D-02 (Phase 37 Plan 01): consecutive clean-scan counter, mirrors
+    # ConnectorConfig.consecutive_failure_count (ticketing/models.py:55).
+    # Incremented by run_sync's SUCCESS-branch absent-sweep when this
+    # finding's source completes a successful sync without re-detecting it;
+    # reset to 0 on re-detection. At >=2 (fixed threshold) the finding
+    # auto-closes as rescan-verified via mark_vulnerability_remediated.
+    clean_scan_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     remediated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
