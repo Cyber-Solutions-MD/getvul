@@ -12,6 +12,7 @@ from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, t
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.audit import AuditLog
 from app.pagination import PaginatedResponse, PaginationParams
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import RemediationEvent, Vulnerability, VulnerabilityCorrelation
@@ -422,6 +423,59 @@ async def mark_vulnerability_remediated(
         logger.info("vuln_remediated", vuln_id=str(vuln.id), verified_by=verified_by)
 
     return event
+
+
+# ── Phase 37 Plan 02 / SYNC-03 / D-04 ────────────────────────────────────────
+#
+# reopen_vulnerability is the sibling resurrection helper to
+# mark_vulnerability_remediated: it undoes a soft REMEDIATED close when a
+# later scan re-detects the SAME finding row (routed here from
+# connectors/sync.py::_upsert_vulnerability's existing-row branch, which
+# already resolves recurrence to the same row via `uq_vuln_dedup`). It never
+# deletes the historical RemediationEvent row(s) -- MTTR lineage across a
+# close -> recur -> reopen -> re-close cycle stays fully reconstructable.
+
+
+async def reopen_vulnerability(db: AsyncSession, vuln: Vulnerability) -> bool:
+    """Resurrect a REMEDIATED row on recurrence (SYNC-03/D-04).
+
+    Sets `status="OPEN"`, clears `remediated_at`, resets
+    `clean_scan_streak=0`, and PRESERVES `first_detected_at` (MTTR lineage).
+    Writes a tenant-scoped system-actor `AuditLog`
+    (`user_email="system:rescan-reopen"`, `action="vuln.reopen_recurrence"`).
+    Any existing `RemediationEvent` row(s) for this vuln are left untouched --
+    they are historical and must never be deleted.
+
+    No-op (returns False) when called on a non-REMEDIATED row -- idempotent
+    guard so a caller can call this unconditionally on every existing-row
+    upsert branch without checking status itself first.
+
+    Does not flush/commit -- matches `mark_vulnerability_remediated`'s own
+    transaction-boundary convention; the caller's existing commit covers this.
+    """
+    if vuln.status != "REMEDIATED":
+        return False
+
+    vuln.status = "OPEN"
+    vuln.remediated_at = None
+    vuln.clean_scan_streak = 0
+    # first_detected_at is intentionally left untouched.
+
+    db.add(
+        AuditLog(
+            tenant_id=vuln.tenant_id,
+            user_id=None,
+            user_email="system:rescan-reopen",
+            action="vuln.reopen_recurrence",
+            resource_type="vulnerability",
+            resource_id=str(vuln.id),
+            details={"source": vuln.source},
+            ip_address=None,
+            created_at=datetime.now(UTC),
+        )
+    )
+
+    return True
 
 
 async def get_mttr_by_tier(db: AsyncSession, tenant_id: uuid.UUID) -> list[dict[str, Any]]:
