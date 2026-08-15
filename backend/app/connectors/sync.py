@@ -463,6 +463,16 @@ async def _upsert_vulnerability(
         existing.exploit_status_name = getattr(v, "exploit_status_name", None)
         if getattr(v, "file_paths", None):
             existing.file_paths = v.file_paths
+        # SYNC-03 (D-04): a re-detected finding lands on this SAME row via
+        # `uq_vuln_dedup` -- if it was rescan-verified REMEDIATED, this is a
+        # recurrence: resurrect it via the single reopen helper (never a
+        # second status-writer). No-op (idempotent) for any other status,
+        # including OPEN/IN_PROGRESS re-detections that already reach here
+        # via the field-refresh above.
+        if existing.status == "REMEDIATED":
+            from app.vulnerabilities.service import reopen_vulnerability
+
+            await reopen_vulnerability(db, existing)
         return False
     else:
         vuln = Vulnerability(
