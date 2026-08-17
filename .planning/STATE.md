@@ -4,17 +4,17 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 37
 current_phase_name: two-way-ticket-sync-remediation-verification
-status: executing
+status: "Phase 37 shipped — PR #30"
 stopped_at: Completed 37-04-PLAN.md (gap closure)
-last_updated: "2026-08-17T00:00:00.000Z"
+last_updated: "2026-08-17T09:53:13.802Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 37 gap closure 37-04 executed — D-03 holds across whole ticketing surface; awaiting re-verification
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 6
   completed_plans: 5
   percent: 83
+last_activity_desc: Phase 37 gap closure 37-04 executed — D-03 holds across whole ticketing surface; awaiting re-verification
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -47,8 +47,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 Phase: 37 (two-way-ticket-sync-remediation-verification) — ✅ COMPLETE, verified 7/7 (4/4 plans)
 Plan: 4 of 4 built + executed + verified (37-01, 37-02, 37-03, 37-04 gap closure)
-Status: COMPLETE. Re-verification passed 7/7 (was 6/7) — the D-03 twin gap is closed: sync_ticket_status + close_ticket drive findings to IN_PROGRESS on ticket-done, never REMEDIATED; closure is rescan-only across the whole ticketing surface. Verifier ran tests directly (109 ticketing/mttr + 94 phase-surface passed), grep gate = 0, no regression to SYNC-02/03/04. Info-level pre-existing (not this phase): duplicate @router.post("/sync-status") handler in ticketing/router.py (lines 355 + 1258, from 2026-03-23) — latent route shadow, doesn't affect D-03. Next: /gsd-ship 37 (or plan Phase 38).
-Last activity: 2026-08-17 — Phase 37 COMPLETE: gap closure 37-04 verified 7/7; SYNC-01 D-03 holds everywhere
+Status: Phase 37 shipped — PR #30
+Last activity: 2026-08-17
 
 ## v5.0 Phase Map
 
