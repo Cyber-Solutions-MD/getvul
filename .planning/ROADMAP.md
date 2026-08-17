@@ -55,7 +55,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 **v5.0 Close the Loop — Remediation Orchestration & Assurance (IN PROGRESS — Phases 36–45):**
 
 - [ ] **Phase 36: Remediation SLA Engine & Escalation** — Risk-tier SLA policy, live SLA state per finding, auto-escalation, MTTR-by-tier
-- [ ] **Phase 37: Two-Way Ticket Sync & Remediation Verification** — Bi-directional ticket status sync + rescan-verified auto-close + reopen guard
+- [x] **Phase 37: Two-Way Ticket Sync & Remediation Verification** — Bi-directional ticket status sync + rescan-verified auto-close + reopen guard ✅ verified 7/7 (2026-08-17)
 - [ ] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR
 - [ ] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry
 - [ ] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests

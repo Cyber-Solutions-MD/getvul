@@ -45,10 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 37 (two-way-ticket-sync-remediation-verification) — GAP CLOSED, awaiting re-verification (4/4 plans built + executed)
-Plan: 4 of 4 built + executed (37-01, 37-02, 37-03, 37-04 gap closure)
-Status: D-03 twin gap CLOSED. 37-04 rewrote backend/app/ticketing/service.py::sync_ticket_status + close_ticket to drive findings to IN_PROGRESS (+ awaiting-rescan comment/audit) on ticket-done, never REMEDIATED — with the not-was_done_before / not-row_was_resolved idempotency guards. Ticketing-surface grep gate (mark_vulnerability_remediated under app/ticketing/) = 0; the two test_mttr.py regressions rewritten to IN_PROGRESS-only + double-call idempotency; 109 ticketing/mttr tests green. Executed inline (gsd-executor died 4x on machine-sleep API errors; user approved inline finish). Next: /gsd-verify-work 37 (expect 7/7).
-Last activity: 2026-08-17 — Phase 37 gap closure 37-04 executed: SYNC-01 D-03 now holds across the whole ticketing surface (scheduled poll + both router-invoked twins)
+Phase: 37 (two-way-ticket-sync-remediation-verification) — ✅ COMPLETE, verified 7/7 (4/4 plans)
+Plan: 4 of 4 built + executed + verified (37-01, 37-02, 37-03, 37-04 gap closure)
+Status: COMPLETE. Re-verification passed 7/7 (was 6/7) — the D-03 twin gap is closed: sync_ticket_status + close_ticket drive findings to IN_PROGRESS on ticket-done, never REMEDIATED; closure is rescan-only across the whole ticketing surface. Verifier ran tests directly (109 ticketing/mttr + 94 phase-surface passed), grep gate = 0, no regression to SYNC-02/03/04. Info-level pre-existing (not this phase): duplicate @router.post("/sync-status") handler in ticketing/router.py (lines 355 + 1258, from 2026-03-23) — latent route shadow, doesn't affect D-03. Next: /gsd-ship 37 (or plan Phase 38).
+Last activity: 2026-08-17 — Phase 37 COMPLETE: gap closure 37-04 verified 7/7; SYNC-01 D-03 holds everywhere
 
 ## v5.0 Phase Map
 
