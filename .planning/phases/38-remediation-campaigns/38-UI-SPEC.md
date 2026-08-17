@@ -29,17 +29,17 @@ created: 2026-08-17
 
 ## Spacing Scale
 
-Declared values (must be multiples of 4) — inherited verbatim from `foundation.md`, no phase-specific override:
+Declared values (must be multiples of 4) — the standard 7-value set from `foundation.md`, no phase-specific override, no exceptions. (Locked to the same 7 values as Phase 36's UI-SPEC.)
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs (`--space-1`) | 4px | Icon gaps, pill internal gaps |
-| sm (`--space-2`/`--space-3`) | 8px / 12px | Compact element spacing, chip padding |
-| md (`--space-4`/`--space-5`) | 16px / 20px | Default element spacing, card padding (cards = 20px per foundation.md) |
-| lg (`--space-6`) | 24px | Section padding, page-head to body-grid gap |
-| xl (`--space-8`) | 32px | Layout gaps (e.g. body-grid main-vs-rail gutter) |
-| 2xl (`--space-12`) | 48px | Major section breaks |
-| 3xl (`--space-16`) | 64px | Page-level spacing |
+| xs | 4px | Icon gaps, pill internal gaps |
+| sm | 8px | Compact element spacing, chip padding |
+| md | 16px | Default element spacing, card padding |
+| lg | 24px | Section padding, page-head to body-grid gap |
+| xl | 32px | Layout gaps (e.g. body-grid main-vs-rail gutter) |
+| 2xl | 48px | Major section breaks |
+| 3xl | 64px | Page-level spacing |
 
 Exceptions: none. The campaign burndown ring (see Visuals below) reuses the asset-detail risk-ring's exact dimensions (no new size token).
 
@@ -47,16 +47,16 @@ Exceptions: none. The campaign burndown ring (see Visuals below) reuses the asse
 
 ## Typography
 
-Inherited verbatim from `foundation.md`'s 1.25 modular scale — no new sizes introduced this phase.
+Inherited verbatim from `foundation.md`'s 1.25 modular scale for sizes — no new sizes introduced this phase. **Two-weight scale, locked** (matches Phase 36's UI-SPEC precedent — `foundation.md` defines no weight tokens, so weight is a phase-specific declaration): 400 regular for body/label text, 600 semibold for anything that needs to stand out (headings, stat displays, emphasis). No 500 or 700 anywhere in this phase's UI.
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Body | 14px (`--text-sm`) | 400 | 1.5 (`--leading-base`) |
-| Label (uppercase section headers, e.g. drill `<h4>`, campaign card labels) | 11px (`--text-xs` variant, tracking-wide) | 500 | 1.3 (`--leading-snug`) |
-| Heading (card titles, campaign detail `<h2>`) | 24px (`--text-2xl`) | 600 | 1.2 (`--leading-tight`) |
-| Display (campaign list page title, burndown % stat) | 32px (`--text-3xl`) | 700 | 1.1 (`--leading-tight`) |
+| Body | 14px (`--text-sm`) | 400 regular | 1.5 (`--leading-base`) |
+| Label (uppercase section headers, e.g. drill `<h4>`, campaign card labels) | 11px (`--text-xs` variant, tracking-wide) | 400 regular | 1.3 (`--leading-snug`) |
+| Heading (card titles, campaign detail `<h2>`) | 24px (`--text-2xl`) | 600 semibold | 1.2 (`--leading-tight`) |
+| Display (campaign list page title, burndown % stat) | 32px (`--text-3xl`) | 600 semibold | 1.1 (`--leading-tight`) |
 
-Mono (`--font-mono`) required for: campaign remediation identifier (CVE / patch string), MTTR durations, host counts, ticket IDs, percentages in the burndown stat — anything "terminal-pasteable" per project convention. Tabular-nums (`font-variant-numeric: tabular-nums`) on all numeric cells (owner ticket counts, member counts, % remediated).
+Mono (`--font-mono`) required for: campaign remediation identifier (CVE / patch string), MTTR durations, host counts, ticket IDs, percentages in the burndown stat — anything "terminal-pasteable" per project convention. Tabular-nums (`font-variant-numeric: tabular-nums`) on all numeric cells (owner ticket counts, member counts, % remediated). Mono values otherwise follow the row's weight (400 by default; 600 only where the value itself is the emphasis, e.g. the burndown % stat).
 
 ---
 
@@ -108,6 +108,8 @@ Voice: peer, not butler. Sentence case. No exclamation marks, no "Please," no "U
 | Empty state CTA | `View remediation groups` (links to the remediation-grouped list where "Start campaign" lives) |
 | Empty state (campaign detail, zero un-ticketed members left to create) | `Every member is already ticketed` — inline note above a disabled/absent `Create tickets` button, not a full empty-card (this is a sub-section empty, not a page empty) |
 | Error state (bulk-create partial failure — some tickets created, some failed) | `{N} of {M} tickets created` heading + amber inline banner: `{K} failed — {provider} returned HTTP {code} · Request ID {id}` + `Retry failed` button. Mirrors the existing partial-failure ticketing pattern (`state-patterns.md` §3), amber not red — the campaign itself is not broken. |
+| Error state (campaign create fails, network/5xx) | `Couldn't start campaign — try again.` (red-tinted toast, manual-dismiss per `state-patterns.md` "Toast notifications") |
+| Error state (campaign close fails, network/5xx) | `Couldn't close campaign — try again.` (red-tinted toast, manual-dismiss) |
 | Live-progress microcopy (burndown card) | `{pct}% remediated` (headline stat, mono) + `{open} open · {in_progress} in progress · {done} done` (breakdown row, mono counts) + `Campaign MTTR: {duration}` (mono duration, e.g. `4d 6h`) |
 | Live-membership caveat (D-03 — denominator can grow) | `{M} findings currently match this fix — including any discovered by later scans.` (small muted note under the member count, sets the "live" expectation so a growing denominator never reads as a bug) |
 | New-joiner-untracked note (D-10) | `{N} newly matched findings aren't ticketed yet.` + `Create tickets` link-through — surfaces D-10's "stays un-ticketed until re-run" behavior explicitly rather than silently |
@@ -119,7 +121,7 @@ Voice: peer, not butler. Sentence case. No exclamation marks, no "Please," no "U
 
 ## UI Considerations
 
-Applicable state considerations resolved: 9 covered, 3 backstop, 0 unresolved.
+Applicable state considerations resolved: 10 covered, 2 backstop, 0 unresolved.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
@@ -127,7 +129,7 @@ Applicable state considerations resolved: 9 covered, 3 backstop, 0 unresolved.
 | empty | Campaign detail, bulk-create sub-section (zero un-ticketed members) | ✅ covered | Renders the documented "Every member is already ticketed" inline note, `Create tickets` action absent/disabled rather than erroring |
 | loading | Campaign list / detail initial fetch | ✅ covered | Skeleton rows/cards per `state-patterns.md` §1 (shimmer skeleton, no black screen); compute-on-read (D-07) means every view load re-aggregates, so loading state is not a one-time cold-start concern |
 | error | Bulk-create partial failure (some tickets fail) | ✅ covered | Amber partial-failure banner + per-failure detail + `Retry failed`, per documented Error state row (never a full-page error when some tickets did succeed) |
-| error | Campaign action network/5xx failure (create/close) | 🧪 backstop | Falls back to the existing global toast-error pattern (red-tinted, manual-dismiss per `state-patterns.md` "Toast notifications") — no campaign-specific copy authored; verify at execution time that the generic toast fires and is legible |
+| error | Campaign action network/5xx failure (create/close) | ✅ covered | Campaign-specific red-tinted toast copy authored above (`Couldn't start campaign — try again.` / `Couldn't close campaign — try again.`), routed through the existing manual-dismiss toast pattern |
 | populated | Campaign detail with live burndown | ✅ covered | Status-color 3-bucket breakdown (open/in-progress/done) + mono MTTR stat, per Color and Copywriting Contract rows above |
 | populated | Campaign list with mixed active/complete campaigns | ✅ covered | Status pill (violet Active / green Complete) sorts/distinguishes rows; reuses existing status-pill chrome, no new visual language |
 | partial | Live membership growth mid-campaign (D-03) | ✅ covered | "{M} findings currently match..." caveat note documented in Copywriting Contract — denominator growth is explained, not silent |
@@ -155,9 +157,9 @@ This phase introduces **two views**, both composed from already-validated patter
 
 1. **Campaign entry point** — lives on the existing remediation-grouped view (a **list-with-side-panel-drill-down** pattern per `page-layouts.md` §3; this list itself does not yet have a frontend page and must be built this phase per `get_remediations_grouped()` — reuse the chip-bar-filter + table shell verbatim). Each grouped row gets a `Start campaign` secondary/CTA action; if D-11 finds an existing active campaign for that `remediation_id`, clicking routes straight to the campaign detail (no duplicate-create dialog, per the "opens the existing campaign" decision) — surface the redirect via the documented toast copy.
 
-2. **Campaign list view** (dedicated view per CAMP-01 "dedicated campaign view") — **list-with-side-panel-drill-down** pattern (`page-layouts.md` §3): chip-bar filters (status: Active/Complete), table columns = remediation label (mono) · member count · % remediated (mono, tabular-nums) · MTTR (mono) · status pill · owner-ticket count. Row click → 420px drill panel (not full navigation) showing a condensed version of the burndown, OR full navigation to a campaign detail page — **planner's discretion**, but if a full page is chosen it MUST use pattern 3 below, and if a side panel is chosen it MUST follow `interaction-patterns.md` §Drill-down side panel verbatim (420px, slide-in, × close, pink inset border on active row).
+2. **Campaign list view** (dedicated view per CAMP-01 "dedicated campaign view") — **list-with-side-panel-drill-down** pattern (`page-layouts.md` §3): chip-bar filters (status: Active/Complete), table columns = remediation label (mono) · member count · % remediated (mono, tabular-nums) · MTTR (mono) · status pill · owner-ticket count. Row click → 420px drill panel (not full navigation) showing a condensed version of the burndown, OR full navigation to a campaign detail page — **planner's discretion**, but if a full page is chosen it MUST use pattern 3 below, and if a side panel is chosen it MUST follow `interaction-patterns.md` §Drill-down side panel verbatim (420px, slide-in, × close, pink inset border on active row). **Focal point:** the eye should land on the status pill + % remediated column first — these two are the only accent-adjacent (violet/green) elements in an otherwise neutral row, everything else (mono label, counts, MTTR) stays `--color-text-muted`.
 
-3. **Campaign detail** (if implemented as its own page rather than the drill panel) — **two-column with sticky metadata rail** pattern (`page-layouts.md` §4): main column = member-findings table (reuse existing vuln-table chrome, filtered to this campaign's `remediation_id`) + owner/ticket breakdown card; right rail = burndown card (reuses the asset-detail risk-ring gradient-stroke SVG pattern, but the ring encodes "% remediated" instead of risk score, sunset-gradient stroke) + campaign MTTR + lifecycle actions (`Create tickets` CTA, `Close campaign` secondary).
+3. **Campaign detail** (if implemented as its own page rather than the drill panel) — **two-column with sticky metadata rail** pattern (`page-layouts.md` §4): main column = member-findings table (reuse existing vuln-table chrome, filtered to this campaign's `remediation_id`) + owner/ticket breakdown card; right rail = burndown card (reuses the asset-detail risk-ring gradient-stroke SVG pattern, but the ring encodes "% remediated" instead of risk score, sunset-gradient stroke) + campaign MTTR + lifecycle actions (`Create tickets` CTA, `Close campaign` secondary). **Focal point:** the sunset-gradient burndown ring in the rail is the single highest-contrast element on the page — it should draw the eye before the member table, exactly as the risk-ring does on `/assets/[id]`.
 
 4. **Navigation entry** — add a `Campaigns` item to `WORKFLOW_ITEMS` in `frontend/src/components/shell/nav-items.ts` (grouped alongside Tickets/Rules/Connectors/Asset groups, consistent with the existing single-source-of-truth nav pattern). No chip per the existing D-N-01 convention (campaigns aren't one of the three chip-carrying destinations: vuln_open / asset_total / ticket_open) unless the planner deliberately extends `ChipKey` — flagged as planner discretion, not decided here.
 
