@@ -5,10 +5,10 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 37
 current_phase_name: two-way-ticket-sync-remediation-verification
 status: executing
-stopped_at: Completed 36-04-PLAN.md
-last_updated: "2026-08-14T12:16:50.382Z"
-last_activity: 2026-08-14
-last_activity_desc: Phase 37 execution started
+stopped_at: Completed 37-04-PLAN.md (gap closure)
+last_updated: "2026-08-17T00:00:00.000Z"
+last_activity: 2026-08-17
+last_activity_desc: Phase 37 gap closure 37-04 executed — D-03 holds across whole ticketing surface; awaiting re-verification
 progress:
   total_phases: 10
   completed_phases: 0
@@ -45,10 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 37 (two-way-ticket-sync-remediation-verification) — GAPS FOUND (3/3 plans built; verification 6/7 must-haves)
-Plan: 3 of 3 built (37-01, 37-02, 37-03); phase NOT complete — 1 gap blocks goal
-Status: Verification gaps_found. D-03 violation remains in backend/app/ticketing/service.py (sync_ticket_status line 1246 + close_ticket line 1399 still call mark_vulnerability_remediated on ticket-done, no rescan gate) — the router-invoked twin 37-03 scoped only daily_sync.py. Reachable via POST /tickets/sync-status + /tickets/bulk-action. Next: /gsd-plan-phase 37 --gaps
-Last activity: 2026-08-17 — Phase 37 verified: SYNC-02/03/04 pass; SYNC-01 D-03 gap in service.py (poll-pass twin) blocks completion
+Phase: 37 (two-way-ticket-sync-remediation-verification) — GAP CLOSED, awaiting re-verification (4/4 plans built + executed)
+Plan: 4 of 4 built + executed (37-01, 37-02, 37-03, 37-04 gap closure)
+Status: D-03 twin gap CLOSED. 37-04 rewrote backend/app/ticketing/service.py::sync_ticket_status + close_ticket to drive findings to IN_PROGRESS (+ awaiting-rescan comment/audit) on ticket-done, never REMEDIATED — with the not-was_done_before / not-row_was_resolved idempotency guards. Ticketing-surface grep gate (mark_vulnerability_remediated under app/ticketing/) = 0; the two test_mttr.py regressions rewritten to IN_PROGRESS-only + double-call idempotency; 109 ticketing/mttr tests green. Executed inline (gsd-executor died 4x on machine-sleep API errors; user approved inline finish). Next: /gsd-verify-work 37 (expect 7/7).
+Last activity: 2026-08-17 — Phase 37 gap closure 37-04 executed: SYNC-01 D-03 now holds across the whole ticketing surface (scheduled poll + both router-invoked twins)
 
 ## v5.0 Phase Map
 
