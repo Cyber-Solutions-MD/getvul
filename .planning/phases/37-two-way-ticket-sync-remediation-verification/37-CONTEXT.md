@@ -54,6 +54,18 @@ ticket. No duplicate finding, no duplicate ticket. Requires the auto-close to be
 *soft* close (status transition + audit, row retained and re-findable by its identity
 key: tenant + source_vuln_id / cve+asset).
 
+### D-03 addendum — the whole ticketing surface obeys D-03, including manual close (gap closure 2026-08-17)
+Verification found the D-03 fix in Plan 37-03 was scoped to `daily_sync.py` only; the
+router-invoked twins in `ticketing/service.py` (`sync_ticket_status`, `close_ticket`) still
+force-close findings via `mark_vulnerability_remediated` on ticket-done. **Decision (user,
+gap closure): D-03 applies to BOTH.** Neither an inbound status sync NOR an analyst's explicit
+"Close Ticket" click may close a finding — the scanner re-scanning clean is the ONLY closure
+path. A done/closed ticket (however triggered) drives the linked finding to IN_PROGRESS +
+awaiting-rescan comment + `system:ticket-sync` audit, never REMEDIATED. The two `test_mttr.py`
+tests that lock in the old REMEDIATED-on-ticket-done behavior (`sync_ticket_status` and
+`close_ticket` variants) are rewritten to assert the IN_PROGRESS-only outcome.
+— **Reversibility:** costly — same precedence surface as D-03.
+
 ### Claude's Discretion (planner/researcher decide)
 - External→internal status mapping table (which Jira/Asana/GitHub states map to IN_PROGRESS
   vs "ticket done, awaiting rescan"), following D-03 (ticket done ≠ finding closed).

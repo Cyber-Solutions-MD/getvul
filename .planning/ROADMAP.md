@@ -112,12 +112,13 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
   3. A later recurrence of an auto-closed finding reopens it rather than silently creating a duplicate finding/ticket
   4. A connector or provider API outage never loses sync data — failed syncs retry, and the last-successful-sync state is surfaced per connector
 
-**Plans**: 3 plans
+**Plans**: 4 plans (37-04 = gap closure)
 
 Plans:
 - [x] 37-01-PLAN.md — TRACER: rescan-verified auto-close (SYNC-02): clean_scan_streak column + SUCCESS-branch absent-sweep + single-helper close
 - [x] 37-02-PLAN.md — SYNC-03: reopen-on-recurrence (soft-close resurrection of the same finding row, MTTR preserved)
 - [x] 37-03-PLAN.md — SYNC-01 D-03 split (ticket status → IN_PROGRESS, never closes) + SYNC-04 resilience/last-sync + external-ticket reopen
+- [ ] 37-04-PLAN.md — GAP CLOSURE (SYNC-01 / D-03 addendum): apply the daily_sync.py IN_PROGRESS-only pattern to service.py::sync_ticket_status + close_ticket (the router-invoked twins still force-closed findings) + rewrite the two test_mttr.py regressions
 
 > **Execution note (gsd-plan-checker F-2):** 37-02 and 37-03 are wave-2 with disjoint `files_modified`, but run 37-01 → then 37-02 → 37-03 **sequentially on `main`**, NOT in parallel worktrees (stale-base hazard: parallel executor worktrees can silently revert prior phases).
 
