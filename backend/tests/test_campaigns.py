@@ -1,10 +1,26 @@
 """Phase 38 Plan 01 (CAMP-01/CAMP-04) -- campaign persistence tracer slice.
 
+TRACER SLICE (Plan 01): migration + model + race-safe get-or-create (D-11) +
+list/detail read with compute-on-read progress (D-07/D-18) + audit (D-15) +
+RBAC (D-16). Per-owner bulk ticketing (CAMP-02, Plan 02) and full
+progress/MTTR + lifecycle (CAMP-03, Plan 03) build on this same persisted
+identity row in later plans -- this file intentionally does NOT test
+bulk-assign, close, or MTTR.
+
 Task 2: DB-level partial-unique-index proof for D-11 (exactly one ACTIVE
 campaign per (tenant_id, remediation_id); a CLOSED campaign's remediation_id
-accepts a fresh active campaign). Task 3 extends this same file with the
-get-or-create service + router (POST/GET/GET-detail) + audit + RBAC +
-compute-on-read progress tests.
+accepts a fresh active campaign).
+
+Task 3: get-or-create endpoint (audit-once, D-11 reopen semantics), the
+corrected compute-on-read progress filter (Pitfall 2 regression guard),
+the zero-member zero-guard (Pitfall 5), RBAC (D-16), and tenant scoping
+(T-38-01 IDOR defense).
+
+Uses the project's canonical inline-seed + client_factory pattern
+(test_asset_groups.py / test_asset_owner_reassign.py) -- an ad hoc
+`CurrentUser` (not persisted to the `users` table) stands in for "a tenant_b
+analyst" since `client_factory`'s dependency override bypasses
+`get_current_user` entirely.
 
 Backend env gotcha (MEMORY.md `getvul-backend-pytest-env`): run with a REAL
 Fernet ENCRYPTION_KEY (`Fernet.generate_key()`, NOT a placeholder string) +
@@ -18,9 +34,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.audit import AuditLog
+from app.auth.schemas import CurrentUser
 from app.campaigns.models import Campaign
+from app.vulnerabilities.models import Vulnerability
 
 
 def _make_campaign(tenant_id: uuid.UUID, remediation_id: str, **overrides: Any) -> Campaign:
@@ -30,6 +50,34 @@ def _make_campaign(tenant_id: uuid.UUID, remediation_id: str, **overrides: Any) 
     }
     defaults.update(overrides)
     return Campaign(**defaults)
+
+
+def _seed_vuln(tenant_id: uuid.UUID, remediation_id: str, *, status: str = "OPEN") -> Vulnerability:
+    now = datetime.now(UTC)
+    return Vulnerability(
+        tenant_id=tenant_id,
+        cve_id=f"CVE-CAMP-{uuid.uuid4().hex[:6]}",
+        severity="HIGH",
+        status=status,
+        source="MOCK",
+        source_vuln_id=str(uuid.uuid4()),
+        remediation_id=remediation_id,
+        first_detected_at=now - timedelta(days=3),
+        last_seen_at=now,
+    )
+
+
+def _analyst_user_for(tenant_id: uuid.UUID) -> CurrentUser:
+    """An ad hoc ANALYST `CurrentUser` scoped to `tenant_id` -- no DB row
+    needed since `client_factory`'s dependency override bypasses
+    `get_current_user` entirely (mirrors test_asset_groups.py's
+    `_admin_user_for`)."""
+    return CurrentUser(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        email=f"analyst-{uuid.uuid4().hex[:8]}@test.local",
+        role="ANALYST",
+    )
 
 
 # ── Task 2: D-11 partial unique index (DB-constraint proof) ─────────────────
@@ -76,3 +124,196 @@ async def test_new_campaign_after_close(db_session, tenant_a):
 
     assert reopened.closed_at is None
     assert reopened.id != closed.id
+
+
+# ── Task 3: get-or-create endpoint + audit (D-11/D-15) ───────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_campaign_new(client_factory, db_session, tenant_a, analyst_user):
+    """POST with a fresh remediation_id -> 200, persists a row,
+    already_existed=false, and writes exactly one campaign.create audit row."""
+    await db_session.commit()  # tenant_a + analyst_user must be visible to the app's own session (FK)
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["remediation_id"] == remediation_id
+    assert body["already_existed"] is False
+    campaign_id = body["id"]
+
+    r = await analyst_client.get("/api/v1/campaigns")
+    assert r.status_code == 200, r.text
+    assert any(c["id"] == campaign_id for c in r.json())
+
+    audit_rows = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.tenant_id == tenant_a,
+                    AuditLog.action == "campaign.create",
+                    AuditLog.resource_id == campaign_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audit_rows) == 1, f"expected exactly 1 campaign.create audit row, got {len(audit_rows)}"
+
+
+@pytest.mark.asyncio
+async def test_create_campaign_reopens_existing(client_factory, db_session, tenant_a, analyst_user):
+    """POST again on the same active remediation_id -> 200,
+    already_existed=true, NO new row, NO second audit row (D-11)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    analyst_client = client_factory(analyst_user)
+    r1 = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r1.status_code == 200, r1.text
+    campaign_id = r1.json()["id"]
+    assert r1.json()["already_existed"] is False
+
+    r2 = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["already_existed"] is True
+    assert r2.json()["id"] == campaign_id
+
+    row_count = (
+        await db_session.execute(
+            select(func.count())
+            .select_from(Campaign)
+            .where(Campaign.tenant_id == tenant_a, Campaign.remediation_id == remediation_id)
+        )
+    ).scalar_one()
+    assert row_count == 1, f"expected exactly 1 campaigns row, got {row_count}"
+
+    audit_rows = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.tenant_id == tenant_a,
+                    AuditLog.action == "campaign.create",
+                    AuditLog.resource_id == campaign_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audit_rows) == 1, f"expected exactly 1 campaign.create audit row (no second), got {len(audit_rows)}"
+
+
+# ── Task 3: compute-on-read progress (D-07/D-18, Pitfall 2/5 regression) ────
+
+
+@pytest.mark.asyncio
+async def test_progress_counts_include_remediated(client_factory, db_session, tenant_a, analyst_user):
+    """A REMEDIATED member IS counted in `done` (Pitfall 2 regression guard
+    -- naively reusing remediation_service.py's _base_open_vulns() would
+    exclude REMEDIATED entirely and permanently read 0% done).
+    SUPPRESSED/FALSE_POSITIVE members are excluded from the denominator
+    entirely (D-18)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    db_session.add_all(
+        [
+            _seed_vuln(tenant_a, remediation_id, status="OPEN"),
+            _seed_vuln(tenant_a, remediation_id, status="IN_PROGRESS"),
+            _seed_vuln(tenant_a, remediation_id, status="REMEDIATED"),
+            _seed_vuln(tenant_a, remediation_id, status="REMEDIATED"),
+            _seed_vuln(tenant_a, remediation_id, status="SUPPRESSED"),
+            _seed_vuln(tenant_a, remediation_id, status="FALSE_POSITIVE"),
+        ]
+    )
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # total = OPEN + IN_PROGRESS + 2x REMEDIATED = 4 (SUPPRESSED/FALSE_POSITIVE excluded, D-18)
+    assert body["total"] == 4, body
+    assert body["done"] == 2, body
+    assert body["in_progress"] == 1, body
+    assert body["open"] == 1, body
+    assert body["pct_remediated"] == 50, body
+    assert body["status"] == "ACTIVE", body  # not 100% -- still active
+
+
+@pytest.mark.asyncio
+async def test_progress_zero_member_no_crash(client_factory, db_session, tenant_a, analyst_user):
+    """A zero-member remediation_id renders pct_remediated=0 with HTTP 200
+    -- never a 500 from ZeroDivisionError (Pitfall 5), and never
+    misreported as COMPLETE (0/0 is not 100%)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["total"] == 0
+    assert body["open"] == 0
+    assert body["in_progress"] == 0
+    assert body["done"] == 0
+    assert body["pct_remediated"] == 0
+    assert body["status"] == "ACTIVE"
+
+
+# ── Task 3: RBAC (D-16) + tenant isolation (T-38-01 IDOR) ────────────────────
+
+
+@pytest.mark.asyncio
+async def test_campaign_rbac(client_factory, db_session, tenant_a, analyst_user, viewer_user):
+    """A viewer gets 403 on POST; a viewer CAN GET (list + detail)."""
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": f"remediation-{uuid.uuid4().hex[:8]}"})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    viewer_client = client_factory(viewer_user)
+    r = await viewer_client.post("/api/v1/campaigns", json={"remediation_id": f"remediation-{uuid.uuid4().hex[:8]}"})
+    assert r.status_code == 403, r.text
+
+    r = await viewer_client.get("/api/v1/campaigns")
+    assert r.status_code == 200, r.text
+
+    r = await viewer_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.asyncio
+async def test_campaign_cross_tenant_isolation(client_factory, db_session, tenant_a, tenant_b, analyst_user):
+    """A campaign from tenant A is invisible to tenant B -- 404 on detail
+    (not a fetch-then-403; existence stays private, T-38-01) and absent
+    from tenant B's list."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    tenant_b_analyst = client_factory(_analyst_user_for(tenant_b))
+    r = await tenant_b_analyst.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 404, r.text
+
+    r = await tenant_b_analyst.get("/api/v1/campaigns")
+    assert r.status_code == 200, r.text
+    assert all(c["id"] != campaign_id for c in r.json())

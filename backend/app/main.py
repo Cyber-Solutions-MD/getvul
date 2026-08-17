@@ -28,6 +28,7 @@ from app.assets.router import router as asset_router
 from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
 from app.auth.schemas import CurrentUser
+from app.campaigns.router import router as campaigns_router
 from app.config import settings
 from app.connectors.router import router as connector_router
 from app.cspm.router import router as cspm_router
@@ -315,6 +316,7 @@ def create_app() -> FastAPI:
     app.include_router(cspm_router, prefix="/api/v1/cspm", tags=["CSPM"])
     app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
     app.include_router(tickets_router, prefix="/api/v1/tickets", tags=["Tickets"])
+    app.include_router(campaigns_router, prefix="/api/v1/campaigns", tags=["Campaigns"])
 
     app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
     app.include_router(search_router, prefix="/api/v1", tags=["Search"])
