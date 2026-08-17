@@ -45,10 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 37 (two-way-ticket-sync-remediation-verification) — EXECUTING (all 3 plans built; awaiting verification)
-Plan: 3 of 3 complete (37-01, 37-02, 37-03)
-Status: All plans executed sequentially on main (worktree isolation auto-disabled — #683 stale-base); post-merge gate green (94 tests); running phase verification
-Last activity: 2026-08-15 — 37-02 (reopen-on-recurrence, SYNC-03) + 37-03 (D-03 ticket-status split → IN_PROGRESS never closes, SYNC-01; SYNC-04 resilience/last-sync + external reopen) complete
+Phase: 37 (two-way-ticket-sync-remediation-verification) — GAPS FOUND (3/3 plans built; verification 6/7 must-haves)
+Plan: 3 of 3 built (37-01, 37-02, 37-03); phase NOT complete — 1 gap blocks goal
+Status: Verification gaps_found. D-03 violation remains in backend/app/ticketing/service.py (sync_ticket_status line 1246 + close_ticket line 1399 still call mark_vulnerability_remediated on ticket-done, no rescan gate) — the router-invoked twin 37-03 scoped only daily_sync.py. Reachable via POST /tickets/sync-status + /tickets/bulk-action. Next: /gsd-plan-phase 37 --gaps
+Last activity: 2026-08-17 — Phase 37 verified: SYNC-02/03/04 pass; SYNC-01 D-03 gap in service.py (poll-pass twin) blocks completion
 
 ## v5.0 Phase Map
 
