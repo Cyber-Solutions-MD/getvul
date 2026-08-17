@@ -1,7 +1,7 @@
 ---
 phase: 38
 slug: remediation-campaigns
-status: draft
+status: approved
 shadcn_initialized: true
 preset: "style=new-york, baseColor=zinc, cssVariables=true, iconLibrary=lucide (sunset theme overrides zinc via CSS vars — see foundation.md)"
 created: 2026-08-17
@@ -121,22 +121,55 @@ Voice: peer, not butler. Sentence case. No exclamation marks, no "Please," no "U
 
 ## UI Considerations
 
-Applicable state considerations resolved: 10 covered, 2 backstop, 0 unresolved.
+State-coverage axis, reconciled against the `ui-consideration-probe` output (40 applicable
+considerations across 7 surfaces). **21 covered · 10 backstop · 9 dismissed · 0 unresolved.**
+Surfaces probed: **E1** campaign list view · **E2** campaign detail view · **E3** remediation-grouped
+entry point · **E4** bulk-create-tickets CTA · **E5** close-campaign confirmation · **E6** burndown
+card · **E7** `Campaigns` nav item. Copy for covered states lives in the Copywriting Contract above —
+these rows carry the STATE resolution and reference that copy rather than restating it (de-dup).
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | Campaign list (zero campaigns ever launched) | ✅ covered | Empty state renders the documented "No campaigns yet" heading + body + "View remediation groups" CTA (see Copywriting Contract) |
-| empty | Campaign detail, bulk-create sub-section (zero un-ticketed members) | ✅ covered | Renders the documented "Every member is already ticketed" inline note, `Create tickets` action absent/disabled rather than erroring |
-| loading | Campaign list / detail initial fetch | ✅ covered | Skeleton rows/cards per `state-patterns.md` §1 (shimmer skeleton, no black screen); compute-on-read (D-07) means every view load re-aggregates, so loading state is not a one-time cold-start concern |
-| error | Bulk-create partial failure (some tickets fail) | ✅ covered | Amber partial-failure banner + per-failure detail + `Retry failed`, per documented Error state row (never a full-page error when some tickets did succeed) |
-| error | Campaign action network/5xx failure (create/close) | ✅ covered | Campaign-specific red-tinted toast copy authored above (`Couldn't start campaign — try again.` / `Couldn't close campaign — try again.`), routed through the existing manual-dismiss toast pattern |
-| populated | Campaign detail with live burndown | ✅ covered | Status-color 3-bucket breakdown (open/in-progress/done) + mono MTTR stat, per Color and Copywriting Contract rows above |
-| populated | Campaign list with mixed active/complete campaigns | ✅ covered | Status pill (violet Active / green Complete) sorts/distinguishes rows; reuses existing status-pill chrome, no new visual language |
-| partial | Live membership growth mid-campaign (D-03) | ✅ covered | "{M} findings currently match..." caveat note documented in Copywriting Contract — denominator growth is explained, not silent |
-| partial | New live-joined members untracked by tickets (D-10) | ✅ covered | "{N} newly matched findings aren't ticketed yet" note + `Create tickets` link-through, documented above |
-| overflow | Many owners in one campaign (D-04 one-ticket-per-owner, campaign could span 20+ owners) | 🧪 backstop | Owner/ticket breakdown list should follow the existing table pagination pattern (`interaction-patterns.md` §Pagination, mono numbers, "Showing 1–10 of N") if the per-owner ticket list exceeds ~10 rows; no dedicated campaign-scale mockup exists — verify the planner wires pagination or a scroll container rather than an unbounded list |
-| overflow | Long remediation label (product/patch name) as campaign title | 🧪 backstop | Truncate with ellipsis + full string in a `title` attribute / tooltip, matching the existing table-cell truncation convention used for long vuln titles; no campaign-specific mockup — verify at execution |
-| zero-one-many | Campaign with exactly 1 member vs. many | ✅ covered | Breakdown/MTTR copy uses numerals throughout (`1 finding` not pluralization-fragile phrasing avoided by using counts, e.g. "{M} findings currently match" reads fine at M=1 as "1 findings" — **planner must singularize this string at M=1**, flagged here so it isn't missed) |
+**Cross-cutting resolution (applies to E1/E2/E3/E6):** initial data-**load** failure renders the
+**full-screen error card + `Retry`** pattern (`state-patterns.md` §Error) — the established
+convention for every authed screen. Recorded as `backstop` (no campaign-specific mockup exists;
+verify at execution). This is distinct from the *action* errors (create/close/bulk) already covered
+in the Copywriting Contract.
+
+| Surface | Category | Status | Resolution / Reason |
+|---------|----------|--------|---------------------|
+| E1 Campaign list | empty | ✅ covered | "No campaigns yet" heading + body + "View remediation groups" CTA (Copywriting Contract) |
+| E1 Campaign list | loading | ✅ covered | Shimmer skeleton rows per `state-patterns.md` §1 (no black screen); compute-on-read (D-07) re-aggregates every load |
+| E1 Campaign list | error (load) | 🧪 backstop | `{ statement: "Full-screen error card + Retry per state-patterns.md §Error on list-fetch failure", verification: backstop }` |
+| E1 Campaign list | populated | ✅ covered | Mixed active/complete rows; violet-Active / green-Complete status pill distinguishes + sorts (Color + Layout §2) |
+| E1 Campaign list | partial | ✅ covered | Per-row aggregates (%, MTTR) are server-computed on read (D-07) — a row is never half-loaded; no partial-row state to design |
+| E1 Campaign list | overflow | 🧪 backstop | `{ statement: "Many campaigns → table pagination 'Showing 1–10 of N' per interaction-patterns.md §Pagination, mono numbers", verification: backstop }` |
+| E1 Campaign list | zero-one-many | ✅ covered | Numerals throughout; **planner must singularize "{M} findings" at M=1** (flagged, mirrors the M=1 gotcha below) |
+| E1 Campaign list | long-text | 🧪 backstop | `{ statement: "Long remediation label → ellipsis + full string in title tooltip, per existing table-cell truncation", verification: backstop }` |
+| E2 Campaign detail | empty | ✅ covered | Bulk-create sub-section empty → "Every member is already ticketed" inline note, `Create tickets` absent/disabled (Copywriting Contract) |
+| E2 Campaign detail | loading | ✅ covered | Skeleton cards per `state-patterns.md` §1 |
+| E2 Campaign detail | error (load) | 🧪 backstop | `{ statement: "Full-screen error card + Retry per state-patterns.md §Error on detail-fetch failure", verification: backstop }` |
+| E2 Campaign detail | populated | ✅ covered | Burndown ring + member-findings table + owner/ticket breakdown card (Color + Layout §3) |
+| E2 Campaign detail | partial | ✅ covered | D-03 live-growth caveat ("{M} findings currently match…") + D-10 new-joiner-untracked note (Copywriting Contract) |
+| E2 Campaign detail | overflow | 🧪 backstop | `{ statement: "Many owners (D-04, 20+) → per-owner list pagination / scroll container, not an unbounded list", verification: backstop }` |
+| E2 Campaign detail | zero-one-many | ✅ covered | Exactly-1-member copy uses counts; singularization flag (below) applies |
+| E2 Campaign detail | long-text | 🧪 backstop | `{ statement: "Long remediation label as detail title → ellipsis + title tooltip, per table-cell truncation convention", verification: backstop }` |
+| E3 Entry point (remediation-grouped) | empty | ✅ covered | New page renders standard empty state — "No remediation groups yet" (nothing shares a fix to campaign) — reuses `state-patterns.md` empty pattern |
+| E3 Entry point | loading | ✅ covered | Skeleton rows per `state-patterns.md` §1 (this list is built this phase — chip-bar + table shell) |
+| E3 Entry point | error (load) | 🧪 backstop | `{ statement: "Full-screen error card + Retry per state-patterns.md §Error on remediation-grouped fetch failure", verification: backstop }` |
+| E3 Entry point | populated | ✅ covered | Chip-bar-filter + table of grouped rows, each with a `Start campaign` CTA; active-group click routes to existing campaign + redirect toast (D-11, Layout §1) |
+| E3 Entry point | partial | ✅ covered | `get_remediations_grouped()` aggregates server-side (D-07) — rows are whole; no partial-row state |
+| E3 Entry point | overflow | 🧪 backstop | `{ statement: "Many remediation groups → same table pagination pattern as E1", verification: backstop }` |
+| E3 Entry point | zero-one-many | ✅ covered | Numerals throughout; member-count column reads at 0/1/many with the same singularization discipline |
+| E4 Bulk-create CTA | long-text | ✅ covered | Label is `Create N tickets` — N is a mono count, not free text; no unbounded string, so no truncation surface |
+| E5 Close-campaign confirm | long-text | 🧪 backstop | `{ statement: "AlertDialog body embeds {remediation label}; long label WRAPS within the dialog (not width-clamped like a cell) — verify wrap not clip", verification: backstop }` |
+| E6 Burndown card | empty | ✅ covered | Zero-member campaign → ring shows 0%, breakdown "0 open · 0 in progress · 0 done"; renders, never crashes on a 0/0 denominator |
+| E6 Burndown card | loading | ✅ covered | Skeleton ring/card per `state-patterns.md` §1 |
+| E6 Burndown card | error (load) | 🧪 backstop | `{ statement: "Rides the E2 detail full-screen error card; no independent card-level error fallback needed", verification: backstop }` |
+| E6 Burndown card | populated | ✅ covered | `{pct}% remediated` mono headline + 3-bucket status breakdown + `Campaign MTTR` (Color + Copywriting Contract) |
+| E6 Burndown card | partial | ✅ covered | D-03 live growth reflected in the denominator live; the caveat note sets the "growing" expectation |
+| E6 Burndown card | overflow | ⛔ dismissed | Fixed-size gradient ring + fixed 3-bucket row — no growable content, no overflow surface |
+| E6 Burndown card | zero-one-many | ✅ covered | Counts read at 0/1/many; singularization flag applies to the breakdown copy |
+| E7 `Campaigns` nav item | empty·loading·error·populated·partial·overflow·zero-one-many·long-text | ⛔ dismissed (×8) | Single static sidebar link rendered from the `WORKFLOW_ITEMS` array with a fixed label ("Campaigns") — no fetch, no collection, no submit, so it has no data-bound states; classifier tripped list/nav cues from the prose but the element itself is static-content |
+| — zero-one-many gotcha (all count strings) | zero-one-many | ✅ covered | **Planner must singularize count strings at M=1** — e.g. "{M} findings currently match" reads as "1 findings" at M=1; flagged here so it isn't missed across the burndown breakdown, member count, and owner count |
 
 ---
 
@@ -169,11 +202,11 @@ This phase introduces **two views**, both composed from already-validated patter
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (gsd-ui-checker, revision 1) — 6/6 dimensions PASS
