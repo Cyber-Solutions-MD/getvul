@@ -134,7 +134,12 @@ Plans:
   3. Per-campaign progress (open / in-progress / done, % remediated) and campaign MTTR update live as linked tickets/findings change
   4. Every campaign action (create, bulk-assign, close) is audited
 
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 38-01-PLAN.md — TRACER: campaigns table + model + race-safe get-or-create + list/detail read + audit/RBAC
+- [ ] 38-02-PLAN.md — CAMP-02 per-owner bulk-create/adopt tickets + bulk-assign endpoint
+- [ ] 38-03-PLAN.md — CAMP-03 progress/MTTR + manual close + lazy auto-complete/reactivate audit
+- [ ] 38-04-PLAN.md — Campaign list view + nav + status ribbon + use-campaigns hook
+- [ ] 38-05-PLAN.md — Remediation-grouped entry point + burndown detail + Create/Close actions
 **UI hint**: yes
 
 ### Phase 39: Exception & Risk-Acceptance Workflow
