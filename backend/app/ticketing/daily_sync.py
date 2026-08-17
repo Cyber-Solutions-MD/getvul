@@ -15,7 +15,11 @@ from app.audit import AuditLog
 from app.connectors.service import get_decrypted_credentials
 from app.connectors.sync import _sanitize_error
 from app.ticketing.models import ConnectorConfig, SyncLog, Ticket
-from app.ticketing.service import map_ticket_status
+from app.ticketing.service import (
+    _AWAITING_RESCAN_COMMENT,
+    _was_previously_done,
+    map_ticket_status,
+)
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
@@ -26,24 +30,12 @@ logger = structlog.get_logger()
 _MAX_SYNC_ATTEMPTS = 3
 _RETRY_BACKOFF_SECONDS = (1, 2, 4)
 
-# Phase 37 Plan 03 / D-03: the set of stored `Ticket.external_status` values
-# that mean "this ticket was already observed done/closed as of the LAST
-# poll cycle" per provider. Used to distinguish a fresh done-transition
-# (fire the IN_PROGRESS + comment + audit branch, once) from a recurrence
-# (the ticket was ALREADY done and the linked finding is OPEN again --
-# SYNC-03/D-04: reopen the external ticket instead) from steady-state
-# (ticket still done, finding still IN_PROGRESS/REMEDIATED/SUPPRESSED --
-# no-op, avoids re-commenting every 24h cycle).
-_DONE_EXTERNAL_STATUSES: dict[str, set[str]] = {
-    "ASANA": {"completed"},
-    "JIRA": {"done", "closed", "resolved", "completed"},
-    "GITHUB": {"closed"},
-}
-
-_AWAITING_RESCAN_COMMENT = (
-    "Ticket marked done — awaiting rescan verification before this finding is closed. "
-    "GetVul only closes a finding once the scanner confirms it is gone (2 consecutive clean scans)."
-)
+# Phase 37 Plan 04: `_DONE_EXTERNAL_STATUSES`, `_AWAITING_RESCAN_COMMENT`, and
+# `_was_previously_done` moved to service.py (single owner, imported above) --
+# service.py's `sync_ticket_status`/`close_ticket` router-invoked twins need
+# the exact same fresh-transition guard this module pioneered, and
+# service.py already owns `map_ticket_status`, so promoting them there
+# avoids a circular import (this module already imports FROM service.py).
 _RECURRENCE_COMMENT = "Recurrence detected — the scanner re-detected this vulnerability. Reopening this ticket."
 
 # Jira's default simplified-workflow "not started" status name -- the
@@ -52,12 +44,6 @@ _RECURRENCE_COMMENT = "Recurrence detected — the scanner re-detected this vuln
 # logs a "no matching transition" warning via JiraClient.transition's own
 # existing no-op-on-no-match behavior, never raises).
 _JIRA_OPEN_TRANSITION_TARGET = "To Do"
-
-
-def _was_previously_done(provider: str, external_status: str | None) -> bool:
-    if not external_status:
-        return False
-    return external_status.lower() in _DONE_EXTERNAL_STATUSES.get(provider, set())
 
 
 async def _sync_with_retry(sync_coro_fn, *args):

@@ -23,6 +23,7 @@ from sqlalchemy import String, case, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.audit import AuditLog
 from app.ticketing.dispatch import TicketingClient
 from app.ticketing.models import Ticket
 from app.ticketing.providers import TicketProvider
@@ -1089,39 +1090,44 @@ async def get_ticket_stats(db: AsyncSession, tenant_id: uuid.UUID) -> TicketStat
     )
 
 
-def _is_ticket_completed(provider: str, payload: dict[str, Any]) -> bool:
-    """Interpret a provider's raw `client.get(ref)` payload as done/not-done.
+# Phase 37 Plan 04 (promoted from daily_sync.py -- single owner here;
+# daily_sync.py imports these three back, since it already imports
+# map_ticket_status from this module and the reverse would be circular):
+# the set of stored `Ticket.external_status` values that mean "this ticket
+# was already observed done/closed as of the LAST poll/sync cycle" per
+# provider, the awaiting-rescan comment text, and the fresh-transition guard
+# built on the status set. Used everywhere a done ticket read must fire the
+# IN_PROGRESS + comment + audit branch exactly ONCE per real transition --
+# never on every re-poll or every re-click of an already-done ticket.
+_DONE_EXTERNAL_STATUSES: dict[str, set[str]] = {
+    "ASANA": {"completed"},
+    "JIRA": {"done", "closed", "resolved", "completed"},
+    "GITHUB": {"closed"},
+}
 
-    Each provider's raw shape differs (dispatch.py's `get()` deliberately
-    returns the raw provider payload, not a normalized one) — this is the one
-    place that knows how to read all three: Asana's `completed` bool, Jira's
-    status-category/name, GitHub's `state` string.
-    """
-    if provider == TicketProvider.ASANA:
-        return bool(payload.get("completed"))
-    if provider == TicketProvider.JIRA:
-        status = payload.get("fields", {}).get("status", {})
-        category = status.get("statusCategory", {}).get("key", "")
-        name = status.get("name", "")
-        return category == "done" or name.lower() in ("done", "closed", "resolved", "completed")
-    if provider == TicketProvider.GITHUB:
-        return payload.get("state") == "closed"
-    return False
+_AWAITING_RESCAN_COMMENT = (
+    "Ticket marked done — awaiting rescan verification before this finding is closed. "
+    "GetVul only closes a finding once the scanner confirms it is gone (2 consecutive clean scans)."
+)
 
 
-# ── Phase 37 Plan 03 / SYNC-01 / D-03 ────────────────────────────────────────
+def _was_previously_done(provider: str, external_status: str | None) -> bool:
+    if not external_status:
+        return False
+    return external_status.lower() in _DONE_EXTERNAL_STATUSES.get(provider, set())
+
+
+# ── Phase 37 Plan 03/04 / SYNC-01 / D-03 ─────────────────────────────────────
 #
-# map_ticket_status is the D-03-safe superset of _is_ticket_completed above:
-# where that helper collapses a payload to a bare done/not-done bool (used by
-# the OUTBOUND auto-close paths, unaffected by this phase), this one maps a
-# provider's raw status payload to a workflow INTENT string that daily_sync.py
-# uses to drive INBOUND status back onto the linked finding. It intentionally
-# has no "remediated" intent value -- a done/closed/completed ticket can only
-# ever produce "done_awaiting_rescan" (drives IN_PROGRESS + a comment), never
-# a closure. T-37-08 (V5 input validation): every read is `.get(...)` with a
-# default, so a malformed/garbage/empty payload can never raise -- it falls
-# through to "unknown", which callers must treat as a no-op + log, never a
-# close.
+# map_ticket_status maps a provider's raw status payload to a workflow
+# INTENT string that BOTH daily_sync.py's scheduled poll AND this module's
+# own sync_ticket_status() use to drive INBOUND status back onto the linked
+# finding. It intentionally has no "remediated" intent value -- a
+# done/closed/completed ticket can only ever produce "done_awaiting_rescan"
+# (drives IN_PROGRESS + a comment), never a closure. T-37-08 (V5 input
+# validation): every read is `.get(...)` with a default, so a
+# malformed/garbage/empty payload can never raise -- it falls through to
+# "unknown", which callers must treat as a no-op + log, never a close.
 
 
 def map_ticket_status(provider: str, payload: dict[str, Any]) -> str:
@@ -1187,6 +1193,17 @@ async def sync_ticket_status(
     failure, so one missing connector doesn't abort sync for the others.
 
     Also checks for partially remediated hosts and adds progress comments.
+
+    D-03 addendum (Phase 37 Plan 04): a done/completed/closed ticket read
+    drives the linked finding to IN_PROGRESS (+ an awaiting-rescan comment +
+    a system:ticket-sync audit row) via `map_ticket_status`'s intent
+    taxonomy -- it NEVER calls `mark_vulnerability_remediated` and NEVER
+    sets `ticket.resolved_at` on this arm (closure stays rescan-verified
+    only, SYNC-02). Gated on `not was_done_before` (captured BEFORE this
+    cycle's own `external_status` overwrite) so a steady-state re-poll is a
+    no-op on the finding -- no repeat comment, no duplicate audit row. The
+    second pass below (auto-close the TICKET when all linked findings are
+    ALREADY remediated by rescan) is unaffected and preserved.
     """
     result = await db.execute(
         select(Ticket).where(
@@ -1220,6 +1237,10 @@ async def sync_ticket_status(
         commented_tasks: set[str] = set()
 
         for ticket in provider_tickets:
+            # Captured BEFORE any external_status overwrite below -- the
+            # fresh-transition guard that makes a steady-state re-poll a
+            # no-op on the finding (D-03 addendum).
+            was_done_before = _was_previously_done(provider, ticket.external_status)
             ref = ticket.external_ticket_id.split(":")[0]
 
             if ref not in task_cache:
@@ -1231,21 +1252,48 @@ async def sync_ticket_status(
 
             synced += 1
 
-            if _is_ticket_completed(provider, payload):
+            intent = map_ticket_status(provider, payload)
+
+            if intent == "done_awaiting_rescan":
+                # D-03 addendum: a done/closed/completed ticket read drives
+                # the linked finding to IN_PROGRESS -- NEVER REMEDIATED.
+                # Closure is rescan-verified only (SYNC-02). No
+                # `ticket.resolved_at` write here -- the ticket stays
+                # poll-able until the scanner confirms the fix.
                 ticket.external_status = "completed"
-                ticket.resolved_at = datetime.now(UTC)
-                resolved += 1
-                # Mark vulnerability as remediated -- D-09/Pitfall 6: routed
-                # through the single mark_vulnerability_remediated helper so
-                # the durable MTTR remediation-event row is never missed.
                 vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
                 vuln = vuln_result.scalar_one_or_none()
-                if vuln and vuln.status != "REMEDIATED":
-                    from app.vulnerabilities.service import mark_vulnerability_remediated
-
-                    await mark_vulnerability_remediated(db, vuln)
-            else:
+                if vuln and not was_done_before and vuln.status in ("OPEN", "IN_PROGRESS"):
+                    vuln.status = "IN_PROGRESS"
+                    await client.comment(ref, _AWAITING_RESCAN_COMMENT)
+                    db.add(
+                        AuditLog(
+                            tenant_id=vuln.tenant_id,
+                            user_id=None,
+                            user_email="system:ticket-sync",
+                            action="vuln.ticket_status_sync",
+                            resource_type="vulnerability",
+                            resource_id=str(vuln.id),
+                            details={"provider": provider, "ticket_id": str(ticket.id), "new_status": "IN_PROGRESS"},
+                            ip_address=None,
+                            created_at=datetime.now(UTC),
+                        )
+                    )
+            elif intent == "in_progress":
+                # Plain, side-effect-free status set -- no comment/audit
+                # (mirrors daily_sync.py's Jira in_progress branch). "In
+                # progress" is the everyday, long-lived steady state for
+                # most open tickets; commenting/auditing here would spam
+                # nearly every ticket on nearly every sync click.
                 ticket.external_status = "open"
+                vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
+                vuln = vuln_result.scalar_one_or_none()
+                if vuln and vuln.status == "OPEN":
+                    vuln.status = "IN_PROGRESS"
+            elif intent == "open":
+                ticket.external_status = "open"
+            else:
+                logger.warning("ticket_status_unknown", provider=provider, ticket_id=str(ticket.id))
 
         # For open host tickets, check if any vulns were remediated and post a progress comment
         # Group open tickets by ref
@@ -1382,21 +1430,48 @@ async def close_ticket(
     ref = tickets[0].external_ticket_id.split(":")[0]
     await client.close(ref)
 
-    # Resolve all ticket rows and their vulns
-    resolved_vulns = 0
+    # Resolve all ticket rows; drive each linked finding to IN_PROGRESS.
+    # D-03 addendum (Phase 37 Plan 04): a manual "Close Ticket" click is an
+    # explicit human action on the TICKET, but it NEVER force-closes a
+    # finding the scanner still detects -- closure is rescan-verified only
+    # (SYNC-02). A linked OPEN/IN_PROGRESS finding is driven to IN_PROGRESS
+    # (+ an awaiting-rescan audit row), never REMEDIATED. Gated on
+    # `not row_was_resolved` (captured BEFORE the resolved_at overwrite) so a
+    # repeat close on an already-resolved ticket URL is a no-op on the
+    # finding -- no duplicate audit row, no repeat comment.
+    findings_awaiting_rescan = 0
     for ticket in tickets:
+        row_was_resolved = ticket.resolved_at is not None
         ticket.external_status = "completed"
         ticket.resolved_at = now
 
         vuln_result = await db.execute(select(Vulnerability).where(Vulnerability.id == ticket.vulnerability_id))
         vuln = vuln_result.scalar_one_or_none()
-        if vuln and vuln.status not in ("REMEDIATED", "SUPPRESSED"):
-            # D-09/Pitfall 6: routed through the single
-            # mark_vulnerability_remediated helper so the durable MTTR
-            # remediation-event row is never missed.
-            from app.vulnerabilities.service import mark_vulnerability_remediated
+        if not row_was_resolved and vuln and vuln.status in ("OPEN", "IN_PROGRESS"):
+            vuln.status = "IN_PROGRESS"
+            db.add(
+                AuditLog(
+                    tenant_id=vuln.tenant_id,
+                    user_id=None,
+                    user_email="system:ticket-sync",
+                    action="vuln.ticket_status_sync",
+                    resource_type="vulnerability",
+                    resource_id=str(vuln.id),
+                    details={
+                        "provider": provider,
+                        "ticket_id": str(ticket.id),
+                        "new_status": "IN_PROGRESS",
+                        "trigger": "manual_close",
+                    },
+                    ip_address=None,
+                    created_at=datetime.now(UTC),
+                )
+            )
+            findings_awaiting_rescan += 1
 
-            await mark_vulnerability_remediated(db, vuln)
-            resolved_vulns += 1
+    # One awaiting-rescan comment for the ref (not per-row) when at least one
+    # finding transitioned -- avoids spamming the ticket.
+    if findings_awaiting_rescan > 0:
+        await client.comment(ref, _AWAITING_RESCAN_COMMENT)
 
-    return {"closed": True, "tickets_resolved": len(tickets), "vulns_remediated": resolved_vulns}
+    return {"closed": True, "tickets_resolved": len(tickets), "findings_awaiting_rescan": findings_awaiting_rescan}
