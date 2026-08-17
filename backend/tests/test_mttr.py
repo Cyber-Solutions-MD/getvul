@@ -34,6 +34,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
+from app.audit import AuditLog
 from app.ticketing.models import Ticket
 from app.vulnerabilities.models import RemediationEvent, Vulnerability
 from app.vulnerabilities.schemas import BulkStatusUpdate
@@ -210,6 +211,10 @@ class _FakeTicketingClient:
     def __init__(self, get_payload: dict | None = None):
         self._get_payload = get_payload or {}
         self.closed_refs: list[str] = []
+        # Phase 37 Plan 04: record comment calls so the idempotency tests can
+        # assert a steady-state re-poll / repeat-close does NOT re-spam the
+        # ticket (the fresh-transition guards hold).
+        self.comment_calls: list[tuple[str, str]] = []
 
     async def create(self, title, body, **kwargs):  # pragma: no cover -- unused by these tests
         raise NotImplementedError
@@ -218,19 +223,38 @@ class _FakeTicketingClient:
         return self._get_payload
 
     async def comment(self, ref, body):
+        self.comment_calls.append((ref, body))
         return None
 
     async def close(self, ref):
         self.closed_refs.append(ref)
 
 
-async def test_sync_ticket_status_remediated_routes_through_helper(db_session, tenant_a):
+async def _audit_rows_for(db_session, vuln_id: uuid.UUID) -> list[AuditLog]:
+    """All ticket-status-sync audit rows for a vuln (Phase 37 Plan 04)."""
+    rows = await db_session.execute(
+        select(AuditLog).where(
+            AuditLog.resource_id == str(vuln_id),
+            AuditLog.action == "vuln.ticket_status_sync",
+        )
+    )
+    return list(rows.scalars().all())
+
+
+async def test_sync_ticket_status_done_drives_in_progress_never_remediated(db_session, tenant_a):
+    """D-03 addendum (Phase 37 Plan 04): a done ticket read via the manual
+    `sync_ticket_status` router path drives the linked finding to IN_PROGRESS
+    (+ awaiting-rescan comment + audit), NEVER REMEDIATED -- closure is
+    rescan-verified only. Re-polling a steady-state (ticket already done,
+    finding still awaiting rescan) is a no-op: no repeat comment, no
+    duplicate audit row (the `not was_done_before` guard holds)."""
     from app.ticketing.service import sync_ticket_status
 
     vuln = _vuln(tenant_id=tenant_a, risk_exposure_score=85)
     db_session.add(vuln)
     await db_session.flush()
 
+    # Fresh transition: ticket starts non-done (_ticket defaults external_status="open").
     ticket = _ticket(tenant_id=tenant_a, vulnerability_id=vuln.id, provider="ASANA", external_ticket_id="123")
     db_session.add(ticket)
     await db_session.commit()
@@ -240,17 +264,35 @@ async def test_sync_ticket_status_remediated_routes_through_helper(db_session, t
     async def resolver(provider):
         return fake_client
 
+    # First sync: fresh done-transition -> IN_PROGRESS + one comment + one audit, zero RemediationEvent.
     await sync_ticket_status(db_session, tenant_a, resolver)
     await db_session.commit()
 
     await db_session.refresh(vuln)
-    assert vuln.status == "REMEDIATED"
-    events = await _events_for(db_session, vuln.id)
-    assert len(events) == 1
-    assert events[0].tier_at_remediation == "critical"
+    assert vuln.status == "IN_PROGRESS"
+    assert await _events_for(db_session, vuln.id) == []
+    assert len(fake_client.comment_calls) == 1
+    assert len(await _audit_rows_for(db_session, vuln.id)) == 1
+
+    # Second sync on the now-steady state (ticket "completed", finding still
+    # IN_PROGRESS): idempotent -- the comment count and audit-row count must
+    # NOT grow, and the finding is never force-closed.
+    await sync_ticket_status(db_session, tenant_a, resolver)
+    await db_session.commit()
+
+    await db_session.refresh(vuln)
+    assert vuln.status == "IN_PROGRESS"
+    assert await _events_for(db_session, vuln.id) == []
+    assert len(fake_client.comment_calls) == 1
+    assert len(await _audit_rows_for(db_session, vuln.id)) == 1
 
 
-async def test_close_ticket_remediated_routes_through_helper(db_session, tenant_a):
+async def test_close_ticket_done_drives_in_progress_never_remediated(db_session, tenant_a):
+    """D-03 addendum (Phase 37 Plan 04): an analyst's explicit manual close
+    still closes the TICKET on its provider, but drives the linked finding to
+    IN_PROGRESS (+ awaiting-rescan comment + audit), NEVER REMEDIATED. A
+    repeat close on the already-resolved URL is a no-op on the finding (the
+    `not row_was_resolved` guard holds)."""
     from app.ticketing.service import close_ticket
 
     vuln = _vuln(tenant_id=tenant_a, risk_exposure_score=55)
@@ -266,17 +308,30 @@ async def test_close_ticket_remediated_routes_through_helper(db_session, tenant_
     async def resolver(provider):
         return fake_client
 
+    # First close: ticket closes on provider; finding driven IN_PROGRESS, zero RemediationEvent.
     result = await close_ticket(db_session, tenant_a, ticket.external_ticket_url, resolver)
     await db_session.commit()
 
-    assert result["vulns_remediated"] == 1
+    assert result["findings_awaiting_rescan"] == 1
     assert fake_client.closed_refs == ["GV-1"]
 
     await db_session.refresh(vuln)
-    assert vuln.status == "REMEDIATED"
-    events = await _events_for(db_session, vuln.id)
-    assert len(events) == 1
-    assert events[0].tier_at_remediation == "high"
+    assert vuln.status == "IN_PROGRESS"
+    assert await _events_for(db_session, vuln.id) == []
+    assert len(fake_client.comment_calls) == 1
+    assert len(await _audit_rows_for(db_session, vuln.id)) == 1
+
+    # Second close on the same (now-resolved) URL: idempotent on the finding
+    # -- no new audit row, no repeat comment; still IN_PROGRESS, never REMEDIATED.
+    result2 = await close_ticket(db_session, tenant_a, ticket.external_ticket_url, resolver)
+    await db_session.commit()
+
+    assert result2["findings_awaiting_rescan"] == 0
+    await db_session.refresh(vuln)
+    assert vuln.status == "IN_PROGRESS"
+    assert await _events_for(db_session, vuln.id) == []
+    assert len(fake_client.comment_calls) == 1
+    assert len(await _audit_rows_for(db_session, vuln.id)) == 1
 
 
 # ── 4. ticketing/daily_sync.py -- three provider-sync functions ────────────
