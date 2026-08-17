@@ -114,6 +114,35 @@ grouping, per-owner ticket linkage, owner routing, MTTR capture, audit) — this
   `require_analyst`, consistent with every existing ticketing write. Campaigns are a
   ticketing workflow, not admin config. Reads follow the existing viewer/analyst pattern.
 
+### Research open-question resolutions (2026-08-17, post-RESEARCH.md)
+
+- **D-17 — Manual early-close is sticky (resolves RESEARCH Q2/A2).** D-14 auto-reactivation on
+  recurrence applies ONLY to campaigns that reached `complete` by derived 100%-remediation. A
+  campaign the analyst **manually closed early** stays `closed` even if a member finding recurs
+  via Phase 37 reopen-on-recurrence — `closed` is a stored terminal status reflecting the
+  analyst's explicit "stop tracking" decision, not a derived state. Implication: campaign status
+  is derived (active↔complete via compute-on-read, D-07) EXCEPT the stored terminal `closed`
+  status, which suppresses reactivation. A member recurring under a closed campaign is simply an
+  un-campaigned open finding until/unless a new campaign is launched on that `remediation_id`.
+- **D-18 — SUPPRESSED / FALSE_POSITIVE excluded from the campaign denominator (resolves RESEARCH
+  Q4/A5).** Campaign membership + burndown denominator counts only actionable statuses
+  (`OPEN` / `IN_PROGRESS` / `REMEDIATED`). SUPPRESSED and FALSE_POSITIVE findings sharing the
+  `remediation_id` drop out of the denominator entirely — consistent with how suppression already
+  hides them from the remediation view. This is the corrected filter the researcher flagged
+  (`_base_open_vulns()` naive reuse would exclude REMEDIATED and read 0% forever); the campaign
+  progress query MUST use `OPEN`/`IN_PROGRESS`/`REMEDIATED`, never the bare `_base_open_vulns()`.
+- **D-19 — Auto-complete transition audited lazily-on-read (resolves RESEARCH Q1/A1).** The derived
+  complete↔active transition is detected + audited lazily when the campaign is read (no new
+  scheduler tick — Deferred Ideas rules that out; no inline hook in
+  `mark_vulnerability_remediated`/`reopen_vulnerability`). First read that observes 100% derived
+  remediation writes the `complete` audit row (idempotent — audit once per transition, not per read).
+- **D-20 — Campaigns reuse the BARE `remediation_id` string as `created_by_rule` (resolves RESEARCH
+  Q5).** Campaign-created tickets set `created_by_rule = <remediation_id>` (no `"campaign:{id}"`
+  prefix) so the existing `create_remediation_ticket()` dedup check and any later `per_remediation`
+  automation rule recognize them and cannot double-ticket a campaign's members. Do NOT harden
+  `rule_engine.py`'s per-vulnerability dedup this phase — the shared-string convention closes the
+  gap for free.
+
 ### Claude's Discretion (planner/researcher decide)
 - Campaign table schema, column names, status enum values, and the Alembic migration
   structure (including the partial unique constraint for D-11).
