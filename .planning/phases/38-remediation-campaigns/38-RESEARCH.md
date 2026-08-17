@@ -756,29 +756,29 @@ Not applicable in the usual sense — this phase adopts no new external technolo
 
 **Note:** A1, A2, and A6 are the three assumptions with real product-behavior consequences (not just implementation-detail choices) and should be explicitly confirmed with the user/planner before being treated as locked, per this agent's provenance discipline.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should the D-13 auto-complete audit fire at the moment of the causing remediation event, or lazily whenever the campaign is next viewed?**
+1. **Should the D-13 auto-complete audit fire at the moment of the causing remediation event, or lazily whenever the campaign is next viewed?** _RESOLVED: see D-19 — auto-complete transition audited lazily-on-read (lazy-on-read / Pattern 6 confirmed)._
    - What we know: D-13 requires it to be audited; D-07 requires compute-on-read; the Deferred Ideas section rules out a new scheduler tick.
    - What's unclear: whether growing `mark_vulnerability_remediated()`/`reopen_vulnerability()` with a campaign-lookup step (tying the audit timestamp to the real event) is preferable to the phase-isolated lazy-on-read approach this research recommends (tying the audit timestamp to "whenever someone looked").
    - Recommendation: default to lazy-on-read (Pattern 6) unless the planner determines audit-timestamp precision for this specific transition is a compliance requirement, in which case the inline-hook alternative should be used instead.
 
-2. **Does a manually-closed-early campaign reactivate on member recurrence the same way an auto-completed one does?**
+2. **Does a manually-closed-early campaign reactivate on member recurrence the same way an auto-completed one does?** _RESOLVED: see D-17 — manual early-close is sticky (D-14 auto-reactivation does NOT apply to manually-closed campaigns)._
    - What we know: D-14's text doesn't distinguish the two paths; the UI-SPEC's confirmation copy says "can't be undone from the campaign view" (a UI-affordance statement, not necessarily a backend guarantee).
    - What's unclear: the intended product behavior for the specific case of "analyst closes a 60%-done campaign early, then a remediated member later recurs."
    - Recommendation: confirm with the user before implementation; default to uniform behavior (Assumption A2) if no answer is available, since it requires strictly less special-case code and mirrors Phase 37's own "closure path doesn't matter, recurrence always reopens" precedent.
 
-3. **Exact route/URL for the new remediation-grouped entry-point page.**
+3. **Exact route/URL for the new remediation-grouped entry-point page.** _RESOLVED: Plan 05 — /dashboard/vulnerabilities/remediations (own nav-adjacent route)._
    - What we know: it must exist as a dedicated page (UI-SPEC), reusing the chip-bar + table shell pattern; the backend endpoint is `GET /api/v1/vulnerabilities/remediations/grouped`.
    - What's unclear: whether it should be its own nav-adjacent route (`/dashboard/vulnerabilities/remediations`) or a view-toggle within the existing `/dashboard/vulnerabilities` page — the UI-SPEC does not add a "Remediations" item to `WORKFLOW_ITEMS`/`TRIAGE_ITEMS`, only a "Campaigns" item, implying the remediation-grouped view may be intended as a secondary/discoverable-from-elsewhere surface rather than a primary nav destination.
    - Recommendation: planner picks the exact route as a low-risk implementation detail (Assumption A5); either choice satisfies CAMP-01's "dedicated campaign view" requirement (which is about the *campaign* view, not the remediation-grouped entry point).
 
-4. **Should `SUPPRESSED`/`FALSE_POSITIVE` findings count toward a campaign's denominator?**
+4. **Should `SUPPRESSED`/`FALSE_POSITIVE` findings count toward a campaign's denominator?** _RESOLVED: see D-18 — SUPPRESSED / FALSE_POSITIVE excluded from the campaign denominator._
    - What we know: D-02's literal text says "every finding sharing that remediation_id," unqualified; the existing remediation-grouped view (the thing a campaign wraps) excludes them by default.
    - What's unclear: whether a campaign's "% remediated" should be computed against the same base a user saw when they clicked "Start campaign," or against a stricter reading of D-02.
    - Recommendation: exclude them (Assumption A6), matching the launch-time view's own semantics; confirm with the user if this becomes contentious during review.
 
-5. **Is hardening `rule_engine.py`'s per-vulnerability dedup gap in scope for this phase, or purely Assumption A4's shared-string workaround?**
+5. **Is hardening `rule_engine.py`'s per-vulnerability dedup gap in scope for this phase, or purely Assumption A4's shared-string workaround?** _RESOLVED: see D-20 — campaigns reuse the BARE `remediation_id` string as `created_by_rule` (A4 shared-string workaround is sufficient; no rule_engine.py change this phase)._
    - What we know: CONTEXT.md's "Explicitly NOT this phase" list does not mention the rule engine at all; this is a pre-existing gap this phase's own bulk-create surfaces more sharply (two independent "bulk ticket over a remediation_id" callers now exist).
    - What's unclear: whether the shared-`created_by_rule`-string workaround (Pitfall 1/A4) is considered sufficient, or whether the planner wants a small defensive change to `create_remediation_ticket()`'s own dedup check (making it per-vulnerability like the campaign's own D-06 logic) as a belt-and-suspenders fix.
    - Recommendation: treat A4's workaround as sufficient for this phase's scope (no changes to `rule_engine.py`/`ticketing/service.py` beyond what campaigns write into `created_by_rule`); flag the residual gap for a future ticketing-backlog item if the workaround is later judged insufficient.

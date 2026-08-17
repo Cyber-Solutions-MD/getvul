@@ -115,6 +115,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 **Plans**: 4 plans (37-04 = gap closure)
 
 Plans:
+
 - [x] 37-01-PLAN.md — TRACER: rescan-verified auto-close (SYNC-02): clean_scan_streak column + SUCCESS-branch absent-sweep + single-helper close
 - [x] 37-02-PLAN.md — SYNC-03: reopen-on-recurrence (soft-close resurrection of the same finding row, MTTR preserved)
 - [x] 37-03-PLAN.md — SYNC-01 D-03 split (ticket status → IN_PROGRESS, never closes) + SYNC-04 resilience/last-sync + external-ticket reopen
@@ -135,11 +136,23 @@ Plans:
   4. Every campaign action (create, bulk-assign, close) is audited
 
 **Plans**: 5 plans
+**Wave 1**
+
 - [ ] 38-01-PLAN.md — TRACER: campaigns table + model + race-safe get-or-create + list/detail read + audit/RBAC
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 38-02-PLAN.md — CAMP-02 per-owner bulk-create/adopt tickets + bulk-assign endpoint
-- [ ] 38-03-PLAN.md — CAMP-03 progress/MTTR + manual close + lazy auto-complete/reactivate audit
 - [ ] 38-04-PLAN.md — Campaign list view + nav + status ribbon + use-campaigns hook
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 38-03-PLAN.md — CAMP-03 progress/MTTR + manual close + lazy auto-complete/reactivate audit
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 38-05-PLAN.md — Remediation-grouped entry point + burndown detail + Create/Close actions
+
 **UI hint**: yes
 
 ### Phase 39: Exception & Risk-Acceptance Workflow

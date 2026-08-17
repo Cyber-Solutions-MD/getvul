@@ -62,7 +62,7 @@ created: 2026-08-17
 | 38-03-02 | 03 | 3 | CAMP-04 | T-38-05/08 | auto-complete audited exactly once | integration | `pytest tests/test_campaigns.py::test_auto_complete_audited_once -x` | ❌ W0 | ⬜ pending |
 | 38-03-02 | 03 | 3 | CAMP-03 | T-38-05 | reopen reactivates (D-14); manual close sticky (D-17) | integration | `pytest tests/test_campaigns.py::test_reopen_reactivates_campaign -x` | ❌ W0 | ⬜ pending |
 | 38-04-01 | 04 | 2 | CAMP-01 | T-38-09 | hooks staleTime:0; status pill violet/green not severity | component | `npm run test -- use-campaigns campaign-status-ribbon` | ❌ W0 | ⬜ pending |
-| 38-04-02 | 04 | 2 | CAMP-01 | T-38-09 | list columns + singularization + empty state | component | `npm run test -- campaigns-table` | ❌ W0 | ⬜ pending |
+| 38-04-02 | 04 | 2 | CAMP-01 | T-38-09 | list columns + singularization + empty state + row-click fires onRowClick (nav to /campaigns/{id}) | component | `npm run test -- campaigns-table` | ❌ W0 | ⬜ pending |
 | 38-05-01 | 05 | 4 | CAMP-01 | T-38-09 | entry point + Start campaign + D-11 redirect | component | `npm run test -- remediations-table` | ❌ W0 | ⬜ pending |
 | 38-05-02 | 05 | 4 | CAMP-03 | T-38-09 | burndown 0/0 no-crash; MTTR/breakdown copy | component | `npm run test -- campaign-burndown-card` | ❌ W0 | ⬜ pending |
 | 38-05-03 | 05 | 4 | CAMP-01/02/03 | T-38-04 | full create→bulk-assign→close lifecycle | manual | human-verify (seed-gated e2e) | ❌ manual | ⬜ pending |
