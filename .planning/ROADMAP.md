@@ -135,10 +135,10 @@ Plans:
   3. Per-campaign progress (open / in-progress / done, % remediated) and campaign MTTR update live as linked tickets/findings change
   4. Every campaign action (create, bulk-assign, close) is audited
 
-**Plans**: 5 plans
+**Plans**: 1/5 plans executed
 **Wave 1**
 
-- [ ] 38-01-PLAN.md — TRACER: campaigns table + model + race-safe get-or-create + list/detail read + audit/RBAC
+- [x] 38-01-PLAN.md — TRACER: campaigns table + model + race-safe get-or-create + list/detail read + audit/RBAC
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -261,7 +261,7 @@ Plans:
 |-------|-----------------|--------|-----------|
 | 36. Remediation SLA Engine & Escalation | 5/6 | In Progress | - |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
-| 38. Remediation Campaigns | 0/? | Not started | - |
+| 38. Remediation Campaigns | 1/5 | In Progress|  |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |

@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
-current_phase: 37
-current_phase_name: two-way-ticket-sync-remediation-verification
-status: "Phase 37 shipped — PR #30"
-stopped_at: Phase 38 UI-SPEC approved
-last_updated: "2026-08-17T14:06:45.280Z"
+current_phase: 38
+current_phase_name: remediation-campaigns
+status: executing
+stopped_at: Phase 38 Plan 01 (campaigns tracer slice) complete -- 8/8 tests green, ready for Plan 02
+last_updated: "2026-08-17T14:42:49.894Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 38 planning complete
+last_activity_desc: Phase 38 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 15
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 37 — two-way-ticket-sync-remediation-verification
+**Current focus:** Phase 38 — remediation-campaigns
 
 ## Deferred Items
 
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 37 (two-way-ticket-sync-remediation-verification) — ✅ COMPLETE, verified 7/7 (4/4 plans)
-Plan: 4 of 4 built + executed + verified (37-01, 37-02, 37-03, 37-04 gap closure)
-Status: Phase 37 shipped — PR #30
-Last activity: 2026-08-17 — Phase 38 planning complete
+Phase: 38 (remediation-campaigns) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-08-17 — Phase 38 execution started
 
 ## v5.0 Phase Map
 
@@ -408,6 +408,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 36]: 36-04: Task 1 pre-resolved to option-a (047 chains off 046, matching Plan 02's own Task 1) -- not re-prompted
 - [Phase 36]: 36-04: routed all seven physical REMEDIATED write sites (not six as the phase docs' prose label said) through mark_vulnerability_remediated -- an off-by-one in prior documentation, not a scope decision
 - [Phase 36]: 36-04: no UniqueConstraint on remediation_events -- correctness comes from centralizing every write through the one helper, not a DB constraint
+- [Phase 38]: 38-01: D-11 confirmed at Task 1 checkpoint -- partial unique index uq_campaign_active_remediation on (tenant_id, remediation_id) WHERE closed_at IS NULL, coordinator-approved verbatim
+- [Phase 38]: 38-01: DBSession imports from app.dependencies not app.db.session (38-RESEARCH.md Code Example 4 cited the wrong module); campaign service functions take tenant_id/user_id as separate params matching create_remediation_ticket's convention, not a whole user object
+- [Phase 38]: 38-01: CAMP-01/CAMP-04 intentionally left Pending in REQUIREMENTS.md -- both shared with not-yet-executed sibling plans (38-02/03/04/05); requirements ready-ids confirmed both blocked, do not flip until all declaring plans are done
 
 ## Performance Metrics
 
@@ -467,12 +470,13 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 36 P02 | 30min | 3 tasks | 4 files |
 | Phase 36 P03 | 35min | 2 tasks | 6 files |
 | Phase 36 P04 | 30min | 2 tasks | 8 files |
+| Phase 38 P01 | 27min | 2 tasks | 8 files |
 
 ## Session
 
-**Last session:** 2026-08-17T12:23:00.879Z
-**Stopped at:** Phase 38 UI-SPEC approved
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/38-remediation-campaigns/38-UI-SPEC.md
+**Last session:** 2026-08-17T14:42:49.880Z
+**Stopped at:** Phase 38 Plan 01 (campaigns tracer slice) complete -- 8/8 tests green, ready for Plan 02
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/38-remediation-campaigns/38-02-PLAN.md
 
 ## Operator Next Steps
 
