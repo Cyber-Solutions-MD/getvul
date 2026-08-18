@@ -210,8 +210,13 @@ async def bulk_assign_campaign(
     members, reusing the existing owner-routing + dedup-by-URL logic
     verbatim (D-05/D-06/D-08). D-10: a `campaign.bulk_assign` audit row is
     written on EVERY run -- including a no-op re-run that tickets nobody --
-    never gated on `result["created_tickets"] > 0`."""
+    never gated on `result["created_tickets"] > 0`. CR-01: a closed campaign
+    is terminal -- ticket creation is refused with 409 rather than silently
+    mutating a campaign the UI has already told the analyst "stopped being
+    tracked here"."""
     campaign = await _get_campaign_or_404(db, user.tenant_id, campaign_id)
+    if campaign.closed_at is not None:
+        raise HTTPException(409, "Campaign is closed. Reopen it before creating tickets.")
     client = await _get_campaign_ticketing_client(db, user.tenant_id, body.provider, body.project_key)
     result = await bulk_create_campaign_tickets(
         db, user.tenant_id, user.id, campaign, body.provider, body.project_key, client, body.due_days

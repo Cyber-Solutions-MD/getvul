@@ -151,7 +151,10 @@ function CampaignDetailInner() {
   // Deviation: `open` is the closest available proxy for "un-ticketed
   // members" (see module docstring).
   const unticketedCount = c.open;
-  const canCreateTickets = unticketedCount > 0;
+  // CR-01: a manually- or auto-closed campaign is terminal (matches the
+  // "Close campaign" button's own gate below) -- the CTA must not remain
+  // enabled once c.status reads 'COMPLETE'.
+  const canCreateTickets = unticketedCount > 0 && c.status !== 'COMPLETE';
   const notRescanVerified = c.total - c.done;
 
   return (
