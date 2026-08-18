@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 38
 current_phase_name: remediation-campaigns
 status: executing
-stopped_at: Phase 38 Plan 03 (live progress + MTTR + lifecycle audit) complete -- 24/24 tests green, ready for Plan 04
-last_updated: "2026-08-18T08:34:09.000Z"
+stopped_at: Phase 38 Plan 04 (campaigns list view -- CAMP-01) complete -- 18/18 tests green, ready for Plan 05
+last_updated: "2026-08-18T11:48:00.000Z"
 last_activity: 2026-08-18
-last_activity_desc: Phase 38 Plan 03 complete
+last_activity_desc: Phase 38 Plan 04 complete
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 38 (remediation-campaigns) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
-Last activity: 2026-08-18 — Phase 38 Plan 03 complete
+Last activity: 2026-08-18 — Phase 38 Plan 04 complete
 
 ## v5.0 Phase Map
 
@@ -162,6 +162,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Decisions
 
+- [Phase 38]: 38-04: queryKeys.campaigns.list() takes no opts (unlike tickets.list) since GET /api/v1/campaigns has no server-side filter/pagination params — the status chip-bar filters the fetched array client-side
+- [Phase 38]: 38-04: CampaignsTable's MTTR column always renders "—" — CampaignSummary (the GET /campaigns list response) has no mttr_seconds field; Plan 03 wired mttr_seconds only into CampaignDetail (GET /{id}), a Plan 05 concern
+- [Phase 38]: 38-04: CampaignsTable's "Tickets" column uses in_progress as the best available proxy for an owner-ticket count — CampaignSummary has no distinct owner/ticket field; a real count would need a new backend aggregation, out of this frontend-only plan's scope
+- [Phase 38]: 38-04: row click on CampaignsTable is a full navigation (router.push to /dashboard/campaigns/{id}) owned by the page, not the table — CampaignsTable never imports useRouter, mirroring tickets-table.tsx's onRowClick contract
+- [Phase 38]: 38-04: added campaigns/page.test.tsx (not in the plan's files_modified) to cover WR-13 branch order + empty-state copy + row-click nav, matching every other list page's co-located page.test.tsx convention in this codebase
+- [Phase 38]: 38-04: CAMP-01 left [ ] unmarked in REQUIREMENTS.md — still shared with 38-05 (campaign detail view), which has not yet produced a SUMMARY.md
 - DrillPanel chrome generalized additively (D-D-02): idKey/id/renderContent/ariaLabel props with vuln-preserving defaults; cveId kept as back-compat alias
 - close() deletes 'open' + active idKey; ticket callers pass idKey='ticket'; vuln callers get default idKey='cve'
 - TicketDrillData type exported from ticket-drill-content.tsx for Plan 07 contract
