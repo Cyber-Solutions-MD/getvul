@@ -64,6 +64,7 @@ created: 2026-08-18
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-08-18 | 10 | 10 | 0 | /gsd-secure-phase (L1 grep-depth short-circuit; register authored at plan time; mitigations cross-checked against 24/24 passing backend tests) |
+| 2026-08-18 | 10 | 10 | 0 | /gsd-secure-phase re-run (L1 short-circuit re-confirmed; each cited mitigation re-verified live in source — tenant-scoped WHERE, `extra="forbid"`, RBAC deps, system-attributed lazy write, partial unique index + `begin_nested`, comment-only `dangerouslySetInnerHTML`; all 6 named tests present) |
 
 ---
 
