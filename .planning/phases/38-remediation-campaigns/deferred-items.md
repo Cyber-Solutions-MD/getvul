@@ -31,3 +31,29 @@ annotations + a `dict` type-arg) were found and fixed before committing Task 3.
 **Suggested follow-up:** Whoever next touches `app/ticketing/daily_sync.py` should confirm
 whether `mypy-baseline.txt` needs a regeneration (`mypy-baseline sync`) to resync the checked-in
 baseline against current `mypy`/stub versions.
+
+## Plan 38-02
+
+### Same pre-existing mypy-baseline flake, reconfirmed (not fixed)
+
+**Found during:** Task 2 verification (`mypy app/ | mypy-baseline filter --allow-unsynced`).
+
+**Issue:** Identical delta signature to the Plan 01 entry above
+(`app/ticketing/daily_sync.py` untyped-def/untyped-call/assignment errors +
+`app/auth/dependencies.py`'s jose-stub `note`), reproduced again via `git stash` (reverting
+both Plan 02 commits) + rerun — byte-identical 9-fixed/9-new totals with zero campaigns code
+present. Still out of scope; not fixed.
+
+### `requirements ready-ids` SDK verb not installed in this environment
+
+**Found during:** Pre-commit check of CAMP-02/CAMP-04's shared-requirement completion status.
+
+**Issue:** `node .../get-shit-done-cc/sdk/dist/cli.js query requirements.ready-ids` falls back
+to the bundled `gsd-tools.cjs`, which only exposes a `mark-complete` subcommand — `ready-ids`
+does not exist in this environment's installed tooling.
+
+**Action:** Not fixed (SDK installation is out of this plan's scope). Worked around by reading
+every phase-38 `PLAN.md`'s `requirements:` frontmatter field directly: CAMP-02 is also declared
+by `38-05-PLAN.md` (no `38-05-SUMMARY.md` yet) and CAMP-04 is also declared by `38-01`/`38-03`
+(neither has marked it complete either) — both confirmed still blocked, matching what
+`requirements ready-ids` would have reported were it available.
