@@ -110,4 +110,13 @@ export const queryKeys = {
     status: () => ['ai', 'status'] as const,
     usage: () => ['ai', 'usage'] as const,
   },
+  // Phase 38 (38-04) — /dashboard/campaigns list + detail surface. GET
+  // /api/v1/campaigns has no filter/pagination params (D-07 compute-on-read
+  // returns the full tenant-scoped list every time; the status chip-bar
+  // filters client-side) so `list()` takes no opts, unlike `tickets.list`.
+  campaigns: {
+    all: ['campaigns'] as const,
+    list: () => ['campaigns', 'list'] as const,
+    detail: (id: string) => ['campaigns', 'detail', id] as const,
+  },
 } as const;
