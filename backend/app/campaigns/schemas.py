@@ -49,9 +49,11 @@ class CampaignSummary(BaseModel):
 
 
 class CampaignDetail(CampaignSummary):
-    """Same shape as `CampaignSummary` for this tracer slice -- Plan 03 adds
-    MTTR (`mttr_seconds`) and Plan 02 adds ticket/owner breakdown fields
-    additively on top of this same contract."""
+    """`CampaignSummary` + Plan 03's live-computed MTTR (D-12). `mttr_seconds`
+    is `float | None` -- `None` (never `0`) when no member has ever been
+    remediated (Pitfall 5's zero-guard sibling)."""
+
+    mttr_seconds: float | None
 
 
 class CampaignBulkAssignRequest(BaseModel):

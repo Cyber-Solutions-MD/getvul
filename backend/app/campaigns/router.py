@@ -21,6 +21,7 @@ from app.campaigns.schemas import (
 )
 from app.campaigns.service import (
     bulk_create_campaign_tickets,
+    get_campaign_mttr,
     get_campaign_progress,
     get_or_create_campaign,
     list_campaigns,
@@ -158,10 +159,12 @@ async def campaign_detail(
     tenant."""
     campaign = await _get_campaign_or_404(db, user.tenant_id, campaign_id)
     progress = await get_campaign_progress(db, user.tenant_id, campaign.remediation_id)
+    mttr_seconds = await get_campaign_mttr(db, user.tenant_id, campaign.remediation_id)
     return CampaignDetail(
         id=campaign.id,
         remediation_id=campaign.remediation_id,
         status=_derive_status(campaign, progress),
+        mttr_seconds=mttr_seconds,
         **progress,
     )
 

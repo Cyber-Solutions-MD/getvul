@@ -56,7 +56,7 @@ from app.campaigns.models import Campaign
 from app.campaigns.service import bulk_create_campaign_tickets
 from app.encryption import encrypt_value
 from app.ticketing.models import ConnectorConfig, Ticket
-from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.models import RemediationEvent, Vulnerability
 
 _FAKE_URL_BASE = "https://acme.atlassian.net/browse"
 
@@ -743,3 +743,140 @@ async def test_bulk_assign_unknown_campaign_404(client_factory, db_session, tena
         json={"provider": "JIRA", "project_key": "PROJ"},
     )
     assert r.status_code == 404, r.text
+
+
+# ── Plan 03 Task 1: MTTR (D-12) + D-09 done-semantics + D-03 live growth ─────
+
+
+@pytest.mark.asyncio
+async def test_campaign_mttr_average(client_factory, db_session, tenant_a, analyst_user):
+    """MTTR equals the average of member RemediationEvent.duration_seconds,
+    returned as a genuine float (Pitfall 7: Postgres AVG() over an integer
+    column returns a Decimal that must be explicitly coerced)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    v1 = _seed_vuln(tenant_a, remediation_id, status="REMEDIATED")
+    v2 = _seed_vuln(tenant_a, remediation_id, status="REMEDIATED")
+    db_session.add_all([v1, v2])
+    await db_session.flush()
+
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            RemediationEvent(
+                tenant_id=tenant_a,
+                vulnerability_id=v1.id,
+                tier_at_remediation="high",
+                duration_seconds=3600,
+                first_detected_at=now - timedelta(hours=1),
+                remediated_at=now,
+            ),
+            RemediationEvent(
+                tenant_id=tenant_a,
+                vulnerability_id=v2.id,
+                tier_at_remediation="high",
+                duration_seconds=7200,
+                first_detected_at=now - timedelta(hours=2),
+                remediated_at=now,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["mttr_seconds"] == 5400.0, body
+    assert isinstance(body["mttr_seconds"], float), body
+
+
+@pytest.mark.asyncio
+async def test_campaign_mttr_null_when_none_remediated(client_factory, db_session, tenant_a, analyst_user):
+    """MTTR is null (not 0, not an error) with HTTP 200 when no member has
+    ever been remediated."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    db_session.add(_seed_vuln(tenant_a, remediation_id, status="OPEN"))
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    assert r.json()["mttr_seconds"] is None, r.json()
+
+
+@pytest.mark.asyncio
+async def test_campaign_d09_ticket_closed_not_remediated_stays_in_progress(
+    client_factory, db_session, tenant_a, analyst_user
+):
+    """A member with a closed/resolved Ticket but status IN_PROGRESS (never
+    rescan-verified to REMEDIATED) is counted in in_progress, NEVER done --
+    and contributes no MTTR (D-09: done keys off status REMEDIATED only)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    vuln = _seed_vuln(tenant_a, remediation_id, status="IN_PROGRESS")
+    db_session.add(vuln)
+    await db_session.flush()
+    db_session.add(
+        Ticket(
+            tenant_id=tenant_a,
+            vulnerability_id=vuln.id,
+            provider="JIRA",
+            external_ticket_id="CLOSED-1",
+            external_ticket_url="https://acme.atlassian.net/browse/CLOSED-1",
+            external_status="done",
+            project_key="PROJ",
+            resolved_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["done"] == 0, body
+    assert body["in_progress"] == 1, body
+    assert body["mttr_seconds"] is None, body
+
+
+@pytest.mark.asyncio
+async def test_live_membership_grows(client_factory, db_session, tenant_a, analyst_user):
+    """A finding discovered on a newly-seen asset after campaign launch is
+    counted in the live denominator on the very next read -- no membership
+    row is ever written (D-03 live membership)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 0, r.json()
+
+    new_asset = _seed_asset(tenant_a)
+    db_session.add(new_asset)
+    await db_session.flush()
+    db_session.add(_seed_vuln(tenant_a, remediation_id, status="OPEN", asset_id=new_asset.id))
+    await db_session.commit()
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 1, r.json()

@@ -17,7 +17,7 @@ from app.campaigns.models import Campaign
 from app.ticketing.dispatch import TicketingClient
 from app.ticketing.models import Ticket
 from app.ticketing.service import SEVERITY_SLA_DAYS, _extract_ref, _provider_create_kwargs, recompute_ticket_sla
-from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.models import RemediationEvent, Vulnerability
 
 # D-05: byte-identical severity ranking to ticketing/service.py's inline
 # `sev_rank` dict inside create_remediation_ticket -- never re-derive.
@@ -115,6 +115,36 @@ async def get_campaign_progress(db: AsyncSession, tenant_id: uuid.UUID, remediat
         "done": done,
         "pct_remediated": round(done / total * 100) if total else 0,
     }
+
+
+async def get_campaign_mttr(db: AsyncSession, tenant_id: uuid.UUID, remediation_id: str) -> float | None:
+    """D-12: campaign MTTR = average of member `RemediationEvent.duration_
+    seconds`, joined through `Vulnerability.remediation_id` (the same
+    grouping key as `get_campaign_progress`). Deliberately NOT filtered by
+    `_CAMPAIGN_MEMBER_STATUSES` -- a `RemediationEvent` row is durable
+    history (Phase 36 D-09) and survives a later reopen-on-recurrence
+    (D-04), so this always reflects every remediation this group has ever
+    completed, not just currently-REMEDIATED members.
+
+    Returns `None` (never `0`, never a raised error) when no member has
+    ever been remediated -- Pitfall 5's zero-guard sibling for MTTR.
+
+    Pitfall 7: Postgres `AVG()` over an `Integer` column returns a
+    `Decimal`, which does not round-trip cleanly through Pydantic/JSON as a
+    plain float -- explicit `float(...)` coercion mirrors
+    `get_mttr_by_tier`'s identical fix (`vulnerabilities/service.py`).
+    """
+    avg_seconds = (
+        await db.execute(
+            select(func.avg(RemediationEvent.duration_seconds))
+            .join(Vulnerability, RemediationEvent.vulnerability_id == Vulnerability.id)
+            .where(
+                RemediationEvent.tenant_id == tenant_id,
+                Vulnerability.remediation_id == remediation_id,
+            )
+        )
+    ).scalar_one()
+    return float(avg_seconds) if avg_seconds is not None else None
 
 
 async def list_campaigns(db: AsyncSession, tenant_id: uuid.UUID) -> list[Campaign]:
