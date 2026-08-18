@@ -49,7 +49,7 @@ Declared values (must be multiples of 4) — reused verbatim from `foundation.md
 | 2xl | 48px | N/A this phase |
 | 3xl | 64px | N/A this phase |
 
-Exceptions: none. Touch targets (Revoke button, chip toggles) stay at the sitewide 34×34 `icon-btn` / 8px-vertical-padding button minimums already established — no smaller custom hit areas introduced.
+Exceptions to the spacing-scale token set: **one** — the Revoke button and chip toggles use the sitewide **34×34 `icon-btn` minimum hit area**, which is an accessibility touch-target floor, not a `--space-N` padding/gap token. It sits outside the spacing scale by definition (a minimum element dimension, not inter-element spacing) and is called out here explicitly rather than silently applied. No other exception exists — every padding/gap value in this phase's layout maps to a `--space-N` token above.
 
 ---
 
@@ -60,11 +60,11 @@ Reused verbatim from `foundation.md`'s 1.25 modular scale — exactly 4 sizes, e
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px (`--text-sm`) | 400 regular | 1.5 (`--leading-base`) — justification text, table cell values, dialog helper text |
-| Label | 12px (`--text-xs`) | 500 medium* | 1.3 (`--leading-snug`) — uppercase tracking-wide field labels ("Approver", "Expires"), table column headers, drill-panel `<h4>` section labels |
+| Label | 12px (`--text-xs`) | 600 semibold | 1.3 (`--leading-snug`) — uppercase tracking-wide field labels ("Approver", "Expires"), table column headers, drill-panel `<h4>` section labels |
 | Heading | 20px (`--text-xl`) | 600 semibold | 1.3 (`--leading-snug`) — dialog title ("Grant exception"), card/section titles |
 | Display | 32px (`--text-3xl`) | 600 semibold | 1.1 (`--leading-tight`) — `/dashboard/exceptions` page title ("Exceptions") |
 
-*Note: 500-medium is the existing label weight in this codebase (e.g. `sla-escalation-pane.tsx` labels use `font-medium`); together with 400 and 600 that is 3 weights in the raw type system, but this phase's own new copy only introduces two weight *roles* — **regular (400) for body/data, semibold (600) for headings/emphasis**. Field labels reuse the pre-existing 500-medium utility already present sitewide; it is not a new weight decision for this phase.
+**Exactly two weights across this whole table: 400 (Body) and 600 (Label/Heading/Display).** This phase's Label role deliberately uses 600 semibold rather than the sitewide 500-medium label utility (seen elsewhere, e.g. `sla-escalation-pane.tsx`'s `font-medium` labels) — a locked, phase-specific override to hold the 2-weight cap. Any new component built for this phase must use `font-semibold` (600) on labels, not `font-medium` (500).
 
 Tabular numerals (`font-variant-numeric: tabular-nums`) apply to the expiry "Nd left" countdown and the "granted N days ago" relative date — both are terminal-pasteable/scannable values per the mono-usage rule.
 
@@ -115,6 +115,8 @@ Clicking either opens the **Exception Grant dialog** (new component) via `Respon
 
 ### 2. Exception Grant dialog (new form — modal, not a full page per the "modals are for confirmations/short forms, not content that fits a panel" convention; this form is short enough — 4 fields — for a dialog)
 
+**Visual focal point: the Expires field.** It anchors the bottom of the form, directly above the primary action, and is the only field with its own always-visible helper sentence — the dialog's design deliberately makes the most consequence-bearing field ("this decision resurfaces for review on this date") impossible to submit past without noticing, consistent with EXC-02/EXC-04's "never permanently silenced" goal.
+
 ```
 ┌─ Grant exception ─────────────────────────── × ─┐
 │  [chip: Accept risk ▾]  CVE-2024-3094 on prod-db-01 │  <- type + fixed CVE/asset context, mono
@@ -129,7 +131,7 @@ Clicking either opens the **Exception Grant dialog** (new component) via `Respon
 │  Justification *                                   │
 │  [textarea, 4 rows, 1000 char cap, counter near limit] │
 │                                                     │
-│  Expires *                                         │
+│  Expires *                                         │  <- focal point (see above)
 │  [native <input type=date>, min=tomorrow, max=cap] │
 │  Mandatory — this decision resurfaces for review on this date. │
 │                                                     │
@@ -142,6 +144,8 @@ Field order is fixed: Scope → Approver → Justification → Expiry (matches t
 Submit ("Grant exception") stays **disabled** until all four fields are filled (D-06: all four mandatory, no partial submit) — see UI Considerations below.
 
 ### 3. Exceptions list — `/dashboard/exceptions` (new page, reuses the list+chip-bar pattern from `page-layouts.md` §3)
+
+**Visual focal point: the Expires column (`sla-pill`).** The table sorts ascending by Expires by default (D-19 — soonest-expiring first), so the amber "soon" pills cluster visibly at the top of the list without requiring a filter — the column is the first thing an analyst scans to answer "what needs re-review soon," the same role the SLA pill plays on `/vulnerabilities`.
 
 ```
 Exceptions                                            (Display, 32px)
@@ -156,9 +160,9 @@ Showing 1–10 of N · pagination (mono, reuses existing `Pagination` component)
 
 - No persistent left filter drawer (matches every other list route).
 - No dialog-launching gradient CTA on this page's chrome — granting is contextual to a finding (see entry point 1), so this list is **manage-only** (view + revoke), consistent with a read/manage list not needing its own "create" affordance when creation is scoped elsewhere.
-- **Expires** column header is clickable to toggle sort direction; **default sort = ascending (soonest-expiring first)** so "expiring soon" rows surface without needing a filter (D-19).
+- **Expires** column header is clickable to toggle sort direction; **default sort = ascending (soonest-expiring first)** so "expiring soon" rows surface without needing a filter (D-19) — this is the screen's visual focal point (see above).
 - Row click does **not** open a 420px drill panel (the record has only 4 short fields, no benefit to a side panel) — instead clicking a row's Approver/justification area reveals an inline expand (accordion) showing the full justification text + audit metadata (who granted, when), avoiding a redundant modal-inside-modal.
-- Revoke is a per-row ghost/secondary button that opens the existing `ConfirmModal` (variant `"warning"`).
+- Revoke is a per-row ghost/secondary button that opens the existing `ConfirmModal` (variant `"warning"`) — see Copywriting Contract for the explicit bare-label decision on this button.
 
 ---
 
@@ -168,7 +172,7 @@ Showing 1–10 of N · pagination (mono, reuses existing `Pagination` component)
 |---------|------|
 | Primary CTA (drill-panel trigger, secondary-style) | "Accept risk" · "Mark false positive" |
 | Primary CTA (dialog submit, gradient) | "Grant exception" |
-| Per-row destructive action | "Revoke" |
+| Per-row destructive action (table cell) | "Revoke" — **explicit exception to the verb+noun rule, decided not overlooked:** this is a compact per-row table-cell action (same class as the existing tickets/campaigns tables' bare "Revoke"/icon-only row actions) where horizontal space is scarce and the row's own CVE/target columns already supply the noun context. The full noun phrase is not dropped, only deferred: the `ConfirmModal` this button opens is titled "Revoke this exception?" and its confirm button reads the full "Revoke exception" (see Destructive confirmation row below) — so the unambiguous verb+noun label always appears before the action is committed. |
 | Empty state heading (never granted) | "No exceptions granted yet" |
 | Empty state body | "False-positive and accept-risk decisions show up here once an analyst grants one from a finding's drill panel — with justification, approver, and expiry tracked automatically." |
 | Empty state action | "View vulnerabilities" (secondary, links to `/dashboard/vulnerabilities`) |
