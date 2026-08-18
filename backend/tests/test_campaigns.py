@@ -1,11 +1,18 @@
-"""Phase 38 Plan 01 (CAMP-01/CAMP-04) -- campaign persistence tracer slice.
+"""Phase 38 Plans 01-02 (CAMP-01/CAMP-02/CAMP-04) -- campaign persistence
+tracer slice + per-owner bulk ticketing.
 
 TRACER SLICE (Plan 01): migration + model + race-safe get-or-create (D-11) +
 list/detail read with compute-on-read progress (D-07/D-18) + audit (D-15) +
-RBAC (D-16). Per-owner bulk ticketing (CAMP-02, Plan 02) and full
-progress/MTTR + lifecycle (CAMP-03, Plan 03) build on this same persisted
-identity row in later plans -- this file intentionally does NOT test
-bulk-assign, close, or MTTR.
+RBAC (D-16).
+
+PLAN 02: per-owner bulk-create/assign tickets (CAMP-02) -- re-carves
+`create_remediation_ticket()`'s single-ticket-for-the-whole-group shape into
+one ticket PER OWNER, reusing owner routing verbatim (D-05), adopting
+already-ticketed findings instead of duplicating (D-06), landing owner-less
+findings in an unassigned bucket (D-08), and setting campaign tickets'
+`created_by_rule` to the bare `remediation_id` so a later `per_remediation`
+automation rule's own dedup check sees them (D-20 / Pitfall 1). Full
+progress/MTTR + lifecycle (CAMP-03, Plan 03) is still out of scope here.
 
 Task 2: DB-level partial-unique-index proof for D-11 (exactly one ACTIVE
 campaign per (tenant_id, remediation_id); a CLOSED campaign's remediation_id
@@ -22,6 +29,11 @@ Uses the project's canonical inline-seed + client_factory pattern
 analyst" since `client_factory`'s dependency override bypasses
 `get_current_user` entirely.
 
+The bulk-assign tests reuse `test_ticketing_dispatch.py`'s `FakeTicketingClient`
+shape (records `.create()` calls, returns a provider-shaped fake URL per call
+so `_extract_ref`'s "last path segment" parsing is exercised for real) --
+scoped locally here since campaigns is a new caller, not a new provider.
+
 Backend env gotcha (MEMORY.md `getvul-backend-pytest-env`): run with a REAL
 Fernet ENCRYPTION_KEY (`Fernet.generate_key()`, NOT a placeholder string) +
 JWT_SECRET_KEY set, per-file (not the whole tests/ dir).
@@ -37,10 +49,29 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.assets.models import Asset
 from app.audit import AuditLog
 from app.auth.schemas import CurrentUser
 from app.campaigns.models import Campaign
+from app.campaigns.service import bulk_create_campaign_tickets
+from app.ticketing.models import Ticket
 from app.vulnerabilities.models import Vulnerability
+
+_FAKE_URL_BASE = "https://acme.atlassian.net/browse"
+
+
+class FakeTicketingClient:
+    """Records every `.create()` call; returns a distinct provider-shaped
+    fake URL per call (mirrors `test_ticketing_dispatch.py::FakeTicketingClient`)."""
+
+    def __init__(self) -> None:
+        self.created: list[tuple[str, str, dict]] = []
+        self._seq = 0
+
+    async def create(self, title: str, body: str, **kwargs: Any) -> str | None:
+        self._seq += 1
+        self.created.append((title, body, kwargs))
+        return f"{_FAKE_URL_BASE}/ref-{self._seq}"
 
 
 def _make_campaign(tenant_id: uuid.UUID, remediation_id: str, **overrides: Any) -> Campaign:
@@ -52,18 +83,37 @@ def _make_campaign(tenant_id: uuid.UUID, remediation_id: str, **overrides: Any) 
     return Campaign(**defaults)
 
 
-def _seed_vuln(tenant_id: uuid.UUID, remediation_id: str, *, status: str = "OPEN") -> Vulnerability:
+def _seed_vuln(
+    tenant_id: uuid.UUID,
+    remediation_id: str,
+    *,
+    status: str = "OPEN",
+    asset_id: uuid.UUID | None = None,
+    severity: str = "HIGH",
+) -> Vulnerability:
     now = datetime.now(UTC)
     return Vulnerability(
         tenant_id=tenant_id,
+        asset_id=asset_id,
         cve_id=f"CVE-CAMP-{uuid.uuid4().hex[:6]}",
-        severity="HIGH",
+        severity=severity,
         status=status,
         source="MOCK",
         source_vuln_id=str(uuid.uuid4()),
         remediation_id=remediation_id,
         first_detected_at=now - timedelta(days=3),
         last_seen_at=now,
+    )
+
+
+def _seed_asset(tenant_id: uuid.UUID, *, humaans_email: str | None = None) -> Asset:
+    """A minimal asset -- `mdm_details.humaans_email` is the SAME field
+    `ticketing/service.py:614` reads for owner derivation (D-05)."""
+    return Asset(
+        tenant_id=tenant_id,
+        hostname=f"host-{uuid.uuid4().hex[:6]}",
+        os_name="Ubuntu 22.04",
+        mdm_details={"humaans_email": humaans_email} if humaans_email else None,
     )
 
 
@@ -317,3 +367,248 @@ async def test_campaign_cross_tenant_isolation(client_factory, db_session, tenan
     r = await tenant_b_analyst.get("/api/v1/campaigns")
     assert r.status_code == 200, r.text
     assert all(c["id"] != campaign_id for c in r.json())
+
+
+# ── Plan 02 Task 1: bulk_create_campaign_tickets (per-owner carve-up) ───────
+
+
+@pytest.mark.asyncio
+async def test_bulk_assign_one_ticket_per_owner(db_session, tenant_a):
+    """3 findings across 2 distinct owners -> exactly 2 external_ticket_urls;
+    each owner's findings share their own url (D-04)."""
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    owner_a = "alice@acme.test"
+    owner_b = "bob@acme.test"
+
+    asset_a1 = _seed_asset(tenant_a, humaans_email=owner_a)
+    asset_a2 = _seed_asset(tenant_a, humaans_email=owner_a)
+    asset_b1 = _seed_asset(tenant_a, humaans_email=owner_b)
+    db_session.add_all([asset_a1, asset_a2, asset_b1])
+    await db_session.flush()
+
+    v1 = _seed_vuln(tenant_a, remediation_id, asset_id=asset_a1.id)
+    v2 = _seed_vuln(tenant_a, remediation_id, asset_id=asset_a2.id)
+    v3 = _seed_vuln(tenant_a, remediation_id, asset_id=asset_b1.id)
+    db_session.add_all([v1, v2, v3])
+    campaign = _make_campaign(tenant_a, remediation_id)
+    db_session.add(campaign)
+    await db_session.commit()
+
+    fake = FakeTicketingClient()
+    result = await bulk_create_campaign_tickets(
+        db=db_session,
+        tenant_id=tenant_a,
+        user_id=None,
+        campaign=campaign,
+        provider="JIRA",
+        project_key="PROJ",
+        client=fake,
+    )
+    await db_session.commit()
+
+    assert result["owners"] == 2, result
+    assert result["created_tickets"] == 2, result
+    assert result["tickets_linked"] == 3, result
+    assert result["adopted"] == 0, result
+    assert result["failed_owners"] == [], result
+    assert len(fake.created) == 2
+
+    rows = (
+        (await db_session.execute(select(Ticket).where(Ticket.vulnerability_id.in_([v1.id, v2.id, v3.id]))))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 3
+    urls_by_vuln = {r.vulnerability_id: r.external_ticket_url for r in rows}
+    assert urls_by_vuln[v1.id] == urls_by_vuln[v2.id], "owner_a's two findings must share one url"
+    assert urls_by_vuln[v1.id] != urls_by_vuln[v3.id], "distinct owners must get distinct urls"
+    assignees_by_vuln = {r.vulnerability_id: r.assignee for r in rows}
+    assert assignees_by_vuln[v1.id] == owner_a
+    assert assignees_by_vuln[v3.id] == owner_b
+    # D-20 / Pitfall 1: bare remediation_id, never a "campaign:{id}" prefix.
+    assert all(r.created_by_rule == remediation_id for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_bulk_assign_unassigned_bucket(db_session, tenant_a):
+    """An owner-less finding (no humaans_email) -> one ticket in the
+    None/unassigned bucket, assignee NULL -- never silently dropped (D-08)."""
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    asset = _seed_asset(tenant_a, humaans_email=None)
+    db_session.add(asset)
+    await db_session.flush()
+
+    vuln = _seed_vuln(tenant_a, remediation_id, asset_id=asset.id)
+    db_session.add(vuln)
+    campaign = _make_campaign(tenant_a, remediation_id)
+    db_session.add(campaign)
+    await db_session.commit()
+
+    fake = FakeTicketingClient()
+    result = await bulk_create_campaign_tickets(
+        db=db_session,
+        tenant_id=tenant_a,
+        user_id=None,
+        campaign=campaign,
+        provider="JIRA",
+        project_key="PROJ",
+        client=fake,
+    )
+    await db_session.commit()
+
+    assert result["owners"] == 1, result
+    assert result["created_tickets"] == 1, result
+    assert len(fake.created) == 1
+
+    row = (await db_session.execute(select(Ticket).where(Ticket.vulnerability_id == vuln.id))).scalar_one()
+    assert row.assignee is None
+    assert row.project_key == "PROJ"
+    assert row.created_by_rule == remediation_id
+
+
+@pytest.mark.asyncio
+async def test_bulk_assign_adopts_existing_ticket(db_session, tenant_a):
+    """A finding already linked to an unresolved Ticket is adopted (counted
+    in `adopted`, no new ticket created) (D-06)."""
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    owner = "alice@acme.test"
+    asset = _seed_asset(tenant_a, humaans_email=owner)
+    db_session.add(asset)
+    await db_session.flush()
+
+    already_ticketed = _seed_vuln(tenant_a, remediation_id, asset_id=asset.id)
+    fresh = _seed_vuln(tenant_a, remediation_id, asset_id=asset.id)
+    db_session.add_all([already_ticketed, fresh])
+    await db_session.flush()
+
+    db_session.add(
+        Ticket(
+            tenant_id=tenant_a,
+            vulnerability_id=already_ticketed.id,
+            provider="JIRA",
+            external_ticket_id="PRIOR-1",
+            external_ticket_url="https://acme.atlassian.net/browse/PRIOR-1",
+            external_status="open",
+            project_key="PROJ",
+            created_by_rule="some-other-rule",
+        )
+    )
+    campaign = _make_campaign(tenant_a, remediation_id)
+    db_session.add(campaign)
+    await db_session.commit()
+
+    fake = FakeTicketingClient()
+    result = await bulk_create_campaign_tickets(
+        db=db_session,
+        tenant_id=tenant_a,
+        user_id=None,
+        campaign=campaign,
+        provider="JIRA",
+        project_key="PROJ",
+        client=fake,
+    )
+    await db_session.commit()
+
+    assert result["adopted"] == 1, result
+    assert result["tickets_linked"] == 1, result
+    assert len(fake.created) == 1, "only the newcomer should get a new ticket"
+
+    rows = (await db_session.execute(select(Ticket).where(Ticket.vulnerability_id == fresh.id))).scalars().all()
+    assert len(rows) == 1
+    # The already-ticketed vuln must NOT gain a second Ticket row.
+    prior_rows = (
+        (await db_session.execute(select(Ticket).where(Ticket.vulnerability_id == already_ticketed.id))).scalars().all()
+    )
+    assert len(prior_rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_bulk_assign_idempotent_rerun(db_session, tenant_a):
+    """Re-running bulk-assign after some members were ticketed only tickets
+    the newcomers (D-06/D-10) -- no duplicate tickets for already-adopted
+    members."""
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    owner = "alice@acme.test"
+    asset1 = _seed_asset(tenant_a, humaans_email=owner)
+    asset2 = _seed_asset(tenant_a, humaans_email=owner)
+    db_session.add_all([asset1, asset2])
+    await db_session.flush()
+
+    v1 = _seed_vuln(tenant_a, remediation_id, asset_id=asset1.id)
+    db_session.add(v1)
+    campaign = _make_campaign(tenant_a, remediation_id)
+    db_session.add(campaign)
+    await db_session.commit()
+
+    fake = FakeTicketingClient()
+    first = await bulk_create_campaign_tickets(
+        db=db_session,
+        tenant_id=tenant_a,
+        user_id=None,
+        campaign=campaign,
+        provider="JIRA",
+        project_key="PROJ",
+        client=fake,
+    )
+    await db_session.commit()
+    assert first["created_tickets"] == 1
+    assert first["adopted"] == 0
+
+    # A newcomer arrives for the same remediation_id, same owner.
+    v2 = _seed_vuln(tenant_a, remediation_id, asset_id=asset2.id)
+    db_session.add(v2)
+    await db_session.commit()
+
+    second = await bulk_create_campaign_tickets(
+        db=db_session,
+        tenant_id=tenant_a,
+        user_id=None,
+        campaign=campaign,
+        provider="JIRA",
+        project_key="PROJ",
+        client=fake,
+    )
+    await db_session.commit()
+
+    assert second["adopted"] == 1, second  # v1 adopted, not re-ticketed
+    assert second["tickets_linked"] == 1, second  # only v2 newly linked
+    assert second["created_tickets"] == 1, second
+    assert len(fake.created) == 2, "one create() from each run, not duplicated for v1"
+
+    v1_rows = (await db_session.execute(select(Ticket).where(Ticket.vulnerability_id == v1.id))).scalars().all()
+    assert len(v1_rows) == 1, "v1 must not gain a second Ticket row on rerun"
+
+
+@pytest.mark.asyncio
+async def test_owner_derivation_matches_ticketing_service(db_session, tenant_a):
+    """Campaign owner derivation equals ticketing/service.py's for the same
+    asset fixture -- byte-identical `(mdm or {}).get('humaans_email')`
+    lookup, never a new resolver (D-05)."""
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    owner = "carol@acme.test"
+    asset = _seed_asset(tenant_a, humaans_email=owner)
+    db_session.add(asset)
+    await db_session.flush()
+
+    vuln = _seed_vuln(tenant_a, remediation_id, asset_id=asset.id)
+    db_session.add(vuln)
+    campaign = _make_campaign(tenant_a, remediation_id)
+    db_session.add(campaign)
+    await db_session.commit()
+
+    fake = FakeTicketingClient()
+    await bulk_create_campaign_tickets(
+        db=db_session,
+        tenant_id=tenant_a,
+        user_id=None,
+        campaign=campaign,
+        provider="JIRA",
+        project_key="PROJ",
+        client=fake,
+    )
+    await db_session.commit()
+
+    row = (await db_session.execute(select(Ticket).where(Ticket.vulnerability_id == vuln.id))).scalar_one()
+    # Same derivation ticketing/service.py:614 uses for the identical asset shape.
+    expected_owner = (asset.mdm_details or {}).get("humaans_email")
+    assert row.assignee == expected_owner == owner
