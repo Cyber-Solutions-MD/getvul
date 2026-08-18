@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 38
 current_phase_name: remediation-campaigns
 status: executing
-stopped_at: Phase 38 Plan 04 (campaigns list view -- CAMP-01) complete -- 18/18 tests green, ready for Plan 05
-last_updated: "2026-08-18T11:48:00.000Z"
+stopped_at: Phase 38 Plan 05 (campaign views -- CAMP-01/02/03) complete -- Phase 38 (remediation-campaigns) fully shipped, 5/5 plans, ready for /gsd-verify-work 38
+last_updated: "2026-08-18T09:40:00.000Z"
 last_activity: 2026-08-18
-last_activity_desc: Phase 38 Plan 04 complete
+last_activity_desc: Phase 38 Plan 05 complete -- Phase 38 SHIPPED
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 38 (remediation-campaigns) — EXECUTING
-Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-08-18 — Phase 38 Plan 04 complete
+Phase: 38 (remediation-campaigns) — SHIPPED (5/5 plans complete)
+Plan: 5 of 5 (complete)
+Status: Ready for /gsd-verify-work 38, then /gsd-plan-phase 39
+Last activity: 2026-08-18 — Phase 38 Plan 05 complete (Phase 38 fully shipped)
 
 ## v5.0 Phase Map
 
@@ -168,6 +168,12 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 38]: 38-04: row click on CampaignsTable is a full navigation (router.push to /dashboard/campaigns/{id}) owned by the page, not the table — CampaignsTable never imports useRouter, mirroring tickets-table.tsx's onRowClick contract
 - [Phase 38]: 38-04: added campaigns/page.test.tsx (not in the plan's files_modified) to cover WR-13 branch order + empty-state copy + row-click nav, matching every other list page's co-located page.test.tsx convention in this codebase
 - [Phase 38]: 38-04: CAMP-01 left [ ] unmarked in REQUIREMENTS.md — still shared with 38-05 (campaign detail view), which has not yet produced a SUMMARY.md
+- [Phase 38]: 38-05: RiskRing.tsx gained 3 additive, backward-compatible optional props (tintClassName/caption/ariaLabel) — its default severity-band color lookup for the center digit directly conflicted with the burndown card's "never severity colors" prohibition; every existing risk-score call site (RiskCard) omits them and is unaffected
+- [Phase 38]: 38-05: "un-ticketed members" (Create N tickets CTA count, D-10 note count) and the owner/ticket breakdown card both use CampaignDetail.open/in_progress/done as the closest available proxy — no dedicated field exists on the backend response, same class of gap as 38-04's MTTR/ticket-count columns
+- [Phase 38]: 38-05: campaign detail's member-findings table reuses the pre-existing GET /vulnerabilities/remediations/{id}/hosts endpoint via an inline useQuery (no new hook file, no new backend endpoint)
+- [Phase 38]: 38-05: Task 3 (checkpoint:human-verify) approved on-trust by the user via the orchestrator; the full create->bulk-assign->close lifecycle was independently pre-verified via direct API calls against the local dev stack before the checkpoint was raised
+- [Phase 38]: 38-05: found + worked around (data layer only, not code) a pre-existing jira_client.py exception-handling gap (Phase 23, out of scope) that caused an unhandled 500 on the seeded demo connector's empty credentials — logged to deferred-items.md
+- [Phase 38]: 38-05: CAMP-01/CAMP-02/CAMP-03 marked [x] complete in REQUIREMENTS.md — 38-05 is the last declaring plan for each; Phase 38 (remediation-campaigns) is now 5/5 plans complete, fully shipped
 - DrillPanel chrome generalized additively (D-D-02): idKey/id/renderContent/ariaLabel props with vuln-preserving defaults; cveId kept as back-compat alias
 - close() deletes 'open' + active idKey; ticket callers pass idKey='ticket'; vuln callers get default idKey='cve'
 - TicketDrillData type exported from ticket-drill-content.tsx for Plan 07 contract

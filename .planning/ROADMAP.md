@@ -135,7 +135,7 @@ Plans:
   3. Per-campaign progress (open / in-progress / done, % remediated) and campaign MTTR update live as linked tickets/findings change
   4. Every campaign action (create, bulk-assign, close) is audited
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 **Wave 1**
 
 - [x] 38-01-PLAN.md — TRACER: campaigns table + model + race-safe get-or-create + list/detail read + audit/RBAC
@@ -151,7 +151,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 38-05-PLAN.md — Remediation-grouped entry point + burndown detail + Create/Close actions
+- [x] 38-05-PLAN.md — Remediation-grouped entry point + burndown detail + Create/Close actions
 
 **UI hint**: yes
 
@@ -261,7 +261,7 @@ Plans:
 |-------|-----------------|--------|-----------|
 | 36. Remediation SLA Engine & Escalation | 5/6 | In Progress | - |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
-| 38. Remediation Campaigns | 1/5 | In Progress|  |
+| 38. Remediation Campaigns | 5/5 | Shipped | 2026-08-18 |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
@@ -272,4 +272,4 @@ Plans:
 
 ## Next
 
-`/gsd-plan-phase 36`
+`/gsd-verify-work 38`
