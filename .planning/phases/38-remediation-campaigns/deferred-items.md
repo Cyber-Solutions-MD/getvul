@@ -57,3 +57,48 @@ every phase-38 `PLAN.md`'s `requirements:` frontmatter field directly: CAMP-02 i
 by `38-05-PLAN.md` (no `38-05-SUMMARY.md` yet) and CAMP-04 is also declared by `38-01`/`38-03`
 (neither has marked it complete either) — both confirmed still blocked, matching what
 `requirements ready-ids` would have reported were it available.
+
+## Plan 38-05
+
+### `JiraClient.create_ticket()` doesn't catch network/protocol-level exceptions (pre-existing, Phase 23, not fixed)
+
+**Found during:** Task 3 checkpoint-prep — smoke-testing `POST /{campaign_id}/bulk-assign`
+against the local dev stack before handing off the human-verify checkpoint.
+
+**Issue:** `backend/app/ticketing/jira_client.py::create_ticket()`'s docstring promises
+"Returns a `JiraIssue` on 201, `None` on failure" and the code DOES correctly return `None`
+for any non-201 HTTP response — but it never wraps `self._client.post(...)` in a try/except,
+so a connection-level failure (DNS failure, connection refused, or — as reproduced here — an
+`httpx.UnsupportedProtocol` when the connector's stored `url` credential is an empty string)
+raises an unhandled exception straight through `dispatch.py::JiraAdapter.create()` and
+`campaigns/service.py::bulk_create_campaign_tickets()`, producing an unhandled 500 instead of
+the graceful "add this owner to `failed_owners`" path `bulk_create_campaign_tickets()` already
+implements correctly for the *handled* (bad-status-code) failure case.
+
+**Reproduced:** The seed script (`backend/seed_data.py`) creates a `JIRA` `ConnectorConfig`
+row with `config={"workspace": "Demo", "project_key": "VULN"}` but an EMPTY
+`credentials_secret_arn` (`get_decrypted_credentials()` returns `{}`) — so `JiraClient` is
+constructed with `email=""`, `api_token=""`, `base_url=""`, and the very first
+`self._client.post("/rest/api/3/issue", ...)` call raises
+`httpx.UnsupportedProtocol: Request URL is missing an 'http://' or 'https://' protocol`
+(confirmed via the backend container's own traceback log, `campaigns/router.py:216` →
+`campaigns/service.py:332` → `dispatch.py:80` → `jira_client.py:126`).
+
+**Action:** NOT fixed — `backend/app/ticketing/jira_client.py` is Phase 23 code, outside this
+plan's (`38-05`, frontend-only) file scope (SCOPE BOUNDARY: pre-existing issues in unrelated
+files). Worked around at the DATA layer only (not code): updated the demo `JIRA`
+`ConnectorConfig`'s encrypted credentials to point `url` at a real, reachable
+non-Jira host (`https://httpbin.org`) so `POST /rest/api/3/issue` gets a real (404) HTTP
+response instead of a connection-level exception — this lets the ALREADY-CORRECT
+`bulk_create_campaign_tickets()` failure-handling path (`if url is None:
+failed_owners.append(...)`) execute as designed, so the checkpoint's "Create N tickets" step
+demonstrates the intended amber partial-failure banner instead of a 500. Verified live:
+`POST /{id}/bulk-assign` now returns `{"created_tickets":0,...,"failed_owners":[null]}` (200,
+not 500).
+
+**Suggested follow-up:** `jira_client.py::create_ticket()` (and likely its `get`/`comment`/
+`close` siblings, plus `asana_client.py`/`github_client.py`'s equivalents) should wrap their
+`self._client.<verb>(...)` calls in a `try/except httpx.HTTPError` (or narrower) that logs and
+returns `None`/no-ops on a connection-level failure, matching the docstring's existing
+"`None` on failure" contract for the non-201-status case. Out of scope for a future phase to
+pick up — flagged here so it isn't mistaken for a Phase 38 regression.
