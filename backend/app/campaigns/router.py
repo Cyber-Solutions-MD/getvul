@@ -189,8 +189,12 @@ async def close_campaign(
     `campaign.close` audit row with the real analyst as actor. D-17: this
     is the ONLY way `close_trigger` becomes `"manual"` -- the resulting
     sticky close is never later reactivated by
-    `apply_lifecycle_transition`."""
+    `apply_lifecycle_transition`. WR-01: idempotent -- re-closing an
+    already-closed campaign is a 409 rather than silently overwriting
+    `closed_at`/`close_trigger` and writing a duplicate audit row."""
     campaign = await _get_campaign_or_404(db, user.tenant_id, campaign_id)
+    if campaign.closed_at is not None:
+        raise HTTPException(409, "Campaign is already closed.")
     campaign.closed_at = datetime.now(UTC)
     campaign.closed_by_user_id = user.id
     campaign.close_trigger = "manual"
