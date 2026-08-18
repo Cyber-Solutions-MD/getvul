@@ -42,7 +42,7 @@ logger = structlog.get_logger()
 ClientResolver = Callable[[str], Awaitable[TicketingClient | None]]
 
 
-def _extract_ref(url: str) -> str:
+def extract_ticket_ref(url: str) -> str:
     """Extract the provider's raw ticket ref (Asana task gid / Jira issue key /
     GitHub issue number) from the URL returned by TicketingClient.create().
 
@@ -55,7 +55,7 @@ def _extract_ref(url: str) -> str:
     return url.rstrip("/").rsplit("/", 1)[-1]
 
 
-def _provider_create_kwargs(provider: str, assignee: str | None, due_on: str | None) -> dict[str, Any]:
+def provider_create_kwargs(provider: str, assignee: str | None, due_on: str | None) -> dict[str, Any]:
     """Only Asana's create_task natively accepts assignee/due_on kwargs.
 
     JiraClient.create_ticket / GitHubClient.create_ticket do NOT accept these
@@ -241,13 +241,13 @@ async def create_tickets(
 
         # Create via the dispatched provider client (D-07: destination now
         # matches request.provider, not always Asana).
-        url = await client.create(task_name, notes, **_provider_create_kwargs(request.provider, assignee, due_on))
+        url = await client.create(task_name, notes, **provider_create_kwargs(request.provider, assignee, due_on))
 
         if url is None:
             logger.error("ticket_creation_failed", vuln_id=str(vuln_id), provider=request.provider)
             continue
 
-        ref = _extract_ref(url)
+        ref = extract_ticket_ref(url)
 
         # Save ticket record
         now = datetime.now(UTC)
@@ -476,12 +476,12 @@ async def create_host_ticket(
     notes = _build_host_task_description(asset, remediations, vuln_counts, vulns=vulns)
 
     # Create via the dispatched provider client (D-07).
-    url = await client.create(task_name, notes, **_provider_create_kwargs(request.provider, assignee, due_on))
+    url = await client.create(task_name, notes, **provider_create_kwargs(request.provider, assignee, due_on))
 
     if url is None:
         return {"error": "Failed to create ticket"}
 
-    ref = _extract_ref(url)
+    ref = extract_ticket_ref(url)
 
     # Save ticket records — one per vuln so we can track resolution
     now = datetime.now(UTC)
@@ -655,11 +655,11 @@ async def create_remediation_ticket(
 
     task_name = f"[{max_sev}] {product}: {remediation_action[:80]} — {len(hosts)} hosts"
 
-    url = await client.create(task_name, notes, **_provider_create_kwargs(provider, assignee_email, due_on))
+    url = await client.create(task_name, notes, **provider_create_kwargs(provider, assignee_email, due_on))
     if url is None:
         return {"error": "Failed to create ticket"}
 
-    ref = _extract_ref(url)
+    ref = extract_ticket_ref(url)
 
     # Save ticket records
     now = datetime.now(UTC)

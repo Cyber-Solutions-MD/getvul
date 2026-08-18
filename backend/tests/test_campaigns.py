@@ -31,7 +31,7 @@ analyst" since `client_factory`'s dependency override bypasses
 
 The bulk-assign tests reuse `test_ticketing_dispatch.py`'s `FakeTicketingClient`
 shape (records `.create()` calls, returns a provider-shaped fake URL per call
-so `_extract_ref`'s "last path segment" parsing is exercised for real) --
+so `extract_ticket_ref`'s "last path segment" parsing is exercised for real) --
 scoped locally here since campaigns is a new caller, not a new provider.
 
 Backend env gotcha (MEMORY.md `getvul-backend-pytest-env`): run with a REAL

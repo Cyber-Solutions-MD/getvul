@@ -17,7 +17,7 @@ from app.audit import AuditLog
 from app.campaigns.models import Campaign
 from app.ticketing.dispatch import TicketingClient
 from app.ticketing.models import Ticket
-from app.ticketing.service import SEVERITY_SLA_DAYS, _extract_ref, _provider_create_kwargs, recompute_ticket_sla
+from app.ticketing.service import SEVERITY_SLA_DAYS, extract_ticket_ref, provider_create_kwargs, recompute_ticket_sla
 from app.vulnerabilities.models import RemediationEvent, Vulnerability
 
 # D-05: byte-identical severity ranking to ticketing/service.py's inline
@@ -338,14 +338,14 @@ async def bulk_create_campaign_tickets(
         # out of the loop and roll back every owner already flushed in this
         # same bulk-assign run.
         try:
-            url = await client.create(task_name, notes, **_provider_create_kwargs(provider, owner_email, due_on))
+            url = await client.create(task_name, notes, **provider_create_kwargs(provider, owner_email, due_on))
         except Exception:
             url = None
         if url is None:
             failed_owners.append(owner_email)
             continue
 
-        ref = _extract_ref(url)
+        ref = extract_ticket_ref(url)
         for vuln, _hostname in members:
             db.add(
                 Ticket(
