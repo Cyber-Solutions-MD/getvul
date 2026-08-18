@@ -34,10 +34,10 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 
 ### Two-Way Ticket Sync & Remediation Verification (SYNC) — Phase 37
 
-- [ ] **SYNC-01**: Ticket status writes back from Jira / Asana / GitHub into the linked GetVul finding (bi-directional, not create-only)
-- [ ] **SYNC-02**: A finding absent from N consecutive post-fix scanner syncs auto-closes as rescan-verified, with an audit trail
-- [ ] **SYNC-03**: A recurrence after auto-close reopens the finding rather than silently creating a duplicate
-- [ ] **SYNC-04**: Sync is resilient to connector/API failure (retry, last-sync surfaced, no data loss)
+- [x] **SYNC-01**: Ticket status writes back from Jira / Asana / GitHub into the linked GetVul finding (bi-directional, not create-only)
+- [x] **SYNC-02**: A finding absent from N consecutive post-fix scanner syncs auto-closes as rescan-verified, with an audit trail
+- [x] **SYNC-03**: A recurrence after auto-close reopens the finding rather than silently creating a duplicate
+- [x] **SYNC-04**: Sync is resilient to connector/API failure (retry, last-sync surfaced, no data loss)
 
 ### Remediation Campaigns (CAMP) — Phase 38
 
