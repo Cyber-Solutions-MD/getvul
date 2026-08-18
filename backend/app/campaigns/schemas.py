@@ -52,3 +52,16 @@ class CampaignDetail(CampaignSummary):
     """Same shape as `CampaignSummary` for this tracer slice -- Plan 03 adds
     MTTR (`mttr_seconds`) and Plan 02 adds ticket/owner breakdown fields
     additively on top of this same contract."""
+
+
+class CampaignBulkAssignRequest(BaseModel):
+    """Bulk-assign request body (CAMP-02) -- `extra="forbid"` is the same
+    mass-assignment defense (T-38-02) as `CampaignCreateRequest`. `provider`
+    mirrors `ticketing/schemas.py`'s existing 3-provider pattern verbatim.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = Field(..., pattern="^(ASANA|JIRA|GITHUB)$")
+    project_key: str = Field(..., min_length=1, max_length=100)
+    due_days: int | None = Field(None, ge=1, le=365)

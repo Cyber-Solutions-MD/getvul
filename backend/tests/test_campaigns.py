@@ -54,10 +54,27 @@ from app.audit import AuditLog
 from app.auth.schemas import CurrentUser
 from app.campaigns.models import Campaign
 from app.campaigns.service import bulk_create_campaign_tickets
-from app.ticketing.models import Ticket
+from app.encryption import encrypt_value
+from app.ticketing.models import ConnectorConfig, Ticket
 from app.vulnerabilities.models import Vulnerability
 
 _FAKE_URL_BASE = "https://acme.atlassian.net/browse"
+
+
+def _seed_connector(tenant_id: uuid.UUID, provider: str = "JIRA", *, enabled: bool = True) -> ConnectorConfig:
+    """A minimal enabled JIRA connector so the bulk-assign router endpoint's
+    tenant-scoped `ConnectorConfig` lookup succeeds (mirrors
+    `test_ticketing_dispatch.py::_seed_connector`)."""
+    import json
+
+    creds = {"email": "e@x.com", "api_token": "tok", "url": "https://acme.atlassian.net"}
+    return ConnectorConfig(
+        tenant_id=tenant_id,
+        connector_type=provider,
+        is_enabled=enabled,
+        credentials_secret_arn=json.dumps({k: encrypt_value(v) for k, v in creds.items()}),
+        config={"project_key": "PROJ"},
+    )
 
 
 class FakeTicketingClient:
@@ -612,3 +629,117 @@ async def test_owner_derivation_matches_ticketing_service(db_session, tenant_a):
     # Same derivation ticketing/service.py:614 uses for the identical asset shape.
     expected_owner = (asset.mdm_details or {}).get("humaans_email")
     assert row.assignee == expected_owner == owner
+
+
+# ── Plan 02 Task 2: POST /{campaign_id}/bulk-assign (RBAC + audit-every-run) ─
+
+
+@pytest.mark.asyncio
+async def test_bulk_assign_endpoint_audited_every_run(client_factory, db_session, tenant_a, analyst_user, monkeypatch):
+    """POST /{id}/bulk-assign -> 200 + result dict + exactly one
+    campaign.bulk_assign audit row on the first (ticketing) run AND on a
+    second, no-op re-run that tickets nobody (D-10: audited EVERY run, never
+    gated on created_tickets > 0)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    owner = "alice@acme.test"
+    asset = _seed_asset(tenant_a, humaans_email=owner)
+    db_session.add(asset)
+    connector = _seed_connector(tenant_a, "JIRA")
+    db_session.add(connector)
+    await db_session.flush()
+
+    vuln = _seed_vuln(tenant_a, remediation_id, asset_id=asset.id)
+    db_session.add(vuln)
+    await db_session.commit()
+
+    fake = FakeTicketingClient()
+    monkeypatch.setattr("app.campaigns.router.build_ticketing_client", lambda p, c, cfg: fake)
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r1 = await analyst_client.post(
+        f"/api/v1/campaigns/{campaign_id}/bulk-assign",
+        json={"provider": "JIRA", "project_key": "PROJ"},
+    )
+    assert r1.status_code == 200, r1.text
+    body1 = r1.json()
+    assert body1["created_tickets"] == 1, body1
+    assert body1["tickets_linked"] == 1, body1
+
+    audit_rows_after_first = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.tenant_id == tenant_a,
+                    AuditLog.action == "campaign.bulk_assign",
+                    AuditLog.resource_id == campaign_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audit_rows_after_first) == 1, f"expected 1 audit row after run 1, got {len(audit_rows_after_first)}"
+
+    # Second run: the finding is now IN_PROGRESS with a Ticket already
+    # linked -- adopted, nothing new to ticket -- but STILL audited (D-10).
+    r2 = await analyst_client.post(
+        f"/api/v1/campaigns/{campaign_id}/bulk-assign",
+        json={"provider": "JIRA", "project_key": "PROJ"},
+    )
+    assert r2.status_code == 200, r2.text
+    body2 = r2.json()
+    assert body2["created_tickets"] == 0, body2
+    assert body2["adopted"] == 1, body2
+
+    audit_rows_after_second = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.tenant_id == tenant_a,
+                    AuditLog.action == "campaign.bulk_assign",
+                    AuditLog.resource_id == campaign_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audit_rows_after_second) == 2, (
+        f"expected 2 audit rows after a no-op re-run (D-10: every run), got {len(audit_rows_after_second)}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_bulk_assign_viewer_forbidden(client_factory, db_session, tenant_a, analyst_user, viewer_user):
+    """A viewer gets 403 on bulk-assign."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    viewer_client = client_factory(viewer_user)
+    r = await viewer_client.post(
+        f"/api/v1/campaigns/{campaign_id}/bulk-assign",
+        json={"provider": "JIRA", "project_key": "PROJ"},
+    )
+    assert r.status_code == 403, r.text
+
+
+@pytest.mark.asyncio
+async def test_bulk_assign_unknown_campaign_404(client_factory, db_session, tenant_a, analyst_user):
+    """An unknown/cross-tenant campaign_id 404s (T-38-01 tenant-scoped lookup)."""
+    await db_session.commit()
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post(
+        f"/api/v1/campaigns/{uuid.uuid4()}/bulk-assign",
+        json={"provider": "JIRA", "project_key": "PROJ"},
+    )
+    assert r.status_code == 404, r.text

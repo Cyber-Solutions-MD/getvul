@@ -1,4 +1,4 @@
-"""Campaign API routes (Phase 38 -- CAMP-01/CAMP-04)."""
+"""Campaign API routes (Phase 38 -- CAMP-01/CAMP-02/CAMP-04)."""
 
 from __future__ import annotations
 
@@ -13,15 +13,68 @@ from app.auth.rbac import require_analyst, require_viewer
 from app.auth.schemas import CurrentUser
 from app.campaigns.models import Campaign
 from app.campaigns.schemas import (
+    CampaignBulkAssignRequest,
     CampaignCreateRequest,
     CampaignCreateResponse,
     CampaignDetail,
     CampaignSummary,
 )
-from app.campaigns.service import get_campaign_progress, get_or_create_campaign, list_campaigns
+from app.campaigns.service import (
+    bulk_create_campaign_tickets,
+    get_campaign_progress,
+    get_or_create_campaign,
+    list_campaigns,
+)
 from app.dependencies import DBSession
+from app.ticketing.dispatch import TicketingClient, build_ticketing_client
+from app.ticketing.providers import TicketProvider
 
 router = APIRouter()
+
+# Mirrors ticketing/router.py's `_PROVIDER_PROJECT_FIELD` -- which config key
+# a request-supplied project routes to per provider. GitHub has no
+# per-request project concept (owner/repo is fixed on the connector's own
+# config), so it is deliberately absent here.
+_PROVIDER_PROJECT_FIELD = {
+    TicketProvider.ASANA: "project_gid",
+    TicketProvider.JIRA: "project_key",
+}
+
+
+async def _get_campaign_ticketing_client(
+    db: DBSession, tenant_id: uuid.UUID, provider: str, project_key: str
+) -> TicketingClient:
+    """Resolve a tenant-scoped dispatched client for `provider` (D-08's
+    "existing dispatch pattern" reuse), mirroring
+    `ticketing/router.py::_get_ticketing_client`'s tenant-scoped
+    `ConnectorConfig` lookup + Fernet-decrypt + `build_ticketing_client`
+    shape. Kept local to this router (not imported cross-router) since
+    `project_key` here is always caller-supplied, never a fallback to the
+    connector's own configured project.
+    """
+    from app.connectors.service import get_decrypted_credentials
+    from app.ticketing.models import ConnectorConfig
+
+    provider_enum = TicketProvider(provider)
+
+    result = await db.execute(
+        select(ConnectorConfig).where(
+            ConnectorConfig.tenant_id == tenant_id,
+            ConnectorConfig.connector_type == provider_enum.value,
+            ConnectorConfig.is_enabled.is_(True),
+        )
+    )
+    connector = result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(400, f"No {provider_enum.value.title()} connector configured. Add one in Connectors page.")
+
+    creds = get_decrypted_credentials(connector)
+    config = dict(connector.config or {})
+    project_field = _PROVIDER_PROJECT_FIELD.get(provider_enum)
+    if project_field:
+        config[project_field] = project_key
+
+    return build_ticketing_client(provider_enum, creds, config)
 
 
 def _derive_status(campaign: Campaign, progress: dict[str, int]) -> Literal["ACTIVE", "COMPLETE"]:
@@ -111,3 +164,25 @@ async def campaign_detail(
         status=_derive_status(campaign, progress),
         **progress,
     )
+
+
+@router.post("/{campaign_id}/bulk-assign")
+async def bulk_assign_campaign(
+    campaign_id: uuid.UUID,
+    body: CampaignBulkAssignRequest,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+) -> dict[str, int | list[str | None]]:
+    """CAMP-02: one ticket per owner covering that owner's live campaign
+    members, reusing the existing owner-routing + dedup-by-URL logic
+    verbatim (D-05/D-06/D-08). D-10: a `campaign.bulk_assign` audit row is
+    written on EVERY run -- including a no-op re-run that tickets nobody --
+    never gated on `result["created_tickets"] > 0`."""
+    campaign = await _get_campaign_or_404(db, user.tenant_id, campaign_id)
+    client = await _get_campaign_ticketing_client(db, user.tenant_id, body.provider, body.project_key)
+    result = await bulk_create_campaign_tickets(
+        db, user.tenant_id, user.id, campaign, body.provider, body.project_key, client, body.due_days
+    )
+    await audit(db, user, "campaign.bulk_assign", "campaign", str(campaign.id), result)
+    await db.commit()
+    return result
