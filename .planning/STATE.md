@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 38
 current_phase_name: remediation-campaigns
 status: executing
-stopped_at: Phase 38 Plan 02 (per-owner bulk ticketing) complete -- 16/16 tests green, ready for Plan 03
-last_updated: "2026-08-18T07:47:26.000Z"
+stopped_at: Phase 38 Plan 03 (live progress + MTTR + lifecycle audit) complete -- 24/24 tests green, ready for Plan 04
+last_updated: "2026-08-18T08:34:09.000Z"
 last_activity: 2026-08-18
-last_activity_desc: Phase 38 Plan 02 complete
+last_activity_desc: Phase 38 Plan 03 complete
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 15
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 38 (remediation-campaigns) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
-Last activity: 2026-08-18 — Phase 38 Plan 02 complete
+Last activity: 2026-08-18 — Phase 38 Plan 03 complete
 
 ## v5.0 Phase Map
 
@@ -412,6 +412,7 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 38]: 38-01: DBSession imports from app.dependencies not app.db.session (38-RESEARCH.md Code Example 4 cited the wrong module); campaign service functions take tenant_id/user_id as separate params matching create_remediation_ticket's convention, not a whole user object
 - [Phase 38]: 38-01: CAMP-01/CAMP-04 intentionally left Pending in REQUIREMENTS.md -- both shared with not-yet-executed sibling plans (38-02/03/04/05); requirements ready-ids confirmed both blocked, do not flip until all declaring plans are done
 - [Phase 38]: 38-02: bulk_create_campaign_tickets's D-06 adoption check is per-vulnerability (Ticket.vulnerability_id IN (...) AND resolved_at IS NULL), never create_remediation_ticket's coarser group-level created_by_rule==remediation_id check -- makes reruns idempotent across mixed old/new members; campaign tickets set created_by_rule to the BARE remediation_id (never "campaign:{id}") to close the 38-RESEARCH.md Pitfall 1 rule-engine double-ticket gap; _get_campaign_ticketing_client duplicates (not cross-router-imports) ticketing/router.py's client-resolution shape, kept local since project_key is always caller-supplied here; CAMP-02/CAMP-04 remain Pending in REQUIREMENTS.md (CAMP-02 shared with not-yet-run 38-05; CAMP-04 shared with 38-01/38-03) -- confirmed via each phase-38 PLAN.md's requirements frontmatter directly since the SDK's requirements ready-ids verb is not installed in this environment
+- [Phase 38]: 38-03: get_campaign_mttr() joins RemediationEvent to Vulnerability on remediation_id WITHOUT filtering by the live-membership status set -- a RemediationEvent row is durable Phase-36 history that survives a later reopen-on-recurrence, so MTTR reflects every remediation this group has ever completed, not just currently-REMEDIATED members; apply_lifecycle_transition runs inside GET /{id} strictly after get_campaign_progress and before _derive_status/get_campaign_mttr (ordering load-bearing since _derive_status reads the possibly-just-mutated campaign.closed_at); system-actor AuditLog rows (auto_complete campaign.close / campaign.reactivate) are constructed directly via db.add(AuditLog(...)), mirroring reopen_vulnerability's precedent, never via the audit() helper (reserved for real-user actions like the manual /close endpoint); CAMP-04 flipped to Complete in REQUIREMENTS.md (all three declaring plans 38-01/02/03 now have SUMMARY.md); CAMP-03 remains Pending (shared with not-yet-run 38-05)
 
 ## Performance Metrics
 
@@ -473,12 +474,13 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 36 P04 | 30min | 2 tasks | 8 files |
 | Phase 38 P01 | 27min | 2 tasks | 8 files |
 | Phase 38 P02 | 35min | 2 tasks | 4 files |
+| Phase 38 P03 | 25min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-08-18T07:47:26.000Z
-**Stopped at:** Phase 38 Plan 02 (per-owner bulk ticketing) complete -- 16/16 tests green, ready for Plan 03
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/38-remediation-campaigns/38-03-PLAN.md
+**Last session:** 2026-08-18T08:34:09.000Z
+**Stopped at:** Phase 38 Plan 03 (live progress + MTTR + lifecycle audit) complete -- 24/24 tests green, ready for Plan 04
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/38-remediation-campaigns/38-04-PLAN.md
 
 ## Operator Next Steps
 

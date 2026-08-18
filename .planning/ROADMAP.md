@@ -135,7 +135,7 @@ Plans:
   3. Per-campaign progress (open / in-progress / done, % remediated) and campaign MTTR update live as linked tickets/findings change
   4. Every campaign action (create, bulk-assign, close) is audited
 
-**Plans**: 2/5 plans executed
+**Plans**: 3/5 plans executed
 **Wave 1**
 
 - [x] 38-01-PLAN.md — TRACER: campaigns table + model + race-safe get-or-create + list/detail read + audit/RBAC
@@ -147,7 +147,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 38-03-PLAN.md — CAMP-03 progress/MTTR + manual close + lazy auto-complete/reactivate audit
+- [x] 38-03-PLAN.md — CAMP-03 progress/MTTR + manual close + lazy auto-complete/reactivate audit
 
 **Wave 4** *(blocked on Wave 3 completion)*
 

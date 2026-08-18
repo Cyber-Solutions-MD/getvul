@@ -44,7 +44,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 - [ ] **CAMP-01**: Group findings by shared fix (CVE / patch / product) across multiple assets and owners into a campaign in one action
 - [ ] **CAMP-02**: Bulk-create/assign tickets for a campaign, respecting existing owner routing
 - [ ] **CAMP-03**: Live per-campaign progress (open / in-progress / done, % remediated) and campaign MTTR
-- [ ] **CAMP-04**: All campaign actions are audited
+- [x] **CAMP-04**: All campaign actions are audited
 
 ### Exception & Risk-Acceptance Workflow (EXC) — Phase 39
 
