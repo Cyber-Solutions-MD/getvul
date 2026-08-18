@@ -329,7 +329,18 @@ async def bulk_create_campaign_tickets(
             due_on = (now + timedelta(days=SEVERITY_SLA_DAYS.get(max_sev, 30))).strftime("%Y-%m-%d")
         task_name = f"[{max_sev}] {campaign.remediation_id[:60]} — {owner_email or 'Unassigned'} ({len(members)} hosts)"
 
-        url = await client.create(task_name, notes, **_provider_create_kwargs(provider, owner_email, due_on))
+        # WR-02: isolate per-owner failures. If client.create() raises
+        # (transport-level exception from any provider, e.g. the
+        # pre-existing jira_client.py gap logged in deferred-items.md)
+        # instead of gracefully returning None on a bad HTTP status, treat
+        # it the same as the graceful-None contract -- record the owner as
+        # failed and continue, rather than letting the exception propagate
+        # out of the loop and roll back every owner already flushed in this
+        # same bulk-assign run.
+        try:
+            url = await client.create(task_name, notes, **_provider_create_kwargs(provider, owner_email, due_on))
+        except Exception:
+            url = None
         if url is None:
             failed_owners.append(owner_email)
             continue
