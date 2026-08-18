@@ -167,7 +167,17 @@ Plans:
   3. Every exception records who/why/scope/expiry as a tenant-scoped audit event
   4. An expired exception automatically resurfaces into the active queue with no manual re-trigger
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+- [ ] 39-01-PLAN.md — TRACER: exceptions table + module + grant/list/revoke + shared active_exception_subquery seam, proven end-to-end against the vuln list (grant→exclude→expiry/revoke resurface→audit)
+- [ ] 39-02-PLAN.md — Full scope semantics (FINDING/ASSET/ASSET_GROUP live membership), D-03 per-scope precondition, D-12 overlap, D-14 hard expiry cap + defaults, Pitfall-9 server derivation
+- [ ] 39-03-PLAN.md — SLA integration: D-15 exclusion in run_sla_tier_pass + detect_and_escalate, D-16 SLA-clock subtraction (interval-merged), read-time + persisted-mirror parity
+- [ ] 39-04-PLAN.md — Core consumer sweep: risk score, remediation view (+ hand-rolled bypass), campaigns denominator/bulk-ticket, governance-critical rule engine
+- [ ] 39-05-PLAN.md — Tier 2 dashboards/exports: asset+owner badges, /dashboard tiles+nav, CSV/exec-summary export, risk_exposure_score rollup (Tier 3 explicitly untouched)
+- [ ] 39-06-PLAN.md — Frontend exceptions list page + sortable table (inline-expand) + two-axis chip-bar + query hook/keys + sidebar nav entry
+- [ ] 39-07-PLAN.md — Frontend grant dialog + approver-combobox (controlled) + grant/revoke mutations + drill-panel entry points + microcopy
+- [ ] 39-08-PLAN.md — Checkpoint: human-verify the full grant→exclude-everywhere→list→revoke→resurface loop live
 **UI hint**: yes
 
 ### Phase 40: Proactive Alerting & Digests
