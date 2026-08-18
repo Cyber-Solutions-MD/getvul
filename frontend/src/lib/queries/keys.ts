@@ -119,4 +119,15 @@ export const queryKeys = {
     list: () => ['campaigns', 'list'] as const,
     detail: (id: string) => ['campaigns', 'detail', id] as const,
   },
+  // Phase 38 (38-05) — /dashboard/vulnerabilities/remediations entry point
+  // (CAMP-01). GET /api/v1/vulnerabilities/remediations/grouped supports
+  // page/page_size (plus severity/exploit/kev/search/device_type filters
+  // this plan's minimal entry point doesn't surface yet) — list() takes an
+  // opts object so pagination stays part of the cache key, mirroring
+  // tickets.list's shape rather than campaigns.list's no-opts shape.
+  remediationsGrouped: {
+    all: ['remediations-grouped'] as const,
+    list: (opts: { page: number; pageSize: number }) =>
+      ['remediations-grouped', 'list', opts] as const,
+  },
 } as const;
