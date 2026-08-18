@@ -56,7 +56,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
 - [ ] **Phase 36: Remediation SLA Engine & Escalation** — Risk-tier SLA policy, live SLA state per finding, auto-escalation, MTTR-by-tier
 - [x] **Phase 37: Two-Way Ticket Sync & Remediation Verification** — Bi-directional ticket status sync + rescan-verified auto-close + reopen guard ✅ verified 7/7 (2026-08-17)
-- [ ] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR
+- [x] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR (completed 2026-08-18)
 - [ ] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry
 - [ ] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests
 - [ ] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %
@@ -261,7 +261,7 @@ Plans:
 |-------|-----------------|--------|-----------|
 | 36. Remediation SLA Engine & Escalation | 5/6 | In Progress | - |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
-| 38. Remediation Campaigns | 5/5 | Shipped | 2026-08-18 |
+| 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
 | 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |

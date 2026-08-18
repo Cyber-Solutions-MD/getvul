@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
-current_phase: 38
-current_phase_name: remediation-campaigns
-status: executing
-stopped_at: Phase 38 Plan 05 (campaign views -- CAMP-01/02/03) complete -- Phase 38 (remediation-campaigns) fully shipped, 5/5 plans, ready for /gsd-verify-work 38
-last_updated: "2026-08-18T09:40:00.000Z"
+current_phase: 39
+current_phase_name: Exception & Risk-Acceptance Workflow
+status: planning
+stopped_at: Phase 38 (remediation-campaigns) COMPLETE + verified 27/27 -- transitioned to Phase 39
+last_updated: "2026-08-18T09:53:02.423Z"
 last_activity: 2026-08-18
-last_activity_desc: Phase 38 Plan 05 complete -- Phase 38 SHIPPED
+last_activity_desc: Phase 38 complete, transitioned to Phase 39
 progress:
   total_phases: 3
   completed_phases: 3
@@ -44,10 +44,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 38 (remediation-campaigns) — SHIPPED (5/5 plans complete)
-Plan: 5 of 5 (complete)
-Status: Ready for /gsd-verify-work 38, then /gsd-plan-phase 39
-Last activity: 2026-08-18 — Phase 38 Plan 05 complete (Phase 38 fully shipped)
+Phase: 39 — Exception & Risk-Acceptance Workflow
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-18 — Phase 38 complete, transitioned to Phase 39
 
 ## v5.0 Phase Map
 
