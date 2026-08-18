@@ -198,24 +198,27 @@ All copy follows `copy-voice.md`: sentence case, no exclamation marks, no "Pleas
 
 ## UI Considerations
 
-Applicable state considerations resolved: 13 covered, 2 backstop, 0 unresolved.
+Applicable state considerations (17, `ui-consideration-probe.cjs`-computed over 4 corrected-classification surfaces): **11 covered · 2 backstop · 4 dismissed · 0 unresolved.** Element kinds were author-overridden to correct heuristic over-detection — the grant dialog is a `form` (not form+list), the sidebar entry is `nav` (not form+list) — so spurious list-collection categories (`populated`/`zero-one-many` on a form and on a static link) were never raised.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | grant-form (form) | ✅ covered | Dialog opens with type pre-selected from the triggering drill-panel button, scope defaulted to "This finding" (the originating CVE+asset), and Expires pre-filled to the type's default window (exact day-count is a planning decision, D-13) — the form is never blank on its consequential fields, but Expires stays editable and submit is still gated on all four fields being explicitly present. |
-| empty | exceptions-list (list-collection) | ✅ covered | "No exceptions granted yet" heading + explanatory body + "View vulnerabilities" secondary action (see Copywriting Contract) — never granted case. |
-| empty | exceptions-list filtered-to-zero (list-collection) | ✅ covered | "Nothing matches this filter" heading + body naming the active chip conjunction + gradient "Clear all filters" action, matching the documented vulnerabilities-list filtered-empty pattern. |
+| Category | Element (kind) | Status | Resolution / Reason |
+|----------|----------------|--------|---------------------|
+| empty | grant-form (form) | ✅ covered | Dialog opens with type pre-selected from the triggering drill-panel button, scope defaulted to "This finding" (the originating CVE+asset), and Expires pre-filled to the type's default window (exact day-count is a planning decision, D-13) — never blank on its consequential fields, but Expires stays editable and submit is still gated on all four fields being explicitly present. |
 | loading | grant-form (form) | ✅ covered | Approver field renders disabled with placeholder "Loading approvers…" until the tenant-user list resolves; submit stays disabled until it does (single API request, <300ms typical — no skeleton needed per state-patterns.md's "simpler loading" rule). |
-| loading | exceptions-list (list-collection) | ✅ covered | Skeleton table rows (shimmer, 6-8 rows) matching the sitewide `.skeleton`/`.skel-pill` treatment — never a blank screen. |
 | error | grant-form (form) | ✅ covered | Four distinct error copy strings declared above: precondition (D-03), expiry-cap (D-14), approver-fetch, and generic submit failure — each surfaced at the right scope (dialog-level banner vs. field-level text), never a generic "Something went wrong." |
+| partial | grant-form (form) | ✅ covered | All four fields (scope target, approver, justification, expiry) are mandatory client-side gates on the submit button — no partial-submit state to design for (D-06). |
+| long-text | grant-form (form) | 🧪 backstop | Justification textarea caps at 1000 characters with a counter appearing near the limit (mirrors `CommentInput`'s 9500-of-10000 warning pattern) — held-out test must assert the counter renders and the textarea does not silently truncate mid-word before the cap. |
+| empty | exceptions-list (list-collection) | ✅ covered | Never-granted → "No exceptions granted yet" heading + explanatory body + "View vulnerabilities" secondary action; filtered-to-zero → "Nothing matches this filter" heading + body naming the active chip conjunction + gradient "Clear all filters" action (documented filtered-empty pattern). |
+| loading | exceptions-list (list-collection) | ✅ covered | Skeleton table rows (shimmer, 6-8 rows) matching the sitewide `.skeleton`/`.skel-pill` treatment — never a blank screen. |
 | error | exceptions-list (list-collection) | ✅ covered | Reuses `PartialFailureBanner` verbatim — amber, HTTP code + request ID + Retry now, per `state-patterns.md`'s error convention (not a full-page red error, data may still partially exist). |
 | populated | exceptions-list (list-collection) | ✅ covered | Column set and row chrome specified in Layout & Entry Points §3 (Type pill · CVE/target mono · Scope label · Approver avatar+name · Granted relative date · Expires sla-pill · Revoke). |
-| partial | grant-form (form) | ✅ covered | All four fields (scope target, approver, justification, expiry) are mandatory client-side gates on the submit button — there is no partial-submit state to design for (D-06). |
-| partial | exceptions-list (list-collection) | ✅ covered (dismissed) | List is a single full-tenant fetch (mirrors `GET /campaigns`'s no-pagination-params precedent, Phase 38 D-04); there is no server-side partial-row-shape case distinct from the full-failure error state already covered above. |
-| overflow | exceptions-list (list-collection) | ✅ covered | Scope-target names (long asset-group names, hostnames) truncate with ellipsis + native `title` tooltip in the Scope column, mirroring `TicketAssetCard`'s truncation-safety precedent; justification text is deliberately NOT shown in the compact row (only in the row's inline-expand), so it carries no table-cell overflow risk. |
+| partial | exceptions-list (list-collection) | ⊘ dismissed | Single full-tenant fetch (mirrors `GET /campaigns`'s no-pagination-params precedent, Phase 38 D-04); there is no server-side partial-row-shape case distinct from the full-failure error state already covered above. |
+| overflow | exceptions-list (list-collection) | 🧪 backstop | Long scope-target names (asset groups, hostnames) and approver display names truncate with ellipsis + native `title` tooltip rather than wrapping; justification text is shown only in the inline-expand, never the compact cell — held-out test with a long synthetic name must assert row height stays constant. |
 | zero-one-many | exceptions-list (list-collection) | ✅ covered | Zero → empty state (above); one → single-row table, pagination footer suppressed (mirrors `Pagination` component's own zero/one-page guard); many → standard paginated table at the sitewide page size, sorted ascending by Expires by default. |
-| long-text | grant-form (form) | 🧪 backstop | Justification textarea caps at 1000 characters with a counter appearing near the limit (mirrors `CommentInput`'s 9500-of-10000 warning pattern) — needs a held-out test asserting the counter renders and the textarea does not silently truncate mid-word before the cap. |
-| long-text | exceptions-list (list-collection) | 🧪 backstop | Approver display name in the compact table cell truncates with ellipsis rather than wrapping and breaking row height — needs a held-out test with a long synthetic display name asserting row height stays constant. |
+| long-text | drill-panel-actions (interactive-control) | ⊘ dismissed | The "Accept risk" / "Mark false positive" trigger labels are fixed short literals, not data-driven — no long-text/overflow case exists to design for. |
+| loading | nav-entry (nav) | ⊘ dismissed | Static shell link rendered synchronously with the `WORKFLOW_ITEMS` list — no async data to load, so no loading state. |
+| error | nav-entry (nav) | ⊘ dismissed | Static link with no independent fetch — cannot fail to load apart from the app shell itself. |
+| overflow | nav-entry (nav) | ✅ covered | Fixed literal label "Exceptions" in the fixed-width sidebar; reuses the existing nav-item layout identical to every other `WORKFLOW_ITEMS` entry — no new overflow surface introduced. |
+| long-text | nav-entry (nav) | ⊘ dismissed | Label is a fixed literal ("Exceptions"), not user data — no long-text case. |
 
 <!-- Status vocabulary (locked by probe-core projectTruths):
      ✅ covered   → a plain truth string lifted into must_haves.truths
@@ -243,11 +246,11 @@ No new shadcn components are installed this phase (see Design System note on nat
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (gsd-ui-checker, 2026-08-18) — 6/6 dimensions PASS after 1 revision (Typography weight-count fix). UI-consideration probe: 17 applicable, 11 covered / 2 backstop / 4 dismissed / 0 unresolved.
