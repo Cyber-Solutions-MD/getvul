@@ -2,7 +2,7 @@
 // Consumed by: sidebar.tsx, bottom-nav.tsx, nav-drawer.tsx, nav-more-sheet.tsx
 // This is a plain .ts file (no JSX) — all types + arrays + helpers in one place.
 import {
-  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban,
+  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban, Target,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -43,6 +43,10 @@ export const WORKFLOW_ITEMS: NavItem[] = [
   // Phase 32 (32-05) — AssetGroup management surface. No chip per D-N-01
   // (this destination does not carry a live count badge).
   { label: 'Asset groups', href: '/dashboard/asset-groups', icon: FolderKanban },
+  // Phase 38 (38-04, CAMP-01) — dedicated campaign list view. No chip per
+  // D-N-01 (campaigns aren't one of the three chip-carrying destinations:
+  // vuln_open / asset_total / ticket_open).
+  { label: 'Campaigns', href: '/dashboard/campaigns', icon: Target },
 ];
 
 export const UNLABELED_ITEMS: NavItem[] = [
