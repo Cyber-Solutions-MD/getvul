@@ -21,6 +21,11 @@ export const queryKeys = {
     detail: (id: string) => ['vulnerabilities', 'detail', id] as const,
     // Phase 36 (SLA-03, D-07): escalation-fire history list in the drill panel.
     escalations: (id: string) => ['vulnerabilities', id, 'escalations'] as const,
+    // Phase 38 (WR-03 fix): member-hosts list on the campaign detail page
+    // (GET /vulnerabilities/remediations/{id}/hosts) -- previously an inline
+    // key bypassing this registry.
+    remediationHosts: (remediationId: string) =>
+      ['vulnerabilities', 'remediation-hosts', remediationId] as const,
   },
   notifications: {
     all: ['notifications'] as const,

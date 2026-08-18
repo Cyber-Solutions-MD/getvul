@@ -50,6 +50,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { SEVERITY_GLYPH, SEVERITY_CLASS } from '@/components/tickets/severity-glyph';
 import { useCampaignDetail } from '@/lib/queries/use-campaigns';
 import { useBulkAssign, useCloseCampaign } from '@/lib/queries/use-campaign-mutations';
+import { queryKeys } from '@/lib/queries/keys';
 import type { TicketProvider } from '@/lib/ticketing/providers';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -101,7 +102,7 @@ function CampaignDetailInner() {
   // members intentionally drop off this list (same convention as
   // assets/[id]'s AssetVulnsList "No active vulnerabilities" empty copy).
   const members = useQuery({
-    queryKey: ['vulnerabilities', 'remediation-hosts', remediationId] as const,
+    queryKey: queryKeys.vulnerabilities.remediationHosts(remediationId ?? ''),
     queryFn: ({ signal }) =>
       api<MemberHost[]>(
         `/api/v1/vulnerabilities/remediations/${encodeURIComponent(remediationId!)}/hosts`,
