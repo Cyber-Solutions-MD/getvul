@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,6 +21,7 @@ from app.campaigns.schemas import (
     CampaignSummary,
 )
 from app.campaigns.service import (
+    apply_lifecycle_transition,
     bulk_create_campaign_tickets,
     get_campaign_mttr,
     get_campaign_progress,
@@ -156,9 +158,16 @@ async def campaign_detail(
 ) -> CampaignDetail:
     """Single-campaign read with a live progress snapshot. Tenant-scoped
     404 (T-38-01) -- never leaks whether a campaign_id exists in another
-    tenant."""
+    tenant.
+
+    D-13/D-14/D-19: after computing progress, `apply_lifecycle_transition`
+    runs the lazy-on-read auto-complete/reactivate detection (Pattern 6) --
+    a `require_viewer` GET can trigger a system-attributed lifecycle write,
+    but only ever derives it from the server-computed `progress` dict just
+    below, never from client input (T-38-05)."""
     campaign = await _get_campaign_or_404(db, user.tenant_id, campaign_id)
     progress = await get_campaign_progress(db, user.tenant_id, campaign.remediation_id)
+    await apply_lifecycle_transition(db, user.tenant_id, campaign, progress)
     mttr_seconds = await get_campaign_mttr(db, user.tenant_id, campaign.remediation_id)
     return CampaignDetail(
         id=campaign.id,
@@ -167,6 +176,27 @@ async def campaign_detail(
         mttr_seconds=mttr_seconds,
         **progress,
     )
+
+
+@router.post("/{campaign_id}/close")
+async def close_campaign(
+    campaign_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_analyst)],
+) -> dict[str, str]:
+    """CAMP-04: manual early-close (D-13). Sets `closed_at`/
+    `closed_by_user_id`/`close_trigger="manual"` and writes ONE
+    `campaign.close` audit row with the real analyst as actor. D-17: this
+    is the ONLY way `close_trigger` becomes `"manual"` -- the resulting
+    sticky close is never later reactivated by
+    `apply_lifecycle_transition`."""
+    campaign = await _get_campaign_or_404(db, user.tenant_id, campaign_id)
+    campaign.closed_at = datetime.now(UTC)
+    campaign.closed_by_user_id = user.id
+    campaign.close_trigger = "manual"
+    await audit(db, user, "campaign.close", "campaign", str(campaign.id), {"trigger": "manual"})
+    await db.commit()
+    return {"status": "closed"}
 
 
 @router.post("/{campaign_id}/bulk-assign")

@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.audit import AuditLog
 from app.campaigns.models import Campaign
 from app.ticketing.dispatch import TicketingClient
 from app.ticketing.models import Ticket
@@ -145,6 +146,69 @@ async def get_campaign_mttr(db: AsyncSession, tenant_id: uuid.UUID, remediation_
         )
     ).scalar_one()
     return float(avg_seconds) if avg_seconds is not None else None
+
+
+async def apply_lifecycle_transition(
+    db: AsyncSession, tenant_id: uuid.UUID, campaign: Campaign, progress: dict[str, int]
+) -> None:
+    """Lazy-on-read auto-complete (D-13) / auto-reactivate (D-14) detection --
+    invoked from `GET /{campaign_id}` immediately AFTER computing progress
+    (38-RESEARCH.md Pattern 6). Never called from a scheduler tick or from
+    `mark_vulnerability_remediated`/`reopen_vulnerability` (D-07/D-19,
+    Deferred Ideas) -- detection is lazy-on-read only.
+
+    D-17 sticky close: a manually-closed campaign (`close_trigger ==
+    "manual"`) is NEVER touched by either branch below -- only
+    `close_trigger == "auto_complete"` is eligible for reactivation.
+
+    D-19 idempotence: the `closed_at IS NULL` guard on the complete branch
+    and the `closed_at IS NOT NULL` guard on the reactivate branch make each
+    transition single-write -- a second read of an already-transitioned
+    campaign takes neither branch and writes no additional audit row.
+
+    T-38-05: both branches are system-attributed (`user_id=None`,
+    `user_email="system:campaign-complete"`) and derived ONLY from the
+    server-computed `progress` dict passed in -- never from client input --
+    mirroring `reopen_vulnerability`'s direct-`AuditLog`-construction
+    system-actor precedent (`vulnerabilities/service.py:464-476`).
+    """
+    is_complete = progress["total"] > 0 and progress["done"] == progress["total"]
+    now = datetime.now(UTC)
+
+    if is_complete and campaign.closed_at is None:
+        campaign.closed_at = now
+        campaign.close_trigger = "auto_complete"
+        db.add(
+            AuditLog(
+                tenant_id=tenant_id,
+                user_id=None,
+                user_email="system:campaign-complete",
+                action="campaign.close",
+                resource_type="campaign",
+                resource_id=str(campaign.id),
+                details={"trigger": "auto_complete"},
+                ip_address=None,
+                created_at=now,
+            )
+        )
+        await db.commit()
+    elif not is_complete and campaign.closed_at is not None and campaign.close_trigger == "auto_complete":
+        campaign.closed_at = None
+        campaign.close_trigger = None
+        db.add(
+            AuditLog(
+                tenant_id=tenant_id,
+                user_id=None,
+                user_email="system:campaign-complete",
+                action="campaign.reactivate",
+                resource_type="campaign",
+                resource_id=str(campaign.id),
+                details={},
+                ip_address=None,
+                created_at=now,
+            )
+        )
+        await db.commit()
 
 
 async def list_campaigns(db: AsyncSession, tenant_id: uuid.UUID) -> list[Campaign]:

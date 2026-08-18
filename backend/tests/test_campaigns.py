@@ -880,3 +880,173 @@ async def test_live_membership_grows(client_factory, db_session, tenant_a, analy
     r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
     assert r.status_code == 200, r.text
     assert r.json()["total"] == 1, r.json()
+
+
+# ── Plan 03 Task 2: manual close + lazy auto-complete/reactivate (D-13/14/17/19) ─
+
+
+async def _audit_rows(db_session, tenant_id: uuid.UUID, action: str, campaign_id: str) -> list[AuditLog]:
+    return list(
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.tenant_id == tenant_id,
+                    AuditLog.action == action,
+                    AuditLog.resource_id == campaign_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+@pytest.mark.asyncio
+async def test_campaign_actions_audited(client_factory, db_session, tenant_a, analyst_user, viewer_user):
+    """POST /{id}/close by an analyst sets closed_at + close_trigger='manual'
+    and writes exactly one campaign.close audit row (real actor); a viewer
+    gets 403."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    viewer_client = client_factory(viewer_user)
+    r = await viewer_client.post(f"/api/v1/campaigns/{campaign_id}/close")
+    assert r.status_code == 403, r.text
+
+    r = await analyst_client.post(f"/api/v1/campaigns/{campaign_id}/close")
+    assert r.status_code == 200, r.text
+
+    campaign = (await db_session.execute(select(Campaign).where(Campaign.id == uuid.UUID(campaign_id)))).scalar_one()
+    await db_session.refresh(campaign)
+    assert campaign.closed_at is not None
+    assert campaign.close_trigger == "manual"
+    assert campaign.closed_by_user_id == analyst_user.id
+
+    rows = await _audit_rows(db_session, tenant_a, "campaign.close", campaign_id)
+    assert len(rows) == 1, rows
+    assert rows[0].user_email == analyst_user.email
+    assert rows[0].details.get("trigger") == "manual"
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "COMPLETE", r.json()
+
+
+@pytest.mark.asyncio
+async def test_auto_complete_audited_once(client_factory, db_session, tenant_a, analyst_user):
+    """Reading a campaign whose members are all REMEDIATED (done==total>0)
+    sets closed_at + close_trigger='auto_complete' and writes exactly ONE
+    system-actor campaign.close audit row; a second read writes no further
+    row (D-13/D-19 idempotent lazy transition)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    db_session.add(_seed_vuln(tenant_a, remediation_id, status="REMEDIATED"))
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "COMPLETE", body
+
+    rows_after_first = await _audit_rows(db_session, tenant_a, "campaign.close", campaign_id)
+    assert len(rows_after_first) == 1, rows_after_first
+    assert rows_after_first[0].user_id is None
+    assert rows_after_first[0].user_email == "system:campaign-complete"
+
+    campaign = (await db_session.execute(select(Campaign).where(Campaign.id == uuid.UUID(campaign_id)))).scalar_one()
+    await db_session.refresh(campaign)
+    assert campaign.closed_at is not None
+    assert campaign.close_trigger == "auto_complete"
+
+    r2 = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r2.status_code == 200, r2.text
+    rows_after_second = await _audit_rows(db_session, tenant_a, "campaign.close", campaign_id)
+    assert len(rows_after_second) == 1, rows_after_second  # no additional row on the second read
+
+
+@pytest.mark.asyncio
+async def test_reopen_reactivates_campaign(client_factory, db_session, tenant_a, analyst_user):
+    """After auto-complete, reopening a member (back to OPEN) then reading
+    flips the campaign back to ACTIVE and writes exactly one
+    campaign.reactivate system-actor audit row (D-14)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    vuln = _seed_vuln(tenant_a, remediation_id, status="REMEDIATED")
+    db_session.add(vuln)
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "COMPLETE", r.json()
+
+    vuln.status = "OPEN"
+    await db_session.commit()
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "ACTIVE", body
+
+    campaign = (await db_session.execute(select(Campaign).where(Campaign.id == uuid.UUID(campaign_id)))).scalar_one()
+    await db_session.refresh(campaign)
+    assert campaign.closed_at is None
+    assert campaign.close_trigger is None
+
+    rows = await _audit_rows(db_session, tenant_a, "campaign.reactivate", campaign_id)
+    assert len(rows) == 1, rows
+    assert rows[0].user_id is None
+    assert rows[0].user_email == "system:campaign-complete"
+
+
+@pytest.mark.asyncio
+async def test_manual_close_is_sticky_no_reactivation(client_factory, db_session, tenant_a, analyst_user):
+    """A manually-closed campaign (close_trigger='manual') stays closed on
+    member recurrence -- never reactivated (D-17 sticky close)."""
+    await db_session.commit()
+    remediation_id = f"remediation-{uuid.uuid4().hex[:8]}"
+    vuln = _seed_vuln(tenant_a, remediation_id, status="OPEN")
+    db_session.add(vuln)
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/campaigns", json={"remediation_id": remediation_id})
+    assert r.status_code == 200, r.text
+    campaign_id = r.json()["id"]
+
+    r = await analyst_client.post(f"/api/v1/campaigns/{campaign_id}/close")
+    assert r.status_code == 200, r.text
+
+    # Member "recurs" (a Phase 37 reopen-shaped mutation) while the campaign
+    # is manually closed -- must NOT reactivate.
+    vuln.status = "REMEDIATED"
+    await db_session.commit()
+    vuln.status = "OPEN"
+    await db_session.commit()
+
+    r = await analyst_client.get(f"/api/v1/campaigns/{campaign_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "COMPLETE", body  # sticky -- stays COMPLETE
+
+    campaign = (await db_session.execute(select(Campaign).where(Campaign.id == uuid.UUID(campaign_id)))).scalar_one()
+    await db_session.refresh(campaign)
+    assert campaign.close_trigger == "manual"
+    assert campaign.closed_at is not None
+
+    reactivate_rows = await _audit_rows(db_session, tenant_a, "campaign.reactivate", campaign_id)
+    assert reactivate_rows == [], reactivate_rows
