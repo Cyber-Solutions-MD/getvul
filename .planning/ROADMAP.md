@@ -206,7 +206,27 @@ Plans:
   2. Scheduled per-owner / per-team digests (Slack / Teams / email) of due, breaching, and newly-critical findings deliver on the in-process scheduler, no new infra
   3. Alert rules and delivery channels are tenant-configurable on a settings page and every configuration change is audited
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+**Wave 1**
+
+- [ ] 40-01-PLAN.md — Foundation: alerting_guard table + Tenant.alerting_config/send-marker (migration 051) + canonical config-schema module + Wave 0 test scaffolds (ALERT-01/02/03)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 40-02-PLAN.md — LEAD TRACER: ALERT-01 _check_new_kev_epss end-to-end (guard subtraction + D-06 seed-silent + owner/channel/in-app routing + audit) (ALERT-01)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 40-03-PLAN.md — ALERT-02 digests: email.py HTML body + digests.py (send-hour gate, sections, exclusion, top-N, suppression, per-owner/per-team) + scheduler block (ALERT-02)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 40-04-PLAN.md — ALERT-03 backend: alerting_config PATCH branch + AlertingConfigUpdate + fail-closed audit + GET exposure + self-targeted test-digest endpoint (ALERT-03)
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 40-05-PLAN.md — ALERT-03 frontend: Alerting & Digests settings pane (clone) + sidebar/microcopy/page registration + live human-verify (ALERT-03)
 **UI hint**: yes
 
 ### Phase 41: Coverage & Blind-Spot Detection

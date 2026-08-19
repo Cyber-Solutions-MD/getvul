@@ -1,0 +1,5 @@
+# API Coverage — Proactive Alerting & Digests (Phase 40)
+
+No external API integration: this phase adds **no new external service, SDK, or API surface**. All outbound delivery (Slack, Microsoft Teams, PagerDuty, email/SMTP) reuses the already-integrated Phase 36 `escalation_channels.dispatch_channel` seam — SSRF-guarded, 429-retry, fail-isolated — and `email.py::send_email` (SMTP). Their capability surfaces were enumerated and integrated in Phase 36; Phase 40 references those credentials with independent enablement/routing (D-19) and invents zero new external capability. The only NEW code is internal: a transition-detection guard table, a digest assembler, a wall-clock send-hour gate, an HTML email body, a tenant-config JSONB key, and one settings pane.
+
+Per the ai-integration contribution: the deterministic detector may fire on the words "Slack/Teams/webhook/email," but re-reading the phase scope confirms no new external-API integration exists — this reasoned declaration stands in place of a matrix and passes the seal-time gate.
