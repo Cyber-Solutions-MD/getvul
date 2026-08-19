@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.assets.models import Asset
 from app.audit import AuditLog
 from app.campaigns.models import Campaign
+from app.exceptions.service import active_exception_subquery
 from app.ticketing.dispatch import TicketingClient
 from app.ticketing.models import Ticket
 from app.ticketing.service import SEVERITY_SLA_DAYS, extract_ticket_ref, provider_create_kwargs, recompute_ticket_sla
@@ -105,6 +106,9 @@ async def get_campaign_progress(db: AsyncSession, tenant_id: uuid.UUID, remediat
                 Vulnerability.tenant_id == tenant_id,
                 Vulnerability.remediation_id == remediation_id,
                 Vulnerability.status.in_(_CAMPAIGN_MEMBER_STATUSES),
+                # EXC-02/D-15 (Phase 39 Consumer 8): an actively-excepted
+                # member is excluded from both the numerator and denominator.
+                ~active_exception_subquery(tenant_id, datetime.now(UTC)),
             )
         )
     ).one()
@@ -280,6 +284,9 @@ async def bulk_create_campaign_tickets(
                 Vulnerability.tenant_id == tenant_id,
                 Vulnerability.remediation_id == campaign.remediation_id,
                 Vulnerability.status.in_(("OPEN", "IN_PROGRESS")),
+                # EXC-02/D-15 (Phase 39 Consumer 9): an actively-excepted
+                # member is never ticketed by a bulk-assign run.
+                ~active_exception_subquery(tenant_id, datetime.now(UTC)),
             )
             .order_by(Asset.hostname)
         )

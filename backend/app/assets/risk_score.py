@@ -30,12 +30,14 @@ from __future__ import annotations
 
 import math
 import uuid
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.exceptions.service import active_exception_subquery
 from app.vulnerabilities.models import Vulnerability
 
 logger = structlog.get_logger()
@@ -125,6 +127,9 @@ async def compute_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
             Vulnerability.tenant_id == tenant_id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
             Vulnerability.asset_id.isnot(None),
+            # EXC-02/D-15 (Phase 39 Consumer 6): an actively-excepted finding
+            # never contributes to the raw weighted score.
+            ~active_exception_subquery(tenant_id, datetime.now(UTC)),
         )
         .group_by(Vulnerability.asset_id)
         .subquery()

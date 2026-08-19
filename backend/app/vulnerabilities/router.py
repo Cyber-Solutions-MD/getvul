@@ -15,6 +15,7 @@ from app.assets.models import Asset
 from app.auth.rbac import require_admin, require_analyst, require_viewer
 from app.auth.schemas import CurrentUser
 from app.dependencies import DBSession
+from app.exceptions.service import active_exception_subquery
 from app.pagination import PaginationParams
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import (
@@ -967,6 +968,10 @@ async def remediations_for_host(
             Vulnerability.asset_id == asset_id,
             Vulnerability.tenant_id == user.tenant_id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            # EXC-02/D-15 (Phase 39 Consumer 11 / Pitfall 5): this endpoint
+            # is a hand-rolled ad hoc query that bypasses _base_open_vulns
+            # entirely -- it needs its own exclusion predicate.
+            ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
         )
         .group_by(Vulnerability.remediation_action, Vulnerability.affected_product)
         .order_by(
