@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.assets.models import Asset
-from app.notifications.models import Notification
+from app.exceptions.service import active_exception_subquery
+from app.notifications.alerting_config import merged_alerting_config
+from app.notifications.models import AlertingGuard, Notification
 from app.notifications.service import create_notification
 from app.tenants.models import Tenant, User
 from app.ticketing.models import ConnectorConfig
@@ -31,6 +36,7 @@ async def run_alert_checks(db: AsyncSession) -> dict:
         alerts += await _check_sla_breaches(db, tenant)
         alerts += await _check_sync_failures(db, tenant)
         alerts += await _check_risk_score_changes(db, tenant)
+        alerts += await _check_new_kev_epss(db, tenant)  # NEW (D-03) -- distinct sibling, ALERT-01
         total_alerts += alerts
 
     await db.commit()
@@ -237,6 +243,158 @@ async def _check_risk_score_changes(db: AsyncSession, tenant: Tenant) -> int:
             alerts_created += 1
 
     return alerts_created
+
+
+async def _check_new_kev_epss(db: AsyncSession, tenant: Tenant) -> int:
+    """ALERT-01 (D-01/D-02/D-04/D-05/D-06/D-20) -- a distinct sibling to
+    `_check_new_critical_vulns` (D-03: must NOT be folded together, a
+    different identity/dedup shape). Detects `(cve_id, asset_id)` pairs that
+    newly qualify as CISA KEV-listed or newly cross the tenant's EPSS
+    threshold, guarded by the durable `AlertingGuard` table (NOT the
+    time-windowed `_notification_exists` used by the other checks above) so
+    a pair fires exactly once per (tenant, cve, asset, trigger_type)
+    transition, ever.
+
+    `kev` and `epss` are each their own independent, self-contained SQL
+    query/guard-slice (`AlertingGuard.trigger_type`-scoped) -- but a finding
+    that is BOTH CISA KEV-listed AND above the EPSS threshold is classified
+    under "kev" only (the more authoritative signal, D-priority) so a single
+    qualifying finding never double-fires two alerts in the same pass; the
+    epss query explicitly excludes `cisa_kev=True` rows to keep that
+    exclusivity a property of the query itself, not runtime bookkeeping.
+
+    On a tenant's first-ever pass for a given trigger_type (its guard slice
+    is completely empty), every currently-qualifying pair is inserted into
+    the guard WITHOUT firing (D-06 cold-start seeding) -- otherwise day one
+    would alert-storm the tenant's entire existing backlog.
+
+    Own-flush/no-own-commit, matching this module's other checks -- the
+    caller (`run_alert_checks`) commits once per tick.
+    """
+    now = datetime.now(UTC)
+    config = merged_alerting_config(tenant)
+    fired_count = 0
+
+    for trigger_type in ("kev", "epss"):
+        trigger_predicate: ColumnElement[bool]
+        if trigger_type == "kev":
+            if not config.get("kev_enabled", True):
+                continue
+            trigger_predicate = Vulnerability.cisa_kev.is_(True)
+        else:
+            threshold = config.get("epss_threshold")
+            if threshold is None:
+                continue
+            trigger_predicate = and_(
+                ~Vulnerability.cisa_kev.is_(True),
+                # Comparison performed in SQL (literal bind) so Postgres
+                # coerces the Numeric(5,4)/float boundary itself.
+                Vulnerability.epss_score >= literal(Decimal(str(threshold))),
+            )
+
+        rows = (
+            await db.execute(
+                select(Vulnerability, Asset)
+                .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
+                .where(
+                    Vulnerability.tenant_id == tenant.id,
+                    trigger_predicate,
+                    Vulnerability.status.notin_(["SUPPRESSED", "FALSE_POSITIVE"]),
+                    ~active_exception_subquery(tenant.id, now),
+                )
+            )
+        ).all()
+
+        qualifiers = {(vuln.cve_id, vuln.asset_id): (vuln, asset) for vuln, asset in rows if vuln.cve_id}
+        if not qualifiers:
+            continue
+
+        guard_rows = (
+            (
+                await db.execute(
+                    select(AlertingGuard).where(
+                        AlertingGuard.tenant_id == tenant.id,
+                        AlertingGuard.trigger_type == trigger_type,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        guard_keys = {(g.cve_id, g.asset_id) for g in guard_rows}
+        is_cold_start = len(guard_keys) == 0
+
+        # Deterministic ordering (stable subtraction) -- sort by cve_id then
+        # asset_id (str-cast, asset_id may be None).
+        new_keys = sorted(set(qualifiers) - guard_keys, key=lambda k: (k[0], str(k[1])))
+        if not new_keys:
+            continue
+
+        if is_cold_start:
+            for cve_id, asset_id in new_keys:
+                db.add(
+                    AlertingGuard(
+                        tenant_id=tenant.id,
+                        cve_id=cve_id,
+                        asset_id=asset_id,
+                        trigger_type=trigger_type,
+                        fired_at=None,
+                    )
+                )
+            await db.flush()
+            continue
+
+        for cve_id, asset_id in new_keys:
+            vuln, asset = qualifiers[(cve_id, asset_id)]
+            await _fire_kev_epss_alert(db, tenant, vuln, asset, trigger_type, config)
+            db.add(
+                AlertingGuard(
+                    tenant_id=tenant.id,
+                    cve_id=cve_id,
+                    asset_id=asset_id,
+                    trigger_type=trigger_type,
+                    fired_at=now,
+                )
+            )
+            fired_count += 1
+        await db.flush()
+
+    return fired_count
+
+
+async def _fire_kev_epss_alert(
+    db: AsyncSession,
+    tenant: Tenant,
+    vuln: Vulnerability,
+    asset: Asset | None,
+    trigger_type: str,
+    config: dict[str, Any],
+) -> None:
+    """ALERT-01 fire step (Task 1 minimal version) -- creates the in-app
+    notification twin for a newly-qualifying `(cve, asset)` pair. Owner
+    resolution (D-10), tenant-channel push (D-07/D-19), and the
+    scheduler-side audit row (T-40-06) are added in Task 2.
+    """
+    hostname = asset.hostname if asset else "Unknown host"
+    vuln_name = vuln.vulnerability_name or vuln.cve_id or "Unknown vulnerability"
+    title = f"New {trigger_type.upper()} Match: {vuln.cve_id}"
+    message = f"{vuln_name} on {hostname} newly qualifies for {trigger_type.upper()} alerting"
+
+    await create_notification(
+        db,
+        tenant_id=tenant.id,
+        title=title,
+        message=message,
+        severity="high",
+        category="new_kev_epss",
+        resource_type="vulnerability",
+        resource_id=vuln.cve_id,
+        details={
+            "cve_id": vuln.cve_id,
+            "asset_id": str(vuln.asset_id) if vuln.asset_id else None,
+            "trigger_type": trigger_type,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
