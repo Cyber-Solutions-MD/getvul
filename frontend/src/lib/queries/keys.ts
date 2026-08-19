@@ -124,6 +124,16 @@ export const queryKeys = {
     list: () => ['campaigns', 'list'] as const,
     detail: (id: string) => ['campaigns', 'detail', id] as const,
   },
+  // Phase 39 (39-06) — /dashboard/exceptions manage-only list surface. GET
+  // /api/v1/exceptions has no filter/pagination params (mirrors campaigns'
+  // D-07 compute-on-read full-tenant-list precedent) so list() takes no
+  // opts; the chip-bar filters + client-side pagination apply over the
+  // fetched array. No detail key — the row's inline-expand accordion reads
+  // from the already-fetched list array, not a per-row fetch.
+  exceptions: {
+    all: ['exceptions'] as const,
+    list: () => ['exceptions', 'list'] as const,
+  },
   // Phase 38 (38-05) — /dashboard/vulnerabilities/remediations entry point
   // (CAMP-01). GET /api/v1/vulnerabilities/remediations/grouped supports
   // page/page_size (plus severity/exploit/kev/search/device_type filters
