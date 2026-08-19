@@ -21,8 +21,10 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from app.assets.models import Asset, AssetGroup, AssetGroupMember
+from app.audit import AuditLog
 from app.vulnerabilities.models import Vulnerability
 
 
@@ -419,3 +421,47 @@ async def test_live_group_membership(client_factory, db_session, tenant_a, analy
     r = await analyst_client.get("/api/v1/vulnerabilities", params={"page_size": 200})
     ids = {item["id"] for item in r.json()["items"]}
     assert str(new_source_vuln.id) not in ids, "new source on the same (cve_id, asset_id) must also be covered"
+
+
+# ── Task 1 follow-up (Rule 2 self-review): grant audit payload carries the resolved target ──
+
+
+@pytest.mark.asyncio
+async def test_grant_audit_includes_resolved_target(client_factory, db_session, tenant_a, analyst_user, admin_user):
+    """EXC-03 audit completeness: the `exception.grant` audit row's payload
+    includes the RESOLVED target (asset_id here), not just scope_type/
+    cve_id -- added as a Rule 2 fix alongside Task 1's scope resolution so
+    a reviewer can tell WHICH asset/group/finding a grant covers without
+    cross-referencing the exceptions table."""
+    await db_session.commit()
+    asset = _seed_asset(tenant_a)
+    db_session.add(asset)
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    cve_id = "CVE-2024-30201"
+    r = await analyst_client.post(
+        "/api/v1/exceptions",
+        json=_grant_body(scope_type="ASSET", approver_id=admin_user.id, asset_id=asset.id, cve_id=cve_id),
+    )
+    assert r.status_code == 200, r.text
+    exception_id = r.json()["id"]
+
+    rows = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.tenant_id == tenant_a,
+                    AuditLog.action == "exception.grant",
+                    AuditLog.resource_id == exception_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1, rows
+    payload = rows[0].details
+    assert payload["asset_id"] == str(asset.id)
+    assert payload["asset_group_id"] is None
+    assert payload["vulnerability_id"] is None
