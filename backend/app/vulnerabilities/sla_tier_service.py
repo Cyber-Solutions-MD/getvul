@@ -114,12 +114,24 @@ def compute_sla_state(
     tier_days: int,
     approaching_pct: float,
     now: datetime,
+    excepted_seconds: int = 0,
 ) -> tuple[datetime, str]:
     """D-02: the tier+elapsed-% state formula. The approaching window scales
     per-tier automatically (80% of a 7d window vs 80% of a 90d window) since
     it's computed as a % of `tier_days`, not a fixed lead time.
+
+    Phase 39 / D-16: `excepted_seconds` (default 0, fully backward
+    compatible) is the total time this finding spent under a now-LAPSED
+    exception (D-04 natural expiry OR D-17 early revocation) --
+    interval-merged (Pitfall 4) and computed by
+    `exceptions/service.py::lapsed_exception_seconds`. Shifting the
+    effective start forward is the ENTIRE subtraction mechanism: the
+    on_track/approaching/breached thresholds themselves are unchanged
+    (still `tier_days`/`approaching_pct`), only where the clock starts
+    counting from moves.
     """
-    sla_due_at = first_detected_at + timedelta(days=tier_days)
+    effective_start = first_detected_at + timedelta(seconds=excepted_seconds)
+    sla_due_at = effective_start + timedelta(days=tier_days)
     approaching_at = sla_due_at - timedelta(days=tier_days * (1 - approaching_pct))
     if now >= sla_due_at:
         return sla_due_at, "breached"

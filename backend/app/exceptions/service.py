@@ -91,6 +91,123 @@ def active_exception_subquery(tenant_id: uuid.UUID, now: datetime) -> Exists:
     )
 
 
+def _merge_intervals(intervals: list[tuple[datetime, datetime]]) -> int:
+    """D-16 / Pitfall 4 / T-39-12: merge-adjacent-sorted-intervals over
+    `[start, end]` windows -- returns the TOTAL seconds actually covered,
+    counting any overlap or touching adjacency exactly once (never
+    double-summed). Pure function, no DB I/O.
+
+    D-12 explicitly permits simultaneous overlapping active exceptions
+    (e.g. a finding-level one stacked with an asset-group one); a naive
+    `sum()` of each window's own duration would over-credit the SLA clock
+    for the overlapping span. The typical case is 0-1 matching lapsed
+    exceptions per finding -- this only does real work in the rare overlap
+    case (39-RESEARCH.md "Don't Hand-Roll": no library needed for this).
+    """
+    if not intervals:
+        return 0
+    ordered = sorted(intervals, key=lambda pair: pair[0])
+    total_seconds = 0
+    cur_start, cur_end = ordered[0]
+    for start, end in ordered[1:]:
+        if start <= cur_end:
+            # Overlapping OR touching (start == cur_end) -- extend the
+            # current merged run instead of starting a new one.
+            if end > cur_end:
+                cur_end = end
+        else:
+            total_seconds += int((cur_end - cur_start).total_seconds())
+            cur_start, cur_end = start, end
+    total_seconds += int((cur_end - cur_start).total_seconds())
+    return total_seconds
+
+
+async def lapsed_exception_seconds(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    keys: set[tuple[str, uuid.UUID]],
+    now: datetime,
+) -> dict[tuple[str, uuid.UUID], int]:
+    """D-16 batched lookup (mirrors `corr_by_key`'s shape,
+    `vulnerabilities/service.py:217-240`): ONE query (plus one batched, not
+    per-row, `AssetGroupMember` lookup) fetching every LAPSED exception
+    (`revoked_at IS NOT NULL` [D-17 early revoke] OR `expires_at <= now`
+    [D-04 natural expiry]) whose scope could cover ANY `(cve_id, asset_id)`
+    key in `keys`, then interval-merges (Pitfall 4, `_merge_intervals`
+    above) each key's matching `[created_at, COALESCE(revoked_at,
+    expires_at)]` windows into a total "hidden" duration in seconds.
+
+    Scope-matched the same three ways `active_exception_subquery` matches
+    (D-10/D-12): FINDING and ASSET scope both persist the target's
+    `cve_id`+`asset_id` directly on the exception row (`grant_exception`
+    derives FINDING's `asset_id` from the resolved `Vulnerability` row) so
+    a single `(cve_id, asset_id)` equality match covers both; ASSET_GROUP
+    resolves through a second batched `AssetGroupMember` lookup, never a
+    per-row correlated EXISTS.
+
+    Callers key their own per-row lookup as `result.get((cve_id,
+    asset_id), 0)` -- a key with no matching lapsed exception is simply
+    absent (mirrors `corr_by_key`'s missing-key convention).
+    """
+    if not keys:
+        return {}
+    cve_ids = {cve_id for cve_id, _asset_id in keys}
+    asset_ids = {asset_id for _cve_id, asset_id in keys}
+
+    rows = (
+        (
+            await db.execute(
+                select(ExceptionRecord).where(
+                    ExceptionRecord.tenant_id == tenant_id,
+                    or_(ExceptionRecord.revoked_at.is_not(None), ExceptionRecord.expires_at <= now),
+                    ExceptionRecord.cve_id.in_(cve_ids),
+                    or_(
+                        ExceptionRecord.asset_id.in_(asset_ids),
+                        ExceptionRecord.asset_group_id.is_not(None),
+                    ),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return {}
+
+    # Batched (not per-row) group-membership resolution for the
+    # ASSET_GROUP-scoped rows only -- mirrors active_exception_subquery's
+    # third branch, resolved once for the whole set instead of a per-row
+    # correlated EXISTS.
+    group_ids = {r.asset_group_id for r in rows if r.scope_type == "ASSET_GROUP" and r.asset_group_id}
+    members_by_group: dict[uuid.UUID, set[uuid.UUID]] = {}
+    if group_ids:
+        member_rows = (
+            await db.execute(
+                select(AssetGroupMember.group_id, AssetGroupMember.asset_id).where(
+                    AssetGroupMember.group_id.in_(group_ids),
+                    AssetGroupMember.asset_id.in_(asset_ids),
+                )
+            )
+        ).all()
+        for group_id, member_asset_id in member_rows:
+            members_by_group.setdefault(group_id, set()).add(member_asset_id)
+
+    intervals_by_key: dict[tuple[str, uuid.UUID], list[tuple[datetime, datetime]]] = {}
+    for record in rows:
+        window = (record.created_at, record.revoked_at or record.expires_at)
+        if record.scope_type in ("FINDING", "ASSET"):
+            key = (record.cve_id, record.asset_id)
+            if key in keys:
+                intervals_by_key.setdefault(key, []).append(window)
+        elif record.scope_type == "ASSET_GROUP" and record.asset_group_id is not None:
+            for member_asset_id in members_by_group.get(record.asset_group_id, set()):
+                key = (record.cve_id, member_asset_id)
+                if key in keys:
+                    intervals_by_key.setdefault(key, []).append(window)
+
+    return {key: _merge_intervals(intervals) for key, intervals in intervals_by_key.items()}
+
+
 def validate_expiry(expires_at: datetime, now: datetime) -> None:
     """D-14: expiry must be strictly in the future and capped at
     `MAX_EXPIRY_DAYS` -- server-authoritative regardless of what the
