@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 39
 current_phase_name: exception-risk-acceptance-workflow
 status: executing
-stopped_at: Phase 39 Plan 02 complete
-last_updated: "2026-08-19T07:27:35.000Z"
+stopped_at: Phase 39 Plan 04 (consumer sweep) complete
+last_updated: "2026-08-19T07:47:01.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 39 Plan 02 (full scope resolution) complete
+last_activity_desc: Phase 39 Plan 04 (consumer sweep -- risk score, remediation view, campaigns, rule engine) complete
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 17
-  percent: 74
+  completed_plans: 18
+  percent: 78
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,9 +46,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 39 (exception-risk-acceptance-workflow) — EXECUTING
-Plan: 3 of 8
-Status: Executing Phase 39 — Plan 02 (full scope resolution) complete
-Last activity: 2026-08-19 — Plan 39-02 complete
+Plans complete: 01, 02, 04 (3 of 8; non-linear -- 39-04 is wave 2, depends_on:[39-01] only, independent of not-yet-run 39-03)
+Status: Executing Phase 39 — Plan 04 (consumer sweep: risk score, remediation view, campaigns, rule engine) complete
+Last activity: 2026-08-19 — Plan 39-04 complete
+Next unblocked: 39-03 (wave 3, depends_on:[39-01,39-02] -- both done) and 39-06 (wave 2, depends_on:[39-01] -- frontend)
 
 ## v5.0 Phase Map
 
@@ -436,6 +437,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 39]: 39-02: DEFAULT_EXPIRY_DAYS (FALSE_POSITIVE=180, ACCEPTED_RISK=90) shipped as a plain module constant, no new endpoint -- the frontend pre-fill consuming it is out of this phase's scope (/gsd-ui-phase); MAX_EXPIRY_DAYS's dual-bound cap check was already fully implemented in 39-01 ahead of Task 2's own action bullets, so Task 2's actual net-new code was just this one constant, the rest being test coverage proving already-correct 39-01 exclusion-join behavior (D-12 overlap, D-11 live membership) now reachable via Task 1's new ASSET/ASSET_GROUP grants
 - [Phase 39]: EXC-01..04 requirement checkboxes remain unmarked in REQUIREMENTS.md after 39-02 -- re-confirmed via grep across all 8 phase plan files that 39-08 is the only plan claiming all four EXC-01..04 and is the designated last declaring plan
 - [Phase 39]: 39-02: both tdd="true" tasks executed as write-code-then-tests-then-verify-green-then-commit rather than literal separate RED-commit/GREEN-commit pairs -- this plan's frontmatter type is execute, not tdd, so the stricter plan-level RED/GREEN gate-sequence check doesn't apply; meaningfulness confirmed by inspection (which new tests exercise genuinely new branches vs. already-correct 39-01 behavior), documented in 39-02-SUMMARY.md
+- [Phase 39]: 39-04: threaded active_exception_subquery into 5 Tier-1 consumers (compute_risk_scores, _base_open_vulns' "active" branch only, the remediations_for_host hand-rolled bypass, campaign progress + bulk ticketing) plus the governance-critical automated ticket rule engine (find_matching_assets' counts_q + run_rule's per_remediation rem_q) -- 1-3 line WHERE-clause additions per consumer, zero new abstractions; new backend/tests/test_exceptions_consumers.py (7 tests, each with a CVE-pinned control proving selective not blanket exclusion)
+- [Phase 39]: 39-04: Task 1's <verify> -k filter ("risk or remediation or campaign or host") doesn't literally match 2 of its own 6 named tests (test_ignored_all_branches_still_show, test_excepted_member_not_ticketed) -- ran the full unfiltered file (Task 2's own <verify> command) to confirm all 6 pass; a verify-command authoring artifact, not a functional gap, mirroring 39-01's Task-2 app.routes precedent
+- [Phase 39]: 39-04: run_rule's per_remediation rem_q sibling fix (Consumer 10's second half, named in the plan's interfaces block) has no dedicated unit test -- no pre-existing test in this codebase exercises ticket_mode='per_remediation' at all; covered by the file-level grep gate (5/5) + direct code inspection only, flagged for transparency
+- [Phase 39]: EXC-02 remains unmarked in REQUIREMENTS.md after 39-04 -- re-confirmed 39-08 is still the sole plan claiming all four EXC-01..04 and the phase's designated last declaring plan; 39-03/39-05 still have EXC-02-relevant work outstanding
+- [Phase 39]: 39-04 executed out of STATE.md's prior linear "Plan 3 of 8" pointer -- 39-04 is wave 2 with depends_on:[39-01] only (not 39-03, wave 3, still unexecuted); STATE.md hand-edited to reflect the true non-linear completion set (01, 02, 04 done; 03 next, unblocked) rather than an incremented-but-misleading counter
 
 ## Performance Metrics
 
@@ -500,13 +506,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 38 P03 | 25min | 2 tasks | 4 files |
 | Phase 39 P01 | 29min | 3 tasks | 11 files |
 | Phase 39 P02 | 26min | 2 tasks | 4 files |
+| Phase 39 P04 | 18min | 2 tasks | 6 files |
 
 ## Session
 
-**Last session:** 2026-08-19T07:27:35.000Z
-**Stopped at:** Phase 39 Plan 02 (full scope resolution) complete
+**Last session:** 2026-08-19T07:47:01.000Z
+**Stopped at:** Phase 39 Plan 04 (consumer sweep: risk score, remediation view, campaigns, rule engine) complete
 **Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-03-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 39 execution with /gsd-execute-phase 39 (2/8 plans complete — 01, 02; Plan 03 next)
+- Continue Phase 39 execution with /gsd-execute-phase 39 (3/8 plans complete — 01, 02, 04; Plan 03 next [unblocked, depends_on 39-01+39-02], Plan 06 also unblocked [wave 2, frontend])
