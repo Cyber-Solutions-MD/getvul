@@ -47,6 +47,8 @@ const ALL_CATEGORIES: Category[] = [
   'ai',
   // Phase 36 (D-10): SLA & Escalation admin pane — admin/owner-gated.
   'sla',
+  // Phase 40 (D-17): Alerting & Digests admin pane — admin/owner-gated.
+  'alerting',
 ];
 
 /**
@@ -60,6 +62,7 @@ const ADMIN_ONLY: Set<Category> = new Set([
   'audit',
   'ai',
   'sla',
+  'alerting',
 ]);
 
 export function SettingsSidebarShell({
