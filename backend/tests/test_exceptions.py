@@ -395,3 +395,49 @@ async def test_cross_tenant_404(client_factory, db_session, tenant_a, tenant_b, 
     tenant_b_client = client_factory(_analyst_user_for(tenant_b))
     r = await tenant_b_client.post(f"/api/v1/exceptions/{exception_id}/revoke")
     assert r.status_code == 404, r.text
+
+
+# ── T-39-01 (self-review addendum): approver must be a same-tenant user ──
+
+
+@pytest.mark.asyncio
+async def test_grant_rejects_cross_tenant_approver(
+    client_factory, db_session, tenant_a, tenant_b, analyst_user, admin_user
+):
+    """A grant naming another tenant's user as approver_user_id is
+    rejected with 400, not silently accepted -- D-08's "tenant-user
+    reference" is enforced at write time. Without this check, the FK
+    alone would accept any existing user id regardless of tenant, and
+    that cross-tenant user's display_name/email would later be resolvable
+    via GET /api/v1/exceptions' approver_display_name lookup (an IDOR/
+    information-disclosure gap, not just a data-integrity nicety)."""
+    await db_session.commit()
+    asset = _seed_asset(tenant_a)
+    db_session.add(asset)
+    await db_session.flush()
+    vuln = _seed_vuln(tenant_a, asset_id=asset.id)
+    db_session.add(vuln)
+    await db_session.commit()
+
+    # A real, persisted user -- but in tenant_b, not tenant_a.
+    from app.tenants.models import User
+
+    foreign_approver = User(
+        tenant_id=tenant_b,
+        email=f"foreign-approver-{uuid.uuid4().hex[:8]}@test.local",
+        display_name="Foreign Approver",
+        role="ADMIN",
+        idp_subject=f"test-{uuid.uuid4().hex[:8]}",
+    )
+    db_session.add(foreign_approver)
+    await db_session.commit()
+
+    analyst_client = client_factory(analyst_user)
+    r = await analyst_client.post("/api/v1/exceptions", json=_grant_body(vuln.id, foreign_approver.id))
+    assert r.status_code == 400, r.text
+
+    # A same-tenant approver (admin_user, tenant_a) still succeeds --
+    # proves the 400 above is specifically about tenant mismatch, not a
+    # broken approver check in general.
+    r = await analyst_client.post("/api/v1/exceptions", json=_grant_body(vuln.id, admin_user.id))
+    assert r.status_code == 200, r.text

@@ -25,6 +25,7 @@ from app.assets.models import AssetGroupMember
 from app.audit import AuditLog
 from app.exceptions.models import ExceptionRecord
 from app.exceptions.schemas import ExceptionCreate
+from app.tenants.models import User
 from app.vulnerabilities.models import Vulnerability
 
 # D-14: [ASSUMED -- 39-RESEARCH.md Assumptions Log A2, CONTEXT's own
@@ -168,6 +169,18 @@ async def grant_exception(
     half-implemented.
     """
     validate_expiry(body.expires_at, now)
+
+    # D-08 / T-39-01: approver_user_id must resolve to a real user WITHIN
+    # THIS TENANT. Without this check the FK alone would happily accept
+    # another tenant's (guessable) user id, and that cross-tenant user's
+    # display_name/email would later leak to this tenant's viewers via the
+    # list endpoint's approver_display_name lookup -- an IDOR/information-
+    # disclosure gap, not just a data-integrity nicety.
+    approver_exists = (
+        await db.execute(select(User.id).where(User.id == body.approver_user_id, User.tenant_id == tenant_id))
+    ).scalar_one_or_none()
+    if approver_exists is None:
+        raise HTTPException(400, "Approver must be an active user in your organization.")
 
     if body.scope_type == "FINDING":
         if body.vulnerability_id is None:

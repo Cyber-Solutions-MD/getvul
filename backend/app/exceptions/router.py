@@ -45,14 +45,23 @@ async def _get_exception_or_404(db: DBSession, tenant_id: uuid.UUID, exception_i
     return record
 
 
-async def _to_responses(db: DBSession, records: list[ExceptionRecord]) -> list[ExceptionResponse]:
+async def _to_responses(db: DBSession, tenant_id: uuid.UUID, records: list[ExceptionRecord]) -> list[ExceptionResponse]:
     """Batches the `approver_display_name` lookup (mirrors the
     `corr_by_key` batched-lookup precedent, `vulnerabilities/service.py:
-    217-240`) instead of one query per row."""
+    217-240`) instead of one query per row.
+
+    T-39-01 defense-in-depth: this lookup is tenant-scoped even though
+    `grant_exception` already validates the approver is a same-tenant user
+    at write time (service.py) -- belt-and-suspenders so a read path can
+    never resolve/leak another tenant's user display_name/email even if a
+    row were ever written some other way.
+    """
     approver_ids = {r.approver_user_id for r in records if r.approver_user_id is not None}
     names: dict[uuid.UUID, str] = {}
     if approver_ids:
-        rows = await db.execute(select(User.id, User.display_name, User.email).where(User.id.in_(approver_ids)))
+        rows = await db.execute(
+            select(User.id, User.display_name, User.email).where(User.id.in_(approver_ids), User.tenant_id == tenant_id)
+        )
         for user_id, display_name, email in rows.all():
             names[user_id] = display_name or email
     responses = []
@@ -94,7 +103,7 @@ async def grant_exception_endpoint(
         },
     )
     await db.commit()
-    return (await _to_responses(db, [record]))[0]
+    return (await _to_responses(db, user.tenant_id, [record]))[0]
 
 
 @router.get("", response_model=list[ExceptionResponse])
@@ -109,7 +118,7 @@ async def list_exceptions_endpoint(
     now = datetime.now(UTC)
     await sweep_expired_audits(db, user.tenant_id, now)
     records = await list_exceptions(db, user.tenant_id)
-    return await _to_responses(db, records)
+    return await _to_responses(db, user.tenant_id, records)
 
 
 @router.post("/{exception_id}/revoke", response_model=ExceptionResponse)
@@ -134,4 +143,4 @@ async def revoke_exception_endpoint(
     await compute_risk_scores(db, user.tenant_id)
     await audit(db, user, "exception.revoke", "exception", str(record.id), {"revoked_by_user_id": str(user.id)})
     await db.commit()
-    return (await _to_responses(db, [record]))[0]
+    return (await _to_responses(db, user.tenant_id, [record]))[0]
