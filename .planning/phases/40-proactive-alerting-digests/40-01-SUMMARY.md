@@ -185,6 +185,10 @@ None - no external service configuration required.
 - Plan 05 (ALERT-03 pane) has a concrete target in `alerting-digests-pane.test.tsx`'s 4 failing tests, and should be the plan that finally checks off ALERT-01/02/03 in REQUIREMENTS.md.
 - No blockers. `alembic upgrade head` is clean on `main`'s current migration chain; the full existing `test_sla_policy.py` suite (16 tests) still passes unmodified, confirming no regression from the new `Tenant` columns.
 
+## Self-Check: PASSED
+
+All 9 files claimed as created/modified in this summary confirmed present on disk via `[ -f ... ]`, plus this SUMMARY.md itself. All 3 commit hashes (`961b1f4`, `a390f59`, `e82b95d`) confirmed present via `git log --oneline --all`. No missing items.
+
 ---
 *Phase: 40-proactive-alerting-digests*
 *Completed: 2026-08-19*
