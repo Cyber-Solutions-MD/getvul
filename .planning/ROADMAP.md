@@ -206,7 +206,7 @@ Plans:
   2. Scheduled per-owner / per-team digests (Slack / Teams / email) of due, breaching, and newly-critical findings deliver on the in-process scheduler, no new infra
   3. Alert rules and delivery channels are tenant-configurable on a settings page and every configuration change is audited
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 
 **Wave 1**
 
@@ -214,7 +214,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 40-02-PLAN.md — LEAD TRACER: ALERT-01 _check_new_kev_epss end-to-end (guard subtraction + D-06 seed-silent + owner/channel/in-app routing + audit) (ALERT-01)
+- [x] 40-02-PLAN.md — LEAD TRACER: ALERT-01 _check_new_kev_epss end-to-end (guard subtraction + D-06 seed-silent + owner/channel/in-app routing + audit) (ALERT-01)
 
 **Wave 3** *(blocked on Wave 2)*
 

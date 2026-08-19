@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 40
 current_phase_name: Proactive Alerting & Digests
 status: executing
-stopped_at: Phase 40 Plan 01 complete (schema + Wave 0 RED scaffolds); Plan 02 next
-last_updated: "2026-08-19T13:20:05.300Z"
+stopped_at: Phase 40 Plan 02 complete (ALERT-01 lead tracer — guard subtraction + owner/channel/audit); Plan 03 next
+last_updated: "2026-08-19T13:35:44.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 40 Plan 01 complete (3/3 tasks — Task 1 checkpoint option-a, Task 2 schema/migration 051, Task 3 RED scaffolds)
+last_activity_desc: Phase 40 Plan 02 complete (2/2 tasks — _check_new_kev_epss detection/guard-subtraction/seed-silent, then owner resolution/channel dispatch/in-app twin/scheduler audit; get_directory_user extracted to app/assets/directory.py)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 28
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,8 +45,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 40 (Proactive Alerting & Digests) — EXECUTING
-Status: Executing Phase 40 (1/5 plans complete — Plan 01 done, Plan 02 next)
-Last activity: 2026-08-19 — Phase 40 Plan 01 complete: alerting_guard table + Tenant.alerting_config/alerting_last_digest_sent_at (migration 051, reversible), DEFAULT_ALERTING_CONFIG canonical contract, Wave 0 RED scaffolds (16 backend + 4 frontend tests, all collect and fail/skip for the right reason). ALERT-01..03 intentionally left unmarked in REQUIREMENTS.md — shared across all 5 phase-40 plans, only the last declaring plan (05) should flip them.
+Status: Executing Phase 40 (2/5 plans complete — Plan 01 + Plan 02 done, Plan 03 next)
+Last activity: 2026-08-19 — Phase 40 Plan 02 complete: ALERT-01 lead tracer proven end-to-end — `_check_new_kev_epss` (AlertingGuard subtraction, D-06 cold-start silent seed, D-20 exclusion, KEV-takes-precedence-over-EPSS mutual exclusivity) wired into `run_alert_checks`; `get_directory_user` extracted to `app/assets/directory.py`; fire step routes to resolved owner (else admins+channel, D-10), tenant channel via the shared Phase-36 dispatch seam (D-07/D-19), in-app twin, and a direct scheduler-side AuditLog row. `test_alerts_kev_epss.py` 5/5 green. ALERT-01..03 still intentionally left unmarked in REQUIREMENTS.md — only Plan 05 should flip them.
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -474,6 +474,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 40]: 40-01: frontend RED scaffold (`alerting-digests-pane.test.tsx`) needed a genuinely non-literal, runtime-computed dynamic-import specifier -- Vite's import-analysis plugin eagerly resolves a literal `await import('./x')` at TRANSFORM time even inside an async test body (a `@vite-ignore` comment on the literal was tried first and did NOT fix it, verified empirically); without this, the whole file errors at collection instead of its 4 named tests failing individually
 - [Phase 40]: 40-01: `test_patch_requires_owner` (test_alerting_settings.py) written as a real, non-`xfail` test -- the existing `Depends(require_owner)` gate on PATCH `/settings` already covers any body content including an unrecognized `alerting_config` key, so it genuinely passes today (verified: 1 passed, 3 xfailed in the same run)
 - [Phase 40]: 40-01: `gsd-sdk` is not installed in this environment; used the local `.claude/get-shit-done/bin/gsd-tools.cjs` CLI for `init execute-phase`, and HAND-EDITED STATE.md directly (frontmatter/Current Position/Decisions/Performance Metrics/Session/Operator Next Steps) rather than running `state advance-plan`/`update-progress`, per the pre-existing 39-01 decision log entry documenting that those write-verbs reproducibly corrupt STATE.md frontmatter
+- [Phase 40]: 40-02: a finding that is simultaneously CISA KEV-listed AND above the tenant's EPSS threshold fires exactly ONE alert, not two -- resolved by making the epss slice's own SQL predicate exclude `cisa_kev=True` rows (KEV takes precedence, the authoritative/low-noise signal per alerting_config.py's own comment) rather than adding cross-slice runtime dedup bookkeeping; required to satisfy test_new_kev_match_fires_once's `.scalar_one()` guard-row lookup, which would raise on two rows
+- [Phase 40]: 40-02: `get_directory_user` extracted verbatim from `assets/router.py::_get_directory_user` into a new `backend/app/assets/directory.py` (research A5) so the notifications/alerting layer never imports the FastAPI assets router; both existing router call sites re-import the symbol under the same private alias, zero behavior change (53-test asset regression suite still green)
+- [Phase 40]: 40-02: scheduler-side `AuditLog` for `action="alert.fire"` constructed directly (not via `app.audit.audit()`), mirroring `sla_tier_service.py::_audit_escalation_fire` -- `audit()`'s `user=None` branch writes a nil `tenant_id=uuid.UUID(int=0)`, which would misbucket a genuinely tenant-scoped scheduler-fired row
+- [Phase 40]: 40-02: hand-edited STATE.md/ROADMAP.md directly again (same rationale as 40-01); ALERT-01/02/03 still intentionally left unmarked in REQUIREMENTS.md -- Plan 05 remains the last declaring plan
 
 ## Performance Metrics
 
@@ -544,13 +548,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 39 P07 | 36min | 3 tasks | 13 files |
 | Phase 39 P05 | 29min | 2 tasks | 7 files |
 | Phase 40 P01 | 30min | 3 tasks | 9 files |
+| Phase 40 P02 | 45min | 2 tasks | 3 files |
 
 ## Session
 
-**Last session:** 2026-08-19T13:20:05.300Z
-**Stopped at:** Phase 40 Plan 01 complete (3/3 tasks); Plan 02 next
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-02-PLAN.md
+**Last session:** 2026-08-19T13:35:44.000Z
+**Stopped at:** Phase 40 Plan 02 complete (2/2 tasks); Plan 03 next
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-03-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 40 execution with /gsd-execute-phase 40 (1/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02 next — ALERT-01 detection, `alerts.py::_check_new_kev_epss` + `assets/directory.py::get_directory_user` extraction — unblocked, no unmet depends_on)
+- Continue Phase 40 execution with /gsd-execute-phase 40 (2/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02: ALERT-01 lead tracer, `alerts.py::_check_new_kev_epss` + `assets/directory.py::get_directory_user` extraction, both done; Plan 03 next — ALERT-02 digests, `digests.py` + `email.py` HTML body + scheduler block — unblocked, no unmet depends_on)
