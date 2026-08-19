@@ -3,17 +3,18 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 39
-current_phase_name: Exception & Risk-Acceptance Workflow
+current_phase_name: exception-risk-acceptance-workflow
 status: executing
-stopped_at: Phase 39 UI-SPEC approved
-last_updated: "2026-08-19T06:18:45.254Z"
-last_activity: 2026-08-18
-last_activity_desc: Phase 38 complete, transitioned to Phase 39
+stopped_at: Phase 39 Plan 01 complete
+last_updated: "2026-08-19T07:03:14.267Z"
+last_activity: 2026-08-19
+last_activity_desc: Phase 39 Plan 01 (exception tracer slice) complete
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 15
+  completed_plans: 16
+  percent: 70
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +25,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 38 — remediation-campaigns
+**Current focus:** Phase 39 — exception-risk-acceptance-workflow
 
 ## Deferred Items
 
@@ -44,10 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 39 — Exception & Risk-Acceptance Workflow
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-08-18 — Phase 38 complete, transitioned to Phase 39
+Phase: 39 (exception-risk-acceptance-workflow) — EXECUTING
+Plan: 2 of 8
+Status: Executing Phase 39 — Plan 01 (exception tracer slice) complete
+Last activity: 2026-08-19 — Plan 39-01 complete
 
 ## v5.0 Phase Map
 
@@ -425,6 +426,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 38]: 38-01: CAMP-01/CAMP-04 intentionally left Pending in REQUIREMENTS.md -- both shared with not-yet-executed sibling plans (38-02/03/04/05); requirements ready-ids confirmed both blocked, do not flip until all declaring plans are done
 - [Phase 38]: 38-02: bulk_create_campaign_tickets's D-06 adoption check is per-vulnerability (Ticket.vulnerability_id IN (...) AND resolved_at IS NULL), never create_remediation_ticket's coarser group-level created_by_rule==remediation_id check -- makes reruns idempotent across mixed old/new members; campaign tickets set created_by_rule to the BARE remediation_id (never "campaign:{id}") to close the 38-RESEARCH.md Pitfall 1 rule-engine double-ticket gap; _get_campaign_ticketing_client duplicates (not cross-router-imports) ticketing/router.py's client-resolution shape, kept local since project_key is always caller-supplied here; CAMP-02/CAMP-04 remain Pending in REQUIREMENTS.md (CAMP-02 shared with not-yet-run 38-05; CAMP-04 shared with 38-01/38-03) -- confirmed via each phase-38 PLAN.md's requirements frontmatter directly since the SDK's requirements ready-ids verb is not installed in this environment
 - [Phase 38]: 38-03: get_campaign_mttr() joins RemediationEvent to Vulnerability on remediation_id WITHOUT filtering by the live-membership status set -- a RemediationEvent row is durable Phase-36 history that survives a later reopen-on-recurrence, so MTTR reflects every remediation this group has ever completed, not just currently-REMEDIATED members; apply_lifecycle_transition runs inside GET /{id} strictly after get_campaign_progress and before _derive_status/get_campaign_mttr (ordering load-bearing since _derive_status reads the possibly-just-mutated campaign.closed_at); system-actor AuditLog rows (auto_complete campaign.close / campaign.reactivate) are constructed directly via db.add(AuditLog(...)), mirroring reopen_vulnerability's precedent, never via the audit() helper (reserved for real-user actions like the manual /close endpoint); CAMP-04 flipped to Complete in REQUIREMENTS.md (all three declaring plans 38-01/02/03 now have SUMMARY.md); CAMP-03 remains Pending (shared with not-yet-run 38-05)
+- [Phase 39]: 39-01: exceptions table + active_exception_subquery compute-on-read exclusion seam (FINDING/ASSET/ASSET_GROUP branches, CVE-pinned D-10, OR-semantics D-12) directly clones the campaigns module shape (Phase 38); D-03's OPEN/IN_PROGRESS grant precondition applied to FINDING scope only, not ASSET/ASSET_GROUP (forward-looking per D-11) -- implemented per RESEARCH Pattern 2 even though Task 2's action bullets didn't restate it verbatim
+- [Phase 39]: 39-01: ExceptionResponse omits a pre-formatted target display label (exposes raw scope_type/cve_id/vulnerability_id/asset_id/asset_group_id instead) -- building target formatting ahead of Plan 02's ASSET/ASSET_GROUP resolution would be untested dead branches in a tracer plan
+- [Phase 39]: 39-01: self-review after Task 3 found approver_user_id's bare FK only checks existence, not tenant membership -- a cross-tenant approver would leak that user's display_name/email via GET /exceptions' batch lookup; fixed by validating same-tenant membership at grant time plus a tenant-scoped defense-in-depth filter on the read-side lookup (Rule 2 auto-fix, commit 914ef25)
+- [Phase 39]: EXC-01..04 requirement checkboxes deliberately left unmarked in REQUIREMENTS.md after 39-01 -- every ID is claimed by 2-4 of this phase's 8 plans (39-08 is the last to touch all four); mirrors the Phase 38 CAMP-01 precedent of only the declaring/last plan marking a requirement complete
+- [Phase 39]: 39-01: `state <subcommand>` write commands (advance-plan, update-progress) reproducibly corrupt STATE.md frontmatter on every call -- readModifyWriteStateMd's unconditional syncStateFrontmatter step drops current_phase/current_phase_name/last_activity_desc and mis-recomputes total_phases (4 -> 10, apparently counting the full v5.0 Phase Map table's 10 rows rather than the milestone's tracked wave); worked around by editing STATE.md frontmatter/Performance Metrics/Decisions/Session sections directly and git-diffing before commit, per the pre-existing getvul-execute-phase-tracking-hazards project memory
 
 ## Performance Metrics
 
@@ -487,13 +493,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 38 P01 | 27min | 2 tasks | 8 files |
 | Phase 38 P02 | 35min | 2 tasks | 4 files |
 | Phase 38 P03 | 25min | 2 tasks | 4 files |
+| Phase 39 P01 | 29min | 3 tasks | 11 files |
 
 ## Session
 
-**Last session:** 2026-08-18T13:47:27.242Z
-**Stopped at:** Phase 39 UI-SPEC approved
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-UI-SPEC.md
+**Last session:** 2026-08-19T07:05:14.000Z
+**Stopped at:** Phase 39 Plan 01 (exception tracer slice) complete
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-02-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 36 execution with /gsd-execute-phase 36 (4/6 plans complete — 01, 02, 03, 05; Plans 04, 06 remain)
+- Continue Phase 39 execution with /gsd-execute-phase 39 (1/8 plans complete — 01; Plan 02 next)

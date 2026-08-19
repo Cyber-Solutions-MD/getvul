@@ -172,7 +172,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 39-01-PLAN.md — TRACER: exceptions table + module + grant/list/revoke + shared active_exception_subquery seam, proven end-to-end against the vuln list (grant→exclude→expiry/revoke resurface→audit)
+- [x] 39-01-PLAN.md — TRACER: exceptions table + module + grant/list/revoke + shared active_exception_subquery seam, proven end-to-end against the vuln list (grant→exclude→expiry/revoke resurface→audit)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -287,7 +287,7 @@ Plans:
 | 36. Remediation SLA Engine & Escalation | 6/6 | Complete    | 2026-08-18 |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
 | 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
-| 39. Exception & Risk-Acceptance Workflow | 0/? | Not started | - |
+| 39. Exception & Risk-Acceptance Workflow | 1/8 | In Progress | - |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
 | 42. Risk Trend Analytics & Burndown | 0/? | Not started | - |
