@@ -114,3 +114,35 @@ test files (all green), and the plan's own grep verification gates that this pla
 D-15/D-16 logic is correct. Whoever next hardens `app/connectors/scheduler.py`'s transaction
 model (or adds a deadlock-retry decorator around scheduler-tick DB work) should treat this as
 a concrete repro case.
+
+## 39-07 Task 3 — ExceptionGrantDialog is not `Drawer.NestedRoot`-wrapped on mobile (functional, not visually cascading)
+
+**Found during:** Task 3, while wiring the "Accept risk"/"Mark false positive" drill-panel
+entry points.
+
+**Observation:** `drill-panel-mobile.tsx` renders `DrillContent` inside its own vaul
+`Drawer.Root` bottom sheet, and passes a `renderConfirm` render-prop so the ticket-creation
+`ConfirmModal` can render as a `Drawer.NestedRoot` (Pitfall 7 — proper gesture inheritance,
+cascading background scale) instead of an independent, unrelated `Drawer.Root`. `renderConfirm`'s
+type signature is fixed to the ticket-confirm's own fields (`ticketProvider`, `description`,
+`title`, `gapFill`, ...) — it is not a generic "render any nested dialog" slot.
+
+`ExceptionGrantDialog` is rendered directly inside `DrillContent` (unconditionally, gated only by
+its own `open` prop), OUTSIDE the `renderConfirm` ternary, using its own `ResponsiveDialog`. On
+mobile this means opening the grant dialog nests a plain, independent vaul `Drawer.Root` inside
+`DrillPanelMobile`'s outer `Drawer.Root` — a legitimate, functional vaul pattern (open/close/
+Esc/swipe-dismiss all work correctly on the inner drawer independently), but without
+`Drawer.NestedRoot`'s gesture-inheritance polish (the outer sheet does not visually scale down
+while the inner one is open, the way the ticket-confirm's nested drawer does).
+
+**Why not fixed here:** extending `renderConfirm`'s type signature to also cover a second,
+structurally different dialog (or introducing a second, generically-typed render-prop) touches
+`drill-panel-mobile.tsx`, which is outside this plan's `files_modified`
+(`drill-content.tsx`, `exceptions-table.tsx` only) and was not requested by the task text
+("Render the dialog once, controlled by that state"). It is also not a Rule 3 blocking issue —
+the dialog opens, functions, and closes correctly on mobile; the gap is purely the missing
+cascade-scale animation polish, not broken functionality.
+
+**Action:** Not fixed here. If a future plan generalizes `drill-panel-mobile.tsx`'s
+`renderConfirm` contract (or adds a second nested-drawer slot) for other drill-panel dialogs,
+route `ExceptionGrantDialog` through it the same way the ticket-confirm dialog is routed.

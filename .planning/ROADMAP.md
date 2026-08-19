@@ -167,7 +167,7 @@ Plans:
   3. Every exception records who/why/scope/expiry as a tenant-scoped audit event
   4. An expired exception automatically resurfaces into the active queue with no manual re-trigger
 
-**Plans**: 5/8 plans executed
+**Plans**: 6/8 plans executed
 
 Plans:
 **Wave 1**
@@ -183,7 +183,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 39-03-PLAN.md — SLA integration: D-15 exclusion in run_sla_tier_pass + detect_and_escalate, D-16 SLA-clock subtraction (interval-merged), read-time + persisted-mirror parity
-- [ ] 39-07-PLAN.md — Frontend grant dialog + approver-combobox (controlled) + grant/revoke mutations + drill-panel entry points + microcopy
+- [x] 39-07-PLAN.md — Frontend grant dialog + approver-combobox (controlled) + grant/revoke mutations + drill-panel entry points + microcopy
 
 **Wave 4** *(blocked on Wave 3 completion)*
 

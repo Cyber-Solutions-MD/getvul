@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 39
 current_phase_name: exception-risk-acceptance-workflow
 status: executing
-stopped_at: Phase 39 Plan 03 (SLA-engine exclusion + resurface subtraction) complete
-last_updated: "2026-08-19T09:06:26.000Z"
+stopped_at: Phase 39 Plan 07 (Exception grant/revoke frontend) complete
+last_updated: "2026-08-19T09:43:37.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 39 Plan 03 (SLA-engine exclusion + resurface subtraction -- D-15 exclusion + D-16 interval-merged subtraction wired into run_sla_tier_pass/detect_and_escalate/list_vulnerabilities/get_vulnerability) complete
+last_activity_desc: Phase 39 Plan 07 (Exception grant/revoke frontend -- drill-panel Accept-risk/Mark-false-positive entry points, 4-field ExceptionGrantDialog across all 3 scope types, controlled approver-combobox with zero internal mutation, exceptions-list Revoke wired to useRevokeException) complete
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 20
-  percent: 87
+  completed_plans: 21
+  percent: 91
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,10 +46,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 39 (exception-risk-acceptance-workflow) — EXECUTING
-Plans complete: 01, 02, 03, 04, 06 (5 of 8; non-linear -- 39-03 (wave 3, depends_on:[39-01,39-02]) just completed alongside already-done 39-04/39-06 (wave 2))
-Status: Executing Phase 39 — Plan 03 (SLA-engine exclusion + resurface subtraction: D-15 exclusion + D-16 interval-merged subtraction across run_sla_tier_pass/detect_and_escalate/list_vulnerabilities/get_vulnerability) complete
-Last activity: 2026-08-19 — Plan 39-03 complete
-Next unblocked: 39-07 (wave 3, depends_on:[39-01,39-02,39-06] -- all three done; the grant-dialog/approver-combobox/mutations frontend, independent of 39-03). Wave 4 (39-05) stays blocked until 39-07 ALSO completes (wave 4 needs full wave-3 completion, not just 39-03).
+Plans complete: 01, 02, 03, 04, 06, 07 (6 of 8; Wave 3 {39-03, 39-07} now FULLY complete)
+Status: Executing Phase 39 — Plan 07 (Exception grant/revoke frontend: drill-panel Accept-risk/Mark-false-positive entry points, 4-field ExceptionGrantDialog covering FINDING/ASSET/ASSET_GROUP scope, controlled approver-combobox, exceptions-list Revoke wired to useRevokeException) complete
+Last activity: 2026-08-19 — Plan 39-07 complete
+Next unblocked: 39-05 (wave 4, depends_on:[39-01,39-03] -- both done; Wave 3 barrier now cleared). 39-08 (wave 5, depends_on:[39-03,39-05,39-06,39-07] -- the closing plan that marks EXC-01..04 complete in REQUIREMENTS.md) remains blocked until 39-05 also completes.
 
 ## v5.0 Phase Map
 
@@ -457,6 +457,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 39]: 39-03: get_vulnerability inherits only the lapsed-duration subtraction, not a structural state-suppression for a CURRENTLY-active exception (whose ongoing window hasn't lapsed yet) -- follows RESEARCH's own Tier-1-#2 design note + Task 2's literal action text verbatim; the must_haves' concrete testable outcome ("never fires a breach alert or notification") is fully satisfied by the run_sla_tier_pass/detect_and_escalate wiring alone
 - [Phase 39]: EXC-02/EXC-04 remain unmarked in REQUIREMENTS.md after 39-03 -- re-confirmed 39-08 is still the sole plan claiming all four EXC-01..04; this plan closes the SLA-engine/escalation surface only (Tier 1 #3/#4/#9), Tier 2 dashboard consumers (assets/router.py badges, users/router.py owner-risk) remain 39-05's domain
 - [Phase 39]: 39-03: discovered (not fixed) a full-suite-only, order-dependent Postgres deadlock between the background scheduler's SLA tick and a concurrent foreground ticket-close write (test_ticketing_dispatch.py::test_close_ticket_endpoint_dispatches_by_ticket_provider) -- root-caused via a reverted diagnostic ASGITransport change (no net conftest.py diff), confirmed pre-existing in shape (Phase 36's bulk-update-in-one-transaction scheduler tick) and only amplified by this plan's added per-tick SELECTs; logged to deferred-items.md, a real fix is a scheduler-wide transaction/concurrency redesign (Rule 4, out of this plan's files_modified)
+- [Phase 39]: 39-07: ApproverCombobox is a controlled (value/onSelect), zero-internal-mutation combobox variant -- copies reassign-combobox.tsx's debounce/keyboard-nav/WAI-ARIA markup but replaces the data-flow entirely (Pitfall 6); widens DirectoryUser locally (ApproverUser = DirectoryUser & {id}) rather than editing the shared use-asset-detail.ts, since /users/directory's raw JSON already returns `id` but that shared type never declared it
+- [Phase 39]: 39-07: ExceptionGrantDialog has no separate CVE input field -- ASSET/ASSET_GROUP scope carries the FINDING's own cve_id forward unchanged (broadens blast radius for the SAME CVE, never an analyst-typed one); FINDING scope sends vulnerability_id only (server derives cve_id/asset_id, Pitfall 9/T-39-26)
+- [Phase 39]: 39-07: added a defensive guard (Rule 2) disabling "This asset" when finding.assetId is null and disabling both "This asset"/"Asset group" when finding.cveId is null -- prevents submitting an empty-string asset_id/cve_id, not spelled out in the plan's literal action text
+- [Phase 39]: 39-07: classifyGrantError maps the backend's own HTTPException copy onto the UI-SPEC's 3 dialog-owned error surfaces (D-03 literal-match banner / D-14 prefix-match field-level / generic HTTP-coded fallback for everything else, e.g. 404 target-not-found or inactive-approver 400) rather than inventing new bespoke copy per branch
+- [Phase 39]: 39-07: ExceptionGrantDialog renders via its own plain ResponsiveDialog rather than through drill-panel-mobile.tsx's renderConfirm render-prop (typed specifically for the ticket-confirm fields) -- on mobile this nests a functional-but-non-cascading vaul Drawer inside the outer drill-panel drawer (no Drawer.NestedRoot gesture polish); logged to deferred-items.md, not fixed (renderConfirm's contract change is outside this plan's files_modified)
+- [Phase 39]: 39-07: Task 3's wiring made the Actions section always render ExceptionGrantDialog, which transitively calls 3 real query/mutation hooks (useGrantException, useAssetGroupsList, useAssignableUsers) that drill-panel.test.tsx/drill-panel-mobile.test.tsx didn't mock -- both suites crashed with "No QueryClient set" until mocked the same way every other real hook in those files already is (Rule 3 auto-fix); exceptions-table.test.tsx's "Revoke renders disabled" test was also now factually wrong for the newly-wired live behavior and was split/extended (Rule 1 auto-fix)
+- [Phase 39]: EXC-01 remains unmarked in REQUIREMENTS.md after 39-07 (a 4th independent confirmation) -- 39-08-PLAN.md's own frontmatter literally lists `requirements: [EXC-01, EXC-02, EXC-03, EXC-04]`, confirming it as the phase's sole designated last-declaring plan
+- [Phase 39]: 39-07 completes EXC-01's grant surface end-to-end (backend 39-01/39-02, list UI 39-06, grant/revoke UI this plan) and resolves 39-06's own documented "Known Stubs" entry (the disabled Revoke placeholder) in full; Wave 3 {39-03, 39-07} is now fully complete, clearing the barrier for Wave 4 (39-05, depends_on:[39-01,39-03], both already done)
 
 ## Performance Metrics
 
@@ -524,13 +532,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 39 P04 | 18min | 2 tasks | 6 files |
 | Phase 39 P06 | 28min | 3 tasks | 9 files |
 | Phase 39 P03 | 42min | 2 tasks | 4 files |
+| Phase 39 P07 | 36min | 3 tasks | 13 files |
 
 ## Session
 
-**Last session:** 2026-08-19T09:06:26.000Z
-**Stopped at:** Phase 39 Plan 03 (SLA-engine exclusion + resurface subtraction) complete
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-07-PLAN.md
+**Last session:** 2026-08-19T09:43:37.000Z
+**Stopped at:** Phase 39 Plan 07 (Exception grant/revoke frontend) complete
+**Resume file:** None
 
 ## Operator Next Steps
 
-- Continue Phase 39 execution with /gsd-execute-phase 39 (5/8 plans complete — 01, 02, 03, 04, 06; Plan 07 next [unblocked, wave 3, depends_on 39-01+39-02+39-06, all done]; Plan 05 [wave 4] stays blocked until 39-07 also completes)
+- Continue Phase 39 execution with /gsd-execute-phase 39 (6/8 plans complete — 01, 02, 03, 04, 06, 07; Wave 3 {39-03, 39-07} fully complete; Plan 05 next [unblocked, wave 4, depends_on 39-01+39-03, both done]; Plan 08 [wave 5, the closing plan] stays blocked until 39-05 also completes)
