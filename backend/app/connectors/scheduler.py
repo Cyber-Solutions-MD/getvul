@@ -378,6 +378,22 @@ async def _scheduler_loop() -> None:
         except Exception as e:
             logger.error("alert_check_error", error=str(e))
 
+        # ── ALERT-02 digest dispatch (every tick) ──
+        # The wall-clock send-hour gate lives INSIDE run_digests
+        # (digests.py::_send_hour_due) -- this block itself runs every tick,
+        # like the SLA pass above, with no elapsed-hours guard here (that
+        # would be the reports.py::_is_due anti-pattern D-12 explicitly
+        # rejects for digests).
+        try:
+            async with async_session_factory() as db:
+                from app.notifications.digests import run_digests
+
+                digests_sent = await run_digests(db)
+                if digests_sent > 0:
+                    logger.info("digests_sent", count=digests_sent)
+        except Exception as e:
+            logger.error("digest_dispatch_error", error=str(e))
+
         # AI batch prewarm (nightly, 24h-gated) + poll (every tick) --
         # AIP-02/D-05: both non-blocking asyncio.create_task dispatches;
         # neither dispatcher itself performs any I/O beyond a datetime
