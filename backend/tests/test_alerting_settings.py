@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
+from unittest.mock import patch
 
 from sqlalchemy import select
 
@@ -24,6 +25,7 @@ from app.audit import AuditLog
 from app.tenants.models import Tenant
 
 SETTINGS_URL = "/api/v1/tenant/settings"
+TEST_DIGEST_URL = "/api/v1/tenant/settings/alerting/test-digest"
 
 
 async def _get_tenant(db_session: Any, tenant_id: uuid.UUID) -> Tenant:
@@ -90,3 +92,61 @@ async def test_patch_requires_owner(client_factory: Any, analyst_user: Any) -> N
     client = client_factory(analyst_user)
     resp = await client.patch(SETTINGS_URL, json={"alerting_config": {"epss_threshold": 0.6}})
     assert resp.status_code == 403
+
+
+# ── POST /settings/alerting/test-digest (Task 2) ────────────────────────────
+
+
+async def test_test_digest_requires_admin(client_factory: Any, viewer_user: Any) -> None:
+    """T-40-18: the test-digest send primitive is admin-gated, not merely
+    analyst/viewer-readable -- a Viewer must be rejected."""
+    client = client_factory(viewer_user)
+    resp = await client.post(TEST_DIGEST_URL)
+    assert resp.status_code == 403
+
+
+async def test_test_digest_empty_when_no_findings(client_factory: Any, admin_user: Any, db_session: Any) -> None:
+    """D-14: a tenant with nothing to report gets a distinguishable "empty"
+    status, never a false "error"."""
+    await db_session.commit()
+    client = client_factory(admin_user)
+    resp = await client.post(TEST_DIGEST_URL)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "empty"
+
+
+async def test_test_digest_error_when_smtp_not_configured(
+    client_factory: Any, admin_user: Any, db_session: Any, tenant_a: uuid.UUID, kev_epss_finding: Any
+) -> None:
+    """A tenant with digest content but no SMTP configured gets a
+    distinguishable "error" status, not a silent 200 "sent"."""
+    tenant = await _get_tenant(db_session, tenant_a)
+    tenant.smtp_config = None
+    await db_session.commit()
+
+    client = client_factory(admin_user)
+    resp = await client.post(TEST_DIGEST_URL)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "error"
+    assert body.get("error")
+
+
+async def test_test_digest_sent_targets_only_acting_admin(
+    client_factory: Any, admin_user: Any, db_session: Any, tenant_a: uuid.UUID, kev_epss_finding: Any
+) -> None:
+    """The preview send must target ONLY the acting admin's own email --
+    never a tenant-wide recipient list (T-40-18: no broadcast from a
+    preview action)."""
+    tenant = await _get_tenant(db_session, tenant_a)
+    tenant.smtp_config = {"enabled": True, "host": "smtp.test.local", "from_email": "alerts@test.local"}
+    await db_session.commit()
+
+    client = client_factory(admin_user)
+    with patch("app.email.send_email", return_value={"ok": True}) as mock_send:
+        resp = await client.post(TEST_DIGEST_URL)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "sent"
+    assert mock_send.call_count == 1
+    assert mock_send.call_args.kwargs["to"] == [admin_user.email]

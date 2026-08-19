@@ -485,6 +485,58 @@ async def update_tenant_settings(
     return {"message": "Settings updated"}
 
 
+@router.post("/settings/alerting/test-digest")
+async def send_test_digest(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Preview the tenant's current alerting digest to the ACTING admin's
+    own email ONLY (T-40-18: require_admin + a recipient hard-pinned to the
+    caller — never an arbitrary or tenant-wide recipient list; this is a
+    preview action, not a broadcast primitive).
+
+    Reuses digests.py's assembly/render seam verbatim (Plan 03) rather than
+    re-deriving digest content. Returns a `status` distinguishing three
+    outcomes the settings pane's E1 backstop needs to branch on without a
+    false-positive error:
+      - "sent"  — the digest had content and the email round-tripped OK.
+      - "empty" — every section is empty right now (D-14); NOT an error.
+      - "error" — SMTP isn't configured/enabled, or the send itself failed.
+    """
+    from app.email import send_email
+    from app.notifications.alerting_config import merged_alerting_config
+    from app.notifications.digests import (
+        _assemble_sections,
+        _digest_plain_text,
+        _digest_subject,
+        _render_digest_html,
+        _sections_empty,
+    )
+
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+
+    sections = await _assemble_sections(db, tenant)
+    if _sections_empty(sections):
+        return {"status": "empty"}
+
+    smtp_config = tenant.smtp_config or {}
+    if not smtp_config.get("enabled") or not smtp_config.get("host"):
+        return {"status": "error", "error": "SMTP is not configured for this tenant"}
+
+    config = merged_alerting_config(tenant)
+    total = sum(len(sections.get(key) or []) for key in ("due", "breaching", "newly_critical", "expiring_exceptions"))
+    result = send_email(
+        smtp_config=smtp_config,
+        to=[user.email],
+        subject=_digest_subject(config, total),
+        body=_digest_plain_text(sections),
+        html_body=_render_digest_html(sections, recipient_label=user.email),
+    )
+    if result.get("ok"):
+        return {"status": "sent"}
+    return {"status": "error", "error": result.get("error")}
+
+
 @router.post("/branding/logo")
 async def upload_logo(
     db: DBSession,
