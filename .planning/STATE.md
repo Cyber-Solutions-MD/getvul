@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 39
 current_phase_name: exception-risk-acceptance-workflow
 status: executing
-stopped_at: Phase 39 Plan 06 (exceptions list frontend) complete
-last_updated: "2026-08-19T08:16:54.000Z"
+stopped_at: Phase 39 Plan 03 (SLA-engine exclusion + resurface subtraction) complete
+last_updated: "2026-08-19T09:06:26.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 39 Plan 06 (exceptions list frontend -- page, table, chip-bar, query hook, nav entry) complete
+last_activity_desc: Phase 39 Plan 03 (SLA-engine exclusion + resurface subtraction -- D-15 exclusion + D-16 interval-merged subtraction wired into run_sla_tier_pass/detect_and_escalate/list_vulnerabilities/get_vulnerability) complete
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 19
-  percent: 83
+  completed_plans: 20
+  percent: 87
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,10 +46,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 39 (exception-risk-acceptance-workflow) — EXECUTING
-Plans complete: 01, 02, 04, 06 (4 of 8; non-linear -- 39-04 and 39-06 are both wave 2, depends_on:[39-01] only, independent of not-yet-run 39-03)
-Status: Executing Phase 39 — Plan 06 (exceptions list frontend: page/table/chip-bar/query-hook/nav-entry) complete
-Last activity: 2026-08-19 — Plan 39-06 complete
-Next unblocked: 39-03 (wave 3, depends_on:[39-01,39-02] -- both done) and 39-07 (wave 3, depends_on:[39-01,39-02,39-06] -- all three now done; the grant-dialog/approver-combobox/mutations frontend is newly unblocked)
+Plans complete: 01, 02, 03, 04, 06 (5 of 8; non-linear -- 39-03 (wave 3, depends_on:[39-01,39-02]) just completed alongside already-done 39-04/39-06 (wave 2))
+Status: Executing Phase 39 — Plan 03 (SLA-engine exclusion + resurface subtraction: D-15 exclusion + D-16 interval-merged subtraction across run_sla_tier_pass/detect_and_escalate/list_vulnerabilities/get_vulnerability) complete
+Last activity: 2026-08-19 — Plan 39-03 complete
+Next unblocked: 39-07 (wave 3, depends_on:[39-01,39-02,39-06] -- all three done; the grant-dialog/approver-combobox/mutations frontend, independent of 39-03). Wave 4 (39-05) stays blocked until 39-07 ALSO completes (wave 4 needs full wave-3 completion, not just 39-03).
 
 ## v5.0 Phase Map
 
@@ -452,6 +452,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 39]: 39-06: the PartialFailureBanner error state does NOT render the UI-SPEC's literal "Exceptions failed to load" title -- the shared component has no title-override prop (only a `source` prop that produces an unrelated "{source} connector is unreachable" template); reused verbatim with no `source` prop, matching campaigns/page.tsx's identical precedent and this plan's own must_haves wording ("PartialFailureBanner verbatim (HTTP code + request ID + Retry now)"), which does not literally require the exact title string
 - [Phase 39]: EXC-02/EXC-03 remain unmarked in REQUIREMENTS.md after 39-06 -- re-confirmed 39-08 is still the sole plan claiming all four EXC-01..04 and the phase's designated last declaring plan; this plan builds only the read/manage-only viewing surface, not the full requirement scope (no grant/revoke UI yet -- Plan 07/08)
 - [Phase 39]: 39-06 unblocks 39-07 (depends_on:[39-01,39-02,39-06], all three now done) -- the exception-grant-dialog/approver-combobox/use-exception-mutations frontend can now proceed
+- [Phase 39]: 39-03: lapsed_exception_seconds (exceptions/service.py) batches on (cve_id, asset_id) rather than vulnerability_id for FINDING scope, mirroring corr_by_key's exact shape -- correct because grant_exception (39-01/39-02) always derives FINDING's asset_id from the resolved Vulnerability row, so a FINDING-scope ExceptionRecord always carries the same (cve_id, asset_id) as its target
+- [Phase 39]: 39-03: detect_and_escalate ALSO applies the D-16 excepted_seconds subtraction (Rule 2), not only the ~active_exception_subquery WHERE exclusion the plan's literal action text specified -- proven necessary by temporarily reverting just that one line and observing a real escalation fire (fired=1, notified=1) for a just-resurfaced finding that should have read on_track; restored and locked in by test_escalation_not_fired_on_resurface
+- [Phase 39]: 39-03: get_vulnerability inherits only the lapsed-duration subtraction, not a structural state-suppression for a CURRENTLY-active exception (whose ongoing window hasn't lapsed yet) -- follows RESEARCH's own Tier-1-#2 design note + Task 2's literal action text verbatim; the must_haves' concrete testable outcome ("never fires a breach alert or notification") is fully satisfied by the run_sla_tier_pass/detect_and_escalate wiring alone
+- [Phase 39]: EXC-02/EXC-04 remain unmarked in REQUIREMENTS.md after 39-03 -- re-confirmed 39-08 is still the sole plan claiming all four EXC-01..04; this plan closes the SLA-engine/escalation surface only (Tier 1 #3/#4/#9), Tier 2 dashboard consumers (assets/router.py badges, users/router.py owner-risk) remain 39-05's domain
+- [Phase 39]: 39-03: discovered (not fixed) a full-suite-only, order-dependent Postgres deadlock between the background scheduler's SLA tick and a concurrent foreground ticket-close write (test_ticketing_dispatch.py::test_close_ticket_endpoint_dispatches_by_ticket_provider) -- root-caused via a reverted diagnostic ASGITransport change (no net conftest.py diff), confirmed pre-existing in shape (Phase 36's bulk-update-in-one-transaction scheduler tick) and only amplified by this plan's added per-tick SELECTs; logged to deferred-items.md, a real fix is a scheduler-wide transaction/concurrency redesign (Rule 4, out of this plan's files_modified)
 
 ## Performance Metrics
 
@@ -518,13 +523,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 39 P02 | 26min | 2 tasks | 4 files |
 | Phase 39 P04 | 18min | 2 tasks | 6 files |
 | Phase 39 P06 | 28min | 3 tasks | 9 files |
+| Phase 39 P03 | 42min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-08-19T08:16:54.000Z
-**Stopped at:** Phase 39 Plan 06 (exceptions list frontend) complete
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-03-PLAN.md
+**Last session:** 2026-08-19T09:06:26.000Z
+**Stopped at:** Phase 39 Plan 03 (SLA-engine exclusion + resurface subtraction) complete
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-07-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 39 execution with /gsd-execute-phase 39 (4/8 plans complete — 01, 02, 04, 06; Plan 03 next [unblocked, depends_on 39-01+39-02], Plan 07 newly unblocked [wave 3, depends_on 39-01+39-02+39-06, all done])
+- Continue Phase 39 execution with /gsd-execute-phase 39 (5/8 plans complete — 01, 02, 03, 04, 06; Plan 07 next [unblocked, wave 3, depends_on 39-01+39-02+39-06, all done]; Plan 05 [wave 4] stays blocked until 39-07 also completes)
