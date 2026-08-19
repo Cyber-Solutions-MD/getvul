@@ -102,6 +102,24 @@ vi.mock('@/lib/queries/use-ticketing-providers', () => ({
 import { useTicketingProviders } from '@/lib/queries/use-ticketing-providers';
 const useProvidersMock = vi.mocked(useTicketingProviders);
 
+// Phase 39 Plan 07 (EXC-01): the Actions section now always renders
+// <ExceptionGrantDialog> (state-controlled, closed by default) — it calls
+// the real useGrantException()/useAssetGroupsList() hooks, which need a
+// QueryClientProvider this pre-existing suite doesn't wrap with. Mocked the
+// same way every other real query/mutation hook in this file already is.
+vi.mock('@/lib/queries/use-exception-mutations', () => ({
+  useGrantException: () => ({ mutate: vi.fn(), isPending: false, error: null, reset: vi.fn() }),
+}));
+vi.mock('@/lib/queries/use-asset-groups', () => ({
+  useAssetGroupsList: () => ({ data: [], isLoading: false, isError: false }),
+}));
+// The grant dialog's Approver field (ApproverCombobox) uses the real
+// useAssignableUsers query hook — same QueryClientProvider-avoidance
+// rationale as above.
+vi.mock('@/lib/queries/use-assignable-users', () => ({
+  useAssignableUsers: () => ({ data: { users: [], total: 0, page: 1, page_size: 25 }, isLoading: false, isError: false }),
+}));
+
 // Wave 2 (Plan 11-05) will create this file. Import is the RED signal.
 import { DrillPanelMobile } from './drill-panel-mobile';
 

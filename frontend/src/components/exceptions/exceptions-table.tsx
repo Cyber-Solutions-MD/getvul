@@ -1,13 +1,13 @@
 'use client';
 /**
  * ExceptionsTable — Phase 39 Plan 06 (EXC-02/EXC-03) /dashboard/exceptions
- * manage-only list table.
+ * manage-only list table; Plan 07 (D-17) wires the Revoke column below.
  *
  * Columns (39-UI-SPEC.md Layout & Entry Points §3): Type (status-pill family)
  * · CVE/target (mono, truncate+title) · Scope label · Approver (avatar+name,
  * truncate+title) · Granted (relative "Nd ago", tabular-nums) · Expires
  * (sla-pill soon/ok, or a muted "Revoked"/"Expired" chip for historical rows)
- * · Revoke (disabled placeholder — see below).
+ * · Revoke (live-wired, see below).
  *
  * Row click/Enter/Space toggles a LOCAL inline-accordion expand (full
  * justification + who-approved/when audit metadata) — this component never
@@ -23,15 +23,22 @@
  * campaigns-table.tsx:56-121's shape verbatim; only the Enter/Space handler
  * differs (toggles local expand state instead of an onRowClick callback).
  *
- * Revoke column: Plan 07 (not yet executed as of this plan) owns the
- * mutation hook + ConfirmModal wiring (39-06-PLAN Task 2 action text). Until
- * then this renders a disabled 34x34 icon-button placeholder — see
- * 39-06-SUMMARY.md "Known Stubs". Hand-rolled (not `<Button variant="icon">`)
- * because that variant's default `size: 'md'` compounds `px-4 py-2` padding
- * on top of the fixed `h-[34px] w-[34px]` box, squeezing the icon's content
- * area to ~0px under border-box sizing — a pre-existing bug in
- * components/ui/button.tsx logged to deferred-items.md, not fixed here
- * (out of this plan's files_modified scope, SCOPE BOUNDARY).
+ * Revoke column (D-17, Plan 07): clicking the per-row button tracks that row
+ * in local state and opens ONE shared `ConfirmModal` (variant="warning")
+ * below the table; confirming calls `useRevokeException(revokeTarget.id)`,
+ * which invalidates the exceptions list on success so the row's state
+ * (revoked/muted chip) updates on the next render. Disabled only for
+ * already-historical (revoked/expired) rows — re-revoking is a no-op the
+ * backend itself 409s on, so the UI never offers it. Hand-rolled markup
+ * (not `<Button variant="icon">`) for the same reason as 39-06's original
+ * placeholder — that variant's default `size:'md'` padding compounds with
+ * the fixed `h-[34px] w-[34px]` box (components/ui/button.tsx, logged to
+ * deferred-items.md, out of this plan's files_modified scope).
+ *
+ * The revoke confirmation names the CVE + scope-label target rather than a
+ * resolved hostname/group-name — same "no fake human-readable target" call
+ * as the CVE/target column's own `targetTitle()` (ExceptionResponse has no
+ * such join, 39-01/39-02's documented scope boundary).
  *
  * T-38-09-class (XSS): cve_id / approver_display_name / justification are
  * all rendered as React text children (no dangerouslySetInnerHTML) — React
@@ -42,6 +49,8 @@ import { Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { SlaPill } from '@/components/tickets/sla-pill';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { useRevokeException } from '@/lib/queries/use-exception-mutations';
 import type { ExceptionResponse } from '@/lib/queries/use-exceptions';
 
 export type ExceptionsTableProps = {
@@ -106,6 +115,25 @@ function targetTitle(row: ExceptionResponse): string {
   return `${row.cve_id} — this finding`;
 }
 
+// D-17: an already-revoked or lapsed-expired row can't be usefully
+// re-revoked — the backend 409s on an already-revoked exception_id, so the
+// Revoke button disables itself for historical rows rather than offering an
+// action that only round-trips into an error.
+function isHistorical(row: ExceptionResponse): boolean {
+  if (row.revoked_at) return true;
+  const expiresMs = new Date(row.expires_at).getTime();
+  return Number.isFinite(expiresMs) && expiresMs <= Date.now();
+}
+
+// Same "no fake human-readable target" call as targetTitle() above — the
+// Revoke confirmation names the scope kind, not an invented hostname/
+// group-name the backend response doesn't carry.
+const SCOPE_TARGET_PHRASE: Record<ExceptionResponse['scope_type'], string> = {
+  FINDING: 'this finding',
+  ASSET: 'this asset',
+  ASSET_GROUP: 'this asset group',
+};
+
 function ExpiresCell({ row }: { row: ExceptionResponse }) {
   if (row.revoked_at) {
     return <span className={MUTED_CHIP_CLASSES}>Revoked</span>;
@@ -150,6 +178,13 @@ export function ExceptionsTable({ rows }: ExceptionsTableProps) {
   // D-19: ascending (soonest-expiring first) by default; header click toggles.
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // D-17: the row targeted by an in-flight Revoke confirmation. A single
+  // ConfirmModal + mutation instance serves every row — `revokeTarget?.id`
+  // is re-read on each render, so by the time `.mutate()` fires it always
+  // reflects whichever row's Revoke button was most recently clicked (the
+  // modal can only be open for one row at a time).
+  const [revokeTarget, setRevokeTarget] = useState<ExceptionResponse | null>(null);
+  const revokeMutation = useRevokeException(revokeTarget?.id ?? '');
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -196,119 +231,148 @@ export function ExceptionsTable({ rows }: ExceptionsTableProps) {
     [toggleExpand],
   );
 
+  // D-17 Copywriting Contract (39-UI-SPEC.md): "{CVE-ID} on {target} returns
+  // to the active queue immediately — SLA tracking resumes and it reappears
+  // on dashboards. This can't be undone; you'd need to grant a new
+  // exception." — {target} uses SCOPE_TARGET_PHRASE (see above) rather than
+  // an invented hostname/group-name.
+  const revokeMessage = revokeTarget
+    ? `${revokeTarget.cve_id} on ${SCOPE_TARGET_PHRASE[revokeTarget.scope_type]} returns to the active queue immediately — SLA tracking resumes and it reappears on dashboards. This can't be undone; you'd need to grant a new exception.`
+    : '';
+
   return (
-    <table className="w-full border-collapse text-sm">
-      <thead className="sticky top-0 z-10 bg-surface">
-        {/* 39-UI-SPEC.md Typography: Label role locked to font-semibold (600),
-            not the sitewide font-medium (500) — every new component this
-            phase builds must hold the 2-weight cap this way. */}
-        <tr className="border-b border-border-subtle text-left text-xs font-semibold uppercase tracking-wide text-text-muted">
-          <th scope="col" className="px-3 py-2" data-col="type">
-            Type
-          </th>
-          <th scope="col" className="px-3 py-2" data-col="target">
-            CVE / target
-          </th>
-          <th scope="col" className="px-3 py-2" data-col="scope">
-            Scope
-          </th>
-          <th scope="col" className="px-3 py-2" data-col="approver">
-            Approver
-          </th>
-          <th scope="col" className="px-3 py-2" data-col="granted">
-            Granted
-          </th>
-          <th
-            scope="col"
-            aria-sort={sortDir === 'asc' ? 'ascending' : 'descending'}
-            className="cursor-pointer px-3 py-2 hover:text-text"
-            data-col="expires"
-            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-          >
-            Expires {sortDir === 'asc' ? '↑' : '↓'}
-          </th>
-          <th scope="col" className="px-3 py-2" data-col="revoke">
-            <span className="sr-only">Revoke</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody ref={tbodyRef}>
-        {sorted.map((row, idx) => {
-          const isExpanded = expandedId === row.id;
-          const typeConfig = TYPE_PILL_CONFIG[row.type];
-          return (
-            <Fragment key={row.id}>
-              <tr
-                tabIndex={0}
-                aria-expanded={isExpanded}
-                onClick={() => toggleExpand(row.id)}
-                onKeyDown={(e) => onRowKeyDown(e, row, idx)}
-                className={cn(
-                  'cursor-pointer border-b border-border-subtle',
-                  'hover:bg-surface-2 focus-visible:bg-surface-2',
-                  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
-                  isExpanded && 'bg-surface-2',
-                )}
-              >
-                <td className="px-3 py-3">
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs',
-                      typeConfig.classes,
-                    )}
-                  >
-                    <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-                    {typeConfig.label}
-                  </span>
-                </td>
-                <td className="max-w-[220px] px-3 py-3">
-                  <span className="block truncate font-mono text-text" title={targetTitle(row)}>
-                    {row.cve_id}
-                  </span>
-                </td>
-                <td className="px-3 py-3 text-text-muted">{SCOPE_LABEL[row.scope_type]}</td>
-                <td className="max-w-[180px] px-3 py-3">
-                  <span
-                    className="flex min-w-0 items-center gap-2"
-                    title={row.approver_display_name ?? undefined}
-                  >
-                    <Avatar name={row.approver_display_name ?? undefined} size={20} />
-                    <span className="min-w-0 flex-1 truncate text-text">
-                      {row.approver_display_name ?? '—'}
+    <>
+      <table className="w-full border-collapse text-sm">
+        <thead className="sticky top-0 z-10 bg-surface">
+          {/* 39-UI-SPEC.md Typography: Label role locked to font-semibold (600),
+              not the sitewide font-medium (500) — every new component this
+              phase builds must hold the 2-weight cap this way. */}
+          <tr className="border-b border-border-subtle text-left text-xs font-semibold uppercase tracking-wide text-text-muted">
+            <th scope="col" className="px-3 py-2" data-col="type">
+              Type
+            </th>
+            <th scope="col" className="px-3 py-2" data-col="target">
+              CVE / target
+            </th>
+            <th scope="col" className="px-3 py-2" data-col="scope">
+              Scope
+            </th>
+            <th scope="col" className="px-3 py-2" data-col="approver">
+              Approver
+            </th>
+            <th scope="col" className="px-3 py-2" data-col="granted">
+              Granted
+            </th>
+            <th
+              scope="col"
+              aria-sort={sortDir === 'asc' ? 'ascending' : 'descending'}
+              className="cursor-pointer px-3 py-2 hover:text-text"
+              data-col="expires"
+              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            >
+              Expires {sortDir === 'asc' ? '↑' : '↓'}
+            </th>
+            <th scope="col" className="px-3 py-2" data-col="revoke">
+              <span className="sr-only">Revoke</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody ref={tbodyRef}>
+          {sorted.map((row, idx) => {
+            const isExpanded = expandedId === row.id;
+            const typeConfig = TYPE_PILL_CONFIG[row.type];
+            return (
+              <Fragment key={row.id}>
+                <tr
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  onClick={() => toggleExpand(row.id)}
+                  onKeyDown={(e) => onRowKeyDown(e, row, idx)}
+                  className={cn(
+                    'cursor-pointer border-b border-border-subtle',
+                    'hover:bg-surface-2 focus-visible:bg-surface-2',
+                    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet',
+                    isExpanded && 'bg-surface-2',
+                  )}
+                >
+                  <td className="px-3 py-3">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs',
+                        typeConfig.classes,
+                      )}
+                    >
+                      <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+                      {typeConfig.label}
                     </span>
-                  </span>
-                </td>
-                <td className="px-3 py-3 font-mono tabular-nums text-text-muted">
-                  {grantedAgo(row.created_at)}
-                </td>
-                <td className="px-3 py-3">
-                  <ExpiresCell row={row} />
-                </td>
-                <td className="px-3 py-3">
-                  {/* Disabled placeholder — see module docstring "Revoke column". */}
-                  <button
-                    type="button"
-                    disabled
-                    title="Revoke — coming soon"
-                    aria-label={`Revoke exception for ${row.cve_id} (coming soon)`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-md border border-border-subtle bg-surface text-text-muted opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Ban className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </td>
-              </tr>
-              {isExpanded && (
-                <tr className="border-b border-border-subtle bg-surface-2">
-                  <td colSpan={7} className="px-3 py-4">
-                    <ExpandedDetail row={row} />
+                  </td>
+                  <td className="max-w-[220px] px-3 py-3">
+                    <span className="block truncate font-mono text-text" title={targetTitle(row)}>
+                      {row.cve_id}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-text-muted">{SCOPE_LABEL[row.scope_type]}</td>
+                  <td className="max-w-[180px] px-3 py-3">
+                    <span
+                      className="flex min-w-0 items-center gap-2"
+                      title={row.approver_display_name ?? undefined}
+                    >
+                      <Avatar name={row.approver_display_name ?? undefined} size={20} />
+                      <span className="min-w-0 flex-1 truncate text-text">
+                        {row.approver_display_name ?? '—'}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 font-mono tabular-nums text-text-muted">
+                    {grantedAgo(row.created_at)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <ExpiresCell row={row} />
+                  </td>
+                  <td className="px-3 py-3">
+                    {/* D-17 — see module docstring "Revoke column". Disabled
+                        only for already-historical (revoked/expired) rows. */}
+                    <button
+                      type="button"
+                      disabled={isHistorical(row)}
+                      title={isHistorical(row) ? 'Already revoked or expired' : 'Revoke exception'}
+                      aria-label={`Revoke exception for ${row.cve_id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRevokeTarget(row);
+                      }}
+                      className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-md border border-border-subtle bg-surface text-text-muted hover:border-danger/40 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border-subtle disabled:hover:text-text-muted"
+                    >
+                      <Ban className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   </td>
                 </tr>
-              )}
-            </Fragment>
-          );
-        })}
-      </tbody>
-    </table>
+                {isExpanded && (
+                  <tr className="border-b border-border-subtle bg-surface-2">
+                    <td colSpan={7} className="px-3 py-4">
+                      <ExpandedDetail row={row} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <ConfirmModal
+        open={revokeTarget !== null}
+        title="Revoke this exception?"
+        message={revokeMessage}
+        confirmLabel="Revoke exception"
+        cancelLabel="Cancel"
+        variant="warning"
+        confirmDisabled={revokeMutation.isPending}
+        onConfirm={() => {
+          revokeMutation.mutate(undefined, { onSuccess: () => setRevokeTarget(null) });
+        }}
+        onCancel={() => setRevokeTarget(null)}
+      />
+    </>
   );
 }

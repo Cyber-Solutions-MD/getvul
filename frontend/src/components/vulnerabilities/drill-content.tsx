@@ -48,6 +48,12 @@ import { useExplainStream, type ExplainStreamState } from '@/lib/ai/use-explain-
 // per-resource data hooks.
 import { SlaPill, type SlaPillState } from '@/components/tickets/sla-pill';
 import { useVulnEscalations, type VulnEscalationEvent } from '@/lib/queries/use-vuln-escalations';
+// Phase 39 Plan 07 (EXC-01 UI-SPEC Layout §1): "Accept risk" / "Mark false
+// positive" Actions-section entry points open this dialog with `type`
+// pre-set and the drill panel's own CVE x asset as the FINDING-scope
+// default.
+import { ExceptionGrantDialog, type ExceptionFinding } from '@/components/exceptions/exception-grant-dialog';
+import type { ExceptionType } from '@/lib/queries/use-exceptions';
 
 // D-P-05 — shared section order: Header → CVSS → Affected hosts →
 // Description → Remediation → Activity → Actions. Used by both desktop
@@ -356,6 +362,11 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   const snooze = useSnoozeMutation();
   const { toast } = useToast();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Phase 39 Plan 07 (EXC-01): null = ExceptionGrantDialog closed; a set
+  // value both opens it AND pre-sets its `type`. A single dialog instance
+  // (rendered once below) serves both "Accept risk" and "Mark false
+  // positive" — they differ only in which type this state holds.
+  const [exceptionGrantType, setExceptionGrantType] = useState<ExceptionType | null>(null);
   // D-14 (Plan 23-08): analyst-chosen ticketing provider, replacing the
   // hardcoded 'ASANA'. TicketProviderPicker default-selects the first
   // tenant-configured provider once its query loads.
@@ -408,6 +419,17 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // resolves, `v` reflects it exactly as it did before this restructure.
   const v = (q.data ?? {}) as unknown as FlexibleDetail;
   const cveLabel = v.cve_id ?? v.id ?? idOrCve;
+  // Phase 39 Plan 07 (EXC-01): the ExceptionGrantDialog's FINDING-scope
+  // default. `cveId` stays the REAL cve_id (or null) here, deliberately NOT
+  // falling back to `cveLabel`'s id/idOrCve — ASSET/ASSET_GROUP scope reuses
+  // this same value as a real `cve_id` payload field (T-39-26), so a
+  // non-CVE fallback string must never leak into it.
+  const exceptionFinding: ExceptionFinding = {
+    vulnerabilityId: v.id ?? idOrCve,
+    cveId: v.cve_id ?? null,
+    assetId: v.asset_id ?? null,
+    hostname: v.asset_hostname ?? null,
+  };
   // CVSS arrives as a string ("10.0") — coerce before formatting so a present
   // score renders and null/absent/non-numeric falls back to the em dash.
   const cvssNum = v.cvss_v3_score == null ? null : Number(v.cvss_v3_score);
@@ -941,6 +963,20 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             >
               {microcopy.drill.snooze24h}
             </button>
+            <button
+              type="button"
+              onClick={() => setExceptionGrantType('ACCEPTED_RISK')}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+            >
+              {microcopy.drill.acceptRisk}
+            </button>
+            <button
+              type="button"
+              onClick={() => setExceptionGrantType('FALSE_POSITIVE')}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+            >
+              {microcopy.drill.markFalsePositive}
+            </button>
           </div>
         </section>
       </div>
@@ -1030,6 +1066,22 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             </div>
           </ConfirmModal>
         )}
+
+      {/* Phase 39 Plan 07 (EXC-01): a single instance serves both "Accept
+          risk" and "Mark false positive" — `type` reflects whichever button
+          was clicked. Rendered via its own ResponsiveDialog (not nested
+          inside the ticket-confirm's renderConfirm render-prop, which is
+          typed specifically for the ticket-confirm fields) — see
+          39-07-SUMMARY.md for the mobile Drawer-nesting trade-off this
+          implies. */}
+      <ExceptionGrantDialog
+        open={exceptionGrantType !== null}
+        onOpenChange={(o) => {
+          if (!o) setExceptionGrantType(null);
+        }}
+        type={exceptionGrantType ?? 'ACCEPTED_RISK'}
+        finding={exceptionFinding}
+      />
     </div>
   );
 });

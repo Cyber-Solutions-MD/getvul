@@ -1,22 +1,40 @@
 /**
- * exceptions-table.test.tsx — tests for ExceptionsTable (Phase 39 Plan 06).
+ * exceptions-table.test.tsx — tests for ExceptionsTable (Phase 39 Plans 06 + 07).
  *
  * Test 1: all UI-SPEC column headers rendered.
  * Test 2: default sort is ascending by expires_at (soonest-expiring first, D-19).
  * Test 3: clicking the Expires header toggles sort direction.
  * Test 4: row click toggles a LOCAL inline-accordion expand (justification +
  *         audit metadata) — not a callback, not navigation.
- * Test 5: Revoke button renders disabled (Plan 07 wires the mutation later).
+ * Test 5 (Plan 07, D-17): Revoke is enabled for an active row, disabled for
+ *         historical (revoked/expired) rows.
  * Test 6: revoked/expired historical rows render a muted chip, never
  *         sla-pill.overdue.
  * Test 7: never imports next/navigation / calls useRouter.
+ * Plan 07 additions: clicking Revoke opens a warning ConfirmModal with the
+ *         exact D-17 copy; confirming calls useRevokeException(row.id).
  */
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ExceptionsTable } from './exceptions-table';
 import type { ExceptionResponse } from '@/lib/queries/use-exceptions';
+
+// ExceptionsTable now calls the real useRevokeException(id) mutation hook
+// (Plan 07) — mocked the same way reassign-combobox.test.tsx stubs
+// useReassignAsset, so this suite doesn't need a QueryClientProvider wrapper.
+const mutateFn = vi.fn();
+let mutationPending = false;
+vi.mock('@/lib/queries/use-exception-mutations', () => ({
+  useRevokeException: vi.fn((id: string) => ({
+    mutate: (_vars: unknown, opts?: { onSuccess?: () => void }) => {
+      mutateFn(id);
+      opts?.onSuccess?.();
+    },
+    isPending: mutationPending,
+  })),
+}));
 
 const now = Date.now();
 const iso = (offsetDays: number) => new Date(now + offsetDays * 24 * 60 * 60 * 1000).toISOString();
@@ -57,6 +75,11 @@ const OK_ROW = makeRow({ id: 'ok', cve_id: 'CVE-2024-0002', expires_at: iso(30) 
 const FAR_ROW = makeRow({ id: 'far', cve_id: 'CVE-2024-0001', expires_at: iso(60) });
 
 describe('ExceptionsTable', () => {
+  beforeEach(() => {
+    mutateFn.mockReset();
+    mutationPending = false;
+  });
+
   it('Test 1: renders all UI-SPEC column headers', () => {
     render(<ExceptionsTable rows={[]} />);
     ['Type', 'CVE / target', 'Scope', 'Approver', 'Granted'].forEach((h) => {
@@ -103,10 +126,49 @@ describe('ExceptionsTable', () => {
     expect(screen.queryByText(SOON_ROW.justification)).toBeNull();
   });
 
-  it('Test 5: Revoke button renders disabled', () => {
+  it('Test 5 (Plan 07, D-17): Revoke is enabled for an active row', () => {
     render(<ExceptionsTable rows={[SOON_ROW]} />);
     const revokeBtn = screen.getByRole('button', { name: /Revoke exception/ });
-    expect(revokeBtn).toBeDisabled();
+    expect(revokeBtn).toBeEnabled();
+  });
+
+  it('D-17: Revoke is disabled for already-historical (revoked/expired) rows', () => {
+    const revoked = makeRow({ id: 'revoked', cve_id: 'CVE-2024-9001', revoked_at: iso(-1) });
+    const expired = makeRow({ id: 'expired', cve_id: 'CVE-2024-9002', expires_at: iso(-5) });
+    render(<ExceptionsTable rows={[revoked, expired]} />);
+    expect(screen.getByRole('button', { name: /Revoke exception for CVE-2024-9001/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Revoke exception for CVE-2024-9002/ })).toBeDisabled();
+  });
+
+  it('D-17: clicking Revoke opens a warning ConfirmModal with the exact copy; confirming calls useRevokeException(row.id)', () => {
+    render(<ExceptionsTable rows={[SOON_ROW]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Revoke exception/ }));
+
+    expect(screen.getByText('Revoke this exception?')).toBeInTheDocument();
+    expect(
+      screen.getByText(/CVE-2024-0003 on this finding returns to the active queue immediately/),
+    ).toBeInTheDocument();
+    const confirmBtn = screen.getByRole('button', { name: 'Revoke exception' });
+    expect(confirmBtn).toBeInTheDocument();
+
+    fireEvent.click(confirmBtn);
+    expect(mutateFn).toHaveBeenCalledWith(SOON_ROW.id);
+    // The modal closes on successful confirm (onSuccess -> setRevokeTarget(null)).
+    expect(screen.queryByText('Revoke this exception?')).toBeNull();
+  });
+
+  it('D-17: clicking Revoke on a row does not also toggle the row expand (stopPropagation)', () => {
+    render(<ExceptionsTable rows={[SOON_ROW]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Revoke exception/ }));
+    expect(screen.queryByText(SOON_ROW.justification)).toBeNull();
+  });
+
+  it('D-17: Cancel dismisses the ConfirmModal without calling the mutation', () => {
+    render(<ExceptionsTable rows={[SOON_ROW]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Revoke exception/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(mutateFn).not.toHaveBeenCalled();
+    expect(screen.queryByText('Revoke this exception?')).toBeNull();
   });
 
   it('Test 6: revoked/expired historical rows render a muted chip, never sla-pill.overdue', () => {
