@@ -1,30 +1,25 @@
 /**
- * alerting-digests-pane.test.tsx — Phase 40 Plan 01 (ALERT-03), Task 3 Wave 0
- * RED scaffold.
+ * alerting-digests-pane.test.tsx — Phase 40 Plan 05 (ALERT-03), Task 1.
+ *
+ * Started as the Plan 01 Wave 0 RED scaffold (data-pane render hook, three
+ * section headings, OWNER RBAC gate, no-channels-configured EmptyState);
+ * this plan graduates it to full assertions: save calls mutateAsync with
+ * an `alerting_config` key, and the "Send test digest" empty-branch (E1
+ * backstop) renders the fixed inline message.
  *
  * Clones the sla-escalation-pane.test.tsx harness (api/auth/toast mocks +
- * QueryClientProvider wrapper) for the not-yet-built AlertingDigestsPane
- * (Plan 05). `./alerting-digests-pane` is imported via the `importPane()`
- * helper below (a runtime-computed, non-literal dynamic import specifier)
- * rather than a literal `await import('./alerting-digests-pane')` inline --
- * Vite's import-analysis plugin statically resolves a literal specifier (a
- * `@vite-ignore` comment on a literal is NOT sufficient, verified
- * empirically) at TRANSFORM time even inside an async test body, so a
- * missing target would fail this file's whole collection, not just one
- * test. With a computed specifier, this file collects every named test
- * below before the component exists; each test then fails individually
- * (module-not-found) until Plan 05 lands.
- *
- * Covers exactly the four things Task 3 calls out: the data-pane render
- * hook, the three digest section headings, the OWNER RBAC gate, and the
- * no-channels-configured EmptyState. Full pane behavior (save/dirty-state/
- * per-field validation) is Plan 05's own test-authoring responsibility, not
- * this scaffold's — see 40-01-PLAN.md <artifacts_produced> for the Plan 05
- * inventory (alerting-digests-pane.tsx, microcopy.ts 'alerting' category,
- * settings-sidebar-shell.tsx wiring, page.tsx case 'alerting').
+ * QueryClientProvider wrapper). `./alerting-digests-pane` is imported via
+ * the `importPane()` helper below (a runtime-computed, non-literal dynamic
+ * import specifier) rather than a literal `await import('./alerting-digests-pane')`
+ * inline -- Vite's import-analysis plugin statically resolves a literal
+ * specifier (a `@vite-ignore` comment on a literal is NOT sufficient,
+ * verified empirically) at TRANSFORM time even inside an async test body,
+ * so a missing target would fail this file's whole collection, not just
+ * one test. Kept as-is now that the component exists (harmless, and avoids
+ * re-verifying the empirical Vite finding).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -121,6 +116,11 @@ const CONFIGURED_SETTINGS = {
   alerting_config: CONFIGURED_ALERTING_CONFIG,
 };
 
+// Matches the pane's `COPY.kevToggleLabel` verbatim (40-UI-SPEC.md
+// Copywriting Contract) — kept as a local const so a future copy edit only
+// needs to change one string here, not every assertion site.
+const COPY_KEV_LABEL = 'Alert on new CISA KEV listings';
+
 describe('AlertingDigestsPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -134,14 +134,16 @@ describe('AlertingDigestsPane', () => {
     const { AlertingDigestsPane } = await importPane();
     render(React.createElement(Wrapper, null, React.createElement(AlertingDigestsPane)));
 
-    await screen.findByText(/./); // let the initial data load settle before probing headings
+    // Let the initial data load settle before probing headings. (The Plan 01
+    // scaffold used `findByText(/./)`, which throws once the pane renders
+    // more than one text node — fixed here to wait on a specific heading.)
+    await screen.findByText('New exposure alerts');
     expect(document.querySelector('[data-pane="alerting-digests"]')).not.toBeNull();
-    // D-13 detection + recipients + routing — the three section headings
-    // Plan 05 renders; exact copy is Plan 05's call (copy-voice.md), so this
-    // scaffold matches loosely rather than pinning unverified strings.
-    expect(screen.getByText(/detection|kev|epss/i)).toBeInTheDocument();
-    expect(screen.getByText(/digest|cadence|recipient/i)).toBeInTheDocument();
-    expect(screen.getByText(/channel|routing/i)).toBeInTheDocument();
+    // The three section headings Plan 05 renders (40-UI-SPEC.md Copywriting
+    // Contract — exact copy, now pinned since the pane exists).
+    expect(screen.getByRole('heading', { name: 'New exposure alerts' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Scheduled digests' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Delivery channels' })).toBeInTheDocument();
   });
 
   it('renders the no-channels-configured EmptyState when sla_config has no enabled channel', async () => {
@@ -177,5 +179,71 @@ describe('AlertingDigestsPane', () => {
     const switches = await screen.findAllByRole('switch');
     expect(switches.length).toBeGreaterThan(0);
     switches.forEach((el) => expect(el).not.toBeDisabled());
+  });
+
+  it('save calls mutateAsync (PATCH) with an alerting_config key reflecting the edit', async () => {
+    const { api } = await import('@/lib/api');
+    const mockApi = vi.mocked(api);
+    mockApi.mockResolvedValueOnce(CONFIGURED_SETTINGS); // GET
+    mockApi.mockResolvedValueOnce({ message: 'ok' }); // PATCH
+
+    const { AlertingDigestsPane } = await importPane();
+    render(React.createElement(Wrapper, null, React.createElement(AlertingDigestsPane)));
+
+    await screen.findByText('New exposure alerts');
+    // Dirty the pane by toggling KEV off (was true in CONFIGURED_ALERTING_CONFIG).
+    fireEvent.click(screen.getByRole('switch', { name: COPY_KEV_LABEL }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      const patchCall = mockApi.mock.calls.find(
+        (call) => (call[1] as RequestInit | undefined)?.method === 'PATCH',
+      );
+      expect(patchCall).toBeDefined();
+      const body = JSON.parse((patchCall as [string, RequestInit])[1].body as string);
+      expect(body.alerting_config).toBeDefined();
+      expect(body.alerting_config.kev_enabled).toBe(false);
+      expect(body.alerting_config.cadence).toBe('daily');
+      expect(body.alerting_config.routing).toEqual(CONFIGURED_ALERTING_CONFIG.routing);
+    });
+  });
+
+  it('"Send test digest" empty-branch renders the fixed E1 inline message (not a false-positive error)', async () => {
+    const { api } = await import('@/lib/api');
+    const mockApi = vi.mocked(api);
+    mockApi.mockResolvedValueOnce(CONFIGURED_SETTINGS); // GET
+    mockApi.mockResolvedValueOnce({ status: 'empty' }); // POST /settings/alerting/test-digest
+
+    const { AlertingDigestsPane } = await importPane();
+    render(React.createElement(Wrapper, null, React.createElement(AlertingDigestsPane)));
+
+    await screen.findByText('New exposure alerts');
+    fireEvent.click(screen.getByRole('button', { name: 'Send test digest' }));
+
+    expect(
+      await screen.findByText(/nothing to send right now/i),
+    ).toBeInTheDocument();
+
+    const postCall = mockApi.mock.calls.find(
+      (call) => (call[1] as RequestInit | undefined)?.method === 'POST',
+    );
+    expect(postCall?.[0]).toBe('/api/v1/tenant/settings/alerting/test-digest');
+  });
+
+  it('"Send test digest" error-branch renders the fixed UI-SPEC error copy', async () => {
+    const { api } = await import('@/lib/api');
+    const mockApi = vi.mocked(api);
+    mockApi.mockResolvedValueOnce(CONFIGURED_SETTINGS); // GET
+    mockApi.mockResolvedValueOnce({ status: 'error', error: 'SMTP is not configured for this tenant' }); // POST
+
+    const { AlertingDigestsPane } = await importPane();
+    render(React.createElement(Wrapper, null, React.createElement(AlertingDigestsPane)));
+
+    await screen.findByText('New exposure alerts');
+    fireEvent.click(screen.getByRole('button', { name: 'Send test digest' }));
+
+    expect(
+      await screen.findByText(/test digest couldn't be sent/i),
+    ).toBeInTheDocument();
   });
 });

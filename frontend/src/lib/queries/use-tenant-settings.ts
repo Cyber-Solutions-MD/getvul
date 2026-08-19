@@ -88,6 +88,10 @@ export type TenantSettings = {
   smtp_config: SmtpConfig;
   sla_config: Record<string, unknown> | null;
   branding: Record<string, unknown> | null;
+  // Phase 40 (ALERT-03, D-17/D-18/D-19): shape mirrors
+  // backend/app/notifications/alerting_config.py DEFAULT_ALERTING_CONFIG.
+  // Never holds a channel secret — routing/enablement/thresholds only.
+  alerting_config: Record<string, unknown> | null;
 };
 
 export type TenantSettingsPatch = Partial<{
@@ -102,6 +106,7 @@ export type TenantSettingsPatch = Partial<{
   smtp_config: Record<string, unknown>;
   sla_config: Record<string, unknown>;
   branding: Record<string, unknown>;
+  alerting_config: Record<string, unknown>;
 }>;
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
