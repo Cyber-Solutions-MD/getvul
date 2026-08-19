@@ -20,6 +20,7 @@ def send_email(
     to: list[str],
     subject: str,
     body: str,
+    html_body: str | None = None,
     attachment: bytes | str | None = None,
     attachment_filename: str | None = None,
     attachment_mime: str = "application/octet-stream",
@@ -29,6 +30,13 @@ def send_email(
     smtp_config keys:
         host, port, username, password, from_email,
         use_tls (bool), use_starttls (bool)
+
+    Phase 40 (ALERT-02, D-15): `html_body` is optional and additive -- when
+    provided, the message becomes `multipart/alternative` with BOTH the
+    plain part (attached first) and the html part (attached second, per RFC
+    2046 -- email clients render the LAST part they support, so html must
+    come after plain). When `html_body` is None, behavior is byte-for-byte
+    unchanged from before this parameter existed (single plain part).
 
     Returns {"ok": True} or {"ok": False, "error": "..."}.
     """
@@ -45,11 +53,13 @@ def send_email(
     if not to:
         return {"ok": False, "error": "No recipients"}
 
-    msg = MIMEMultipart()
+    msg = MIMEMultipart("alternative") if html_body is not None else MIMEMultipart()
     msg["From"] = from_email
     msg["To"] = ", ".join(to)
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
+    if html_body is not None:
+        msg.attach(MIMEText(html_body, "html"))
 
     # Attach file if provided
     if attachment is not None and attachment_filename:
