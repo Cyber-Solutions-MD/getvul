@@ -4,7 +4,9 @@ tracer slice): the shared "effective exclusion" seam
 lazy-on-read expiry-audit sweep, and grant/list/revoke.
 
 Phase 39 Plan 02 extends `grant_exception` with full ASSET/ASSET_GROUP
-scope resolution (D-10/D-11/Pitfall 8).
+scope resolution (D-10/D-11/Pitfall 8) and adds `DEFAULT_EXPIRY_DAYS`
+alongside the Plan-01-authored `MAX_EXPIRY_DAYS` hard cap (already enforced
+by `validate_expiry` below -- Plan 01 shipped both bounds together).
 
 D-01: `exceptions` is the exclusion SOURCE OF TRUTH; exclusion itself is
 derived at read time via `active_exception_subquery` -- granting/revoking/
@@ -36,6 +38,13 @@ from app.vulnerabilities.models import Vulnerability
 # of what a client sends -- server-authoritative, closing the "2099 date
 # quietly defeats never-permanently-silenced" threat (T-39-05).
 MAX_EXPIRY_DAYS = 365
+
+# D-14/Code Examples §2: per-type default expiry window, exposed purely for
+# the (future, /gsd-ui-phase-owned) frontend's pre-fill UX -- the
+# `validate_expiry` cap above is authoritative regardless of what value a
+# client pre-fills or edits this to; server and client never need to share
+# this constant byte-for-byte.
+DEFAULT_EXPIRY_DAYS = {"FALSE_POSITIVE": 180, "ACCEPTED_RISK": 90}
 
 
 def active_exception_subquery(tenant_id: uuid.UUID, now: datetime) -> Exists:
