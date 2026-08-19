@@ -1,22 +1,14 @@
-"""Phase 40 Plan 01 (ALERT-03) -- Wave 0 RED scaffold for the
-`alerting_config` PATCH /settings save path + its audit action.
+"""Phase 40 Plan 04 (ALERT-03) -- `alerting_config` PATCH /settings save
+path (validation/persistence/audit) + the `POST /settings/alerting/
+test-digest` single-recipient preview endpoint.
 
-Drives the REAL existing `/api/v1/tenant/settings` PATCH handler (mirrors
-test_sla_policy.py's harness) -- the route already exists and already
-requires Owner (`Depends(require_owner)`, tenants/router.py, D-10 RBAC
-asymmetry) for ANY body, so `test_patch_requires_owner` is a genuine,
-currently-PASSING test, not a RED one (Task 3's instruction marks
-unimplemented assertions xfail "ONLY where the symbol does not yet exist" --
-require_owner already exists and is already wired to this exact route).
-
-The other three tests assert behavior that ships in Phase 40 Plan 04
-(`AlertingConfigUpdate` validation, the `if "alerting_config" in body:`
-persistence branch, and the `alerting.config_update` audit action) -- each
-marked `xfail(strict=False)` until then. Today, an unrecognized
-"alerting_config" key in the PATCH body is silently accepted (200) and
-NOT persisted (falls through to the generic `changed` audit dict, never
-`tenant.alerting_config`), which is exactly what makes these three fail
-meaningfully right now.
+Originally scaffolded in Plan 01 as 3 `xfail(strict=False)` RED tests (the
+validation gate / persistence branch / audit action did not exist yet) plus
+1 genuinely-passing `test_patch_requires_owner` (the route-wide
+`Depends(require_owner)` gate already covered any body). Plan 04 implements
+`AlertingConfigUpdate`, the `if "alerting_config" in body:` branch, and the
+`alerting.config_update` audit action -- the three xfail markers are removed
+here since the behavior is now real, not just expected-to-eventually-pass.
 
 Test names match the Phase Requirements -> Test Map (40-RESEARCH.md:448-470).
 """
@@ -26,7 +18,6 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-import pytest
 from sqlalchemy import select
 
 from app.audit import AuditLog
@@ -43,7 +34,6 @@ async def _get_tenant(db_session: Any, tenant_id: uuid.UUID) -> Tenant:
     return tenant
 
 
-@pytest.mark.xfail(strict=False, reason="AlertingConfigUpdate validation gate ships in Phase 40 Plan 04")
 async def test_alerting_config_validates_bounds(client_factory: Any, owner_user: Any, db_session: Any) -> None:
     """An out-of-bounds `epss_threshold` (must be 0.0-1.0 per
     DEFAULT_ALERTING_CONFIG's shape) must 422, mirroring SlaConfigUpdate's
@@ -54,7 +44,6 @@ async def test_alerting_config_validates_bounds(client_factory: Any, owner_user:
     assert resp.status_code in (400, 422), resp.text
 
 
-@pytest.mark.xfail(strict=False, reason="alerting_config PATCH persistence branch ships in Phase 40 Plan 04")
 async def test_alerting_config_persists_to_jsonb(
     client_factory: Any, owner_user: Any, db_session: Any, tenant_a: uuid.UUID
 ) -> None:
@@ -70,7 +59,6 @@ async def test_alerting_config_persists_to_jsonb(
     assert tenant.alerting_config["send_hour"] == 9
 
 
-@pytest.mark.xfail(strict=False, reason="alerting.config_update audit action ships in Phase 40 Plan 04")
 async def test_alerting_config_change_audited(
     client_factory: Any, owner_user: Any, db_session: Any, tenant_a: uuid.UUID
 ) -> None:

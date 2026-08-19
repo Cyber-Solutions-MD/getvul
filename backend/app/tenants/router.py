@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -122,6 +122,46 @@ class SlaConfigUpdate(BaseModel):
         if v is not None and v not in _VALID_SLA_TIER_FLOORS:
             raise ValueError(f"tier_floor must be one of {_VALID_SLA_TIER_FLOORS}")
         return v
+
+
+# ── Alerting & digests config (Phase 40 / ALERT-03 — D-19) ──────────────────
+#
+# Clones the sla_config validation-only-gate + raw-dict-persist pattern
+# above. `alerting_config` is a partial-update body (every field optional,
+# same shape SlaConfigUpdate uses) — validation checks bounds/enums on
+# whatever keys are submitted; the handler persists the raw submitted dict
+# as-is (not this model's own serialization), same convention SlaConfigUpdate
+# documents for itself.
+
+
+class AlertingConfigUpdate(BaseModel):
+    """PATCH /settings alerting_config validation gate (ALERT-03).
+
+    Every field is optional so a partial save (e.g. just `epss_threshold`)
+    validates without requiring the caller to resubmit the entire config —
+    mirrors SlaConfigUpdate's partial-update shape. `routing` references
+    channel NAMES already configured under `sla_config["channels"]"
+    (D-19) — this model never accepts or stores a channel secret.
+    """
+
+    kev_enabled: bool | None = None
+    epss_threshold: float | None = Field(None, ge=0, le=1)
+    cadence: Literal["daily", "weekly"] | None = None
+    send_hour: int | None = Field(None, ge=0, le=23)
+    per_owner_digests: bool | None = None
+    per_team_digests: bool | None = None
+    routing: dict[str, list[str]] | None = None
+
+
+def _safe_alerting(cfg: dict | None) -> dict | None:
+    """Pass-through (no mask-on-read needed): unlike sla_config,
+    alerting_config holds NO channel secrets (D-19) — only routing
+    references to channel NAMES already configured/masked under
+    sla_config["channels"]. Kept as a named function (not inlined) so the
+    "no secrets live here" invariant is a single, documented, greppable
+    seam mirroring _safe_sla/_safe_smtp's shape, rather than an implicit
+    assumption at the GET /settings call site."""
+    return cfg
 
 
 def _safe_sla(cfg: dict | None) -> dict | None:
@@ -263,6 +303,7 @@ async def get_tenant_settings(
         "syslog_config": tenant.syslog_config,
         "smtp_config": _safe_smtp(getattr(tenant, "smtp_config", None)),
         "sla_config": _safe_sla(getattr(tenant, "sla_config", None)),
+        "alerting_config": _safe_alerting(getattr(tenant, "alerting_config", None)),
         "branding": getattr(tenant, "branding", None),
     }
 
@@ -379,6 +420,39 @@ async def update_tenant_settings(
             },
         )
 
+    if "alerting_config" in body:
+        from sqlalchemy.orm.attributes import flag_modified as _fm_alerting
+
+        new_alerting = body["alerting_config"] or {}
+        try:
+            AlertingConfigUpdate.model_validate(new_alerting)
+        except ValidationError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+        tenant.alerting_config = new_alerting
+        _fm_alerting(tenant, "alerting_config")
+
+        # Dedicated audit action (D-19 secret-free — alerting_config never
+        # holds a channel secret in the first place, but the audit row is
+        # deliberately excluded from the generic `changed` dict below too,
+        # matching sla.policy_update's own convention, so a future field
+        # addition can't accidentally widen either audit path).
+        await audit(
+            db,
+            user,
+            "alerting.config_update",
+            "tenant",
+            str(tenant.id),
+            {
+                "kev_enabled": new_alerting.get("kev_enabled"),
+                "epss_threshold": new_alerting.get("epss_threshold"),
+                "cadence": new_alerting.get("cadence"),
+                "send_hour": new_alerting.get("send_hour"),
+                "per_owner_digests": new_alerting.get("per_owner_digests"),
+                "per_team_digests": new_alerting.get("per_team_digests"),
+            },
+        )
+
     if "branding" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm_brand
 
@@ -395,14 +469,15 @@ async def update_tenant_settings(
         tenant.smtp_config = new_smtp
         _fm_smtp(tenant, "smtp_config")
 
-    # Audit log all changed fields (mask smtp password). sla_config is
-    # excluded here — it gets its own dedicated "sla.policy_update" audit
-    # row above (D-07) with a secret-free details shape, whether or not
-    # other fields also changed in this same request.
+    # Audit log all changed fields (mask smtp password). sla_config and
+    # alerting_config are excluded here — each gets its own dedicated audit
+    # row above ("sla.policy_update" / "alerting.config_update") with a
+    # secret-free details shape, whether or not other fields also changed
+    # in this same request.
     changed = {
         k: v
         for k, v in body.items()
-        if k not in ("syslog_config", "smtp_config", "sla_config") or (v and v.get("enabled"))
+        if k not in ("syslog_config", "smtp_config", "sla_config", "alerting_config") or (v and v.get("enabled"))
     }
     await audit(db, user, "settings.update", "tenant", str(tenant.id), changed)
 
