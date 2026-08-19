@@ -73,6 +73,11 @@ class AuditLog(Base):
 # risk_cutover.backfill_enqueue (Phase 34 Plan 05 — RISK-07 gap closure,
 #   admin-only, the production trigger for a tenant's historical backfill;
 #   only logged on a genuinely NEW enqueue, not a repeated idempotent no-op)
+# exception.grant, exception.revoke (Phase 39 Plan 01 — EXC-01/EXC-03,
+#   analyst-actor, audit-then-commit), exception.expire (Phase 39 Plan 01 —
+#   EXC-03/EXC-04, system actor "system:exception-expiry", lazy-on-read
+#   Pattern 4 sweep guarded by resurfaced_audited_at IS NULL so it fires
+#   exactly once per naturally-lapsed exception)
 
 
 # ── Syslog forwarder ──

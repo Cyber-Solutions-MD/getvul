@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
 from app.audit import AuditLog
+from app.exceptions.service import active_exception_subquery
 from app.pagination import PaginatedResponse, PaginationParams
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import RemediationEvent, Vulnerability, VulnerabilityCorrelation
@@ -43,6 +44,12 @@ _ALLOWED_FACET_GROUPS: frozenset[str] = frozenset({"severity", "source", "status
 def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: VulnerabilityFilter) -> Select:
     """Apply filter conditions to a vulnerability query."""
     query = query.where(Vulnerability.tenant_id == tenant_id)
+    # Phase 39 / EXC-02 / D-01 / D-15: exclude findings covered by an active
+    # (non-expired, non-revoked) exception. This is the single choke point
+    # for list_vulnerabilities, list_vulnerabilities_by_host, and
+    # get_facets (39-RESEARCH.md Pattern 1) — additive to the legacy
+    # SUPPRESSED/FALSE_POSITIVE status filter (D-02), never a replacement.
+    query = query.where(~active_exception_subquery(tenant_id, datetime.now(UTC)))
 
     if filters.severity:
         query = query.where(Vulnerability.severity.in_(filters.severity))
