@@ -64,6 +64,11 @@ export const microcopy = {
     },
     createTicket: 'Create ticket',
     snooze24h: 'Snooze 24h',
+    // Phase 39 Plan 07 (EXC-01 UI-SPEC Layout §1): the two secondary Actions
+    // buttons that open the ExceptionGrantDialog, pre-setting `type` to
+    // ACCEPTED_RISK / FALSE_POSITIVE respectively.
+    acceptRisk: 'Accept risk',
+    markFalsePositive: 'Mark false positive',
     copyNvd: 'Copy NVD link',
     closeAria: 'Close drill panel',
   },
