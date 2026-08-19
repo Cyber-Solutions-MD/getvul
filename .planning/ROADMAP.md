@@ -206,7 +206,7 @@ Plans:
   2. Scheduled per-owner / per-team digests (Slack / Teams / email) of due, breaching, and newly-critical findings deliver on the in-process scheduler, no new infra
   3. Alert rules and delivery channels are tenant-configurable on a settings page and every configuration change is audited
 
-**Plans**: 3/5 plans executed
+**Plans**: 4/5 plans executed
 
 **Wave 1**
 
@@ -222,7 +222,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 40-04-PLAN.md — ALERT-03 backend: alerting_config PATCH branch + AlertingConfigUpdate + fail-closed audit + GET exposure + self-targeted test-digest endpoint (ALERT-03)
+- [x] 40-04-PLAN.md — ALERT-03 backend: alerting_config PATCH branch + AlertingConfigUpdate + fail-closed audit + GET exposure + self-targeted test-digest endpoint (ALERT-03)
 
 **Wave 5** *(blocked on Wave 4)*
 

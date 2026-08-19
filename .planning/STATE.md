@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 40
 current_phase_name: Proactive Alerting & Digests
 status: executing
-stopped_at: Phase 40 Plan 03 complete (ALERT-02 digests — send-hour gate, section assembly, escaped HTML, per-owner/per-team routing); Plan 04 next
-last_updated: "2026-08-19T13:51:00.000Z"
+stopped_at: Phase 40 Plan 04 complete (ALERT-03 config save — AlertingConfigUpdate validation gate, PATCH persistence + audit, GET exposure, POST test-digest preview); Plan 05 next
+last_updated: "2026-08-19T14:20:00.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 40 Plan 03 complete (3/3 tasks — send_email html_body multipart/alternative, digests.py run_digests/_send_hour_due/_assemble_sections/_render_digest_html with D-20 exclusion + D-14 suppression, scheduler digest-dispatch tick block); test_digests.py 7/7 green
+last_activity_desc: Phase 40 Plan 04 complete (2/2 tasks — AlertingConfigUpdate partial-update gate + _safe_alerting pass-through + alerting_config PATCH branch with fail-closed alerting.config_update audit + GET /settings exposure; POST /settings/alerting/test-digest self-targeted preview returning sent/empty/error); test_alerting_settings.py 8/8 green (3 xfail scaffolds turned genuinely green), mypy-baseline resynced
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 28
-  completed_plans: 26
+  completed_plans: 27
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,8 +45,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 40 (Proactive Alerting & Digests) — EXECUTING
-Status: Executing Phase 40 (3/5 plans complete — Plan 01 + Plan 02 + Plan 03 done, Plan 04 next)
-Last activity: 2026-08-19 — Phase 40 Plan 03 complete: ALERT-02 scheduled digests proven end-to-end — `send_email` gained `html_body` (multipart/alternative, unchanged plain-only path when omitted); `notifications/digests.py::run_digests` assembles due/breaching (via `resolve_state_for_vuln` + batched D-16 lapsed-exception subtraction)/newly-critical (CRITICAL + cadence-windowed `first_detected_at`)/expiring-exceptions (`ExceptionRecord.expires_at`, 7-day horizon) sections, every one D-20-excluded; `_send_hour_due` is a NEW durable wall-clock gate (`Tenant.timezone` + `alerting_last_digest_sent_at`, survives restarts); `_render_digest_html` escapes every finding-derived string and caps at top-10 + overflow; per-owner email / per-team channel (`AssetGroup` + shared `dispatch_channel` seam) dispatch loops, D-14 empty-suppressed; scheduler.py gained a fail-isolated digest-dispatch tick block. `test_digests.py` 7/7 green, zero regressions across 81 other tests. ALERT-01..03 still intentionally left unmarked in REQUIREMENTS.md — only Plan 05 should flip them. One documented gap: the E4 hostname-truncation cross-client (Gmail web/Apple Mail) visual backstop could not be live-verified in this sandboxed environment (logic itself is unit-proven) — flagged for `/gsd-verify-work 40`.
+Status: Executing Phase 40 (4/5 plans complete — Plan 01 + Plan 02 + Plan 03 + Plan 04 done, Plan 05 next)
+Last activity: 2026-08-19 — Phase 40 Plan 04 complete: ALERT-03 config save proven end-to-end — `AlertingConfigUpdate` (all-Optional partial-update gate mirroring `SlaConfigUpdate`'s shape, bounds `epss_threshold` 0..1 / `send_hour` 0..23 / `cadence` daily|weekly enum) validates the PATCH `/settings` `alerting_config` body, the handler assigns + `flag_modified` + fires a dedicated fail-closed `alerting.config_update` audit row (secret-free, excluded from the generic `settings.update` "changed" dict); `_safe_alerting` is a documented pass-through (D-19: no channel secrets live in `alerting_config`) wired into GET `/settings` for the Plan 05 pane's pre-fill; `POST /settings/alerting/test-digest` (`require_admin`) reuses `digests.py`'s assembly/render functions verbatim to preview the ACTING tenant's digest to the ACTING admin's own email only (T-40-18, never a broadcast), returning `{"status": "sent"|"empty"|"error"}` for the pane's E1 empty-vs-error backstop. `test_alerting_settings.py` 8/8 green (Plan 01's 3 `xfail` scaffolds now genuinely pass, no longer xpass). Found + fixed a `mypy-baseline sync` under-count (repeated-message heuristic gap, second instance of the pattern first seen in Phase 36 Plan 05/commit `47236ef`) by hand-diffing exact per-message counts. ALERT-01..03 still intentionally left unmarked in REQUIREMENTS.md — Plan 05 is the designated closer.
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -486,6 +486,13 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 40]: ALERT-02 remains unmarked in REQUIREMENTS.md after 40-03 despite 40-03 being the literal last plan to declare it in its own frontmatter (no later plan re-declares ALERT-02) -- per this phase's established convention (40-01/40-02), Plan 05 is the designated closer for ALL of ALERT-01/02/03 at phase end, overriding the strict per-requirement "last declaring plan" rule for this specific phase
 - [Phase 40]: 40-03: E4 backstop (hostname-truncation visual confirmation in Gmail web + Apple Mail) could not be live-verified in this sandboxed, browser-less environment -- the truncation LOGIC is unit-proven (rendered-HTML assertion confirms the untruncated string never appears), but cross-client visual rendering needs a human with real mail-client access; flagged as `human_judgment: true` coverage in 40-03-SUMMARY.md for `/gsd-verify-work 40`
 - [Phase 40]: 40-03: hand-edited STATE.md/ROADMAP.md directly again (same rationale as 40-01/40-02)
+- [Phase 40]: 40-04: `AlertingConfigUpdate` made ALL-Optional (bound-checked `Field(None, ...)` per field) rather than the plan's literal required-looking `kev_enabled: bool`/`send_hour: int` signatures -- required to let `test_alerting_config_change_audited`'s single-key partial PATCH body (`{"epss_threshold": 0.6}`) validate and 200, exactly mirroring `SlaConfigUpdate`'s own all-Optional partial-update shape which already solves this for `sla_config`
+- [Phase 40]: 40-04: `alerting_config` PATCH persists the raw submitted dict directly (full-replace, not merged with the previously-stored config) -- same convention the existing `sla_config` branch already uses; readers stay safe via `merged_alerting_config()`'s default-overlay (Plan 01), never the raw column
+- [Phase 40]: 40-04: `POST /settings/alerting/test-digest` deliberately has NO audit row -- it's a read-only preview action (no state mutation), unlike the PATCH save which is fail-closed-audited; matches the plan's own must_haves (audit only required for the config SAVE)
+- [Phase 40]: 40-04: found + hand-fixed a `mypy-baseline sync` under-count -- the tool's stable-sync heuristic doesn't detect an already-baselined message becoming MORE frequent by one occurrence (second documented instance of this exact gap, first seen at Phase 36 Plan 05/commit `47236ef`); diffed exact per-(file,message) counts between raw mypy output and the synced baseline and hand-appended the 1-line delta
+- [Phase 40]: 40-04: split Task 1 and Task 2's router.py/test-file edits into two genuinely independent commits (temporarily reverted Task 2's code, committed Task 1 standalone with its own mypy-baseline resync, then re-applied Task 2 and resynced again) rather than landing both tasks' behavior in one commit
+- [Phase 40]: ALERT-01/02/03 remain unmarked in REQUIREMENTS.md after 40-04 -- per the phase's established convention (40-01/40-02/40-03), Plan 05 remains the designated closer for all three
+- [Phase 40]: 40-04: hand-edited STATE.md/ROADMAP.md directly again (same rationale as 40-01/40-02/40-03)
 
 ## Performance Metrics
 
@@ -558,13 +565,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 40 P01 | 30min | 3 tasks | 9 files |
 | Phase 40 P02 | 45min | 2 tasks | 3 files |
 | Phase 40 P03 | 20min | 3 tasks | 3 files |
+| Phase 40 P04 | 25min | 2 tasks | 3 files |
 
 ## Session
 
-**Last session:** 2026-08-19T13:51:00.000Z
-**Stopped at:** Phase 40 Plan 03 complete (3/3 tasks); Plan 04 next
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-04-PLAN.md
+**Last session:** 2026-08-19T14:20:00.000Z
+**Stopped at:** Phase 40 Plan 04 complete (2/2 tasks); Plan 05 next
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-05-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 40 execution with /gsd-execute-phase 40 (3/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02: ALERT-01 lead tracer; Plan 03: ALERT-02 digests (`digests.py` + `email.py` HTML body + scheduler block), all three done; Plan 04 next — ALERT-03 backend: alerting_config PATCH branch + AlertingConfigUpdate + fail-closed audit + GET exposure + self-targeted test-digest endpoint — unblocked, no unmet depends_on)
+- Continue Phase 40 execution with /gsd-execute-phase 40 (4/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02: ALERT-01 lead tracer; Plan 03: ALERT-02 digests (`digests.py` + `email.py` HTML body + scheduler block); Plan 04: ALERT-03 backend (`AlertingConfigUpdate` + PATCH branch + fail-closed audit + GET exposure + self-targeted `test-digest` endpoint), all four done; Plan 05 next — ALERT-03 settings pane frontend, and the designated plan to flip ALERT-01/02/03 complete in REQUIREMENTS.md — unblocked, no unmet depends_on)
