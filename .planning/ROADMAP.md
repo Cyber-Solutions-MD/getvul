@@ -167,7 +167,7 @@ Plans:
   3. Every exception records who/why/scope/expiry as a tenant-scoped audit event
   4. An expired exception automatically resurfaces into the active queue with no manual re-trigger
 
-**Plans**: 6/8 plans executed
+**Plans**: 8/8 plans executed
 
 Plans:
 **Wave 1**
@@ -191,7 +191,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 39-08-PLAN.md — Checkpoint: human-verify the full grant→exclude-everywhere→list→revoke→resurface loop live
+- [x] 39-08-PLAN.md — Checkpoint: human-verify the full grant→exclude-everywhere→list→revoke→resurface loop live
 
 **UI hint**: yes
 
@@ -287,7 +287,7 @@ Plans:
 | 36. Remediation SLA Engine & Escalation | 6/6 | Complete    | 2026-08-18 |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
 | 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
-| 39. Exception & Risk-Acceptance Workflow | 7/8 | In Progress|  |
+| 39. Exception & Risk-Acceptance Workflow | 8/8 | In Progress|  |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
 | 42. Risk Trend Analytics & Burndown | 0/? | Not started | - |
