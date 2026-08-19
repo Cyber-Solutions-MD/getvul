@@ -57,7 +57,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 - [x] **Phase 36: Remediation SLA Engine & Escalation** — Risk-tier SLA policy, live SLA state per finding, auto-escalation, MTTR-by-tier ✅ verified 29/29 UAT + threats_open:0 (2026-08-18)
 - [x] **Phase 37: Two-Way Ticket Sync & Remediation Verification** — Bi-directional ticket status sync + rescan-verified auto-close + reopen guard ✅ verified 7/7 (2026-08-17)
 - [x] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR (completed 2026-08-18)
-- [ ] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry
+- [x] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry (completed 2026-08-19)
 - [ ] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests
 - [ ] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %
 - [ ] **Phase 42: Risk Trend Analytics & Burndown** — Trend lines, backlog aging/burndown, version-boundary-aware
@@ -287,7 +287,7 @@ Plans:
 | 36. Remediation SLA Engine & Escalation | 6/6 | Complete    | 2026-08-18 |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
 | 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
-| 39. Exception & Risk-Acceptance Workflow | 8/8 | In Progress|  |
+| 39. Exception & Risk-Acceptance Workflow | 8/8 | Complete    | 2026-08-19 |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
 | 42. Risk Trend Analytics & Burndown | 0/? | Not started | - |

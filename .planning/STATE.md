@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
-current_phase: 39
-current_phase_name: exception-risk-acceptance-workflow
-status: executing
-stopped_at: Phase 39 Plan 05 (Dashboards/export/risk-exposure consumer sweep) complete
-last_updated: "2026-08-19T10:16:31.000Z"
+current_phase: 40
+current_phase_name: Proactive Alerting & Digests
+status: planning
+stopped_at: Phase 39 complete (all 8 plans + human-verify sign-off); verified 4/4 must-haves
+last_updated: "2026-08-19T11:28:46.367Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 39 Plan 05 (Dashboards/export/risk-exposure consumer sweep -- asset list/detail badges incl. sla_breach, owner-risk aggregates in users/router.py, /dashboard tiles/top-vuln/nav counts + get_dashboard_stats, CSV/exec-summary export, and the risk_exposure_score MAX rollup all now exclude actively-excepted findings; 7-test suite incl. a Tier 3 non-regression guard) complete
+last_activity_desc: Phase 39 complete, transitioned to Phase 40
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 23
-  completed_plans: 22
-  percent: 96
+  completed_plans: 23
+  percent: 100
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -25,7 +25,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 39 — exception-risk-acceptance-workflow
+**Current focus:** Phase 40 — Proactive Alerting & Digests
 
 ## Deferred Items
 
@@ -45,11 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 39 (exception-risk-acceptance-workflow) — EXECUTING
-Plans complete: 01, 02, 03, 04, 05, 06, 07 (7 of 8; Wave 4 {39-05} now complete)
-Status: Executing Phase 39 — Plan 05 (Dashboards/export/risk-exposure consumer sweep: asset list/detail badges incl. sla_breach, users/router.py owner-risk aggregates, dashboard.py tiles/top-vuln/nav + service.py get_dashboard_stats, export.py CSV/exec-summary, risk_exposure_service.py MAX rollup -- all now exclude actively-excepted findings) complete
-Last activity: 2026-08-19 — Plan 39-05 complete
-Next unblocked: 39-08 (wave 5, depends_on:[39-03,39-05,39-06,39-07] -- ALL FOUR now complete). 39-08 is the only remaining plan in this phase (the closing checkpoint plan that marks EXC-01..04 complete in REQUIREMENTS.md).
+Phase: 40 — Proactive Alerting & Digests
+Status: Ready to plan
+Last activity: 2026-08-19 — Phase 39 complete (8/8 plans + human-verify sign-off; verified 4/4 must-haves), transitioned to Phase 40
+Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
 

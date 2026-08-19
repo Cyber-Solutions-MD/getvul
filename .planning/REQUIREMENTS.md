@@ -48,10 +48,10 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 
 ### Exception & Risk-Acceptance Workflow (EXC) — Phase 39
 
-- [ ] **EXC-01**: Mark false-positive / accept-risk with required justification, approver, and scope (finding / asset / asset-group)
-- [ ] **EXC-02**: Mandatory expiry; excluded from active queues, SLA timers, and dashboards until expiry
-- [ ] **EXC-03**: Every exception emits an audit event (who / why / scope / expiry)
-- [ ] **EXC-04**: Expired exceptions auto-resurface into the active queue
+- [x] **EXC-01**: Mark false-positive / accept-risk with required justification, approver, and scope (finding / asset / asset-group)
+- [x] **EXC-02**: Mandatory expiry; excluded from active queues, SLA timers, and dashboards until expiry
+- [x] **EXC-03**: Every exception emits an audit event (who / why / scope / expiry)
+- [x] **EXC-04**: Expired exceptions auto-resurface into the active queue
 
 ### Proactive Alerting & Digests (ALERT) — Phase 40
 
