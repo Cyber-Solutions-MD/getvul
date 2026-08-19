@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 40
 current_phase_name: Proactive Alerting & Digests
 status: executing
-stopped_at: Phase 40 UI-SPEC approved
-last_updated: "2026-08-19T12:39:43.689Z"
+stopped_at: Phase 40 Plan 01 complete (schema + Wave 0 RED scaffolds); Plan 02 next
+last_updated: "2026-08-19T13:20:05.300Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 39 complete (8/8 plans + human-verify sign-off; verified 4/4 must-haves), transitioned to Phase 40
+last_activity_desc: Phase 40 Plan 01 complete (3/3 tasks — Task 1 checkpoint option-a, Task 2 schema/migration 051, Task 3 RED scaffolds)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 28
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -44,9 +44,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 40 — Proactive Alerting & Digests
-Status: Ready to execute
-Last activity: 2026-08-19 — Phase 39 complete (8/8 plans + human-verify sign-off; verified 4/4 must-haves), transitioned to Phase 40
+Phase: 40 (Proactive Alerting & Digests) — EXECUTING
+Status: Executing Phase 40 (1/5 plans complete — Plan 01 done, Plan 02 next)
+Last activity: 2026-08-19 — Phase 40 Plan 01 complete: alerting_guard table + Tenant.alerting_config/alerting_last_digest_sent_at (migration 051, reversible), DEFAULT_ALERTING_CONFIG canonical contract, Wave 0 RED scaffolds (16 backend + 4 frontend tests, all collect and fail/skip for the right reason). ALERT-01..03 intentionally left unmarked in REQUIREMENTS.md — shared across all 5 phase-40 plans, only the last declaring plan (05) should flip them.
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -466,6 +466,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 39]: 39-05: investigated and consciously left `dashboard.py`'s legacy `get_overview_stats`/`/overview` endpoint untouched -- the plan's own interfaces citation ("dashboard.py:43,189-208,311") traces to a stale grep hit inside that function, not the three named v10 functions; confirmed via git log (line drift traces to Phase 33's unrelated severity-tier-centralization refactor) and confirmed zero frontend callers exist for `/overview`
 - [Phase 39]: 39-05: threaded `~active_exception_subquery(...)` into assets/router.py (list+detail badges incl. sla_breach), users/router.py (both owner-aggregate surfaces), dashboard.py (tiles/top-vuln/nav), service.py (get_dashboard_stats' open_q only, not total_vulnerabilities), export.py (remediations CSV + exec-summary's shared open_filter list), and risk_exposure_service.py (the MAX rollup subquery only, not the per-finding write loop) -- 7-test backend/tests/test_exceptions_dashboards.py proves every surface plus a Tier 3 non-regression guard (search.py still returns an excepted CVE)
 - [Phase 39]: EXC-02 remains unmarked in REQUIREMENTS.md after 39-05 -- re-confirmed 39-08 is still the sole plan claiming all four EXC-01..04 and the phase's designated last declaring plan; 39-08's depends_on:[39-03,39-05,39-06,39-07] is now FULLY satisfied (all four complete), so 39-08 is the only remaining plan in this phase
+- [Phase 40]: 40-01 Task 1 checkpoint resolved as option-a: dedicated `alerting_guard` table (UniqueConstraint tenant_id+cve_id+asset_id+trigger_type, nullable `fired_at` for seeded-vs-fired observability) + `Tenant.alerting_last_digest_sent_at` as a durable digest-send marker (closes Pitfall 4 -- an in-memory marker would double-send after every restart on this single-VM stack)
+- [Phase 40]: 40-01: migration revision id shortened to `051_add_alerting_guard_config` (29 chars) -- the natural filename-stem id (`051_add_alerting_guard_and_config`) is 33 chars, over `alembic_version.version_num`'s varchar(32); the migration FILE keeps its full descriptive name, only the internal revision string is shortened
+- [Phase 40]: 40-01: `app.notifications.alerting_config.py::DEFAULT_ALERTING_CONFIG` + `merged_alerting_config(tenant)` established as the one canonical alerting JSONB key-set contract -- Plans 02-05 must import it, not re-derive their own key subset
+- [Phase 40]: ALERT-01/02/03 intentionally left unmarked in REQUIREMENTS.md after 40-01 -- all 5 phase-40 plans declare the same three REQ-IDs (this is the foundation plan, not a closing one); mirrors the Phase 38/39 precedent that only the LAST declaring plan (Plan 05 here) flips a shared requirement complete
+- [Phase 40]: 40-01: two different Wave-0 RED-scaffold deferred-import techniques used per what actually exists today -- `app.notifications.alerts` (module exists, function doesn't): module-level import + runtime attribute lookup + `pytestmark = pytest.mark.xfail(strict=False)`; `app.notifications.digests` (module doesn't exist at all): `pytest.importorskip(...)` INSIDE each test body (never at module level, which would hide the named tests from collection)
+- [Phase 40]: 40-01: frontend RED scaffold (`alerting-digests-pane.test.tsx`) needed a genuinely non-literal, runtime-computed dynamic-import specifier -- Vite's import-analysis plugin eagerly resolves a literal `await import('./x')` at TRANSFORM time even inside an async test body (a `@vite-ignore` comment on the literal was tried first and did NOT fix it, verified empirically); without this, the whole file errors at collection instead of its 4 named tests failing individually
+- [Phase 40]: 40-01: `test_patch_requires_owner` (test_alerting_settings.py) written as a real, non-`xfail` test -- the existing `Depends(require_owner)` gate on PATCH `/settings` already covers any body content including an unrecognized `alerting_config` key, so it genuinely passes today (verified: 1 passed, 3 xfailed in the same run)
+- [Phase 40]: 40-01: `gsd-sdk` is not installed in this environment; used the local `.claude/get-shit-done/bin/gsd-tools.cjs` CLI for `init execute-phase`, and HAND-EDITED STATE.md directly (frontmatter/Current Position/Decisions/Performance Metrics/Session/Operator Next Steps) rather than running `state advance-plan`/`update-progress`, per the pre-existing 39-01 decision log entry documenting that those write-verbs reproducibly corrupt STATE.md frontmatter
 
 ## Performance Metrics
 
@@ -535,13 +543,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 39 P03 | 42min | 2 tasks | 4 files |
 | Phase 39 P07 | 36min | 3 tasks | 13 files |
 | Phase 39 P05 | 29min | 2 tasks | 7 files |
+| Phase 40 P01 | 30min | 3 tasks | 9 files |
 
 ## Session
 
-**Last session:** 2026-08-19T11:57:03.938Z
-**Stopped at:** Phase 40 UI-SPEC approved
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-UI-SPEC.md
+**Last session:** 2026-08-19T13:20:05.300Z
+**Stopped at:** Phase 40 Plan 01 complete (3/3 tasks); Plan 02 next
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-02-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 39 execution with /gsd-execute-phase 39 (7/8 plans complete — 01, 02, 03, 04, 05, 06, 07; only Plan 08 remains [wave 5, the closing checkpoint plan, depends_on:[39-03,39-05,39-06,39-07] now FULLY satisfied — unblocked])
+- Continue Phase 40 execution with /gsd-execute-phase 40 (1/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02 next — ALERT-01 detection, `alerts.py::_check_new_kev_epss` + `assets/directory.py::get_directory_user` extraction — unblocked, no unmet depends_on)

@@ -206,11 +206,11 @@ Plans:
   2. Scheduled per-owner / per-team digests (Slack / Teams / email) of due, breaching, and newly-critical findings deliver on the in-process scheduler, no new infra
   3. Alert rules and delivery channels are tenant-configurable on a settings page and every configuration change is audited
 
-**Plans**: 5 plans
+**Plans**: 1/5 plans executed
 
 **Wave 1**
 
-- [ ] 40-01-PLAN.md — Foundation: alerting_guard table + Tenant.alerting_config/send-marker (migration 051) + canonical config-schema module + Wave 0 test scaffolds (ALERT-01/02/03)
+- [x] 40-01-PLAN.md — Foundation: alerting_guard table + Tenant.alerting_config/send-marker (migration 051) + canonical config-schema module + Wave 0 test scaffolds (ALERT-01/02/03)
 
 **Wave 2** *(blocked on Wave 1)*
 
