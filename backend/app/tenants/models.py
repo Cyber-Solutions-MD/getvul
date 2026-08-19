@@ -39,6 +39,18 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     syslog_config: Mapped[dict | None] = mapped_column(JSONB)
     smtp_config: Mapped[dict | None] = mapped_column(JSONB)
     sla_config: Mapped[dict | None] = mapped_column(JSONB)
+    # Phase 40 (ALERT-01..03, D-18): per-tenant thresholds/cadence/routing for
+    # proactive KEV/EPSS alerting + digests. Canonical key set lives in
+    # app/notifications/alerting_config.py::DEFAULT_ALERTING_CONFIG -- read
+    # effective settings via merged_alerting_config(tenant), never this
+    # column directly. Holds NO channel secrets (those stay in
+    # sla_config["channels"] per D-19) -- see this plan's threat_model T-40-02.
+    alerting_config: Mapped[dict | None] = mapped_column(JSONB)
+    # D-12/Pitfall 4 (Task 1 checkpoint option-a): durable last-sent marker so
+    # a process restart on this single-VM stack cannot re-send the day's
+    # digest. `timezone` above (not a new column) supplies the send-hour's
+    # local wall-clock reference.
+    alerting_last_digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     branding: Mapped[dict | None] = mapped_column(
         JSONB
     )  # logo_path, company_name, tagline, primary_color, accent_color
