@@ -49,8 +49,8 @@ exclusion** on top of the existing consumers.
 
 ### Exclusion model & source of truth (EXC-01 / EXC-02)
 
-- **D-01 — New `exceptions` table is the source of truth; exclusion is a compute-on-read
-  join.** Granting an exception does **not** permanently flip finding status. Exclusion is
+- **D-01 — New `exceptions` table is the source of truth; exclusion is a compute-on-read join.**
+  Granting an exception does **not** permanently flip finding status. Exclusion is
   derived at read time by joining findings against *active (non-expired)* exceptions. Chosen
   over status-flip (keeps governance in one place; no drift between a status column and a
   governance row; survives scanner re-sync untouched). — **Reversibility:** costly — switching
