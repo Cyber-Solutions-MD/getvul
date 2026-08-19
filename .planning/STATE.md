@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 40
 current_phase_name: Proactive Alerting & Digests
 status: executing
-stopped_at: Phase 40 Plan 02 complete (ALERT-01 lead tracer — guard subtraction + owner/channel/audit); Plan 03 next
-last_updated: "2026-08-19T13:35:44.000Z"
+stopped_at: Phase 40 Plan 03 complete (ALERT-02 digests — send-hour gate, section assembly, escaped HTML, per-owner/per-team routing); Plan 04 next
+last_updated: "2026-08-19T13:51:00.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 40 Plan 02 complete (2/2 tasks — _check_new_kev_epss detection/guard-subtraction/seed-silent, then owner resolution/channel dispatch/in-app twin/scheduler audit; get_directory_user extracted to app/assets/directory.py)
+last_activity_desc: Phase 40 Plan 03 complete (3/3 tasks — send_email html_body multipart/alternative, digests.py run_digests/_send_hour_due/_assemble_sections/_render_digest_html with D-20 exclusion + D-14 suppression, scheduler digest-dispatch tick block); test_digests.py 7/7 green
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 28
-  completed_plans: 25
+  completed_plans: 26
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,8 +45,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 40 (Proactive Alerting & Digests) — EXECUTING
-Status: Executing Phase 40 (2/5 plans complete — Plan 01 + Plan 02 done, Plan 03 next)
-Last activity: 2026-08-19 — Phase 40 Plan 02 complete: ALERT-01 lead tracer proven end-to-end — `_check_new_kev_epss` (AlertingGuard subtraction, D-06 cold-start silent seed, D-20 exclusion, KEV-takes-precedence-over-EPSS mutual exclusivity) wired into `run_alert_checks`; `get_directory_user` extracted to `app/assets/directory.py`; fire step routes to resolved owner (else admins+channel, D-10), tenant channel via the shared Phase-36 dispatch seam (D-07/D-19), in-app twin, and a direct scheduler-side AuditLog row. `test_alerts_kev_epss.py` 5/5 green. ALERT-01..03 still intentionally left unmarked in REQUIREMENTS.md — only Plan 05 should flip them.
+Status: Executing Phase 40 (3/5 plans complete — Plan 01 + Plan 02 + Plan 03 done, Plan 04 next)
+Last activity: 2026-08-19 — Phase 40 Plan 03 complete: ALERT-02 scheduled digests proven end-to-end — `send_email` gained `html_body` (multipart/alternative, unchanged plain-only path when omitted); `notifications/digests.py::run_digests` assembles due/breaching (via `resolve_state_for_vuln` + batched D-16 lapsed-exception subtraction)/newly-critical (CRITICAL + cadence-windowed `first_detected_at`)/expiring-exceptions (`ExceptionRecord.expires_at`, 7-day horizon) sections, every one D-20-excluded; `_send_hour_due` is a NEW durable wall-clock gate (`Tenant.timezone` + `alerting_last_digest_sent_at`, survives restarts); `_render_digest_html` escapes every finding-derived string and caps at top-10 + overflow; per-owner email / per-team channel (`AssetGroup` + shared `dispatch_channel` seam) dispatch loops, D-14 empty-suppressed; scheduler.py gained a fail-isolated digest-dispatch tick block. `test_digests.py` 7/7 green, zero regressions across 81 other tests. ALERT-01..03 still intentionally left unmarked in REQUIREMENTS.md — only Plan 05 should flip them. One documented gap: the E4 hostname-truncation cross-client (Gmail web/Apple Mail) visual backstop could not be live-verified in this sandboxed environment (logic itself is unit-proven) — flagged for `/gsd-verify-work 40`.
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -478,6 +478,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 40]: 40-02: `get_directory_user` extracted verbatim from `assets/router.py::_get_directory_user` into a new `backend/app/assets/directory.py` (research A5) so the notifications/alerting layer never imports the FastAPI assets router; both existing router call sites re-import the symbol under the same private alias, zero behavior change (53-test asset regression suite still green)
 - [Phase 40]: 40-02: scheduler-side `AuditLog` for `action="alert.fire"` constructed directly (not via `app.audit.audit()`), mirroring `sla_tier_service.py::_audit_escalation_fire` -- `audit()`'s `user=None` branch writes a nil `tenant_id=uuid.UUID(int=0)`, which would misbucket a genuinely tenant-scoped scheduler-fired row
 - [Phase 40]: 40-02: hand-edited STATE.md/ROADMAP.md directly again (same rationale as 40-01); ALERT-01/02/03 still intentionally left unmarked in REQUIREMENTS.md -- Plan 05 remains the last declaring plan
+- [Phase 40]: 40-03: `_send_hour_due` (D-12) built with stdlib `zoneinfo.ZoneInfo` converting `now` into `Tenant.timezone`, comparing `local_now.hour >= send_hour` AND a calendar-period key (day-of-year for daily, ISO week for weekly) against the durable `alerting_last_digest_sent_at` marker -- deliberately NOT `reports.py`'s elapsed-hours-since-last-send shape, which drifts with restarts and isn't tied to a business hour
+- [Phase 40]: 40-03: `_assemble_sections` reuses `resolve_state_for_vuln` + the SAME batched `lapsed_exception_seconds` D-16 subtraction `sla_tier_service.py`'s own passes apply (not re-derived) for due/breaching; newly-critical's lookback window is derived from the tenant's own digest cadence (24h daily / 168h weekly), a genuinely different concept from `_check_new_critical_vulns`'s unrelated 2h fire-once dedup window
+- [Phase 40]: 40-03: team-digest channel push reuses `escalation_channels.py`'s existing single-finding-shaped `dispatch_channel` payload builders as a "most urgent item" heads-up notification rather than extending that file with a digest-specific builder (out of this plan's `files_modified`; 40-RESEARCH.md Assumptions Log A3 flagged this exact gap as planner's discretion) -- the full itemized digest content lives in the per-owner HTML email
+- [Phase 40]: 40-03: per-owner email digest silently skips (returns 0, no error) when `tenant.smtp_config` is missing/disabled, mirroring the existing `reports.py:219` convention rather than surfacing a send failure for an intentionally-unconfigured channel
+- [Phase 40]: 40-03: expiring-exceptions horizon fixed at a 7-day constant (`EXPIRING_EXCEPTION_HORIZON_DAYS`) -- not pinned by any D-ID, chosen as a reasonable "act before it lapses" window
+- [Phase 40]: ALERT-02 remains unmarked in REQUIREMENTS.md after 40-03 despite 40-03 being the literal last plan to declare it in its own frontmatter (no later plan re-declares ALERT-02) -- per this phase's established convention (40-01/40-02), Plan 05 is the designated closer for ALL of ALERT-01/02/03 at phase end, overriding the strict per-requirement "last declaring plan" rule for this specific phase
+- [Phase 40]: 40-03: E4 backstop (hostname-truncation visual confirmation in Gmail web + Apple Mail) could not be live-verified in this sandboxed, browser-less environment -- the truncation LOGIC is unit-proven (rendered-HTML assertion confirms the untruncated string never appears), but cross-client visual rendering needs a human with real mail-client access; flagged as `human_judgment: true` coverage in 40-03-SUMMARY.md for `/gsd-verify-work 40`
+- [Phase 40]: 40-03: hand-edited STATE.md/ROADMAP.md directly again (same rationale as 40-01/40-02)
 
 ## Performance Metrics
 
@@ -549,13 +557,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 39 P05 | 29min | 2 tasks | 7 files |
 | Phase 40 P01 | 30min | 3 tasks | 9 files |
 | Phase 40 P02 | 45min | 2 tasks | 3 files |
+| Phase 40 P03 | 20min | 3 tasks | 3 files |
 
 ## Session
 
-**Last session:** 2026-08-19T13:35:44.000Z
-**Stopped at:** Phase 40 Plan 02 complete (2/2 tasks); Plan 03 next
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-03-PLAN.md
+**Last session:** 2026-08-19T13:51:00.000Z
+**Stopped at:** Phase 40 Plan 03 complete (3/3 tasks); Plan 04 next
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-04-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 40 execution with /gsd-execute-phase 40 (2/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02: ALERT-01 lead tracer, `alerts.py::_check_new_kev_epss` + `assets/directory.py::get_directory_user` extraction, both done; Plan 03 next — ALERT-02 digests, `digests.py` + `email.py` HTML body + scheduler block — unblocked, no unmet depends_on)
+- Continue Phase 40 execution with /gsd-execute-phase 40 (3/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02: ALERT-01 lead tracer; Plan 03: ALERT-02 digests (`digests.py` + `email.py` HTML body + scheduler block), all three done; Plan 04 next — ALERT-03 backend: alerting_config PATCH branch + AlertingConfigUpdate + fail-closed audit + GET exposure + self-targeted test-digest endpoint — unblocked, no unmet depends_on)

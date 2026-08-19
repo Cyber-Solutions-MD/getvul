@@ -206,7 +206,7 @@ Plans:
   2. Scheduled per-owner / per-team digests (Slack / Teams / email) of due, breaching, and newly-critical findings deliver on the in-process scheduler, no new infra
   3. Alert rules and delivery channels are tenant-configurable on a settings page and every configuration change is audited
 
-**Plans**: 2/5 plans executed
+**Plans**: 3/5 plans executed
 
 **Wave 1**
 
@@ -218,7 +218,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 40-03-PLAN.md — ALERT-02 digests: email.py HTML body + digests.py (send-hour gate, sections, exclusion, top-N, suppression, per-owner/per-team) + scheduler block (ALERT-02)
+- [x] 40-03-PLAN.md — ALERT-02 digests: email.py HTML body + digests.py (send-hour gate, sections, exclusion, top-N, suppression, per-owner/per-team) + scheduler block (ALERT-02)
 
 **Wave 4** *(blocked on Wave 3)*
 
