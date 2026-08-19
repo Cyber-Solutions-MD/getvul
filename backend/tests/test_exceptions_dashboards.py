@@ -1,12 +1,15 @@
-"""Phase 39 Plan 05 (EXC-02 "dashboards", D-15) -- consumer-sweep coverage
-for the asset list/detail badges (incl. sla_breach), owner-risk aggregate,
-and /dashboard tiles/top-vuln/nav counts + get_dashboard_stats.
+"""Phase 39 Plan 05 (EXC-02 "dashboards" + exports, D-15) -- consumer-sweep
+coverage for every remaining Tier 2 read surface: asset list/detail badges
+(incl. sla_breach), owner-risk aggregate, /dashboard tiles/top-vuln/nav
+counts + get_dashboard_stats, CSV/exec-summary export, and the
+risk_exposure_score MAX rollup -- plus a Tier 3 guard proving search.py was
+NOT touched (over-application guard, T-39-20).
 
 Task 1 (this section): assets/router.py, users/router.py, dashboard.py +
 service.py::get_dashboard_stats.
 
-Task 2 will append export.py, risk_exposure_service.py, and a Tier 3
-non-regression guard (search.py) to this same file.
+Task 2 (appended below): export.py, risk_exposure_service.py, and the
+Tier 3 non-regression guard (search.py).
 
 Every test hand-seeds an `ExceptionRecord` directly (bypassing
 `grant_exception`), mirroring `test_exceptions_sla.py::_seed_exception` --
@@ -269,3 +272,122 @@ async def test_excluded_from_dashboard_tiles_and_nav(client, db_session, tenant_
     assert body2["vuln_open_count"] == 0
     assert body2["open_vulnerabilities"] == 0
     assert body2["top_vuln"] is None
+
+
+# ── Task 2: export / risk_exposure rollup exclusion + Tier 3 guard ─────────
+
+
+@pytest.mark.asyncio
+async def test_excluded_from_export(db_session, tenant_a, admin_user, analyst_user):
+    """export_remediations_csv AND _collect_summary_data (export.py, Tier
+    2 #14) both exclude an actively-excepted finding from their
+    OPEN/IN_PROGRESS status-filtered queries -- the shared `open_filter`
+    list means `_collect_summary_data`'s vuln counts AND its
+    top_remediations both pick up the fix from one edit."""
+    from app.export import _collect_summary_data, export_remediations_csv
+
+    asset = _seed_asset(tenant_a)
+    db_session.add(asset)
+    await db_session.flush()
+    vuln = _seed_vuln(
+        tenant_a,
+        asset_id=asset.id,
+        severity="CRITICAL",
+        remediation_id="REM-DASH-TEST",
+        remediation_action="Patch it",
+    )
+    db_session.add(vuln)
+    await db_session.commit()
+
+    csv_before = await export_remediations_csv(db_session, tenant_a)
+    assert "REM-DASH-TEST" in csv_before
+
+    summary_before = await _collect_summary_data(db_session, tenant_a)
+    assert summary_before["vulns"]["total"] == 1
+    assert summary_before["vulns"]["critical"] == 1
+    assert len(summary_before["top_remediations"]) == 1
+
+    db_session.add(
+        _seed_exception(tenant_a, vuln=vuln, approver_user_id=admin_user.id, granted_by_user_id=analyst_user.id)
+    )
+    await db_session.commit()
+
+    csv_after = await export_remediations_csv(db_session, tenant_a)
+    assert "REM-DASH-TEST" not in csv_after
+
+    summary_after = await _collect_summary_data(db_session, tenant_a)
+    assert summary_after["vulns"]["total"] == 0
+    assert summary_after["vulns"]["critical"] == 0
+    assert summary_after["top_remediations"] == []
+
+
+@pytest.mark.asyncio
+async def test_excluded_from_risk_exposure_rollup(db_session, tenant_a, admin_user, analyst_user):
+    """Asset.risk_exposure_score (the MAX rollup, risk_exposure_service.py
+    392-399, Tier 2 #15) excludes an actively-excepted finding's score --
+    but that finding's OWN per-finding risk_exposure_score is STILL
+    written (the per-finding write loop at 347-385 is untouched by this
+    plan)."""
+    from app.vulnerabilities.risk_exposure_service import compute_finding_risk_scores
+
+    asset = _seed_asset(tenant_a)
+    db_session.add(asset)
+    await db_session.flush()
+    high_vuln = _seed_vuln(tenant_a, asset_id=asset.id, severity="HIGH")
+    critical_vuln = _seed_vuln(tenant_a, asset_id=asset.id, severity="CRITICAL", cisa_kev=True)
+    db_session.add_all([high_vuln, critical_vuln])
+    await db_session.commit()
+
+    await compute_finding_risk_scores(db_session, tenant_a)
+    await db_session.refresh(asset)
+    await db_session.refresh(critical_vuln)
+    await db_session.refresh(high_vuln)
+    assert critical_vuln.risk_exposure_score is not None
+    assert high_vuln.risk_exposure_score is not None
+    assert critical_vuln.risk_exposure_score > high_vuln.risk_exposure_score
+    # CRITICAL+KEV is the MAX across the asset's two open findings.
+    assert asset.risk_exposure_score == critical_vuln.risk_exposure_score
+
+    db_session.add(
+        _seed_exception(
+            tenant_a, vuln=critical_vuln, approver_user_id=admin_user.id, granted_by_user_id=analyst_user.id
+        )
+    )
+    await db_session.commit()
+
+    await compute_finding_risk_scores(db_session, tenant_a)
+    await db_session.refresh(asset)
+    await db_session.refresh(critical_vuln)
+    await db_session.refresh(high_vuln)
+
+    # The excepted CRITICAL finding still gets its OWN score written --
+    # the per-finding write loop (347-385) is untouched by this plan.
+    assert critical_vuln.risk_exposure_score is not None
+    # But the asset-level MAX rollup no longer reflects it -- it now
+    # equals the remaining (lower-scoring, non-excepted) HIGH finding.
+    assert asset.risk_exposure_score == high_vuln.risk_exposure_score
+    assert asset.risk_exposure_score < critical_vuln.risk_exposure_score
+
+
+@pytest.mark.asyncio
+async def test_tier3_search_still_returns_excepted(db_session, tenant_a, admin_user, analyst_user):
+    """search.py::_search_vulnerabilities is Tier 3 (explicitly
+    out-of-scope, T-39-20) -- a search for an actively-excepted CVE must
+    still return it, proving D-01 ("the finding stays OPEN under the
+    hood") and guarding against over-application of the exclusion join."""
+    from app.search import _search_vulnerabilities
+
+    vuln = _seed_vuln(tenant_a, severity="CRITICAL")
+    db_session.add(vuln)
+    await db_session.commit()
+
+    results_before = await _search_vulnerabilities(db_session, tenant_a, vuln.cve_id, 10)
+    assert any(r["cve_id"] == vuln.cve_id for r in results_before)
+
+    db_session.add(
+        _seed_exception(tenant_a, vuln=vuln, approver_user_id=admin_user.id, granted_by_user_id=analyst_user.id)
+    )
+    await db_session.commit()
+
+    results_after = await _search_vulnerabilities(db_session, tenant_a, vuln.cve_id, 10)
+    assert any(r["cve_id"] == vuln.cve_id for r in results_after)

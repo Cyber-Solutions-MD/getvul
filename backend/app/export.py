@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
 from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
+from app.exceptions.service import active_exception_subquery
 from app.tenants.models import Tenant, User
 from app.ticketing.models import Ticket
 from app.vulnerabilities.models import Vulnerability
@@ -265,6 +266,9 @@ async def export_remediations_csv(db: AsyncSession, tenant_id: uuid.UUID) -> str
             Vulnerability.tenant_id == tenant_id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
             Vulnerability.remediation_id.isnot(None),
+            # EXC-02/D-15 (Phase 39 Tier 2 #14): an actively-excepted
+            # finding never inflates the remediations export.
+            ~active_exception_subquery(tenant_id, datetime.now(UTC)),
         )
         .group_by(Vulnerability.remediation_id, Vulnerability.remediation_action, Vulnerability.affected_product)
         .order_by(
@@ -315,7 +319,15 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
     min_risk = f.get("min_risk", 0) or 0
     sections = f.get("sections") or ["vulns", "assets", "risk", "top_hosts", "top_remediations", "tickets"]
 
-    open_filter = [Vulnerability.tenant_id == tenant_id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"])]
+    # EXC-02/D-15 (Phase 39 Tier 2 #14): an actively-excepted finding is
+    # excluded from every count/query below that spreads `*open_filter`
+    # (vuln totals, top_remediations) -- ONE addition here propagates to
+    # all of them, mirroring `_apply_filters`' shared-predicate-list shape.
+    open_filter = [
+        Vulnerability.tenant_id == tenant_id,
+        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        ~active_exception_subquery(tenant_id, now),
+    ]
     if sev_filter:
         open_filter.append(Vulnerability.severity.in_(sev_filter))
     if exploit_filter:
