@@ -187,7 +187,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 39-05-PLAN.md — Tier 2 dashboards/exports: asset+owner badges, /dashboard tiles+nav, CSV/exec-summary export, risk_exposure_score rollup (Tier 3 explicitly untouched)
+- [x] 39-05-PLAN.md — Tier 2 dashboards/exports: asset+owner badges, /dashboard tiles+nav, CSV/exec-summary export, risk_exposure_score rollup (Tier 3 explicitly untouched)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -287,7 +287,7 @@ Plans:
 | 36. Remediation SLA Engine & Escalation | 6/6 | Complete    | 2026-08-18 |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
 | 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
-| 39. Exception & Risk-Acceptance Workflow | 5/8 | In Progress|  |
+| 39. Exception & Risk-Acceptance Workflow | 7/8 | In Progress|  |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
 | 42. Risk Trend Analytics & Burndown | 0/? | Not started | - |

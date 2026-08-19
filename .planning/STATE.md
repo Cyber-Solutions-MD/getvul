@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 39
 current_phase_name: exception-risk-acceptance-workflow
 status: executing
-stopped_at: Phase 39 Plan 07 (Exception grant/revoke frontend) complete
-last_updated: "2026-08-19T09:43:37.000Z"
+stopped_at: Phase 39 Plan 05 (Dashboards/export/risk-exposure consumer sweep) complete
+last_updated: "2026-08-19T10:16:31.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 39 Plan 07 (Exception grant/revoke frontend -- drill-panel Accept-risk/Mark-false-positive entry points, 4-field ExceptionGrantDialog across all 3 scope types, controlled approver-combobox with zero internal mutation, exceptions-list Revoke wired to useRevokeException) complete
+last_activity_desc: Phase 39 Plan 05 (Dashboards/export/risk-exposure consumer sweep -- asset list/detail badges incl. sla_breach, owner-risk aggregates in users/router.py, /dashboard tiles/top-vuln/nav counts + get_dashboard_stats, CSV/exec-summary export, and the risk_exposure_score MAX rollup all now exclude actively-excepted findings; 7-test suite incl. a Tier 3 non-regression guard) complete
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 21
-  percent: 91
+  completed_plans: 22
+  percent: 96
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,10 +46,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 39 (exception-risk-acceptance-workflow) — EXECUTING
-Plans complete: 01, 02, 03, 04, 06, 07 (6 of 8; Wave 3 {39-03, 39-07} now FULLY complete)
-Status: Executing Phase 39 — Plan 07 (Exception grant/revoke frontend: drill-panel Accept-risk/Mark-false-positive entry points, 4-field ExceptionGrantDialog covering FINDING/ASSET/ASSET_GROUP scope, controlled approver-combobox, exceptions-list Revoke wired to useRevokeException) complete
-Last activity: 2026-08-19 — Plan 39-07 complete
-Next unblocked: 39-05 (wave 4, depends_on:[39-01,39-03] -- both done; Wave 3 barrier now cleared). 39-08 (wave 5, depends_on:[39-03,39-05,39-06,39-07] -- the closing plan that marks EXC-01..04 complete in REQUIREMENTS.md) remains blocked until 39-05 also completes.
+Plans complete: 01, 02, 03, 04, 05, 06, 07 (7 of 8; Wave 4 {39-05} now complete)
+Status: Executing Phase 39 — Plan 05 (Dashboards/export/risk-exposure consumer sweep: asset list/detail badges incl. sla_breach, users/router.py owner-risk aggregates, dashboard.py tiles/top-vuln/nav + service.py get_dashboard_stats, export.py CSV/exec-summary, risk_exposure_service.py MAX rollup -- all now exclude actively-excepted findings) complete
+Last activity: 2026-08-19 — Plan 39-05 complete
+Next unblocked: 39-08 (wave 5, depends_on:[39-03,39-05,39-06,39-07] -- ALL FOUR now complete). 39-08 is the only remaining plan in this phase (the closing checkpoint plan that marks EXC-01..04 complete in REQUIREMENTS.md).
 
 ## v5.0 Phase Map
 
@@ -465,6 +465,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 39]: 39-07: Task 3's wiring made the Actions section always render ExceptionGrantDialog, which transitively calls 3 real query/mutation hooks (useGrantException, useAssetGroupsList, useAssignableUsers) that drill-panel.test.tsx/drill-panel-mobile.test.tsx didn't mock -- both suites crashed with "No QueryClient set" until mocked the same way every other real hook in those files already is (Rule 3 auto-fix); exceptions-table.test.tsx's "Revoke renders disabled" test was also now factually wrong for the newly-wired live behavior and was split/extended (Rule 1 auto-fix)
 - [Phase 39]: EXC-01 remains unmarked in REQUIREMENTS.md after 39-07 (a 4th independent confirmation) -- 39-08-PLAN.md's own frontmatter literally lists `requirements: [EXC-01, EXC-02, EXC-03, EXC-04]`, confirming it as the phase's sole designated last-declaring plan
 - [Phase 39]: 39-07 completes EXC-01's grant surface end-to-end (backend 39-01/39-02, list UI 39-06, grant/revoke UI this plan) and resolves 39-06's own documented "Known Stubs" entry (the disabled Revoke placeholder) in full; Wave 3 {39-03, 39-07} is now fully complete, clearing the barrier for Wave 4 (39-05, depends_on:[39-01,39-03], both already done)
+- [Phase 39]: 39-05: investigated and consciously left `dashboard.py`'s legacy `get_overview_stats`/`/overview` endpoint untouched -- the plan's own interfaces citation ("dashboard.py:43,189-208,311") traces to a stale grep hit inside that function, not the three named v10 functions; confirmed via git log (line drift traces to Phase 33's unrelated severity-tier-centralization refactor) and confirmed zero frontend callers exist for `/overview`
+- [Phase 39]: 39-05: threaded `~active_exception_subquery(...)` into assets/router.py (list+detail badges incl. sla_breach), users/router.py (both owner-aggregate surfaces), dashboard.py (tiles/top-vuln/nav), service.py (get_dashboard_stats' open_q only, not total_vulnerabilities), export.py (remediations CSV + exec-summary's shared open_filter list), and risk_exposure_service.py (the MAX rollup subquery only, not the per-finding write loop) -- 7-test backend/tests/test_exceptions_dashboards.py proves every surface plus a Tier 3 non-regression guard (search.py still returns an excepted CVE)
+- [Phase 39]: EXC-02 remains unmarked in REQUIREMENTS.md after 39-05 -- re-confirmed 39-08 is still the sole plan claiming all four EXC-01..04 and the phase's designated last declaring plan; 39-08's depends_on:[39-03,39-05,39-06,39-07] is now FULLY satisfied (all four complete), so 39-08 is the only remaining plan in this phase
 
 ## Performance Metrics
 
@@ -533,13 +536,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 39 P06 | 28min | 3 tasks | 9 files |
 | Phase 39 P03 | 42min | 2 tasks | 4 files |
 | Phase 39 P07 | 36min | 3 tasks | 13 files |
+| Phase 39 P05 | 29min | 2 tasks | 7 files |
 
 ## Session
 
-**Last session:** 2026-08-19T09:43:37.000Z
-**Stopped at:** Phase 39 Plan 07 (Exception grant/revoke frontend) complete
+**Last session:** 2026-08-19T10:16:31.000Z
+**Stopped at:** Phase 39 Plan 05 (Dashboards/export/risk-exposure consumer sweep) complete
 **Resume file:** None
 
 ## Operator Next Steps
 
-- Continue Phase 39 execution with /gsd-execute-phase 39 (6/8 plans complete — 01, 02, 03, 04, 06, 07; Wave 3 {39-03, 39-07} fully complete; Plan 05 next [unblocked, wave 4, depends_on 39-01+39-03, both done]; Plan 08 [wave 5, the closing plan] stays blocked until 39-05 also completes)
+- Continue Phase 39 execution with /gsd-execute-phase 39 (7/8 plans complete — 01, 02, 03, 04, 05, 06, 07; only Plan 08 remains [wave 5, the closing checkpoint plan, depends_on:[39-03,39-05,39-06,39-07] now FULLY satisfied — unblocked])
