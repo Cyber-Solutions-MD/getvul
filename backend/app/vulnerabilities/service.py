@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
 from app.audit import AuditLog
-from app.exceptions.service import active_exception_subquery
+from app.exceptions.service import active_exception_subquery, lapsed_exception_seconds
 from app.pagination import PaginatedResponse, PaginationParams
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import RemediationEvent, Vulnerability, VulnerabilityCorrelation
@@ -246,6 +246,15 @@ async def list_vulnerabilities(
         )
         corr_by_key = {(c.cve_id, c.asset_id): c for c in corr_rows}
 
+    # Phase 39 / D-16: page-scoped batched lapsed-exception lookup (mirrors
+    # corr_by_key immediately above) — reuses the SAME page_keys set so the
+    # live sla_state/sla_due_at of a recently-resurfaced finding reflects
+    # how long it spent under a now-lapsed exception, instead of instantly
+    # showing breached.
+    lapsed_by_key: dict[tuple[str, uuid.UUID], int] = {}
+    if page_keys:
+        lapsed_by_key = await lapsed_exception_seconds(db, tenant_id, page_keys, sla_now)
+
     items = []
     for row in results:
         vuln = row[0] if hasattr(row, "__getitem__") else row.Vulnerability
@@ -255,7 +264,8 @@ async def list_vulnerabilities(
         # risk_exposure_service.py:352's corr_by_key.get((...), 1) convention).
         sources = corr.sources if corr and corr.sources else [vuln.source]
         sources_count = corr.sources_count if corr else 1
-        sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, sla_now)
+        excepted_seconds = lapsed_by_key.get((vuln.cve_id, vuln.asset_id), 0)
+        sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, sla_now, excepted_seconds=excepted_seconds)
         items.append(
             VulnerabilitySummary(
                 id=vuln.id,
@@ -314,7 +324,16 @@ async def get_vulnerability(
     # above — detail view must ALSO carry sla_state/sla_due_at (must_haves).
     tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
     sla_policy = get_tier_policy(tenant)
-    sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, datetime.now(UTC))
+    sla_now = datetime.now(UTC)
+    # Phase 39 / D-16: single-row batched lookup (same lapsed_exception_seconds
+    # helper as list_vulnerabilities, called with a 1-key set) — the detail
+    # view inherits the identical subtraction so it never disagrees with the
+    # list it was drilled into from.
+    excepted_seconds = 0
+    if vuln.cve_id and vuln.asset_id:
+        lapsed_map = await lapsed_exception_seconds(db, tenant_id, {(vuln.cve_id, vuln.asset_id)}, sla_now)
+        excepted_seconds = lapsed_map.get((vuln.cve_id, vuln.asset_id), 0)
+    sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, sla_now, excepted_seconds=excepted_seconds)
 
     return VulnerabilityResponse(
         id=vuln.id,

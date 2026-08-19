@@ -35,6 +35,7 @@ from app.assets.risk_score import (
 )
 from app.audit import AuditLog
 from app.encryption import decrypt_value
+from app.exceptions.service import active_exception_subquery, lapsed_exception_seconds
 from app.notifications.service import create_notification
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import SlaEscalationEvent, Vulnerability
@@ -144,6 +145,8 @@ def resolve_state_for_vuln(
     vuln: Vulnerability,
     policy: dict[str, Any],
     now: datetime,
+    *,
+    excepted_seconds: int = 0,
 ) -> tuple[datetime | None, str]:
     """Per-finding SLA resolution (D-01/D-03/D-12):
     (a) `tier_for_score` on `risk_exposure_score` when the finding is scored,
@@ -151,6 +154,14 @@ def resolve_state_for_vuln(
     (c) (None, "not_tracked") when a SCORED finding's tier is None
         (score < RISK_SCORE_TIER_MEDIUM, D-12) — severity is irrelevant
         once a finding is scored.
+
+    Phase 39 / D-16: `excepted_seconds` (default 0) is forwarded verbatim
+    to `compute_sla_state`. Callers batch-resolve it via
+    `exceptions/service.py::lapsed_exception_seconds` (page-scoped for
+    `list_vulnerabilities`/`get_vulnerability`, tenant-wide-once-per-tick
+    for `run_sla_tier_pass`/`detect_and_escalate`) and pass each finding's
+    own value in here — the `not_tracked` early-return path above is
+    unaffected (a finding with no due date has nothing to shift).
     """
     score = vuln.risk_exposure_score
     tier: str | None
@@ -168,6 +179,7 @@ def resolve_state_for_vuln(
         tier_days=tier_days,
         approaching_pct=approaching_pct,
         now=now,
+        excepted_seconds=excepted_seconds,
     )
 
 
@@ -175,9 +187,11 @@ async def run_sla_tier_pass(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
     """Scheduler-tick entrypoint (D-01/D-02/D-08) — replaces the old
     `backfill_sla_due_dates` + `check_sla_breaches` calls in scheduler.py.
 
-    For every OPEN/IN_PROGRESS finding belonging to `tenant`: resolves the
+    For every OPEN/IN_PROGRESS finding belonging to `tenant`, NOT actively
+    excepted (Phase 39 / D-15 — `~active_exception_subquery`): resolves the
     tier-based `sla_due_at` (via `resolve_state_for_vuln` + the tenant's
-    policy) and writes it, plus the `sla_breached` DERIVED MIRROR (D-08) so
+    policy, D-16-subtracted per the batched lapsed-exception lookup below)
+    and writes it, plus the `sla_breached` DERIVED MIRROR (D-08) so
     already-shipped consumers (ticket SlaPill, metrics, dashboard) keep
     working unmodified. After flushing, resyncs every affected ticket
     group's materialized SLA (Pitfall 2 — ticket `sla_due_at` is a MIN
@@ -194,13 +208,25 @@ async def run_sla_tier_pass(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
         select(Vulnerability).where(
             Vulnerability.tenant_id == tenant.id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            ~active_exception_subquery(tenant.id, now),
         )
     )
     vulns = result.scalars().all()
 
+    # Phase 39 / D-16 / Pitfall 1: tenant-wide-once-per-tick batched lookup
+    # (never per-row) so the PERSISTED mirror applies the IDENTICAL
+    # excepted_seconds subtraction the read-time callers use — otherwise a
+    # resurfaced finding's persisted sla_due_at/sla_breached would disagree
+    # with its live sla_state until the next scheduler tick.
+    keys = {(v.cve_id, v.asset_id) for v in vulns if v.cve_id and v.asset_id}
+    lapsed_by_key = await lapsed_exception_seconds(db, tenant.id, keys, now) if keys else {}
+
     updated = 0
     for vuln in vulns:
-        due_at, state = resolve_state_for_vuln(vuln, policy, now)
+        excepted_seconds = 0
+        if vuln.cve_id and vuln.asset_id:
+            excepted_seconds = lapsed_by_key.get((vuln.cve_id, vuln.asset_id), 0)
+        due_at, state = resolve_state_for_vuln(vuln, policy, now, excepted_seconds=excepted_seconds)
         breached = state == "breached"
         if vuln.sla_due_at != due_at or vuln.sla_breached != breached:
             vuln.sla_due_at = due_at
@@ -365,13 +391,25 @@ async def _audit_escalation_fire(
 async def detect_and_escalate(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
     """Scheduler-tick entrypoint (SLA-03, D-05/D-06/D-07/D-08) -- called
     immediately after `run_sla_tier_pass` in the same isolated tick block
-    (scheduler.py). For every OPEN/IN_PROGRESS finding whose live sla_state
-    is `approaching` or `breached` AND whose tier meets the tenant's
-    configured floor, fires every channel routed to that transition type
-    EXACTLY ONCE (check-before-insert + the uq_escalation_once
-    UniqueConstraint backstop), audits every fire, and -- for a breach that
-    newly fired at least one channel this pass -- emits exactly one in-app
-    `category="sla_escalation"` notification twin (D-08).
+    (scheduler.py). For every OPEN/IN_PROGRESS finding NOT actively
+    excepted (Phase 39 / D-15 / T-39-11 -- `~active_exception_subquery`,
+    governance-critical: an accepted-risk finding must never fire a
+    breach alert) whose live sla_state is `approaching` or `breached` AND
+    whose tier meets the tenant's configured floor, fires every channel
+    routed to that transition type EXACTLY ONCE (check-before-insert + the
+    uq_escalation_once UniqueConstraint backstop), audits every fire, and
+    -- for a breach that newly fired at least one channel this pass --
+    emits exactly one in-app `category="sla_escalation"` notification twin
+    (D-08).
+
+    Phase 39 / D-16: applies the SAME tenant-wide-once-per-tick
+    excepted_seconds subtraction `run_sla_tier_pass` applies to its
+    persisted mirror. Without it, a just-resurfaced finding's
+    un-subtracted due date could independently resolve to "breached" HERE
+    even though the persisted mirror / read-time state correctly shows
+    on_track/approaching -- firing exactly the instant-breach escalation
+    storm D-16 exists to prevent (Pitfall 1's two-parallel-representations
+    failure mode, manifesting in the escalation-firing surface).
 
     Pattern 1 isolation: a single channel's decrypt/dispatch failure (or a
     concurrent-double-tick's uq_escalation_once collision) is caught at the
@@ -394,14 +432,21 @@ async def detect_and_escalate(db: AsyncSession, tenant: Tenant) -> dict[str, Any
         .where(
             Vulnerability.tenant_id == tenant.id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            ~active_exception_subquery(tenant.id, now),
         )
     )
     rows = result.all()
 
+    keys = {(vuln.cve_id, vuln.asset_id) for vuln, _asset in rows if vuln.cve_id and vuln.asset_id}
+    lapsed_by_key = await lapsed_exception_seconds(db, tenant.id, keys, now) if keys else {}
+
     fired = 0
     notified = 0
     for vuln, asset in rows:
-        _due_at, to_state = resolve_state_for_vuln(vuln, policy, now)
+        excepted_seconds = 0
+        if vuln.cve_id and vuln.asset_id:
+            excepted_seconds = lapsed_by_key.get((vuln.cve_id, vuln.asset_id), 0)
+        _due_at, to_state = resolve_state_for_vuln(vuln, policy, now, excepted_seconds=excepted_seconds)
         if to_state not in ("approaching", "breached"):
             continue
 

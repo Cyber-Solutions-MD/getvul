@@ -55,3 +55,62 @@ verify a fix against). Whoever next reaches for `<Button variant="icon">` in pro
 e.g. Plan 07 wiring the real Revoke mutation — should either add a `compoundVariants` entry
 zeroing `size`'s padding when `variant: 'icon'`, or keep hand-rolling the 34x34 markup as this
 plan does.
+
+## 39-03 Task 2 — pre-existing scheduler-tick/foreground-write deadlock hazard, amplified (not caused) by this plan
+
+**Found during:** Task 2 full-backend-suite regression run (`pytest -q`, 1117 tests, ~152s).
+
+**Observation:** Two full-suite runs with this plan's Task 2 changes present both surfaced
+`FAILED tests/test_ticketing_dispatch.py::test_close_ticket_endpoint_dispatches_by_ticket_provider`
+with a 500 response; a Task-1-only baseline run (this plan's `run_sla_tier_pass`/
+`detect_and_escalate` changes stashed out) did not reproduce it in one run. The test passes
+every time in isolation (`pytest tests/test_ticketing_dispatch.py::test_...` alone, and the
+whole file alone) — it only manifests as part of the full 1117-test suite, in this exact
+collection order.
+
+**Root cause (confirmed via a one-off diagnostic re-run with `ASGITransport(...,
+raise_app_exceptions=True)` temporarily set in `conftest.py::_make_authed_client`, then
+reverted — no net diff to `conftest.py`):** a genuine Postgres `DeadlockDetectedError` on
+`UPDATE vulnerabilities SET status=... WHERE id=...`, between the test's own
+`close_ticket_endpoint` transaction and the app's live background scheduler loop
+(`app/connectors/scheduler.py::_scheduler_loop`, started via the `client` fixture's real
+FastAPI lifespan), which calls `run_sla_tier_pass`/`detect_and_escalate` for every
+`is_active` tenant once per tick. By the time this test runs deep into the full suite, dozens
+of prior tests' tenants still exist in the DB (per-test cleanup truncates but the background
+loop is a long-lived task that keeps re-querying `is_active` tenants across the whole run), so
+the scheduler tick's per-tenant `SELECT ... then loop-update-then-flush` transaction has a much
+larger row-set and window than in any single test, raising the odds of a lock-order collision
+with a concurrent foreground request's own `Vulnerability` row update.
+
+**This plan's own contribution:** `run_sla_tier_pass`/`detect_and_escalate` each gained one
+additional batched query per tick (the `~active_exception_subquery` WHERE clause's subquery,
+plus the new `lapsed_exception_seconds` lookup) — both pure `SELECT`s (no row locks acquired by
+either), but they run before the per-row update loop, marginally lengthening how long each
+tick's transaction stays open before its `UPDATE`s fire. This widens (does not create) the
+pre-existing collision window: `run_sla_tier_pass`'s "loop over every OPEN/IN_PROGRESS
+vulnerability across a tenant and flush all writes at the end of one transaction" shape already
+existed, unchanged, since Phase 36 (`36-01`) — before any exception/SLA-subtraction code existed
+to add queries to it. No new `UPDATE`/lock-acquisition path was added by this plan; the flagged
+statement (`UPDATE vulnerabilities SET status=...`) belongs to the ticket-close endpoint, not to
+anything Task 2 touches.
+
+**Why not fixed here:** a real fix (e.g. locking rows in a consistent `ORDER BY id`,
+retry-on-`DeadlockDetectedError`, or shortening `run_sla_tier_pass`'s single-flush-per-tenant
+transaction into smaller per-row commits) is a scheduler-wide transaction/concurrency-strategy
+change — Rule 4 architectural territory, spanning `app/connectors/scheduler.py` and potentially
+every other bulk-update loop it drives (`compute_risk_scores`, `run_all_due_rules`, etc.), none
+of which are in this plan's `files_modified`. It is also non-fatal in both directions today:
+the scheduler's own `try/except Exception` around the SLA-tick block (`scheduler.py:327-340`)
+already logs-and-continues on any error including this one, and Postgres's deadlock victim
+selection only aborts one of the two colliding transactions (the other proceeds normally) — so
+this is a rare, transient, already-gracefully-degraded failure mode, not a silent data-
+corruption risk. It is also environment-specific to the compressed, ordering-sensitive
+1117-test full-suite run (a live scheduler racing hundreds of ad hoc tenants in ~2.5 minutes) —
+not a shape a real single-tenant-per-VM production deployment approximates.
+
+**Action:** Not fixed here. Confirmed via `pytest tests/test_exceptions_sla.py -x` (10/10),
+`test_sla_tier_service.py`+`test_escalation_engine.py`+`test_exceptions*.py`+6 vulnerabilities
+test files (all green), and the plan's own grep verification gates that this plan's actual
+D-15/D-16 logic is correct. Whoever next hardens `app/connectors/scheduler.py`'s transaction
+model (or adds a deadlock-retry decorator around scheduler-tick DB work) should treat this as
+a concrete repro case.
