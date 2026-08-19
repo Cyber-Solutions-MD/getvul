@@ -7,6 +7,8 @@ Provides a unified view of users and their devices, combining:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.assets.models import Asset
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db
+from app.exceptions.service import active_exception_subquery
 from app.vulnerabilities.models import Vulnerability
 
 router = APIRouter(prefix="", tags=["Users"])
@@ -140,6 +143,9 @@ async def list_users(
         ).where(
             Vulnerability.asset_id.in_(asset_ids),
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            # EXC-02/D-15 (Phase 39 Tier 2 #12): an actively-excepted
+            # finding never inflates a person's owner-risk aggregate badges.
+            ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
         )
         vc = (await db.execute(vuln_q)).one()
         entry["total_vulns"] = vc.total
@@ -370,6 +376,9 @@ async def list_directory_users(
                     ).where(
                         Vulnerability.asset_id.in_(asset_ids),
                         Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                        # EXC-02/D-15 (Phase 39 Tier 2 #12): same owner-risk
+                        # aggregate exclusion as list_users above.
+                        ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
                     )
                 )
             ).one()

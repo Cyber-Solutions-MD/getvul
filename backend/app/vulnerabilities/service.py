@@ -773,7 +773,11 @@ async def get_dashboard_stats(
     total_q = select(func.count(Vulnerability.id)).where(Vulnerability.tenant_id == tenant_id)
     total = (await db.execute(total_q)).scalar_one()
 
-    open_q = total_q.where(Vulnerability.status == "OPEN")
+    # EXC-02/D-15 (Phase 39 Tier 2 #13): open_vulnerabilities is an "active
+    # work" count, so it excludes actively-excepted findings -- unlike
+    # `total` above (a raw inventory count that intentionally still
+    # includes them, since exceptions never flip Vulnerability.status).
+    open_q = total_q.where(Vulnerability.status == "OPEN", ~active_exception_subquery(tenant_id, datetime.now(UTC)))
     open_count = (await db.execute(open_q)).scalar_one()
 
     # By severity

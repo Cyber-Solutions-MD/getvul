@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -18,6 +18,7 @@ from app.assets.models import Asset, BusinessCriticality, DataSensitivity
 from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
 from app.auth.dependencies import get_current_user, require_role
 from app.db.session import get_db
+from app.exceptions.service import active_exception_subquery
 from app.vulnerabilities.models import Vulnerability
 
 router = APIRouter(prefix="", tags=["Assets"])
@@ -270,7 +271,16 @@ async def list_assets(
                 Vulnerability.sla_due_at < func.now(),
             )
             .label("sla_breach"),
-        ).where(Vulnerability.asset_id == a.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
+        ).where(
+            Vulnerability.asset_id == a.id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            # EXC-02/D-15 (Phase 39 Tier 2 #11): an actively-excepted finding
+            # never inflates the list-badge counts, INCLUDING sla_breach --
+            # 39-03's run_sla_tier_pass fix already stopped updating the
+            # persisted sla_due_at mirror for excepted rows, so this
+            # read-time exclusion agrees with that stale-but-excluded state.
+            ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
+        )
         vcounts = (await db.execute(vuln_q)).one()
 
         items.append(
@@ -400,7 +410,13 @@ async def _build_asset_detail(db: AsyncSession, user, asset: Asset) -> dict:
             Vulnerability.sla_due_at < func.now(),
         )
         .label("sla_breach"),
-    ).where(Vulnerability.asset_id == asset.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
+    ).where(
+        Vulnerability.asset_id == asset.id,
+        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        # EXC-02/D-15 (Phase 39 Tier 2 #11): same detail-badge exclusion as
+        # the list endpoint above, incl. sla_breach.
+        ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
+    )
     vc = (await db.execute(vuln_q)).one()
 
     # Phase 32 Plan 05 — which group (if any) currently drives a

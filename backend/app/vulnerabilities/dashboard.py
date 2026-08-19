@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
 from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
+from app.exceptions.service import active_exception_subquery
 from app.ticketing.models import ConnectorConfig, Ticket
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import DashboardTiles, TileValue, TopVuln
@@ -182,12 +183,19 @@ async def compute_dashboard_tiles_v10(db: AsyncSession, tenant_id: uuid.UUID) ->
     """
     base = Vulnerability.tenant_id == tenant_id
 
+    # EXC-02/D-15 (Phase 39 Tier 2 #13): an actively-excepted finding never
+    # inflates the "today" tiles below. NOT applied to mttr_30d_raw (further
+    # down) -- that query is status==REMEDIATED, a completed-work metric
+    # outside the "active work" exclusion's scope.
+    not_excepted = ~active_exception_subquery(tenant_id, datetime.now(UTC))
+
     critical_open_today = (
         await db.execute(
             select(func.count(Vulnerability.id)).where(
                 base,
                 Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
                 Vulnerability.severity == "CRITICAL",
+                not_excepted,
             )
         )
     ).scalar_one()
@@ -197,6 +205,7 @@ async def compute_dashboard_tiles_v10(db: AsyncSession, tenant_id: uuid.UUID) ->
                 base,
                 Vulnerability.sla_breached.is_(True),
                 Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                not_excepted,
             )
         )
     ).scalar_one()
@@ -206,6 +215,7 @@ async def compute_dashboard_tiles_v10(db: AsyncSession, tenant_id: uuid.UUID) ->
                 base,
                 Vulnerability.cisa_kev.is_(True),
                 Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                not_excepted,
             )
         )
     ).scalar_one()
@@ -284,6 +294,9 @@ async def compute_top_vuln_v10(db: AsyncSession, tenant_id: uuid.UUID) -> TopVul
                 Vulnerability.tenant_id == tenant_id,
                 Vulnerability.severity == "CRITICAL",
                 Vulnerability.status == "OPEN",
+                # EXC-02/D-15 (Phase 39 Tier 2 #13): the Hero spotlight never
+                # surfaces an actively-excepted finding.
+                ~active_exception_subquery(tenant_id, datetime.now(UTC)),
             )
             .order_by(nulls_last(desc(Vulnerability.cvss_v3_score)))
             .limit(1)
@@ -309,6 +322,9 @@ async def compute_nav_counts_v10(db: AsyncSession, tenant_id: uuid.UUID) -> dict
             select(func.count(Vulnerability.id)).where(
                 Vulnerability.tenant_id == tenant_id,
                 Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                # EXC-02/D-15 (Phase 39 Tier 2 #13): the persistent nav badge
+                # never counts an actively-excepted finding.
+                ~active_exception_subquery(tenant_id, datetime.now(UTC)),
             )
         )
     ).scalar_one()
