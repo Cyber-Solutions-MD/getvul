@@ -1,7 +1,7 @@
 ---
 phase: 40
 slug: proactive-alerting-digests
-status: draft
+status: approved
 shadcn_initialized: true
 preset: "frontend/components.json — style new-york, baseColor zinc, cssVariables true, iconLibrary lucide (existing, unmodified). Production does NOT consume shadcn's zinc theme directly — every screen consumes the sunset design-token layer from sketch-findings-getvul/foundation.md instead. No shadcn `ui/` primitives are installed in frontend/src/components/ui (that directory is 100% hand-rolled Tailwind + design tokens, e.g. button.tsx, card.tsx, input.tsx). This phase adds zero new shadcn components — it follows the existing hand-rolled settings-pane pattern (SlaEscalationPane / NotificationsPane) verbatim."
 created: 2026-08-19
@@ -34,6 +34,8 @@ created: 2026-08-19
 | Real-time ALERT-01 in-app notification | Reuse verbatim | Existing `create_notification` → existing notification bell/toast UI (Phase 9/24-era); no new component |
 | Digest HTML email | **New** (D-15) | `backend/app/email.py::send_email` currently only attaches `MIMEText(body, "plain")` — this phase adds an HTML digest body. Design contract below governs its markup/inline-CSS. |
 | Audit trail of config changes (ALERT-03) | Reuse verbatim | Existing `audit-log-pane.tsx` — no new UI, just new audit event rows appearing there |
+
+**Visual hierarchy (new pane):** the eye lands first on **Section 1 — "New exposure alerts"** (the KEV toggle + EPSS threshold), matching the top-to-bottom section-card priority that `sla-escalation-pane.tsx` establishes; "Save changes" in the sticky `<SaveBar>` is the sole gradient CTA and the only competing focal weight. Section cards are equal-weight peers below that; no card is visually elevated over the others.
 
 ---
 
@@ -149,7 +151,7 @@ Rationale: digest emails render in third-party clients that frequently force lig
 | Subject line (daily) | `Your GetVul digest — {N} findings need attention` (N = total across all non-empty sections; digest is suppressed entirely per D-14 when N=0, so this subject line is never sent with N=0) |
 | Subject line (weekly) | `Your weekly GetVul digest — {N} findings need attention` |
 | Greeting | `Hi {first_name},` (first-name-only per `copy-voice.md` "Actor names are first-name-only for humans") |
-| Section order & headers | `Breaching SLA` → `Due soon` → `Newly critical` → `Exceptions expiring soon` (order per D-13: due, breaching, newly-critical, expiring-exceptions — note the email leads with the most urgent, "Breaching," ahead of "Due," matching the copy-voice principle of leading with urgency; see UI Considerations for the due/breaching order flag) |
+| Section order & headers | `Breaching SLA` → `Due soon` → `Newly critical` → `Exceptions expiring soon` (order per D-13: due, breaching, newly-critical, expiring-exceptions — note the email deliberately leads with the most urgent, "Breaching," ahead of "Due," matching the copy-voice principle of leading with urgency — a reasoned reorder of D-13's list, not a contradiction of it) |
 | Row format (per finding) | `{severity-glyph} {CVE-ID} on {hostname} — {sla-delta or badge}` — e.g. `■ CVE-2024-3094 on prod-db-01 — −2h SLA` reusing the exact SLA-delta copy format from `copy-voice.md` (`−2h SLA`, `4h left`, `3d left`) |
 | Overflow line | `and {N} more →` linking to the filtered dashboard view (top-N cap per D-15, illustratively 10) |
 | Footer | `You're receiving this because you own findings in GetVul, or belong to a team with open findings. Manage your alert settings → {settings deep-link}.` |
@@ -159,24 +161,66 @@ Rationale: digest emails render in third-party clients that frequently force lig
 
 ## UI Considerations
 
-> Populated by the ui-phase UI-consideration probe (Step 9.5). Shape-rooted UI *state* coverage (empty / loading / error / populated / partial / overflow / zero-one-many / long-text).
+> Populated by the ui-phase UI-consideration probe (Step 9.5). Shape-rooted UI *state* coverage (empty / loading / error / populated / partial / overflow / zero-one-many / long-text). Coverage computed by `ui-consideration-probe.cjs` over 5 surfaces (E1 settings pane, E2 sidebar nav entry, E3 in-app notification, E4 digest email, E5 audit-log rows); 28 applicable categories + 2 test-digest sub-states, resolved via the Step 9.5 loop.
 
-Applicable state considerations resolved: 9 covered, 3 backstop, 1 unresolved
+Applicable state considerations resolved: **25 covered, 2 backstop, 3 dismissed (not applicable) — 0 unresolved.**
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | Delivery-channels section, zero channels configured | ✅ covered | Renders the documented "No delivery channels configured" EmptyState (mirrors `sla-escalation-pane.tsx`'s `anyChannelEnabled` guard exactly — reuse the same `EmptyState` component and pattern, keyed off whether any of Slack/Teams/PagerDuty/Email is enabled under SLA & Escalation) |
-| loading | Pane initial load | ✅ covered | Reuses `SkeletonTable` per the identical pattern in `sla-escalation-pane.tsx`/`notifications-pane.tsx` — no new loading UI to design |
-| error | GET/PATCH failure | ✅ covered | Reuses `PartialFailureBanner` verbatim — no new error UI |
-| populated | Settings pane with existing config | ✅ covered | Standard 3-section-card render, form pre-filled from `Tenant.alerting_config` (D-18), same shape as `SlaEscalationPane`'s `defaultSlaForm` seeding pattern |
-| partial | RBAC — non-owner viewer | ✅ covered | All controls disabled for non-OWNER, mirroring `SlaEscalationPane`'s `isOwner` gate exactly (GET is admin-visible, PATCH is owner-only per the established asymmetric RBAC precedent) |
-| overflow | Digest "and N more" line | ✅ covered | Top-N cap (illustratively 10) + "and N more →" deep-link, per D-15 — same overflow pattern is used in both the settings-pane preview (if shown) and the live digest email |
-| overflow | Long webhook URL / EPSS-threshold decimal in inputs | ✅ covered | Reuses the `TRUNCATE_FIELD_CLASS` (`truncate` + `title=` tooltip) pattern already established in `sla-escalation-pane.tsx` for any freeform text field this pane adds |
-| zero-one-many | Per-owner digest with exactly 1 finding vs many | ✅ covered | Row format is singular-safe by construction (`{glyph} {CVE} on {host} — {delta}` reads correctly whether it's the only row or one of ten; no "1 findings" grammar risk since no count noun is pluralized inline) |
-| long-text | Hostname / CVE-ID overflow inside a digest email row | 🧪 backstop | { statement: "Digest email finding rows truncate a hostname longer than ~40 chars with an ellipsis rather than breaking the table layout", verification: backstop } — email-client table rendering varies (Outlook's Word-based engine handles `text-overflow: ellipsis` inconsistently); executor should test in at least Gmail web + Apple Mail before treating this as proven |
-| empty | "Send test digest" finds nothing to preview | 🧪 backstop | { statement: "Test-digest send with zero matching findings shows the 'Nothing to send right now' inline message rather than silently no-op'ing the button", verification: backstop } — depends on the backend test-send endpoint surfacing a distinguishable empty-vs-error response, which is a Claude's Discretion item in 40-CONTEXT.md, not yet locked |
-| loading | "Send test digest" in-flight state | 🧪 backstop | { statement: "The Send test digest button shows a disabled + 'Sending…' label while the request is in flight, matching the SaveBar's isSaving/'Saving…' pattern", verification: backstop } |
-| overflow | Tenant with a very large number of AssetGroups (per-team digest fan-out) | ⚠ unresolved | Whether the settings pane needs to list/select individual AssetGroups for per-team digest enablement, or just a single on/off toggle that applies to all groups uniformly, is left to Claude's Discretion in 40-CONTEXT.md ("Whether 'team' AssetGroup digests iterate all groups every tick vs. only groups with content"). This UI-SPEC assumes a single tenant-wide on/off toggle (no per-group list UI) per D-16's "fixed structured settings, not a rule-builder" — planner should confirm this reading before building a per-group picker, since a per-group list would be a materially larger UI surface than what's priced into this contract. |
+### E1 — "Alerting & Digests" settings pane (new form surface)
+
+| Category | Status | Resolution / Reason |
+|----------|--------|---------------------|
+| empty | ✅ covered | Zero delivery channels → documented "No delivery channels configured" EmptyState, mirroring `sla-escalation-pane.tsx`'s `anyChannelEnabled` guard verbatim (reuse the same `EmptyState`, keyed off whether any of Slack/Teams/PagerDuty/Email is enabled under SLA & Escalation). |
+| loading | ✅ covered | Reuses `SkeletonTable` per the identical pattern in `sla-escalation-pane.tsx`/`notifications-pane.tsx` — no new loading UI. |
+| error | ✅ covered | GET/PATCH failure reuses `PartialFailureBanner` verbatim; test-digest send failure uses the documented `Test digest couldn't be sent…` copy — no new error chrome. |
+| populated | ✅ covered | Standard 3-section-card render, form pre-filled from `Tenant.alerting_config` (D-18), same shape as `SlaEscalationPane`'s `defaultSlaForm` seeding. |
+| partial | ✅ covered | RBAC non-owner viewer → all controls disabled, mirroring `SlaEscalationPane`'s `isOwner` gate (GET admin-visible, PATCH owner-only per the established asymmetric-RBAC precedent). |
+| overflow | ✅ covered | Long webhook URL / EPSS-threshold decimal in inputs reuse the `TRUNCATE_FIELD_CLASS` (`truncate` + `title=` tooltip) pattern from `sla-escalation-pane.tsx`. |
+| zero-one-many | ✅ covered | Controls are a fixed count (toggles + threshold + cadence + send-hour); **per-team digest is a single tenant-wide on/off toggle (D-16, confirmed 2026-08-19), no per-group list** — so there is no variable-count control that could read wrong at zero/one/many. |
+| long-text | ✅ covered | Same `TRUNCATE_FIELD_CLASS` (`truncate` + `title=`) covers any freeform text field; section headings/labels are fixed copy. |
+| empty — "Send test digest" finds nothing | 🧪 backstop | { statement: "Test-digest send with zero matching findings shows the 'Nothing to send right now — no due, breaching, newly-critical, or expiring-exception findings match your current settings.' inline message rather than silently no-op'ing the button", verification: backstop } — depends on the backend test-send endpoint returning a distinguishable empty-vs-error response, a Claude's-Discretion item in 40-CONTEXT.md not yet locked. Executor must wire and test. (User elected backstop, 2026-08-19.) |
+| loading — "Send test digest" in-flight | ✅ covered | Button shows disabled + `Sending…` while the request is in flight, matching the `SaveBar` `isSaving`/`Saving…` pattern. |
+
+### E2 — Settings sidebar nav entry ("Alerting & Digests")
+
+| Category | Status | Resolution / Reason |
+|----------|--------|---------------------|
+| loading | ✅ covered | Renders synchronously with the settings shell (`ALL_CATEGORIES`) — no independent async load state. |
+| error | ✖ dismissed (N/A) | Static nav entry from shell config; no data fetch, so no failure path to render. |
+| overflow | ✅ covered | Label `Alerting & Digests` is in the same length class as the existing `SLA & Escalation` entry, which already fits the nav width — no new overflow risk. |
+| long-text | ✅ covered | Fixed label copy, no dynamic/user-supplied text. |
+
+### E3 — Real-time in-app notification (ALERT-01)
+
+| Category | Status | Resolution / Reason |
+|----------|--------|---------------------|
+| unclassified → notification/toast | ✅ covered | Probe flagged E3 `unclassified` (manual-review nudge). Resolved: E3 reuses the existing notification bell/toast component (Phase 9/24-era) **verbatim** — its empty/populated/overflow states are already shipped and unchanged. This phase only adds a new *trigger* (a `create_notification` call when a CVE newly qualifies for KEV/EPSS), no new notification UI. |
+
+### E4 — Digest HTML email (D-15)
+
+| Category | Status | Resolution / Reason |
+|----------|--------|---------------------|
+| empty | ✅ covered | Per D-14 the email is **never generated/sent when all sections are empty** — there is no empty-state email to render by design. |
+| loading | ✖ dismissed (N/A) | A digest email is statically generated server-side HTML; there is no client-side loading state for an email body. |
+| error | ✖ dismissed (N/A) | No in-body error state; send/delivery failures are handled at the delivery layer and surfaced via E1's test-digest error copy, not inside the email markup. |
+| populated | ✅ covered | Sectioned finding rows per the Digest email copy table (`Breaching SLA` → `Due soon` → `Newly critical` → `Exceptions expiring soon`), each row `{glyph} {CVE} on {host} — {delta}`. |
+| partial | ✅ covered | A section renders only when it has ≥1 finding (empty sections are omitted) — partial coverage (some sections present, others absent) is the normal render path. |
+| overflow | ✅ covered | Top-N cap (illustratively 10) + `and N more →` deep-link per D-15. |
+| zero-one-many | ✅ covered | Row format is singular-safe by construction (no inline pluralized count noun); one finding vs many both read correctly; zero handled by D-14 suppression. |
+| long-text | 🧪 backstop | { statement: "Digest email finding rows truncate a hostname longer than ~40 chars with an ellipsis rather than breaking the table layout", verification: backstop } — email-client table rendering varies (Outlook's Word engine handles `text-overflow: ellipsis` inconsistently); executor must verify in at least Gmail web + Apple Mail. (User elected backstop, 2026-08-19.) |
+
+### E5 — Audit trail of config changes (ALERT-03, reuse verbatim)
+
+| Category | Status | Resolution / Reason |
+|----------|--------|---------------------|
+| empty | ✅ covered | Existing `audit-log-pane.tsx` empty state, unchanged. |
+| loading | ✅ covered | Existing pane skeleton, unchanged. |
+| error | ✅ covered | Existing pane error handling, unchanged. |
+| populated | ✅ covered | New audit rows appear in the existing pane; backend supplies the action string `{actor} updated alerting configuration` — no new frontend copy. |
+| partial | ✅ covered | Existing pane handles partial data; no new partial state introduced. |
+| overflow | ✅ covered | Existing pane pagination/scroll, unchanged. |
+| zero-one-many | ✅ covered | Existing pane row rendering, unchanged. |
+
+**Backstop verification note for the planner:** the 2 backstop items (E1 test-digest empty preview, E4 email long-text truncation) each carry an unwired acceptance criterion — at verify time, each with no wired evidence routes to `insufficient_spec → human_needed`. The planner should scope an executor task to wire and prove both (distinguishable empty-vs-error test-send response; cross-client hostname truncation in Gmail web + Apple Mail).
 
 ---
 
@@ -193,11 +237,11 @@ No shadcn registry was used or is required — this phase adds zero shadcn compo
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: FLAG → resolved (dangling UI-Considerations cross-reference removed)
+- [x] Dimension 2 Visuals: FLAG → resolved (primary visual anchor for the new pane now declared)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: FLAG (non-blocking — digest-email 12/13/14/15px cluster is tight but justified by email-client rendering; weights/roles differentiate)
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (verified 2026-08-19 — 6/6 dimensions, 0 BLOCK; Dim 1/Dim 2 FLAGs remediated, Dim 4 FLAG accepted with rationale)
