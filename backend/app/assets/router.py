@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset
 from app.assets.constants import ENRICHMENT_SOURCES, SCANNER_SOURCES
+from app.assets.directory import get_directory_user as _get_directory_user
 from app.assets.exposure import EXPOSURE_FIELDS, resolve_group_override_names
 from app.assets.models import Asset, BusinessCriticality, DataSensitivity
 from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
@@ -76,50 +77,6 @@ class _ExposureOverrideUpdate(BaseModel):
             if self.value not in valid_values:
                 raise ValueError(f"value must be one of {sorted(valid_values)}")
         return self
-
-
-async def _get_directory_user(db: AsyncSession, tenant_id, asset) -> dict | None:
-    """Find matching directory user for an asset by email."""
-    from app.tenants.models import User
-
-    # Try to match by humaans_email, assigned_user email, or last_login_user
-    emails_to_try = []
-    mdm = asset.mdm_details or {}
-    if mdm.get("humaans_email"):
-        emails_to_try.append(mdm["humaans_email"].lower())
-    if asset.assigned_user and "@" in asset.assigned_user:
-        emails_to_try.append(asset.assigned_user.lower())
-    if asset.last_login_user and "@" in asset.last_login_user:
-        emails_to_try.append(asset.last_login_user.lower())
-
-    if not emails_to_try:
-        return None
-
-    from sqlalchemy import or_
-
-    result = await db.execute(
-        select(User)
-        .where(
-            User.tenant_id == tenant_id,
-            or_(*[User.email == e for e in emails_to_try]),
-        )
-        .limit(1)
-    )
-    u = result.scalar_one_or_none()
-    if not u:
-        return None
-
-    return {
-        "email": u.email,
-        "display_name": u.display_name,
-        "department": u.department,
-        "job_title": u.job_title,
-        "avatar_url": u.avatar_url,
-        "groups": u.groups or [],
-        "idp_source": u.idp_source,
-        "is_active": u.is_active,
-        "role": u.role,
-    }
 
 
 @router.get("")

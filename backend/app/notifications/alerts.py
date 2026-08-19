@@ -370,15 +370,66 @@ async def _fire_kev_epss_alert(
     trigger_type: str,
     config: dict[str, Any],
 ) -> None:
-    """ALERT-01 fire step (Task 1 minimal version) -- creates the in-app
-    notification twin for a newly-qualifying `(cve, asset)` pair. Owner
-    resolution (D-10), tenant-channel push (D-07/D-19), and the
-    scheduler-side audit row (T-40-06) are added in Task 2.
+    """ALERT-01 fire step -- resolves the asset's owner via the directory
+    (else falls back to admins + the tenant channel, D-10), pushes to every
+    channel configured for `routing.new_kev_epss` through the shared
+    Phase-36 dispatch seam (D-07/D-19, fail-isolated -- a channel POST
+    failure never blocks the in-app twin or any other channel), creates the
+    in-app notification twin (category `new_kev_epss`), and writes a
+    scheduler-side `AuditLog` row directly with the real `tenant.id` (T-40-06
+    -- never `audit(db, None, ...)`, which would mis-bucket under a nil
+    tenant).
     """
+    from app.assets.directory import get_directory_user
+    from app.audit import AuditLog
+    from app.notifications.escalation_channels import dispatch_channel
+    from app.notifications.service import _send_notification_email
+    from app.vulnerabilities.sla_tier_service import _build_channel_config
+
     hostname = asset.hostname if asset else "Unknown host"
     vuln_name = vuln.vulnerability_name or vuln.cve_id or "Unknown vulnerability"
     title = f"New {trigger_type.upper()} Match: {vuln.cve_id}"
     message = f"{vuln_name} on {hostname} newly qualifies for {trigger_type.upper()} alerting"
+
+    # D-10: resolved owner(s) get emailed directly; an unresolved owner
+    # falls back to the tenant's OWNER/ADMIN users (`_email_owners_and_admins`
+    # already fans out to every matching user, i.e. "multiple owners" when
+    # more than one OWNER/ADMIN exists).
+    directory_user = await get_directory_user(db, tenant.id, asset) if asset is not None else None
+    if directory_user and directory_user.get("email"):
+        await _send_notification_email(db, tenant.id, directory_user["email"], title, message, "new_kev_epss")
+    else:
+        await _email_owners_and_admins(db, tenant, title, message, "new_kev_epss")
+
+    # D-07/D-19: tenant channel push, reusing Phase 36's shared-credential
+    # dispatch seam. Never raises -- a decrypt/dispatch failure is logged
+    # and skipped, it must not block the in-app twin or the audit row below.
+    sla_config = tenant.sla_config or {}
+    routing = config.get("routing") or {}
+    channels = routing.get("new_kev_epss") or []
+    for channel in channels:
+        try:
+            channel_config = _build_channel_config(sla_config, channel, tenant)
+            outcome = await dispatch_channel(
+                channel,
+                channel_config,
+                {
+                    "cve_id": vuln.cve_id,
+                    "hostname": hostname,
+                    "trigger_type": trigger_type,
+                    "to_state": "new_kev_epss",
+                },
+            )
+        except Exception as e:  # decrypt/dispatch failure -- never blocks the rest of the fire step
+            outcome = {"ok": False, "error": str(e)}
+        if not outcome.get("ok"):
+            logger.warning(
+                "kev_epss_channel_dispatch_failed",
+                tenant_id=str(tenant.id),
+                channel=channel,
+                cve_id=vuln.cve_id,
+                error=outcome.get("error"),
+            )
 
     await create_notification(
         db,
@@ -394,6 +445,23 @@ async def _fire_kev_epss_alert(
             "asset_id": str(vuln.asset_id) if vuln.asset_id else None,
             "trigger_type": trigger_type,
         },
+    )
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=None,
+            user_email="system:scheduler",
+            action="alert.fire",
+            resource_type="vulnerability",
+            resource_id=vuln.cve_id,
+            details={
+                "trigger_type": trigger_type,
+                "asset_id": str(vuln.asset_id) if vuln.asset_id else None,
+            },
+            ip_address=None,
+            created_at=datetime.now(UTC),
+        )
     )
 
 
