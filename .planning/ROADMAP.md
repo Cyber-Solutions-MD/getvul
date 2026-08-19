@@ -58,7 +58,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 - [x] **Phase 37: Two-Way Ticket Sync & Remediation Verification** — Bi-directional ticket status sync + rescan-verified auto-close + reopen guard ✅ verified 7/7 (2026-08-17)
 - [x] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR (completed 2026-08-18)
 - [x] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry (completed 2026-08-19)
-- [ ] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests
+- [x] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests (completed 2026-08-19; Task 3 live-verify checkpoint approved on-trust, live third-party delivery deferred to /gsd-verify-work 40)
 - [ ] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %
 - [ ] **Phase 42: Risk Trend Analytics & Burndown** — Trend lines, backlog aging/burndown, version-boundary-aware
 - [ ] **Phase 43: Executive & Compliance Reporting** — Exec/board PDF, role-scoped dashboards, framework-control compliance view
@@ -206,7 +206,7 @@ Plans:
   2. Scheduled per-owner / per-team digests (Slack / Teams / email) of due, breaching, and newly-critical findings deliver on the in-process scheduler, no new infra
   3. Alert rules and delivery channels are tenant-configurable on a settings page and every configuration change is audited
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 **Wave 1**
 
@@ -226,7 +226,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4)*
 
-- [ ] 40-05-PLAN.md — ALERT-03 frontend: Alerting & Digests settings pane (clone) + sidebar/microcopy/page registration + live human-verify (ALERT-03)
+- [x] 40-05-PLAN.md — ALERT-03 frontend: Alerting & Digests settings pane (clone) + sidebar/microcopy/page registration + live human-verify (ALERT-03) — checkpoint approved on-trust
 **UI hint**: yes
 
 ### Phase 41: Coverage & Blind-Spot Detection

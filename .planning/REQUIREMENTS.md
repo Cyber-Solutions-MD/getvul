@@ -55,9 +55,9 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 
 ### Proactive Alerting & Digests (ALERT) — Phase 40
 
-- [ ] **ALERT-01**: Fire a targeted alert when a newly KEV-listed or high-EPSS CVE matches one of the tenant's own assets
-- [ ] **ALERT-02**: Scheduled per-owner / per-team digests (Slack / Teams / email) of due / breaching / newly-critical findings, on the in-process scheduler
-- [ ] **ALERT-03**: Alert rules and delivery channels are tenant-configurable and audited
+- [x] **ALERT-01**: Fire a targeted alert when a newly KEV-listed or high-EPSS CVE matches one of the tenant's own assets
+- [x] **ALERT-02**: Scheduled per-owner / per-team digests (Slack / Teams / email) of due / breaching / newly-critical findings, on the in-process scheduler
+- [x] **ALERT-03**: Alert rules and delivery channels are tenant-configurable and audited
 
 ### Coverage & Blind-Spot Detection (COV) — Phase 41
 

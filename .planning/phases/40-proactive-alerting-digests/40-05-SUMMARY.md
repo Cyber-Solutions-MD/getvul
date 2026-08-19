@@ -235,3 +235,24 @@ None -- no external service configuration required for the shipped frontend code
 ---
 *Phase: 40-proactive-alerting-digests*
 *Completed: 2026-08-19*
+
+## Self-Check: PASSED
+
+**Files verified to exist:**
+- FOUND: frontend/src/components/settings/alerting-digests-pane.tsx
+- FOUND: frontend/src/components/settings/alerting-digests-pane.test.tsx
+- FOUND: frontend/src/components/settings/microcopy.ts
+- FOUND: frontend/src/components/settings/settings-sidebar-shell.tsx
+- FOUND: frontend/src/components/settings/settings-sidebar-shell.test.tsx
+- FOUND: frontend/src/app/(authed)/dashboard/settings/page.tsx
+- FOUND: frontend/src/lib/queries/use-tenant-settings.ts
+- FOUND: .planning/phases/40-proactive-alerting-digests/40-05-SUMMARY.md
+
+**Commits verified to exist (`git log --oneline --all`):**
+- FOUND: 50daa4a (Task 1)
+- FOUND: d44d5d7 (Task 2)
+- FOUND: 61ef669 (SUMMARY.md commit)
+
+**Test suite re-verified green:** `npx vitest run alerting-digests-pane settings-sidebar-shell sla-escalation-pane` and the full `src/components/settings` + settings-page dirs — 62/62 (broader suite) + 7/7 + 9/9, all green. `npx tsc --noEmit` clean.
+
+No missing items.

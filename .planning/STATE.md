@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 40
 current_phase_name: Proactive Alerting & Digests
 status: executing
-stopped_at: Phase 40 Plan 04 complete (ALERT-03 config save — AlertingConfigUpdate validation gate, PATCH persistence + audit, GET exposure, POST test-digest preview); Plan 05 next
-last_updated: "2026-08-19T14:20:00.000Z"
+stopped_at: Phase 40 Plan 05 complete (ALERT-03 frontend — Alerting & Digests settings pane shipped + registered; Task 3 checkpoint approved on-trust, live third-party delivery + KEV/EPSS real-time alert-fire/no-re-fire deferred to /gsd-verify-work 40); Phase 40 all 5/5 plans complete, ALERT-01/02/03 marked [x] in REQUIREMENTS.md
+last_updated: "2026-08-19T17:30:00.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 40 Plan 04 complete (2/2 tasks — AlertingConfigUpdate partial-update gate + _safe_alerting pass-through + alerting_config PATCH branch with fail-closed alerting.config_update audit + GET /settings exposure; POST /settings/alerting/test-digest self-targeted preview returning sent/empty/error); test_alerting_settings.py 8/8 green (3 xfail scaffolds turned genuinely green), mypy-baseline resynced
+last_activity_desc: Phase 40 Plan 05 complete (2/2 auto tasks + Task 3 checkpoint approved on-trust) — AlertingDigestsPane shipped as a structural clone of sla-escalation-pane.tsx (three section cards, isOwner RBAC, mandatory loading/empty/error states, Send-test-digest sent/empty/error branching) and registered across microcopy.ts/settings-sidebar-shell.tsx/page.tsx; alerting-digests-pane.test.tsx graduated from the Plan 01 RED scaffold to 7 full assertions; alerting_config added to the frontend TenantSettings/TenantSettingsPatch types (was missing, blocked compilation). Task 3's live-verify checkpoint was approved on-trust by the user (Phase 38/39 precedent) — live third-party delivery (real Slack/Teams/SMTP send) and the KEV/EPSS real-time alert-fire + no-re-fire check were NOT run live; deferred to a future /gsd-verify-work 40 pass. ALERT-01/ALERT-02/ALERT-03 all marked [x] complete in REQUIREMENTS.md — Plan 05 was the designated closer. Phase 40 (proactive-alerting-digests) now 5/5 plans complete.
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 28
-  completed_plans: 27
+  completed_plans: 28
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -41,12 +41,13 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 | ci-bug (actionable) | Pre-existing `backend` CI job lacks ENCRYPTION_KEY in its test step; will fail 5 Phase 24–27 test files next run against a synced origin | one-line fix logged in Phase 28 deferred-items.md — fix before/at next origin sync |
 | ticketing-warn | Phase 23 carried: duplicate POST /sync-status route (CR-02); unvalidated TicketRuleAction.provider str default 'ASANA' (WR-01) | routed to a ticketing-router backlog item |
 | nyquist-doc | VALIDATION.md draft-vs-validated reconciliation for phases 24–27; phase 29 has no VALIDATION.md | documented-stale per project memory (real suites green); coverage-TODO, not a compliance failure |
+| uat | Phase 40 — live third-party digest/alert delivery (real Slack/Teams webhook + SMTP send) + the KEV/EPSS real-time alert-fire-exactly-once/no-re-fire check, not run live | approved on-trust at 40-05; close via /gsd-verify-work 40 |
 
 ## Current Position
 
-Phase: 40 (Proactive Alerting & Digests) — EXECUTING
-Status: Executing Phase 40 (4/5 plans complete — Plan 01 + Plan 02 + Plan 03 + Plan 04 done, Plan 05 next)
-Last activity: 2026-08-19 — Phase 40 Plan 04 complete: ALERT-03 config save proven end-to-end — `AlertingConfigUpdate` (all-Optional partial-update gate mirroring `SlaConfigUpdate`'s shape, bounds `epss_threshold` 0..1 / `send_hour` 0..23 / `cadence` daily|weekly enum) validates the PATCH `/settings` `alerting_config` body, the handler assigns + `flag_modified` + fires a dedicated fail-closed `alerting.config_update` audit row (secret-free, excluded from the generic `settings.update` "changed" dict); `_safe_alerting` is a documented pass-through (D-19: no channel secrets live in `alerting_config`) wired into GET `/settings` for the Plan 05 pane's pre-fill; `POST /settings/alerting/test-digest` (`require_admin`) reuses `digests.py`'s assembly/render functions verbatim to preview the ACTING tenant's digest to the ACTING admin's own email only (T-40-18, never a broadcast), returning `{"status": "sent"|"empty"|"error"}` for the pane's E1 empty-vs-error backstop. `test_alerting_settings.py` 8/8 green (Plan 01's 3 `xfail` scaffolds now genuinely pass, no longer xpass). Found + fixed a `mypy-baseline sync` under-count (repeated-message heuristic gap, second instance of the pattern first seen in Phase 36 Plan 05/commit `47236ef`) by hand-diffing exact per-message counts. ALERT-01..03 still intentionally left unmarked in REQUIREMENTS.md — Plan 05 is the designated closer.
+Phase: 40 (Proactive Alerting & Digests) — 5/5 PLANS COMPLETE (awaiting phase-close/verification)
+Status: Phase 40 all 5/5 plans complete (Plan 01 + Plan 02 + Plan 03 + Plan 04 + Plan 05 done). ALERT-01/ALERT-02/ALERT-03 marked [x] complete in REQUIREMENTS.md (Plan 05 was the designated closer). Task 3 (checkpoint:human-verify) of Plan 05 was approved on-trust by the user — live third-party delivery and the real-time alert-fire/no-re-fire check are deferred to a future /gsd-verify-work 40 pass.
+Last activity: 2026-08-19 — Phase 40 Plan 05 complete: shipped the "Alerting & Digests" settings pane (D-17) as a structural clone of `sla-escalation-pane.tsx` — three section cards (New exposure alerts / Scheduled digests / Delivery channels), `isOwner` RBAC disabling every control for a non-owner viewer, mandatory `SkeletonTable`/`PartialFailureBanner`/`EmptyState` states, and a "Send test digest" action branching on the Plan 04 endpoint's `sent`/`empty`/`error` response — registered across `microcopy.ts`/`settings-sidebar-shell.tsx`/`page.tsx`. Graduated `alerting-digests-pane.test.tsx` from the Plan 01 RED scaffold to 7 full assertions (fixed 2 scaffold test bugs: a multi-match `findByText(/./)` pattern, and a Section-3 routing-row label that accidentally duplicated a Section-1 heading string). Added the missing `alerting_config` field to the frontend `TenantSettings`/`TenantSettingsPatch` types. Task 3's live-verify checkpoint was approved on-trust by the user (Phase 38/39 precedent) — pane render/save/RBAC/empty-state are independently unit-tested; live third-party delivery and the KEV/EPSS real-time alert-fire + no-re-fire check were not run live, deferred to `/gsd-verify-work 40`.
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -493,6 +494,13 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 40]: 40-04: split Task 1 and Task 2's router.py/test-file edits into two genuinely independent commits (temporarily reverted Task 2's code, committed Task 1 standalone with its own mypy-baseline resync, then re-applied Task 2 and resynced again) rather than landing both tasks' behavior in one commit
 - [Phase 40]: ALERT-01/02/03 remain unmarked in REQUIREMENTS.md after 40-04 -- per the phase's established convention (40-01/40-02/40-03), Plan 05 remains the designated closer for all three
 - [Phase 40]: 40-04: hand-edited STATE.md/ROADMAP.md directly again (same rationale as 40-01/40-02/40-03)
+- [Phase 40]: 40-05: `AlertingDigestsPane` built as a structural clone of `sla-escalation-pane.tsx` (same useAuth/useTenantSettings/useUpdateTenantSettings/useDirtyState/SaveBar/SkeletonTable/PartialFailureBanner/EmptyState composition, same isOwner-disables-every-control RBAC gate) -- ToggleSwitch and field-class tokens duplicated locally rather than imported, since the SLA file doesn't export them
+- [Phase 40]: 40-05: Section 3's per-alert-type routing-row labels ("Real-time alerts" / "Owner digests" / "Team digests") were deliberately made distinct from the Section 1/2 heading text -- an earlier draft reused "New exposure alerts" verbatim as a row label, which collided with the identical Section 1 `<h2>` string and broke unambiguous text queries once both were on screen
+- [Phase 40]: 40-05: added `alerting_config` to the frontend `TenantSettings`/`TenantSettingsPatch` types (`use-tenant-settings.ts`) -- Plan 04 added the field to the backend GET/PATCH payloads but the frontend type never picked it up, which would have blocked compilation
+- [Phase 40]: 40-05: test-digest error copy always leads with the fixed UI-SPEC string ("Test digest couldn't be sent...") -- any server-echoed detail is appended as separate, auto-escaped plain React text in parentheses, never substituted for the fixed copy or rendered via dangerouslySetInnerHTML (T-40-21)
+- [Phase 40]: 40-05: Task 3 (checkpoint:human-verify, gate="blocking") was approved ON-TRUST by the user via the orchestrator, consistent with the Phase 38/39 precedent -- pane render/save/RBAC/empty-state are independently covered by the Task 1 unit-test suite; live third-party delivery (real Slack/Teams webhook + SMTP send) and the KEV/EPSS real-time alert-fire + no-re-fire check were NOT run live, deferred to a future `/gsd-verify-work 40` pass
+- [Phase 40]: ALERT-01/ALERT-02/ALERT-03 marked [x] complete in REQUIREMENTS.md after 40-05 -- Plan 05 was the designated closer for all three; Phase 40 (proactive-alerting-digests) is now 5/5 plans complete
+- [Phase 40]: 40-05: hand-edited STATE.md/ROADMAP.md/REQUIREMENTS.md directly again (same rationale as 40-01/40-02/40-03/40-04 -- the `state advance-plan`/`roadmap update-plan-progress` CLI verbs reproducibly corrupt STATE.md frontmatter and mis-write plan counts per this project's decision log)
 
 ## Performance Metrics
 
@@ -566,13 +574,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 40 P02 | 45min | 2 tasks | 3 files |
 | Phase 40 P03 | 20min | 3 tasks | 3 files |
 | Phase 40 P04 | 25min | 2 tasks | 3 files |
+| Phase 40 P05 | ~25min (+ on-trust checkpoint) | 2 auto tasks + 1 checkpoint | 6 files |
 
 ## Session
 
-**Last session:** 2026-08-19T14:20:00.000Z
-**Stopped at:** Phase 40 Plan 04 complete (2/2 tasks); Plan 05 next
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-05-PLAN.md
+**Last session:** 2026-08-19T17:30:00.000Z
+**Stopped at:** Phase 40 Plan 05 complete (2/2 auto tasks + Task 3 checkpoint approved on-trust); Phase 40 all 5/5 plans complete
+**Resume file:** none — Phase 40 fully executed; next is /gsd-plan-phase 41 (or /gsd-verify-work 40 to close the on-trust-deferred live-delivery verification first)
 
 ## Operator Next Steps
 
-- Continue Phase 40 execution with /gsd-execute-phase 40 (4/5 plans complete — Plan 01: schema foundation + Wave 0 RED scaffolds; Plan 02: ALERT-01 lead tracer; Plan 03: ALERT-02 digests (`digests.py` + `email.py` HTML body + scheduler block); Plan 04: ALERT-03 backend (`AlertingConfigUpdate` + PATCH branch + fail-closed audit + GET exposure + self-targeted `test-digest` endpoint), all four done; Plan 05 next — ALERT-03 settings pane frontend, and the designated plan to flip ALERT-01/02/03 complete in REQUIREMENTS.md — unblocked, no unmet depends_on)
+- Phase 40 (Proactive Alerting & Digests) is fully executed: 5/5 plans complete, ALERT-01/ALERT-02/ALERT-03 all marked [x] in REQUIREMENTS.md. Recommended next steps, in order: (1) optionally run `/gsd-verify-work 40` to close the on-trust-deferred live-delivery verification (real Slack/Teams/SMTP send + KEV/EPSS real-time alert-fire/no-re-fire check, per 40-05-SUMMARY.md's "Next Phase Readiness"); (2) proceed to `/gsd-plan-phase 41` (Coverage & Blind-Spot Detection) — no unmet depends_on, independent of Phase 40.
