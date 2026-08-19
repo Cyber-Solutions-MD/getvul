@@ -1,5 +1,7 @@
 """Pydantic schemas for exception endpoints (Phase 39 Plan 01 --
-EXC-01/EXC-02/EXC-03/EXC-04 tracer slice).
+EXC-01/EXC-02/EXC-03/EXC-04 tracer slice; Plan 02 adds the `cve_id` field
++ its scope-conditional validator for full ASSET/ASSET_GROUP scope
+resolution).
 """
 
 from __future__ import annotations
@@ -8,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ExceptionCreate(BaseModel):
@@ -26,18 +28,40 @@ class ExceptionCreate(BaseModel):
     without an IntegrityError). `granted_by_user_id` is deliberately absent
     here -- it is always server-derived from `CurrentUser.id`, never
     client-supplied (T-39-06 mass-assignment defense).
+
+    Phase 39 Plan 02 (EXC-01 full scope model): `cve_id` is REQUIRED for
+    `ASSET`/`ASSET_GROUP` scope -- there is no existing row to derive it
+    from, so the analyst names the CVE directly -- and OPTIONAL-BUT-IGNORED
+    for `FINDING` scope, where the server always derives `cve_id` from the
+    resolved `Vulnerability` row instead of trusting any client-supplied
+    value (Pitfall 9 / T-39-08: a client `cve_id` sent alongside a FINDING
+    grant is silently discarded by `service.py::grant_exception`, never
+    cross-checked against it).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["FALSE_POSITIVE", "ACCEPTED_RISK"]
     scope_type: Literal["FINDING", "ASSET", "ASSET_GROUP"]
+    cve_id: str | None = None
     vulnerability_id: uuid.UUID | None = None
     asset_id: uuid.UUID | None = None
     asset_group_id: uuid.UUID | None = None
     justification: str = Field(..., min_length=1, max_length=1000)
     approver_user_id: uuid.UUID
     expires_at: datetime
+
+    @model_validator(mode="after")
+    def _require_cve_id_for_target_scope(self) -> ExceptionCreate:
+        """ASSET/ASSET_GROUP scope has no existing row to derive `cve_id`
+        from (contrast FINDING scope, Pitfall 9) -- the analyst must name
+        the CVE explicitly. Enforced here (422) in addition to
+        `service.py::grant_exception`'s own defense-in-depth 400 check,
+        mirroring the belt-and-suspenders pattern Plan 01 already
+        established for `approver_user_id` tenant-scoping."""
+        if self.scope_type in ("ASSET", "ASSET_GROUP") and not self.cve_id:
+            raise ValueError(f"cve_id is required for {self.scope_type} scope.")
+        return self
 
 
 class ExceptionResponse(BaseModel):

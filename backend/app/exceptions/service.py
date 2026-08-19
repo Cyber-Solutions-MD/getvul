@@ -3,6 +3,9 @@ tracer slice): the shared "effective exclusion" seam
 (`active_exception_subquery`), expiry validation (D-14), the Pattern 4
 lazy-on-read expiry-audit sweep, and grant/list/revoke.
 
+Phase 39 Plan 02 extends `grant_exception` with full ASSET/ASSET_GROUP
+scope resolution (D-10/D-11/Pitfall 8).
+
 D-01: `exceptions` is the exclusion SOURCE OF TRUTH; exclusion itself is
 derived at read time via `active_exception_subquery` -- granting/revoking/
 expiring an exception never flips `Vulnerability.status`. D-04: an
@@ -21,7 +24,7 @@ from fastapi import HTTPException
 from sqlalchemy import Exists, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.assets.models import AssetGroupMember
+from app.assets.models import Asset, AssetGroup, AssetGroupMember
 from app.audit import AuditLog
 from app.exceptions.models import ExceptionRecord
 from app.exceptions.schemas import ExceptionCreate
@@ -162,11 +165,12 @@ async def grant_exception(
 
     D-03 (Pattern 2 reconciliation): the OPEN/IN_PROGRESS precondition
     applies ONLY to FINDING scope, which targets one concrete existing
-    row. ASSET/ASSET_GROUP scope is explicitly forward-looking (D-11) and
-    lands in Plan 02 -- naively applying the same precondition there would
-    wrongly reject a legitimate "accept risk before any member is
-    detected" grant, so those two scope types 400 here rather than being
-    half-implemented.
+    row. ASSET/ASSET_GROUP scope is explicitly forward-looking (D-11,
+    Pitfall 8) -- this validates only that the target Asset/AssetGroup
+    exists and belongs to the tenant, never the OPEN/IN_PROGRESS
+    precondition, so a legitimate "accept risk before any member is
+    detected" grant always succeeds even with zero currently-matching
+    findings.
     """
     validate_expiry(body.expires_at, now)
 
@@ -203,11 +207,51 @@ async def grant_exception(
         vulnerability_id: uuid.UUID | None = vuln.id
         asset_id: uuid.UUID | None = vuln.asset_id
         asset_group_id: uuid.UUID | None = None
+    elif body.scope_type == "ASSET":
+        # D-11/Pitfall 8: forward-looking -- validate ONLY that the asset
+        # exists and is tenant-owned; deliberately NO OPEN/IN_PROGRESS
+        # check against any existing Vulnerability row (there may be none
+        # yet, and that is a valid grant). `active_exception_subquery`
+        # (39-01) already matches this scope on (cve_id, asset_id) alone.
+        if body.asset_id is None:
+            raise HTTPException(400, "asset_id is required for ASSET scope.")
+        if not body.cve_id:
+            # Defense-in-depth: schemas.py's model_validator already
+            # rejects this at the API boundary (422); re-checked here so
+            # `grant_exception` stays safe to call directly, mirroring the
+            # approver tenant-scoping belt-and-suspenders precedent.
+            raise HTTPException(400, "cve_id is required for ASSET scope.")
+        asset = (
+            await db.execute(select(Asset.id).where(Asset.id == body.asset_id, Asset.tenant_id == tenant_id))
+        ).scalar_one_or_none()
+        if asset is None:
+            raise HTTPException(404, "Asset not found")
+        cve_id = body.cve_id
+        vulnerability_id = None
+        asset_id = body.asset_id
+        asset_group_id = None
+    elif body.scope_type == "ASSET_GROUP":
+        # Same D-11/Pitfall 8 forward-looking rule as ASSET scope, applied
+        # to the group's live membership (resolved at READ time by
+        # `active_exception_subquery`'s AssetGroupMember join, not here --
+        # this only validates the group itself exists and is tenant-owned).
+        if body.asset_group_id is None:
+            raise HTTPException(400, "asset_group_id is required for ASSET_GROUP scope.")
+        if not body.cve_id:
+            raise HTTPException(400, "cve_id is required for ASSET_GROUP scope.")
+        group = (
+            await db.execute(
+                select(AssetGroup.id).where(AssetGroup.id == body.asset_group_id, AssetGroup.tenant_id == tenant_id)
+            )
+        ).scalar_one_or_none()
+        if group is None:
+            raise HTTPException(404, "Asset group not found")
+        cve_id = body.cve_id
+        vulnerability_id = None
+        asset_id = None
+        asset_group_id = body.asset_group_id
     else:
-        # ASSET / ASSET_GROUP scope resolution lands in Plan 02 (39-CONTEXT.md
-        # Open Question Q1 / Pattern 2) -- 400 clearly rather than
-        # half-implement live-membership resolution in the tracer plan.
-        raise HTTPException(400, f"{body.scope_type} scope is not yet supported.")
+        raise HTTPException(400, f"Unsupported scope_type: {body.scope_type}")
 
     record = ExceptionRecord(
         tenant_id=tenant_id,

@@ -1,6 +1,8 @@
 """Exception API routes (Phase 39 Plan 01 -- EXC-01/EXC-02/EXC-03/EXC-04
-tracer slice): POST / (grant), GET / (list, runs the Pattern 4 expiry-audit
-sweep first), POST /{id}/revoke.
+tracer slice; Plan 02 enriches the grant audit payload with the resolved
+target so ASSET/ASSET_GROUP scope is distinguishable in the audit trail):
+POST / (grant), GET / (list, runs the Pattern 4 expiry-audit sweep first),
+POST /{id}/revoke.
 
 Mirrors `campaigns/router.py`'s shape throughout: `_get_exception_or_404`
 tenant-scoped lookup (T-39-01 IDOR -- cross-tenant 404s, never
@@ -97,6 +99,13 @@ async def grant_exception_endpoint(
             "type": record.type,
             "scope_type": record.scope_type,
             "cve_id": record.cve_id,
+            # Plan 02 (Rule 2 -- EXC-03 audit completeness): the concrete
+            # resolved target, not just scope_type/cve_id, so a reviewer
+            # can tell WHICH asset/asset-group/finding this grant covers
+            # without cross-referencing the exceptions table.
+            "vulnerability_id": str(record.vulnerability_id) if record.vulnerability_id else None,
+            "asset_id": str(record.asset_id) if record.asset_id else None,
+            "asset_group_id": str(record.asset_group_id) if record.asset_group_id else None,
             "approver_user_id": str(record.approver_user_id),
             "justification": record.justification,
             "expires_at": record.expires_at.isoformat(),
