@@ -5,16 +5,16 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 39
 current_phase_name: exception-risk-acceptance-workflow
 status: executing
-stopped_at: Phase 39 Plan 01 complete
-last_updated: "2026-08-19T07:03:14.267Z"
+stopped_at: Phase 39 Plan 02 complete
+last_updated: "2026-08-19T07:27:35.000Z"
 last_activity: 2026-08-19
-last_activity_desc: Phase 39 Plan 01 (exception tracer slice) complete
+last_activity_desc: Phase 39 Plan 02 (full scope resolution) complete
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 16
-  percent: 70
+  completed_plans: 17
+  percent: 74
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,9 +46,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 39 (exception-risk-acceptance-workflow) — EXECUTING
-Plan: 2 of 8
-Status: Executing Phase 39 — Plan 01 (exception tracer slice) complete
-Last activity: 2026-08-19 — Plan 39-01 complete
+Plan: 3 of 8
+Status: Executing Phase 39 — Plan 02 (full scope resolution) complete
+Last activity: 2026-08-19 — Plan 39-02 complete
 
 ## v5.0 Phase Map
 
@@ -431,6 +431,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 39]: 39-01: self-review after Task 3 found approver_user_id's bare FK only checks existence, not tenant membership -- a cross-tenant approver would leak that user's display_name/email via GET /exceptions' batch lookup; fixed by validating same-tenant membership at grant time plus a tenant-scoped defense-in-depth filter on the read-side lookup (Rule 2 auto-fix, commit 914ef25)
 - [Phase 39]: EXC-01..04 requirement checkboxes deliberately left unmarked in REQUIREMENTS.md after 39-01 -- every ID is claimed by 2-4 of this phase's 8 plans (39-08 is the last to touch all four); mirrors the Phase 38 CAMP-01 precedent of only the declaring/last plan marking a requirement complete
 - [Phase 39]: 39-01: `state <subcommand>` write commands (advance-plan, update-progress) reproducibly corrupt STATE.md frontmatter on every call -- readModifyWriteStateMd's unconditional syncStateFrontmatter step drops current_phase/current_phase_name/last_activity_desc and mis-recomputes total_phases (4 -> 10, apparently counting the full v5.0 Phase Map table's 10 rows rather than the milestone's tracked wave); worked around by editing STATE.md frontmatter/Performance Metrics/Decisions/Session sections directly and git-diffing before commit, per the pre-existing getvul-execute-phase-tracking-hazards project memory
+- [Phase 39]: 39-02: grant_exception's ASSET/ASSET_GROUP branches replace 39-01's `else: raise HTTPException(400, "... not yet supported.")` placeholder -- tenant-scoped Asset/AssetGroup existence lookup (404 on miss), client-supplied cve_id persisted verbatim, deliberately NO OPEN/IN_PROGRESS precondition (D-11 forward-looking, Pitfall 8); ExceptionCreate.cve_id added as required-for-ASSET/ASSET_GROUP via a model_validator (422), optional-but-silently-ignored for FINDING (server derives it, Pitfall 9)
+- [Phase 39]: 39-02: Rule 2 fix -- exception.grant audit payload was scope_type+cve_id only, which couldn't distinguish WHICH asset/group a non-FINDING grant covers; enriched with resolved vulnerability_id/asset_id/asset_group_id, proven by a dedicated follow-up test committed separately (96eee3b) after being caught in self-review
+- [Phase 39]: 39-02: DEFAULT_EXPIRY_DAYS (FALSE_POSITIVE=180, ACCEPTED_RISK=90) shipped as a plain module constant, no new endpoint -- the frontend pre-fill consuming it is out of this phase's scope (/gsd-ui-phase); MAX_EXPIRY_DAYS's dual-bound cap check was already fully implemented in 39-01 ahead of Task 2's own action bullets, so Task 2's actual net-new code was just this one constant, the rest being test coverage proving already-correct 39-01 exclusion-join behavior (D-12 overlap, D-11 live membership) now reachable via Task 1's new ASSET/ASSET_GROUP grants
+- [Phase 39]: EXC-01..04 requirement checkboxes remain unmarked in REQUIREMENTS.md after 39-02 -- re-confirmed via grep across all 8 phase plan files that 39-08 is the only plan claiming all four EXC-01..04 and is the designated last declaring plan
+- [Phase 39]: 39-02: both tdd="true" tasks executed as write-code-then-tests-then-verify-green-then-commit rather than literal separate RED-commit/GREEN-commit pairs -- this plan's frontmatter type is execute, not tdd, so the stricter plan-level RED/GREEN gate-sequence check doesn't apply; meaningfulness confirmed by inspection (which new tests exercise genuinely new branches vs. already-correct 39-01 behavior), documented in 39-02-SUMMARY.md
 
 ## Performance Metrics
 
@@ -494,13 +499,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 38 P02 | 35min | 2 tasks | 4 files |
 | Phase 38 P03 | 25min | 2 tasks | 4 files |
 | Phase 39 P01 | 29min | 3 tasks | 11 files |
+| Phase 39 P02 | 26min | 2 tasks | 4 files |
 
 ## Session
 
-**Last session:** 2026-08-19T07:05:14.000Z
-**Stopped at:** Phase 39 Plan 01 (exception tracer slice) complete
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-02-PLAN.md
+**Last session:** 2026-08-19T07:27:35.000Z
+**Stopped at:** Phase 39 Plan 02 (full scope resolution) complete
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/39-exception-risk-acceptance-workflow/39-03-PLAN.md
 
 ## Operator Next Steps
 
-- Continue Phase 39 execution with /gsd-execute-phase 39 (1/8 plans complete — 01; Plan 02 next)
+- Continue Phase 39 execution with /gsd-execute-phase 39 (2/8 plans complete — 01, 02; Plan 03 next)
