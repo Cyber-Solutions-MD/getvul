@@ -167,7 +167,7 @@ Plans:
   3. Every exception records who/why/scope/expiry as a tenant-scoped audit event
   4. An expired exception automatically resurfaces into the active queue with no manual re-trigger
 
-**Plans**: 3/8 plans executed
+**Plans**: 4/8 plans executed
 
 Plans:
 **Wave 1**
@@ -178,7 +178,7 @@ Plans:
 
 - [x] 39-02-PLAN.md — Full scope semantics (FINDING/ASSET/ASSET_GROUP live membership), D-03 per-scope precondition, D-12 overlap, D-14 hard expiry cap + defaults, Pitfall-9 server derivation
 - [x] 39-04-PLAN.md — Core consumer sweep: risk score, remediation view (+ hand-rolled bypass), campaigns denominator/bulk-ticket, governance-critical rule engine
-- [ ] 39-06-PLAN.md — Frontend exceptions list page + sortable table (inline-expand) + two-axis chip-bar + query hook/keys + sidebar nav entry
+- [x] 39-06-PLAN.md — Frontend exceptions list page + sortable table (inline-expand) + two-axis chip-bar + query hook/keys + sidebar nav entry
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -287,7 +287,7 @@ Plans:
 | 36. Remediation SLA Engine & Escalation | 6/6 | Complete    | 2026-08-18 |
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
 | 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
-| 39. Exception & Risk-Acceptance Workflow | 3/8 | In Progress|  |
+| 39. Exception & Risk-Acceptance Workflow | 4/8 | In Progress|  |
 | 40. Proactive Alerting & Digests | 0/? | Not started | - |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
 | 42. Risk Trend Analytics & Burndown | 0/? | Not started | - |
