@@ -402,22 +402,22 @@ if "alerting_config" in body:
 
 **Note:** A1–A5 all map to explicit "Claude's Discretion" items in CONTEXT.md — they are planner decisions, not blockers.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Guard table home + shape**
    - What we know: keyed `(tenant_id, cve_id, asset_id, trigger_type)`; discretion whether to store `fired_at` and whether to share infra with `SlaEscalationEvent`.
    - What's unclear: `SlaEscalationEvent` is keyed on `vulnerability_id` (a UUID), whereas ALERT-01 keys on `(cve_id, asset_id)` — different identity, so sharing the table is a poor fit. A dedicated `alerting_guard` table is cleaner.
-   - Recommendation: New table `alerting_guard` with a `UniqueConstraint(tenant_id, cve_id, asset_id, trigger_type)` + `fired_at` (cheap observability), mirroring the `uq_escalation_once` once-only pattern.
+   - RESOLVED: New table `alerting_guard` with a `UniqueConstraint(tenant_id, cve_id, asset_id, trigger_type)` + `fired_at` (cheap observability), mirroring the `uq_escalation_once` once-only pattern. (Locked by the 40-01 Task 1 checkpoint:decision one-way-door gate, option-a.)
 
 2. **Send-hour "sent this period" persistence**
    - What we know: D-12 wants "past target hour AND not sent this period"; the existing 24h gates are in-memory and restart-fragile.
    - What's unclear: whether to persist last-sent on `Tenant`, on a new per-tenant row, or accept in-memory.
-   - Recommendation: persist a `last_digest_sent_at` (per tenant, or per (tenant, recipient-scope)) to avoid restart double-sends (Pitfall 4).
+   - RESOLVED: persist `Tenant.alerting_last_digest_sent_at` (per tenant) to avoid restart double-sends (Pitfall 4). (Locked by the 40-01 Task 1 checkpoint:decision one-way-door gate.)
 
 3. **Digest recipient iteration model**
    - What we know: per-owner (email) + per-team (AssetGroup shared channel), D-08/D-09.
    - What's unclear: how to enumerate "owners" — distinct resolved emails across the tenant's assets vs. distinct `User` rows.
-   - Recommendation: group assets by resolved owner email (via `_get_directory_user` semantics), one digest per distinct owner; separate loop over AssetGroups for team digests.
+   - RESOLVED: group assets by resolved owner email (via `get_directory_user` semantics), one digest per distinct owner; separate loop over AssetGroups for team digests (implemented in 40-03's per-owner/per-team dispatch loops).
 
 ## Environment Availability
 

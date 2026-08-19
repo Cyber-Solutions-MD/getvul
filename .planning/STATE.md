@@ -4,15 +4,15 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 40
 current_phase_name: Proactive Alerting & Digests
-status: planning
-stopped_at: Phase 40 context gathered
-last_updated: "2026-08-19T11:42:47.755Z"
+status: executing
+stopped_at: Phase 40 UI-SPEC approved
+last_updated: "2026-08-19T12:39:43.689Z"
 last_activity: 2026-08-19
 last_activity_desc: Phase 39 complete (8/8 plans + human-verify sign-off; verified 4/4 must-haves), transitioned to Phase 40
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 23
+  total_plans: 28
   completed_plans: 23
 ---
 
@@ -45,7 +45,7 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 40 — Proactive Alerting & Digests
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-08-19 — Phase 39 complete (8/8 plans + human-verify sign-off; verified 4/4 must-haves), transitioned to Phase 40
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
@@ -538,9 +538,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-08-19T11:42:47.725Z
-**Stopped at:** Phase 40 context gathered
-**Resume file:** .planning/phases/40-proactive-alerting-digests/40-CONTEXT.md
+**Last session:** 2026-08-19T11:57:03.938Z
+**Stopped at:** Phase 40 UI-SPEC approved
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/40-proactive-alerting-digests/40-UI-SPEC.md
 
 ## Operator Next Steps
 
