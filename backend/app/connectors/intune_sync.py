@@ -120,8 +120,9 @@ async def run_intune_sync(
     """Run a full Intune managed-device sync and enrich/create Asset records."""
 
     sync_log = SyncLog(
-        connector_config_id=connector_config.id,
-        status="running",
+        connector_id=connector_config.id,
+        tenant_id=connector_config.tenant_id,
+        status="RUNNING",
         started_at=datetime.now(UTC),
         records_fetched=0,
         records_created=0,
@@ -150,24 +151,34 @@ async def run_intune_sync(
             # Try to match by hostname
             asset: Asset | None = None
             if device_name:
-                result = await db.execute(select(Asset).where(Asset.hostname == device_name))
+                result = await db.execute(
+                    select(Asset).where(
+                        Asset.tenant_id == connector_config.tenant_id,
+                        Asset.hostname == device_name,
+                    )
+                )
                 asset = result.scalars().first()
 
             # Try to match by serial number
             if asset is None and serial:
-                result = await db.execute(select(Asset).where(Asset.serial_number == serial))
+                result = await db.execute(
+                    select(Asset).where(
+                        Asset.tenant_id == connector_config.tenant_id,
+                        Asset.serial_number == serial,
+                    )
+                )
                 asset = result.scalars().first()
 
             if asset:
                 _enrich_asset(asset, device)
                 sync_log.records_updated += 1
             elif device_name:
-                asset = Asset(hostname=device_name)
+                asset = Asset(tenant_id=connector_config.tenant_id, hostname=device_name)
                 _enrich_asset(asset, device)
                 db.add(asset)
                 sync_log.records_created += 1
 
-        sync_log.status = "success"
+        sync_log.status = "SUCCESS"
         sync_log.finished_at = datetime.now(UTC)
         await db.flush()
         logger.info(
@@ -178,7 +189,7 @@ async def run_intune_sync(
         )
 
     except Exception as exc:
-        sync_log.status = "error"
+        sync_log.status = "FAILED"
         sync_log.error_message = str(exc)[:2000]
         sync_log.finished_at = datetime.now(UTC)
         await db.flush()
