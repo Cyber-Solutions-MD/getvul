@@ -242,11 +242,23 @@ Plans:
   3. A newly-discovered unmanaged asset can be routed to an owner directly from the coverage view
 
 **Plans**: 5 plans (4 waves)
+**Wave 1**
+
 - [ ] 41-01-PLAN.md — TRACER: blind-spot list end-to-end (COV-01) — backend coverage module + /dashboard/coverage page
 - [ ] 41-02-PLAN.md — Intune sync defect fix (protects D-01 INTUNE baseline; latent cross-tenant bug)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 41-03-PLAN.md — Per-connector coverage strip + staleness (COV-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 41-04-PLAN.md — Route-to-owner write endpoint + D-09 fallback + audit (COV-03 backend)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 41-05-PLAN.md — Route-to-owner drill panel + confirm dialog + mutation (COV-03 frontend)
+
 **UI hint**: yes
 
 ### Phase 42: Risk Trend Analytics & Burndown

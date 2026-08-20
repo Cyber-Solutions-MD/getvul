@@ -4,15 +4,15 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
 current_phase_name: Coverage & Blind-Spot Detection
-status: planning
-stopped_at: Phase 41 UI-SPEC approved
-last_updated: "2026-08-20T12:00:00.000Z"
+status: executing
+stopped_at: Phase 41 planned (5 plans, 4 waves)
+last_updated: "2026-08-20T08:37:16.800Z"
 last_activity: 2026-08-20
-last_activity_desc: Phase 41 UI design contract approved (6/6 dimensions)
+last_activity_desc: Phase 41 planned — 5 plans in 4 waves, verification passed, decision coverage 12/12
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 28
+  total_plans: 33
   completed_plans: 28
 ---
 
@@ -46,8 +46,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 41 — Coverage & Blind-Spot Detection
-Status: Ready to plan
-Last activity: 2026-08-20 — Phase 40 complete, transitioned to Phase 41
+Status: Ready to execute
+Last activity: 2026-08-20 — Phase 41 planned (5 plans, 4 waves); plan-checker passed, decision coverage 12/12
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
