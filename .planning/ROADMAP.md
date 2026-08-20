@@ -241,11 +241,11 @@ Plans:
   2. Per-connector coverage percentage and stale-source gaps (a connector that hasn't reported in N days) are visible
   3. A newly-discovered unmanaged asset can be routed to an owner directly from the coverage view
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 **Wave 1**
 
 - [x] 41-01-PLAN.md — TRACER: blind-spot list end-to-end (COV-01) — backend coverage module + /dashboard/coverage page *(2026-08-20 — GET /api/v1/coverage/blind-spots + /dashboard/coverage page, all 5 loading/error/no-inventory/all-covered/populated states; 5/5 backend + 5/5 frontend tests green)*
-- [ ] 41-02-PLAN.md — Intune sync defect fix (protects D-01 INTUNE baseline; latent cross-tenant bug)
+- [x] 41-02-PLAN.md — Intune sync defect fix (protects D-01 INTUNE baseline; latent cross-tenant bug) *(2026-08-20 — run_intune_sync SyncLog construction fixed (connector_id/tenant_id, uppercase status) + both Asset lookups + constructor tenant-scoped, closing T-41-05/T-41-06; DB-integration test green)*
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

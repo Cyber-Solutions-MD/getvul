@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
 current_phase_name: coverage-blind-spot-detection
 status: executing
-stopped_at: Phase 41 Plan 01 complete (1/5 plans) — COV-01 tracer slice shipped
-last_updated: "2026-08-20T09:14:53Z"
+stopped_at: Phase 41 Plan 02 complete (2/5 plans) — Intune sync SyncLog + tenant-scoping defect fixed (COV-01)
+last_updated: "2026-08-20T13:20:45Z"
 last_activity: 2026-08-20
-last_activity_desc: 41-01 complete — backend coverage module + GET /blind-spots + /dashboard/coverage page (COV-01 tracer)
+last_activity_desc: 41-02 complete — run_intune_sync SyncLog construction fixed (connector_id/tenant_id, uppercase status) + tenant-scoped Asset upsert + integration test
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 29
+  completed_plans: 30
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,8 +46,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 41 (coverage-blind-spot-detection) — EXECUTING
-Status: Executing Phase 41 — Plan 01 of 5 complete (Wave 1)
-Last activity: 2026-08-20 — 41-01 complete: backend coverage module (`GET /api/v1/coverage/blind-spots`, D-01/D-02 reconciliation) + `/dashboard/coverage` page (all 5 states) shipped and tested
+Status: Executing Phase 41 — Plan 02 of 5 complete (Wave 1)
+Last activity: 2026-08-20 — 41-02 complete: run_intune_sync SyncLog construction fixed (connector_id/tenant_id, uppercase RUNNING/SUCCESS/FAILED) + both Asset lookups + the Asset constructor tenant-scoped (closes T-41-05 cross-tenant matching bug) + integration test proving a SyncLog + tenant-scoped INTUNE-tagged Asset are persisted
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -506,6 +506,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 41]: COV-01 left `[ ]` unmarked in REQUIREMENTS.md after 41-01 -- also declared by not-yet-executed 41-02 (Intune sync defect fix, prerequisite for a full authoritative baseline per D-01); mirrors the Phase 38 CAMP-01 shared-ID-gate precedent. Do not flip until 41-02 also lands.
 - [Phase 41]: 41-01: `gsd-sdk` is not installed in this environment (confirmed absent under node_modules, on PATH, and anywhere under `.claude/`) -- hand-edited STATE.md/ROADMAP.md directly (frontmatter/Current Position/Decisions/Performance Metrics/Session/Operator Next Steps) rather than running `state advance-plan`/`roadmap update-plan-progress`, per the pre-existing 39-01/40-01..05 decision-log precedent that those CLI verbs reproducibly corrupt STATE.md frontmatter
 - [Phase 41]: 41-01: logged a pre-existing, unrelated Phase 39 frontend lint error (`approver-combobox.tsx:176`, jsx-a11y/click-events-have-key-events, introduced in commit `8757fdd`) to `deferred-items.md` rather than fixing it -- confirmed via grep that none of this plan's files appear in the lint output; `npm run lint`'s overall exit code is polluted by this unrelated file only
+- [Phase 41]: 41-02: `run_intune_sync`'s SyncLog now mirrors the exact `connector_id`/`tenant_id`/uppercase-status construction pattern already used by `jamf_sync.py` -- fixes the `TypeError` on the nonexistent `connector_config_id` kwarg (Pitfall 1) that previously meant no Intune sync attempt was ever recorded or completed
+- [Phase 41]: 41-02: both Asset lookups (hostname, serial_number) and the `Asset(...)` constructor in `run_intune_sync` are now scoped on `Asset.tenant_id == connector_config.tenant_id`, closing the latent cross-tenant asset-matching bug (T-41-05) in the same edit per the plan's explicit prohibition against splitting the two fixes
+- [Phase 41]: 41-02: Task 2 (tdd="true") test was written and committed after Task 1's fix (per the plan's own task ordering) rather than as a literal RED-then-GREEN cycle -- the new DB-integration test proves the already-landed fix; no gap in behavior coverage existed at any commit boundary, so this is documented as a TDD Gate Compliance note in the SUMMARY, not a rule violation
+- [Phase 41]: COV-01 is now closable in REQUIREMENTS.md -- both declaring plans (41-01, 41-02) have landed; flip the checkbox at the next requirements-mark-complete pass
+- [Phase 41]: 41-02: `gsd-sdk`'s `state advance-plan` CLI verb was invoked once, confirmed it silently corrupted STATE.md frontmatter (`total_phases` 6→10, `completed_plans` 29→30 without basis, `current_phase`/`current_phase_name` keys dropped entirely) exactly per the 39-01/40-*/41-01 decision-log precedent -- reverted via `git checkout` and hand-edited frontmatter/Current Position/Decisions/Performance Metrics/Session/Operator Next Steps instead
 
 ## Performance Metrics
 
@@ -581,13 +586,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 40 P04 | 25min | 2 tasks | 3 files |
 | Phase 40 P05 | ~25min (+ on-trust checkpoint) | 2 auto tasks + 1 checkpoint | 6 files |
 | Phase 41 P01 | 31min | 2 tasks | 13 files |
+| Phase 41 P02 | ~15min | 2 tasks | 2 files |
 
 ## Session
 
-**Last session:** 2026-08-20T09:14:53Z
-**Stopped at:** Phase 41 Plan 01 (41-01) complete — COV-01 tracer slice shipped
-**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-02-PLAN.md
+**Last session:** 2026-08-20T13:20:45Z
+**Stopped at:** Phase 41 Plan 02 (41-02) complete — Intune sync SyncLog + tenant-scoping defect fixed
+**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-03-PLAN.md
 
 ## Operator Next Steps
 
-- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 1/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green). Wave 1's second plan, 41-02 (Intune sync defect fix, `depends_on: []`), is unblocked — recommended next step: continue execution with 41-02, then Wave 2 (41-03, COV-02 coverage strip), Wave 3 (41-04, COV-03 backend), Wave 4 (41-05, COV-03 frontend). COV-01 stays unmarked in REQUIREMENTS.md until 41-02 also lands (shared-ID gate).
+- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 2/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test). COV-01 is now fully closable in REQUIREMENTS.md (both its declaring plans, 41-01 and 41-02, have landed). Wave 2's plan, 41-03 (COV-02 coverage strip), is the recommended next step, followed by Wave 3 (41-04, COV-03 backend) and Wave 4 (41-05, COV-03 frontend).
