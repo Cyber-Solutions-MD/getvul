@@ -241,7 +241,12 @@ Plans:
   2. Per-connector coverage percentage and stale-source gaps (a connector that hasn't reported in N days) are visible
   3. A newly-discovered unmanaged asset can be routed to an owner directly from the coverage view
 
-**Plans**: TBD
+**Plans**: 5 plans (4 waves)
+- [ ] 41-01-PLAN.md — TRACER: blind-spot list end-to-end (COV-01) — backend coverage module + /dashboard/coverage page
+- [ ] 41-02-PLAN.md — Intune sync defect fix (protects D-01 INTUNE baseline; latent cross-tenant bug)
+- [ ] 41-03-PLAN.md — Per-connector coverage strip + staleness (COV-02)
+- [ ] 41-04-PLAN.md — Route-to-owner write endpoint + D-09 fallback + audit (COV-03 backend)
+- [ ] 41-05-PLAN.md — Route-to-owner drill panel + confirm dialog + mutation (COV-03 frontend)
 **UI hint**: yes
 
 ### Phase 42: Risk Trend Analytics & Burndown
