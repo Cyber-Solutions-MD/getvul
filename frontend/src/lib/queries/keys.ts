@@ -145,4 +145,14 @@ export const queryKeys = {
     list: (opts: { page: number; pageSize: number }) =>
       ['remediations-grouped', 'list', opts] as const,
   },
+  // Phase 41 (41-01, COV-01) — /dashboard/coverage blind-spot-detection
+  // tracer slice. GET /api/v1/coverage/blind-spots supports page/page_size
+  // (mirrors tickets.list's opts-object shape so pagination stays part of
+  // the cache key). `summary()` is added now (no opts) so Plan 02 (COV-02
+  // coverage strip, GET /api/v1/coverage/summary) needs no re-touch here.
+  coverage: {
+    all: ['coverage'] as const,
+    summary: () => ['coverage', 'summary'] as const,
+    blindSpots: (opts: { page: number }) => ['coverage', 'blind-spots', opts] as const,
+  },
 } as const;

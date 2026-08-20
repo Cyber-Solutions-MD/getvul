@@ -2,7 +2,7 @@
 // Consumed by: sidebar.tsx, bottom-nav.tsx, nav-drawer.tsx, nav-more-sheet.tsx
 // This is a plain .ts file (no JSX) — all types + arrays + helpers in one place.
 import {
-  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban, Target, ShieldOff,
+  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban, Target, ShieldOff, Radar,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -50,6 +50,9 @@ export const WORKFLOW_ITEMS: NavItem[] = [
   // Phase 39 (39-06, EXC-02/EXC-03) — manage-only exceptions list view. No
   // chip per D-N-01 (not one of the three chip-carrying destinations).
   { label: 'Exceptions', href: '/dashboard/exceptions', icon: ShieldOff },
+  // Phase 41 (41-01, COV-01) — blind-spot detection list view. No chip per
+  // D-N-01 (not one of the three chip-carrying destinations).
+  { label: 'Coverage', href: '/dashboard/coverage', icon: Radar },
 ];
 
 export const UNLABELED_ITEMS: NavItem[] = [
