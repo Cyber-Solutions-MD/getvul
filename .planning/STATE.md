@@ -5,12 +5,12 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
 current_phase_name: Coverage & Blind-Spot Detection
 status: planning
-stopped_at: Phase 40 Plan 05 complete (2/2 auto tasks + Task 3 checkpoint approved on-trust); Phase 40 all 5/5 plans complete
-last_updated: "2026-08-20T05:39:30.264Z"
+stopped_at: Phase 41 context gathered
+last_updated: "2026-08-20T06:23:07.947Z"
 last_activity: 2026-08-20
 last_activity_desc: Phase 40 complete, transitioned to Phase 41
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
   total_plans: 28
   completed_plans: 28
@@ -578,9 +578,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-08-19T17:30:00.000Z
-**Stopped at:** Phase 40 Plan 05 complete (2/2 auto tasks + Task 3 checkpoint approved on-trust); Phase 40 all 5/5 plans complete
-**Resume file:** none — Phase 40 fully executed; next is /gsd-plan-phase 41 (or /gsd-verify-work 40 to close the on-trust-deferred live-delivery verification first)
+**Last session:** 2026-08-20T06:23:07.921Z
+**Stopped at:** Phase 41 context gathered
+**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-CONTEXT.md
 
 ## Operator Next Steps
 
