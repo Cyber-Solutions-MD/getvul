@@ -470,9 +470,17 @@ function daysAgo(iso: string): number {
 
 **If this table is empty:** not applicable — see entries above. Every other claim in this research (the data model, the existing functions, the two RBAC systems, the Intune defect itself) was directly verified by reading the source and is not tagged `[ASSUMED]`.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **How should D-09's "tenant alert channel" fallback actually be wired, given no routing key exists for this event type yet?**
+> **Resolution map (back-annotated at plan-checker, 2026-08-20):** every open question below was resolved during planning and is traceable to a specific plan.
+> - **Q1 (D-09 channel wiring)** → RESOLVED in **41-04**: adds `"coverage_unmanaged_asset": []` to `DEFAULT_ALERTING_CONFIG["routing"]` (one-line JSONB default) AND keeps the `_email_owners_and_admins` fallback — both legs of D-09 honored, no scope reduction; no settings-UI control this phase.
+> - **Q2 (pagination contract)** → RESOLVED in **41-01**: reuses the `AssetsResponse` `page`/`page_size` envelope verbatim.
+> - **Q3 (scanner-absent empty-state copy)** → RESOLVED in **41-03**: extends the `EmptyState` family with the "No scanner connected" copy per `copy-voice.md`.
+> - **Q4 (ignored assets / disabled connectors)** → RESOLVED in **41-01 / 41-03**: both excluded (`is_ignored.is_(False)`; `ConnectorConfig.is_enabled == True`), mirroring the `/assets` default.
+> - **Q5 (nav group placement)** → RESOLVED in **41-01**: `WORKFLOW_ITEMS`, alongside Campaigns/Exceptions.
+> - **Q6 (Intune defect scope)** → RESOLVED: raised explicitly and pulled into scope as **41-02** (Wave 1, independent files), documented in that plan's `planner_scoping_note` — not silently fixed or ignored.
+
+1. **How should D-09's "tenant alert channel" fallback actually be wired, given no routing key exists for this event type yet?** — **RESOLVED → 41-04**
    - What we know: `dispatch_channel`/`_build_channel_config` are fully reusable, SSRF-guarded, and already used by `_fire_kev_epss_alert` for an analogous resolve-or-fallback flow. `Tenant.alerting_config` is an unconstrained JSONB column, so adding a new default routing key is a one-line, zero-migration change.
    - What's unclear: whether CONTEXT.md's "tenant alert channel" phrase requires a new tenant-configurable routing key (with an eventual settings-UI toggle, likely out of scope this phase) or can be satisfied by a fixed/default channel selection.
    - Recommendation: add `"coverage_unmanaged_asset": []` (or a sensible default like `["slack"]`) to `DEFAULT_ALERTING_CONFIG["routing"]` in `alerting_config.py`, reuse `_build_channel_config`/`dispatch_channel` exactly as `_fire_kev_epss_alert` does, and explicitly skip adding a settings-UI control this phase (tenants can still configure the underlying Slack/Teams/email credentials via the existing Phase 36 UI). If the planner wants a lighter footprint, email-to-admins-only (already satisfies "notify admins") is a defensible fallback, with the channel leg deferred.
