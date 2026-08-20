@@ -65,8 +65,10 @@ Exceptions: none.
 |------|------|--------|-------------|
 | Body | 14px (`--text-sm`) | 400 | 1.5 (`--leading-base`) |
 | Label | 12px (`--text-xs`) | 500 | 1.3 (`--leading-snug`) |
-| Heading (page title `<h1>`, coverage card title) | 32px (`--text-3xl`) for page title / 16px (`--text-base`, scaled semibold) for card title | 600 | 1.2 page title / 1.3 card title |
+| Heading (page title `<h1>`) | 32px (`--text-3xl`) | 600 | 1.2 (`--leading-tight`) |
 | Display (per-connector coverage % headline number) | 40px (`--text-4xl`) | 600 | 1.1 (`--leading-tight`) |
+
+Coverage **card titles reuse the Body size (14px) at weight 600** — differentiated from body copy by weight, not by a fifth font size. This keeps the scale at exactly **4 sizes: 12px (Label), 14px (Body / card title), 32px (page Heading), 40px (Display)**.
 
 Weights used: **400 (regular — body copy, table cells)** and **600 (semibold — page title, card titles, coverage % headline, badge text)** — exactly 2, matching every other v5.0 phase. Coverage %, day counts (`12d ago`), and asset counts render in JetBrains Mono with `tabular-nums` per `foundation.md`'s "anything copy-pasteable" rule — hostnames and connector last-sync deltas are the mono-context values on this page.
 
