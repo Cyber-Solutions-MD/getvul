@@ -12,10 +12,11 @@ predicates this reconciliation needs:
   authoritative  = OR across ENRICHMENT_SOURCES   (D-01)
   never_scanned  = NOT (OR across SCANNER_SOURCES) (D-02)
 
-`has_authoritative_inventory` answers a DIFFERENT question than the list
-itself -- "does this tenant have ANY authoritative asset at all,"
-independent of scanner coverage -- so the frontend can tell "no inventory
-source connected" (D-11) apart from "fully covered, zero blind spots."
+`total_authoritative_assets`/`has_authoritative_inventory` answer a
+DIFFERENT question than the list itself -- how many authoritative assets
+exist at all, independent of scanner coverage -- so the frontend can tell
+"no inventory source connected" (D-11) apart from "fully covered, zero
+blind spots" (and render the real device count in that quiet-win copy).
 """
 
 from __future__ import annotations
@@ -42,17 +43,21 @@ def _never_scanned_clause() -> ColumnElement[bool]:
     return not_(or_(*[Asset.seen_by_sources.contains([s]) for s in SCANNER_SOURCES]))
 
 
-async def _has_authoritative_inventory(
+async def _count_authoritative_assets(
     db: AsyncSession, tenant_id: uuid.UUID, authoritative: ColumnElement[bool]
-) -> bool:
-    """D-11: does this tenant have ANY authoritative (MDM/HR) asset at all
-    -- independent of scanner coverage -- so the frontend can distinguish
-    "no inventory source connected" from "fully covered." Mirrors the
+) -> int:
+    """D-11: how many authoritative (MDM/HR) assets exist at all --
+    independent of scanner coverage -- so the frontend can distinguish "no
+    inventory source connected" from "fully covered" AND render the real
+    device count in the quiet-win empty copy. A plain COUNT over the exact
+    same `authoritative` clause already used above -- not a second
+    join/query shape, just `.limit(1)` widened to a full count. Mirrors the
     blind-spot list's own is_ignored exclusion so "inventory exists" never
     points at an asset that is invisible everywhere else in the app."""
-    exists_q = select(Asset.id).where(Asset.tenant_id == tenant_id, Asset.is_ignored.is_(False), authoritative).limit(1)
-    result = (await db.execute(exists_q)).scalar_one_or_none()
-    return result is not None
+    count_q = select(func.count()).select_from(
+        select(Asset.id).where(Asset.tenant_id == tenant_id, Asset.is_ignored.is_(False), authoritative).subquery()
+    )
+    return (await db.execute(count_q)).scalar() or 0
 
 
 async def list_blind_spot_assets(
@@ -109,7 +114,7 @@ async def list_blind_spot_assets(
         for a in assets
     ]
 
-    has_authoritative_inventory = await _has_authoritative_inventory(db, tenant_id, authoritative)
+    total_authoritative_assets = await _count_authoritative_assets(db, tenant_id, authoritative)
 
     return BlindSpotAssetListResponse(
         items=items,
@@ -117,5 +122,6 @@ async def list_blind_spot_assets(
         page=safe_page,
         page_size=safe_page_size,
         pages=(total + safe_page_size - 1) // safe_page_size,
-        has_authoritative_inventory=has_authoritative_inventory,
+        has_authoritative_inventory=total_authoritative_assets > 0,
+        total_authoritative_assets=total_authoritative_assets,
     )

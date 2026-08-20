@@ -91,7 +91,8 @@ async def test_blind_spot_list(client_factory, db_session, tenant_a, viewer_user
 async def test_blind_spot_empty_inventory(client_factory, db_session, tenant_a, viewer_user):
     """A tenant with zero authoritative (MDM/HR) assets -- only a
     scanner-only asset exists -- gets items=[] AND
-    has_authoritative_inventory=false (D-11: never a misleading 0%/100%)."""
+    has_authoritative_inventory=false (D-11: never a misleading 0%/100%),
+    with total_authoritative_assets=0 backing that signal with a real count."""
     scanner_only = _seed_asset(tenant_a, seen_by_sources=["QUALYS"])
     db_session.add(scanner_only)
     await db_session.commit()
@@ -102,6 +103,7 @@ async def test_blind_spot_empty_inventory(client_factory, db_session, tenant_a, 
     body = r.json()
     assert body["items"] == []
     assert body["has_authoritative_inventory"] is False
+    assert body["total_authoritative_assets"] == 0
 
 
 # ── Quiet-win: inventory exists, fully covered ──
@@ -111,7 +113,9 @@ async def test_blind_spot_empty_inventory(client_factory, db_session, tenant_a, 
 async def test_blind_spot_all_covered(client_factory, db_session, tenant_a, viewer_user):
     """A tenant whose only authoritative asset is ALSO scanner-covered gets
     items=[] AND has_authoritative_inventory=true -- the "every device is
-    covered" quiet-win state, distinguishable from the no-inventory case."""
+    covered" quiet-win state, distinguishable from the no-inventory case --
+    with total_authoritative_assets=1 supplying the quiet-win copy's real
+    device count."""
     covered = _seed_asset(tenant_a, seen_by_sources=["JAMF", "QUALYS"])
     db_session.add(covered)
     await db_session.commit()
@@ -122,6 +126,7 @@ async def test_blind_spot_all_covered(client_factory, db_session, tenant_a, view
     body = r.json()
     assert body["items"] == []
     assert body["has_authoritative_inventory"] is True
+    assert body["total_authoritative_assets"] == 1
 
 
 # ── Deterministic ordering: hostname asc, id asc tiebreak ──
@@ -165,3 +170,4 @@ async def test_blind_spot_cross_tenant_isolation(client_factory, db_session, ten
     ids = {item["id"] for item in body["items"]}
     assert str(asset_a.id) not in ids, ids
     assert body["has_authoritative_inventory"] is False
+    assert body["total_authoritative_assets"] == 0

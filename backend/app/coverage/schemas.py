@@ -35,9 +35,18 @@ class BlindSpotAssetResponse(BaseModel):
 class BlindSpotAssetListResponse(BaseModel):
     """Mirrors the existing `/assets` pagination envelope
     (`{items,total,page,page_size,pages}`, `assets/router.py::list_assets`)
-    verbatim, plus `has_authoritative_inventory` (D-11) so the frontend can
-    distinguish "no MDM/HR connector configured" from "fully covered, zero
-    blind spots" -- never a misleading 0%/100% or a total-assets fallback.
+    verbatim, plus two authoritative-inventory signals (D-11) so the
+    frontend can distinguish "no MDM/HR connector configured" from "fully
+    covered, zero blind spots" -- never a misleading 0%/100% or a
+    total-assets fallback:
+
+      has_authoritative_inventory -- any authoritative asset exists at all.
+      total_authoritative_assets  -- the real count, needed by the
+        frontend's "All {N} devices in your inventory..." quiet-win empty
+        copy (41-UI-SPEC.md) -- `total` above is the BLIND-SPOT count
+        (deliberately 0 in that same quiet-win state), so it cannot supply
+        this number. Named to match the field 41-PATTERNS.md already
+        anticipates on the future `/coverage/summary` (COV-02) response.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -48,3 +57,4 @@ class BlindSpotAssetListResponse(BaseModel):
     page_size: int
     pages: int
     has_authoritative_inventory: bool
+    total_authoritative_assets: int
