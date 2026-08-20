@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
-current_phase_name: Coverage & Blind-Spot Detection
+current_phase_name: coverage-blind-spot-detection
 status: executing
-stopped_at: Phase 41 planned (5 plans, 4 waves)
-last_updated: "2026-08-20T08:37:16.800Z"
+stopped_at: Phase 41 Plan 01 complete (1/5 plans) — COV-01 tracer slice shipped
+last_updated: "2026-08-20T09:14:53Z"
 last_activity: 2026-08-20
-last_activity_desc: Phase 41 planned — 5 plans in 4 waves, verification passed, decision coverage 12/12
+last_activity_desc: 41-01 complete — backend coverage module + GET /blind-spots + /dashboard/coverage page (COV-01 tracer)
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 28
+  completed_plans: 29
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 40 — Proactive Alerting & Digests
+**Current focus:** Phase 41 — coverage-blind-spot-detection
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 41 — Coverage & Blind-Spot Detection
-Status: Ready to execute
-Last activity: 2026-08-20 — Phase 41 planned (5 plans, 4 waves); plan-checker passed, decision coverage 12/12
+Phase: 41 (coverage-blind-spot-detection) — EXECUTING
+Status: Executing Phase 41 — Plan 01 of 5 complete (Wave 1)
+Last activity: 2026-08-20 — 41-01 complete: backend coverage module (`GET /api/v1/coverage/blind-spots`, D-01/D-02 reconciliation) + `/dashboard/coverage` page (all 5 states) shipped and tested
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -501,6 +501,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 40]: 40-05: Task 3 (checkpoint:human-verify, gate="blocking") was approved ON-TRUST by the user via the orchestrator, consistent with the Phase 38/39 precedent -- pane render/save/RBAC/empty-state are independently covered by the Task 1 unit-test suite; live third-party delivery (real Slack/Teams webhook + SMTP send) and the KEV/EPSS real-time alert-fire + no-re-fire check were NOT run live, deferred to a future `/gsd-verify-work 40` pass
 - [Phase 40]: ALERT-01/ALERT-02/ALERT-03 marked [x] complete in REQUIREMENTS.md after 40-05 -- Plan 05 was the designated closer for all three; Phase 40 (proactive-alerting-digests) is now 5/5 plans complete
 - [Phase 40]: 40-05: hand-edited STATE.md/ROADMAP.md/REQUIREMENTS.md directly again (same rationale as 40-01/40-02/40-03/40-04 -- the `state advance-plan`/`roadmap update-plan-progress` CLI verbs reproducibly corrupt STATE.md frontmatter and mis-write plan counts per this project's decision log)
+- [Phase 41]: 41-01 (LEAD TRACER): reconciliation is two `.contains()` boolean clauses over `Asset.seen_by_sources` (authoritative = OR across ENRICHMENT_SOURCES, never_scanned = NOT OR across SCANNER_SOURCES) reused verbatim across the list query, its count, and a separate authoritative-only count -- no join, no runtime hostname/serial matcher, per D-01/D-02 and the must_haves prohibition
+- [Phase 41]: 41-01: Rule 3 auto-fix -- extended `BlindSpotAssetListResponse` with `total_authoritative_assets` (int) beyond the plan's literal has_authoritative_inventory-only spec; the UI-SPEC's quiet-win copy ("All {N} devices...") needs a real device count the boolean alone can't supply, and the blind-spot list's own `total` is 0 in exactly that state. Implemented as a COUNT over the identical `authoritative` clause (widened from the original EXISTS/LIMIT-1 helper) -- no second join/query shape. Named to match the field 41-PATTERNS.md already anticipates on the future `/coverage/summary` (COV-02) response
+- [Phase 41]: COV-01 left `[ ]` unmarked in REQUIREMENTS.md after 41-01 -- also declared by not-yet-executed 41-02 (Intune sync defect fix, prerequisite for a full authoritative baseline per D-01); mirrors the Phase 38 CAMP-01 shared-ID-gate precedent. Do not flip until 41-02 also lands.
+- [Phase 41]: 41-01: `gsd-sdk` is not installed in this environment (confirmed absent under node_modules, on PATH, and anywhere under `.claude/`) -- hand-edited STATE.md/ROADMAP.md directly (frontmatter/Current Position/Decisions/Performance Metrics/Session/Operator Next Steps) rather than running `state advance-plan`/`roadmap update-plan-progress`, per the pre-existing 39-01/40-01..05 decision-log precedent that those CLI verbs reproducibly corrupt STATE.md frontmatter
+- [Phase 41]: 41-01: logged a pre-existing, unrelated Phase 39 frontend lint error (`approver-combobox.tsx:176`, jsx-a11y/click-events-have-key-events, introduced in commit `8757fdd`) to `deferred-items.md` rather than fixing it -- confirmed via grep that none of this plan's files appear in the lint output; `npm run lint`'s overall exit code is polluted by this unrelated file only
 
 ## Performance Metrics
 
@@ -575,13 +580,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 40 P03 | 20min | 3 tasks | 3 files |
 | Phase 40 P04 | 25min | 2 tasks | 3 files |
 | Phase 40 P05 | ~25min (+ on-trust checkpoint) | 2 auto tasks + 1 checkpoint | 6 files |
+| Phase 41 P01 | 31min | 2 tasks | 13 files |
 
 ## Session
 
-**Last session:** 2026-08-20T06:23:07.921Z
-**Stopped at:** Phase 41 context gathered
-**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-CONTEXT.md
+**Last session:** 2026-08-20T09:14:53Z
+**Stopped at:** Phase 41 Plan 01 (41-01) complete — COV-01 tracer slice shipped
+**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-02-PLAN.md
 
 ## Operator Next Steps
 
-- Phase 40 (Proactive Alerting & Digests) is fully executed: 5/5 plans complete, ALERT-01/ALERT-02/ALERT-03 all marked [x] in REQUIREMENTS.md. Recommended next steps, in order: (1) optionally run `/gsd-verify-work 40` to close the on-trust-deferred live-delivery verification (real Slack/Teams/SMTP send + KEV/EPSS real-time alert-fire/no-re-fire check, per 40-05-SUMMARY.md's "Next Phase Readiness"); (2) proceed to `/gsd-plan-phase 41` (Coverage & Blind-Spot Detection) — no unmet depends_on, independent of Phase 40.
+- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 1/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green). Wave 1's second plan, 41-02 (Intune sync defect fix, `depends_on: []`), is unblocked — recommended next step: continue execution with 41-02, then Wave 2 (41-03, COV-02 coverage strip), Wave 3 (41-04, COV-03 backend), Wave 4 (41-05, COV-03 frontend). COV-01 stays unmarked in REQUIREMENTS.md until 41-02 also lands (shared-ID gate).
