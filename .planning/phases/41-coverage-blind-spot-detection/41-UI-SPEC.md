@@ -1,7 +1,7 @@
 ---
 phase: 41
 slug: coverage-blind-spot-detection
-status: draft
+status: approved
 shadcn_initialized: true
 preset: "frontend/components.json — style new-york, baseColor zinc, cssVariables true, iconLibrary lucide (existing, unmodified). Production does NOT consume shadcn's zinc theme directly — every screen consumes the sunset design-token layer from sketch-findings-getvul/foundation.md instead. No shadcn `ui/` primitives are installed in frontend/src/components/ui (that directory is 100% hand-rolled Tailwind + design tokens). This phase adds zero new shadcn components — it composes existing Assets-screen primitives (ChipBar/list/DrillPanel/StatStrip/SyncStatusPill/ConnectorMark/EmptyState) verbatim, per 41-CONTEXT.md D-04."
 created: 2026-08-20
@@ -142,7 +142,7 @@ Weights used: **400 (regular — body copy, table cells)** and **600 (semibold �
 > Empty-state and error-state COPY live in `## Copywriting Contract` above — this section covers
 > state coverage and REFERENCES those rows rather than restating the copy (de-dup).
 
-Applicable state considerations resolved: **19 covered, 3 backstop, 2 dismissed (not applicable) — 0 unresolved.**
+Applicable state considerations resolved: **24 covered, 2 backstop, 4 dismissed (not applicable) — 0 unresolved.** (Probe reconciliation: 31 machine-proposed applicable considerations across E1–E5 + 1 `unclassified` nudge on E4, all addressed; both backstops confirmed deferred-to-planner by the user at the 9.5 resolution step.)
 
 ### E1 — Per-connector coverage strip (top)
 
@@ -199,7 +199,7 @@ Applicable state considerations resolved: **19 covered, 3 backstop, 2 dismissed 
 | overflow | nav entry | ✅ covered | `Coverage` is a single short word, well within the existing nav-label width budget (shorter than `Campaigns`/`Exceptions`). |
 | long-text | nav entry | ✅ covered | Fixed label copy, no dynamic text. |
 
-**Backstop verification note for the planner:** the 3 backstop items (E2 blind-spot-list pagination contract, E4 scanner-absent empty-state copy) each carry an unwired acceptance criterion — at verify time, each with no wired evidence routes to `insufficient_spec → human_needed`. The planner should scope explicit research/design decisions for both before an executor implements them.
+**Backstop verification note for the planner:** the 2 backstop items (E2 blind-spot-list pagination contract, E4 scanner-absent empty-state copy) each carry an unwired acceptance criterion — at verify time, each with no wired evidence routes to `insufficient_spec → human_needed`. The planner should scope explicit research/design decisions for both before an executor implements them.
 
 ---
 
@@ -216,11 +216,11 @@ No shadcn registry was used or is required — this phase adds zero shadcn compo
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (gsd-ui-checker, revision 1 — all 6 dimensions PASS)
