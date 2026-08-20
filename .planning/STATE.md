@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
-current_phase: 40
-current_phase_name: Proactive Alerting & Digests
-status: executing
-stopped_at: Phase 40 Plan 05 complete (ALERT-03 frontend — Alerting & Digests settings pane shipped + registered; Task 3 checkpoint approved on-trust, live third-party delivery + KEV/EPSS real-time alert-fire/no-re-fire deferred to /gsd-verify-work 40); Phase 40 all 5/5 plans complete, ALERT-01/02/03 marked [x] in REQUIREMENTS.md
-last_updated: "2026-08-19T17:30:00.000Z"
-last_activity: 2026-08-19
-last_activity_desc: Phase 40 Plan 05 complete (2/2 auto tasks + Task 3 checkpoint approved on-trust) — AlertingDigestsPane shipped as a structural clone of sla-escalation-pane.tsx (three section cards, isOwner RBAC, mandatory loading/empty/error states, Send-test-digest sent/empty/error branching) and registered across microcopy.ts/settings-sidebar-shell.tsx/page.tsx; alerting-digests-pane.test.tsx graduated from the Plan 01 RED scaffold to 7 full assertions; alerting_config added to the frontend TenantSettings/TenantSettingsPatch types (was missing, blocked compilation). Task 3's live-verify checkpoint was approved on-trust by the user (Phase 38/39 precedent) — live third-party delivery (real Slack/Teams/SMTP send) and the KEV/EPSS real-time alert-fire + no-re-fire check were NOT run live; deferred to a future /gsd-verify-work 40 pass. ALERT-01/ALERT-02/ALERT-03 all marked [x] complete in REQUIREMENTS.md — Plan 05 was the designated closer. Phase 40 (proactive-alerting-digests) now 5/5 plans complete.
+current_phase: 41
+current_phase_name: Coverage & Blind-Spot Detection
+status: planning
+stopped_at: Phase 40 Plan 05 complete (2/2 auto tasks + Task 3 checkpoint approved on-trust); Phase 40 all 5/5 plans complete
+last_updated: "2026-08-20T05:39:30.264Z"
+last_activity: 2026-08-20
+last_activity_desc: Phase 40 complete, transitioned to Phase 41
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 28
   completed_plans: 28
 ---
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 40 (Proactive Alerting & Digests) — 5/5 PLANS COMPLETE (awaiting phase-close/verification)
-Status: Phase 40 all 5/5 plans complete (Plan 01 + Plan 02 + Plan 03 + Plan 04 + Plan 05 done). ALERT-01/ALERT-02/ALERT-03 marked [x] complete in REQUIREMENTS.md (Plan 05 was the designated closer). Task 3 (checkpoint:human-verify) of Plan 05 was approved on-trust by the user — live third-party delivery and the real-time alert-fire/no-re-fire check are deferred to a future /gsd-verify-work 40 pass.
-Last activity: 2026-08-19 — Phase 40 Plan 05 complete: shipped the "Alerting & Digests" settings pane (D-17) as a structural clone of `sla-escalation-pane.tsx` — three section cards (New exposure alerts / Scheduled digests / Delivery channels), `isOwner` RBAC disabling every control for a non-owner viewer, mandatory `SkeletonTable`/`PartialFailureBanner`/`EmptyState` states, and a "Send test digest" action branching on the Plan 04 endpoint's `sent`/`empty`/`error` response — registered across `microcopy.ts`/`settings-sidebar-shell.tsx`/`page.tsx`. Graduated `alerting-digests-pane.test.tsx` from the Plan 01 RED scaffold to 7 full assertions (fixed 2 scaffold test bugs: a multi-match `findByText(/./)` pattern, and a Section-3 routing-row label that accidentally duplicated a Section-1 heading string). Added the missing `alerting_config` field to the frontend `TenantSettings`/`TenantSettingsPatch` types. Task 3's live-verify checkpoint was approved on-trust by the user (Phase 38/39 precedent) — pane render/save/RBAC/empty-state are independently unit-tested; live third-party delivery and the KEV/EPSS real-time alert-fire + no-re-fire check were not run live, deferred to `/gsd-verify-work 40`.
+Phase: 41 — Coverage & Blind-Spot Detection
+Status: Ready to plan
+Last activity: 2026-08-20 — Phase 40 complete, transitioned to Phase 41
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map

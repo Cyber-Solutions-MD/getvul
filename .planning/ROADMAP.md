@@ -227,6 +227,7 @@ Plans:
 **Wave 5** *(blocked on Wave 4)*
 
 - [x] 40-05-PLAN.md — ALERT-03 frontend: Alerting & Digests settings pane (clone) + sidebar/microcopy/page registration + live human-verify (ALERT-03) — checkpoint approved on-trust
+
 **UI hint**: yes
 
 ### Phase 41: Coverage & Blind-Spot Detection
@@ -308,7 +309,7 @@ Plans:
 | 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
 | 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
 | 39. Exception & Risk-Acceptance Workflow | 8/8 | Complete    | 2026-08-19 |
-| 40. Proactive Alerting & Digests | 0/? | Not started | - |
+| 40. Proactive Alerting & Digests | 5/5 | Complete    | 2026-08-20 |
 | 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
 | 42. Risk Trend Analytics & Burndown | 0/? | Not started | - |
 | 43. Executive & Compliance Reporting | 0/? | Not started | - |
