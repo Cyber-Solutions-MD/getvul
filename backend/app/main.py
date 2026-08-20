@@ -31,6 +31,7 @@ from app.auth.schemas import CurrentUser
 from app.campaigns.router import router as campaigns_router
 from app.config import settings
 from app.connectors.router import router as connector_router
+from app.coverage.router import router as coverage_router
 from app.cspm.router import router as cspm_router
 from app.db.session import get_db
 from app.exceptions.router import router as exceptions_router
@@ -319,6 +320,7 @@ def create_app() -> FastAPI:
     app.include_router(tickets_router, prefix="/api/v1/tickets", tags=["Tickets"])
     app.include_router(campaigns_router, prefix="/api/v1/campaigns", tags=["Campaigns"])
     app.include_router(exceptions_router, prefix="/api/v1/exceptions", tags=["Exceptions"])
+    app.include_router(coverage_router, prefix="/api/v1/coverage", tags=["Coverage"])
 
     app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
     app.include_router(search_router, prefix="/api/v1", tags=["Search"])
