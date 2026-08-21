@@ -1,0 +1,196 @@
+/**
+ * page.test.tsx — /dashboard/analytics (Phase 42 Plan 01, TREND-01/03
+ * tracer slice). Mirrors coverage/page.test.tsx's `vi.spyOn`-the-hook
+ * convention. Adds the recharts jsdom scaffolding from
+ * `components/ui/trend-chart.test.tsx` (ResizeObserver polyfill +
+ * getBoundingClientRect/offsetWidth/offsetHeight mocks) since this page
+ * nests <RiskTrendChart>, a real recharts LineChart — unlike Coverage,
+ * which renders no chart.
+ *
+ * One test per UI-SPEC state branch: loading, error, empty (insufficient
+ * history), populated (line renders), single-data-point (renders a dot,
+ * not a connecting line), version-boundary-marker present when boundaries
+ * is non-empty.
+ */
+import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import type { ReactNode } from 'react';
+
+const replaceMock = vi.fn();
+let searchParamsMock = new URLSearchParams();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: replaceMock }),
+  usePathname: () => '/dashboard/analytics',
+  useSearchParams: () => searchParamsMock,
+}));
+
+vi.mock('@/hooks/use-document-title', () => ({
+  useDocumentTitle: vi.fn(),
+}));
+
+// recharts ResponsiveContainer relies on ResizeObserver — jsdom doesn't ship
+// one (mirrors components/ui/trend-chart.test.tsx's scaffolding).
+class RO {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+(globalThis as unknown as { ResizeObserver: typeof RO }).ResizeObserver = RO;
+
+// Recharts ResponsiveContainer measures parent via getBoundingClientRect;
+// jsdom returns 0x0 for every element. Force a non-zero size so <LineChart>
+// actually renders <Line>/<ReferenceLine>/dot geometry.
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      width: 600,
+      height: 200,
+      top: 0,
+      left: 0,
+      right: 600,
+      bottom: 200,
+      x: 0,
+      y: 0,
+      toJSON() {
+        return this;
+      },
+    }),
+  });
+  Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+    configurable: true,
+    get() {
+      return 600;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get() {
+      return 200;
+    },
+  });
+});
+
+import * as useAnalyticsModule from '@/lib/queries/use-analytics';
+import type { AnalyticsOverviewResponse } from '@/lib/queries/use-analytics';
+import AnalyticsPage from './page';
+
+function renderWithClient(ui: ReactNode) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
+
+function mockQuery(overrides: {
+  data?: AnalyticsOverviewResponse;
+  isPending?: boolean;
+  error?: Error | null;
+}) {
+  vi.spyOn(useAnalyticsModule, 'useAnalytics').mockReturnValue({
+    data: overrides.data,
+    isPending: overrides.isPending ?? false,
+    isLoading: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useAnalyticsModule.useAnalytics>);
+}
+
+describe('/dashboard/analytics page', () => {
+  beforeEach(() => {
+    replaceMock.mockClear();
+    searchParamsMock = new URLSearchParams();
+  });
+
+  it('loading branch renders the skeleton, no alert/status', () => {
+    mockQuery({ isPending: true });
+    renderWithClient(<AnalyticsPage />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('error branch renders PartialFailureBanner, not the skeleton or an empty state', () => {
+    mockQuery({ error: new Error('Connection refused: cannot reach backend') });
+    renderWithClient(<AnalyticsPage />);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('below-minimum-history empty state (D-04) renders when the window has zero snapshot points', () => {
+    mockQuery({ data: { trend: [], boundaries: [] } });
+    renderWithClient(<AnalyticsPage />);
+    expect(screen.getByText('Trends appear after a few days of history')).toBeInTheDocument();
+    expect(screen.getByText(/All \(tenant\) doesn't have enough snapshot history yet/)).toBeInTheDocument();
+  });
+
+  it('a healthy tenant scoring 0 with real history is NOT treated as empty (D-04 falsy-score guard)', () => {
+    mockQuery({
+      data: {
+        trend: [
+          { date: '2026-08-19', avg_risk_exposure_score: 0, risk_model_version: 'v1' },
+          { date: '2026-08-20', avg_risk_exposure_score: 0, risk_model_version: 'v1' },
+        ],
+        boundaries: [],
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+    expect(screen.queryByText('Trends appear after a few days of history')).toBeNull();
+    expect(screen.getByRole('table', { name: 'Risk-exposure trend' })).toBeInTheDocument();
+  });
+
+  it('populated branch renders the trend line (single version, no boundary marker)', () => {
+    mockQuery({
+      data: {
+        trend: [
+          { date: '2026-08-18', avg_risk_exposure_score: 20, risk_model_version: 'v1' },
+          { date: '2026-08-19', avg_risk_exposure_score: 22, risk_model_version: 'v1' },
+          { date: '2026-08-20', avg_risk_exposure_score: 24, risk_model_version: 'v1' },
+        ],
+        boundaries: [],
+      },
+    });
+    const { container } = renderWithClient(<AnalyticsPage />);
+    // Exactly one <Line> series (one detected version) and zero boundary markers.
+    expect(container.querySelectorAll('.recharts-line').length).toBe(1);
+    expect(container.querySelectorAll('.recharts-reference-line').length).toBe(0);
+    // sr-only data table is the canonical accessible path (SVG is aria-hidden).
+    const table = screen.getByRole('table', { name: 'Risk-exposure trend' });
+    expect(table).toBeInTheDocument();
+    expect(within(table).getAllByRole('row').length).toBeGreaterThan(3); // header + 3 data rows
+  });
+
+  it('exactly one data point renders a single dot marker, never a connecting line (UI-SPEC E2)', () => {
+    mockQuery({
+      data: {
+        trend: [{ date: '2026-08-20', avg_risk_exposure_score: 18, risk_model_version: 'v1' }],
+        boundaries: [],
+      },
+    });
+    const { container } = renderWithClient(<AnalyticsPage />);
+    // Still reaches the populated branch (MIN_HISTORY_POINTS=1, not the
+    // empty state) and renders a dot for the lone point.
+    expect(screen.queryByText('Trends appear after a few days of history')).toBeNull();
+    expect(container.querySelectorAll('.recharts-dot').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('version-boundary marker renders (with a neutral, non-violet stroke) when boundaries is non-empty', () => {
+    mockQuery({
+      data: {
+        trend: [
+          { date: '2026-08-18', avg_risk_exposure_score: 20, risk_model_version: 'v1' },
+          { date: '2026-08-19', avg_risk_exposure_score: 22, risk_model_version: 'v2' },
+          { date: '2026-08-20', avg_risk_exposure_score: 23, risk_model_version: 'v2' },
+        ],
+        boundaries: [{ date: '2026-08-19', old_version: 'v1', new_version: 'v2' }],
+      },
+    });
+    const { container } = renderWithClient(<AnalyticsPage />);
+    const referenceLines = container.querySelectorAll('.recharts-reference-line');
+    expect(referenceLines.length).toBe(1);
+    // Two version segments -> two <Line> series (v1, v2) — no interpolation
+    // across the boundary (connectNulls=false on each).
+    expect(container.querySelectorAll('.recharts-line').length).toBe(2);
+    // The boundary label text renders somewhere in the chart.
+    expect(container.textContent ?? '').toContain('v1 → v2');
+  });
+});

@@ -155,4 +155,16 @@ export const queryKeys = {
     summary: () => ['coverage', 'summary'] as const,
     blindSpots: (opts: { page: number }) => ['coverage', 'blind-spots', opts] as const,
   },
+  // Phase 42 (42-01, TREND-01..03) — /dashboard/analytics tracer slice. ONE
+  // combined read (single compute pass, D-13's live-on-read shape) so
+  // overview() takes the full scope+window opts object as its cache key
+  // (mirrors tickets.list's opts-object shape, not coverage.summary's
+  // no-arg shape). `scope`/`from`/`to` are placeholders this plan's hook
+  // always passes as scope:'all'/undefined — Plan 03 wires group scope +
+  // custom range through fully without needing to re-touch this key shape.
+  analytics: {
+    all: ['analytics'] as const,
+    overview: (opts: { scope: string; window: string; from?: string; to?: string }) =>
+      ['analytics', 'overview', opts] as const,
+  },
 } as const;
