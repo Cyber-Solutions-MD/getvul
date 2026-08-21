@@ -1,16 +1,22 @@
 /**
  * page.test.tsx — /dashboard/analytics (Phase 42 Plan 01, TREND-01/03
- * tracer slice). Mirrors coverage/page.test.tsx's `vi.spyOn`-the-hook
- * convention. Adds the recharts jsdom scaffolding from
- * `components/ui/trend-chart.test.tsx` (ResizeObserver polyfill +
- * getBoundingClientRect/offsetWidth/offsetHeight mocks) since this page
- * nests <RiskTrendChart>, a real recharts LineChart — unlike Coverage,
- * which renders no chart.
+ * tracer slice; Plan 02 appends TREND-02's aging/burndown assertions).
+ * Mirrors coverage/page.test.tsx's `vi.spyOn`-the-hook convention. Adds the
+ * recharts jsdom scaffolding from `components/ui/trend-chart.test.tsx`
+ * (ResizeObserver polyfill + getBoundingClientRect/offsetWidth/offsetHeight
+ * mocks) since this page nests <RiskTrendChart>/<BacklogAgingChart>, real
+ * recharts charts — unlike Coverage, which renders no chart.
  *
  * One test per UI-SPEC state branch: loading, error, empty (insufficient
  * history), populated (line renders), single-data-point (renders a dot,
  * not a connecting line), version-boundary-marker present when boundaries
  * is non-empty.
+ *
+ * Plan 02 (TREND-02) adds: the aging chart's 3 buckets + overdue headline
+ * tile + burndown tile all render in the populated branch; the zero-open
+ * aging case renders the explicit "0% of open backlog is overdue" tile
+ * (UI-SPEC E3); and the burndown tile's no-change + overflow-capped
+ * branches (UI-SPEC E4).
  */
 import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -74,7 +80,7 @@ beforeAll(() => {
 });
 
 import * as useAnalyticsModule from '@/lib/queries/use-analytics';
-import type { AnalyticsOverviewResponse } from '@/lib/queries/use-analytics';
+import type { AgingBucket, AnalyticsOverviewResponse, Burndown } from '@/lib/queries/use-analytics';
 import AnalyticsPage from './page';
 
 function renderWithClient(ui: ReactNode) {
@@ -82,13 +88,38 @@ function renderWithClient(ui: ReactNode) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
+// Plan 02 defaults — every pre-Plan-02 test below only cares about
+// trend/boundaries; these keep the AnalyticsOverviewResponse contract
+// satisfied without touching those tests' existing `data` literals.
+const DEFAULT_AGING: AgingBucket[] = [
+  { bucket: 'within_sla', critical: 0, high: 0, medium: 0, low: 0 },
+  { bucket: 'recently_breached', critical: 0, high: 0, medium: 0, low: 0 },
+  { bucket: 'long_overdue', critical: 0, high: 0, medium: 0, low: 0 },
+];
+const DEFAULT_BURNDOWN: Burndown = {
+  status: 'no_change',
+  net_per_week: 0,
+  open_backlog: 0,
+  days_to_clear: null,
+  capped: false,
+};
+
 function mockQuery(overrides: {
-  data?: AnalyticsOverviewResponse;
+  data?: Partial<AnalyticsOverviewResponse>;
   isPending?: boolean;
   error?: Error | null;
 }) {
+  const data: AnalyticsOverviewResponse | undefined = overrides.data
+    ? {
+        trend: overrides.data.trend ?? [],
+        boundaries: overrides.data.boundaries ?? [],
+        aging: overrides.data.aging ?? DEFAULT_AGING,
+        aging_pct_overdue: overrides.data.aging_pct_overdue ?? 0,
+        burndown: overrides.data.burndown ?? DEFAULT_BURNDOWN,
+      }
+    : undefined;
   vi.spyOn(useAnalyticsModule, 'useAnalytics').mockReturnValue({
-    data: overrides.data,
+    data,
     isPending: overrides.isPending ?? false,
     isLoading: overrides.isPending ?? false,
     error: overrides.error ?? null,
@@ -192,5 +223,105 @@ describe('/dashboard/analytics page', () => {
     expect(container.querySelectorAll('.recharts-line').length).toBe(2);
     // The boundary label text renders somewhere in the chart.
     expect(container.textContent ?? '').toContain('v1 → v2');
+  });
+
+  // ── Plan 02 (TREND-02): backlog aging + burndown ────────────────────────
+
+  it('populated branch renders the backlog aging chart (3 buckets), the overdue tile, and the burndown tile', () => {
+    mockQuery({
+      data: {
+        trend: [
+          { date: '2026-08-18', avg_risk_exposure_score: 20, risk_model_version: 'v1' },
+          { date: '2026-08-19', avg_risk_exposure_score: 22, risk_model_version: 'v1' },
+        ],
+        boundaries: [],
+        aging: [
+          { bucket: 'within_sla', critical: 1, high: 2, medium: 0, low: 3 },
+          { bucket: 'recently_breached', critical: 1, high: 0, medium: 0, low: 0 },
+          { bucket: 'long_overdue', critical: 0, high: 0, medium: 1, low: 0 },
+        ],
+        aging_pct_overdue: 25,
+        burndown: {
+          status: 'shrinking',
+          net_per_week: 1.6,
+          open_backlog: 4,
+          days_to_clear: 12,
+          capped: false,
+        },
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+
+    // Overdue headline tile — the full locked sentence, explicit.
+    expect(screen.getByText('25% of open backlog is overdue')).toBeInTheDocument();
+
+    // Aging sr-only data table (the canonical accessible path) has exactly
+    // 3 bucket rows (+ header), with the 3 locked bucket-label strings.
+    const agingTable = screen.getByRole('table', { name: 'Backlog aging' });
+    expect(within(agingTable).getAllByRole('row').length).toBe(4); // header + 3 buckets
+    expect(within(agingTable).getByText('Within SLA')).toBeInTheDocument();
+    expect(within(agingTable).getByText('Recently breached')).toBeInTheDocument();
+    expect(within(agingTable).getByText('Long overdue')).toBeInTheDocument();
+
+    // Burndown tile — headline number + shrinking directional copy +
+    // projected-clear line, all from already-computed props.
+    const burndownTile = screen.getByTestId('burndown-tile');
+    expect(within(burndownTile).getByTestId('burndown-net-per-week')).toHaveTextContent('1.6');
+    expect(within(burndownTile).getByText('Backlog shrinking — 1.6 findings/week net')).toBeInTheDocument();
+    expect(within(burndownTile).getByText('12d to clear at this rate')).toBeInTheDocument();
+  });
+
+  it('zero open backlog renders the explicit "0% of open backlog is overdue" tile (UI-SPEC E3 zero-one-many)', () => {
+    mockQuery({
+      data: {
+        trend: [{ date: '2026-08-20', avg_risk_exposure_score: 0, risk_model_version: 'v1' }],
+        boundaries: [],
+        // aging/aging_pct_overdue default to the all-zero fixture above.
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+    expect(screen.getByText('0% of open backlog is overdue')).toBeInTheDocument();
+  });
+
+  it('burndown no-change branch renders a distinct copy row with no projected-clear line (UI-SPEC E4)', () => {
+    mockQuery({
+      data: {
+        trend: [{ date: '2026-08-20', avg_risk_exposure_score: 10, risk_model_version: 'v1' }],
+        boundaries: [],
+        burndown: { status: 'no_change', net_per_week: 0, open_backlog: 5, days_to_clear: null, capped: false },
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+    const burndownTile = screen.getByTestId('burndown-tile');
+    expect(within(burndownTile).getByText('No change this period')).toBeInTheDocument();
+    expect(within(burndownTile).queryByText(/to clear at this rate/)).toBeNull();
+    expect(within(burndownTile).queryByText(/no clear date/)).toBeNull();
+  });
+
+  it('burndown growing branch renders "no clear date at this rate", never a fabricated projection', () => {
+    mockQuery({
+      data: {
+        trend: [{ date: '2026-08-20', avg_risk_exposure_score: 10, risk_model_version: 'v1' }],
+        boundaries: [],
+        burndown: { status: 'growing', net_per_week: 3.2, open_backlog: 9, days_to_clear: null, capped: false },
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+    const burndownTile = screen.getByTestId('burndown-tile');
+    expect(within(burndownTile).getByText('Backlog growing — 3.2 findings/week net')).toBeInTheDocument();
+    expect(within(burndownTile).getByText('Backlog growing — no clear date at this rate')).toBeInTheDocument();
+  });
+
+  it('burndown overflow-capped branch renders "500+ d to clear", never an absurd exact number (UI-SPEC E4)', () => {
+    mockQuery({
+      data: {
+        trend: [{ date: '2026-08-20', avg_risk_exposure_score: 10, risk_model_version: 'v1' }],
+        boundaries: [],
+        burndown: { status: 'shrinking', net_per_week: 0.2, open_backlog: 500, days_to_clear: 500, capped: true },
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+    const burndownTile = screen.getByTestId('burndown-tile');
+    expect(within(burndownTile).getByText('500+ d to clear')).toBeInTheDocument();
   });
 });
