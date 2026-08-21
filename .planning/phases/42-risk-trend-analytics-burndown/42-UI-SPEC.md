@@ -68,10 +68,10 @@ Exceptions: none.
 |------|------|--------|-------------|
 | Body | 14px (`--text-sm`) | 400 | 1.5 (`--leading-base`) |
 | Label | 12px (`--text-xs`) | 500 | 1.3 (`--leading-snug`) |
-| Heading (page title `<h1>`, chart section headings) | 32px (`--text-3xl`) page title / 20px (`--text-xl`) section headings — see note | 600 | 1.2 (`--leading-tight`) |
+| Heading (page title `<h1>`) | 32px (`--text-3xl`) | 600 | 1.2 (`--leading-tight`) |
 | Display (burndown tile headline number, "% of backlog overdue" tile) | 40px (`--text-4xl`) | 600 | 1.1 (`--leading-tight`) |
 
-Chart **section headings** (Risk-exposure trend / Backlog aging / Burndown) use `--text-xl` (20px) at weight 600 — one step down from the page `<h1>`, matching `TrendSection`'s existing `text-lg`/`h2` precedent scaled up slightly for a dedicated analytics page. This keeps the scale at exactly **4 sizes: 12px (Label), 14px (Body), 20px+32px (Heading tier — section vs. page, differentiated by size within the same weight, not a 5th distinct size class), 40px (Display)**. Bucket labels on the aging chart and version-boundary markers render at Label size (12px/500).
+Chart **section headings** (Risk-exposure trend / Backlog aging / Burndown) reuse the **Body size class (14px / `--text-sm`)** at weight 600 — a Body-semibold variant, not a new size token — matching `TrendSection`'s existing `<h2>` pattern, which is already visually de-emphasized (`sr-only`/compact) relative to the page `<h1>` on that precedent. This keeps the declared scale at exactly **4 distinct font-size values: 12px (Label), 14px (Body — both regular for copy and semibold for section headings), 32px (Heading, page title only), 40px (Display)**. Bucket labels on the aging chart and version-boundary markers render at Label size (12px/500).
 
 Weights used: **400 (regular — body copy, table/legend text)** and **600 (semibold — page title, section headings, display numbers, active window-toggle state)** — exactly 2, matching every other v5.0 phase. Percentages, day/week counts, and version strings (`v1 → v2`) render in JetBrains Mono with `tabular-nums` per `foundation.md`'s "anything copy-pasteable" rule.
 
