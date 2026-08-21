@@ -5,12 +5,12 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 42
 current_phase_name: Risk Trend Analytics & Burndown
 status: planning
-stopped_at: Phase 41 Plan 05 (41-05) complete; Phase 41 all 5/5 plans complete
-last_updated: "2026-08-21T08:54:31.254Z"
+stopped_at: Phase 42 context gathered
+last_updated: "2026-08-21T09:14:09.951Z"
 last_activity: 2026-08-21
 last_activity_desc: Phase 41 complete, transitioned to Phase 42
 progress:
-  total_phases: 10
+  total_phases: 7
   completed_phases: 6
   total_plans: 33
   completed_plans: 33
@@ -605,9 +605,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 
 ## Session
 
-**Last session:** 2026-08-21T09:05:00Z
-**Stopped at:** Phase 41 Plan 05 (41-05) complete; Phase 41 all 5/5 plans complete
-**Resume file:** none — Phase 41 fully executed; next is /gsd-plan-phase 42 (or /gsd-verify-work 41 to close phase verification first)
+**Last session:** 2026-08-21T09:14:09.926Z
+**Stopped at:** Phase 42 context gathered
+**Resume file:** .planning/phases/42-risk-trend-analytics-burndown/42-CONTEXT.md
 
 ## Operator Next Steps
 
