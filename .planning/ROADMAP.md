@@ -59,7 +59,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 - [x] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR (completed 2026-08-18)
 - [x] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry (completed 2026-08-19)
 - [x] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests (completed 2026-08-19; Task 3 live-verify checkpoint approved on-trust, live third-party delivery deferred to /gsd-verify-work 40)
-- [ ] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %; route-to-owner (5/5 plans executed; verification = human_needed — awaiting UAT on SC3 route-to-owner dialog copy)
+- [x] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %; route-to-owner (5/5 plans executed; verification = human_needed — awaiting UAT on SC3 route-to-owner dialog copy) (completed 2026-08-21)
 - [ ] **Phase 42: Risk Trend Analytics & Burndown** — Trend lines, backlog aging/burndown, version-boundary-aware
 - [ ] **Phase 43: Executive & Compliance Reporting** — Exec/board PDF, role-scoped dashboards, framework-control compliance view
 - [ ] **Phase 44: Natural-Language Query Assistant** — BYOK plain-English Q&A over tenant data, safe-schema constrained
@@ -327,7 +327,7 @@ Plans:
 | 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
 | 39. Exception & Risk-Acceptance Workflow | 8/8 | Complete    | 2026-08-19 |
 | 40. Proactive Alerting & Digests | 5/5 | Complete    | 2026-08-20 |
-| 41. Coverage & Blind-Spot Detection | 0/? | Not started | - |
+| 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
 | 42. Risk Trend Analytics & Burndown | 0/? | Not started | - |
 | 43. Executive & Compliance Reporting | 0/? | Not started | - |
 | 44. Natural-Language Query Assistant | 0/? | Not started | - |
