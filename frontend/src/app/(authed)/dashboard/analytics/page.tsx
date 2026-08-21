@@ -50,15 +50,16 @@ const EMPTY_BURNDOWN: Burndown = {
 
 const ALLOWED_WINDOWS = ['7d', '30d', '90d', '1y', 'custom'] as const;
 
-// D-04 (42-CONTEXT.md): below this many snapshot points, render the guided
+// D-04 (42-CONTEXT.md): below this many SCORED points, render the guided
 // EmptyState instead of a misleading line. Locked at 1 (not the plan
 // text's illustrative "e.g. 2") to honor 42-UI-SPEC.md's E2 zero-one-many
 // LOCKED user decision — "exactly 1 data point... renders as a single dot
 // marker" — which requires a lone point to reach the chart, not the empty
-// branch. Gated on the snapshot ROW COUNT, never on a falsy
+// branch. Gated on the count of non-null (scored) points, never on a falsy
 // avg_risk_exposure_score (0 is a legitimate healthy-tenant reading, not
 // "empty" — 42-RESEARCH.md Common Pitfalls: "gating the D-04 empty state
-// on a score value").
+// on a score value"). A null score IS "no reading" (a gap), so a series that
+// is all-null — e.g. an empty-membership group (G-42-4) — is empty here.
 const MIN_HISTORY_POINTS = 1;
 
 function pageErrorFallback(err: Error, reset: () => void): ReactNode {
@@ -99,7 +100,14 @@ function AnalyticsPageInner() {
   const aging = q.data?.aging ?? [];
   const agingPctOverdue = q.data?.aging_pct_overdue ?? 0;
   const burndown = q.data?.burndown ?? EMPTY_BURNDOWN;
-  const isBelowMinHistory = trend.length < MIN_HISTORY_POINTS;
+  // G-42-4: gate the D-04 empty state on the count of SCORED points, not raw
+  // row count. A null avg_risk_exposure_score is a GAP, not a reading (D-06 —
+  // a scored-0 day is a legitimate healthy reading and must NOT be treated as
+  // empty; only null counts as "no data"). An empty-membership group returns
+  // one null-score row per snapshot day, so a raw-length gate rendered a
+  // misleading all-null line instead of the guided EmptyState.
+  const scoredPointCount = trend.filter((p) => p.avg_risk_exposure_score !== null).length;
+  const isBelowMinHistory = scoredPointCount < MIN_HISTORY_POINTS;
   const scopeLabel = scope.type === 'group' ? scope.groupName : microcopy.scope.allTenantLabel;
 
   return (

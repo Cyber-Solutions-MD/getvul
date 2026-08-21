@@ -202,6 +202,26 @@ describe('/dashboard/analytics page', () => {
     expect(screen.getByRole('table', { name: 'Risk-exposure trend' })).toBeInTheDocument();
   });
 
+  it('an all-null series (empty-membership group) renders the D-04 empty state, not a misleading all-null line (G-42-4)', () => {
+    // A group with zero CURRENT members returns one row per snapshot day, each
+    // with avg_risk_exposure_score: null (correct D-06 gap semantics). The
+    // empty-state gate must key on the count of SCORED (non-null) points, not
+    // raw row count — otherwise this renders the populated all-null-line branch.
+    mockQuery({
+      data: {
+        trend: [
+          { date: '2026-08-18', avg_risk_exposure_score: null, risk_model_version: 'v1' },
+          { date: '2026-08-19', avg_risk_exposure_score: null, risk_model_version: 'v1' },
+          { date: '2026-08-20', avg_risk_exposure_score: null, risk_model_version: 'v1' },
+        ],
+        boundaries: [],
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+    expect(screen.getByText('Trends appear after a few days of history')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Risk-exposure trend' })).toBeNull();
+  });
+
   it('populated branch renders the trend line (single version, no boundary marker)', () => {
     mockQuery({
       data: {
