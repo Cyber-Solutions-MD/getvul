@@ -108,3 +108,17 @@
 - `frontend/src/app/globals.css` (global focus-visible rule check)
 - Live UAT screenshots: `uat_t1_trend.png`, `uat_t2_aging_burndown.png`, `uat_t3_boundary_90d.png`, `uat_t3b_group.png`, `uat_t3b_customrange.png`, `uat_t4_fixed.png`
 - `git log` / `git show` on `page.tsx` and `analytics-page-skeleton.tsx` to confirm which fixes (e.g., `b9dc1ae`) landed after the plan SUMMARYs were written, and which files were never touched by any commit
+
+---
+
+## Resolution (post-audit fixes)
+
+All four actionable findings were fixed and re-verified live after this audit. Finding #5 was left as a UI-SPEC erratum (code was correct). New overall posture: the audit-time gaps that drove the Spacing (2/4) and Experience Design (2/4) scores are addressed.
+
+- **#1 (Experience Design) — RESOLVED** in commit `5dc9666`. An invalid/incomplete custom range now renders a guided "Waiting on a valid range" `EmptyState` (branch inserted before `q.isPending`), not a perpetual loading skeleton. Verified live: guidance copy renders, validation error still shows, `analytics-page-skeleton` absent. Regression tests added (page.test.tsx: incomplete-range + invalid-order-range cases).
+- **#2 (Experience Design) — RESOLVED** in `5dc9666`. `analytics-page-skeleton.tsx` control-row rebuilt to mirror the current `ScopeWindowControls` (scope-dropdown placeholder + 5 window-preset placeholders incl. "Custom range"), removing the on-load layout jump.
+- **#3 (Color) — RESOLVED** in `5dc9666`. Active window preset now carries a violet indicator (`border-b-2 border-violet`, transparent when inactive → zero layout shift). Verified live: computed `border-bottom-color: rgb(167, 139, 250)` (the `--color-violet` token).
+- **#4 (Spacing) — RESOLVED** in `5dc9666`. Scope trigger `py-1.5` → `py-1` (back on the 4px grid, matching sibling window buttons); page header + controls wrapped in a block with `mb-12` (48px) before the first chart/state section, per the UI-SPEC spacing scale.
+- **#5 — NOT a code change.** UI-SPEC self-contradiction on chart padding (`lg`/24px row vs the Design System table's `p-4`); implementation correctly followed `p-4`. Flagged for a UI-SPEC erratum only.
+
+Verification: `tsc --noEmit` clean, `eslint` clean on all edited files, `vitest` 21/21 green, no freehand hex, and live Playwright confirmation of #1 and #3 against the seeded stack.
