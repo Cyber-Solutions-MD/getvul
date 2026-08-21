@@ -34,6 +34,25 @@ Plan 02 additions (TREND-02) prove, in the plan's own <behavior> order:
       E4 overflow cap on an extremely slow shrink rate.
   11. Every new numeric field is a plain JSON-safe int/float, never a
       Decimal.
+
+Plan 03 additions (TREND-01 group scope + D-03 custom range + TREND-03
+multi-boundary) prove, in the plan's own <behavior> order:
+
+  12. get_scoped_trend_series's group branch averages EXACTLY the group's
+      CURRENT members' per-day scores, retroactively (D-05/D-06) --
+      excluding a non-member's historical score even though it is present
+      in the same day's dict.
+  13. A day where none of the group's current members have a score yields
+      avg_risk_exposure_score = None, never 0 (D-06).
+  14. A cross-tenant group_id 404s via the router's list_members-derived
+      None path (T-42-08 IDOR) -- never a fetch-then-403.
+  15. asset_ids threads into get_aging_distribution + get_burndown_rate
+      too -- group scope narrows EVERY chart (D-02), not just the trend.
+  16. detect_version_boundaries on a 3-version synthetic fixture emits
+      exactly 2 boundaries (every in-window boundary, not just first/last
+      -- UI-SPEC E2).
+  17. A custom range beyond MAX_ANALYTICS_WINDOW_DAYS, or with to<from,
+      422s server-side (T-42-09 DoS guard) -- never silently clamped.
 """
 
 from __future__ import annotations
@@ -46,6 +65,7 @@ import pytest
 from sqlalchemy import select
 
 from app.analytics.service import (
+    MAX_ANALYTICS_WINDOW_DAYS,
     MAX_PROJECTION_DAYS,
     detect_version_boundaries,
     get_aging_distribution,
@@ -53,6 +73,7 @@ from app.analytics.service import (
     get_burndown_rate,
     get_scoped_trend_series,
 )
+from app.assets.models import Asset, AssetGroup, AssetGroupMember
 from app.exceptions.models import ExceptionRecord
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import Vulnerability
@@ -70,12 +91,16 @@ def _seed_vuln(
     remediated_at: datetime | None = None,
     sla_due_at: datetime | None = None,
     sla_breached: bool = False,
+    asset_id: uuid.UUID | None = None,
 ) -> Vulnerability:
     """Bare Vulnerability row for the aging/burndown tests below -- mirrors
     `test_exceptions_sla.py::_seed_vuln` / `test_sla_tier_service.py::_vuln`,
     extended with the `sla_due_at`/`sla_breached` direct-set params these
     tests need (bypassing the scheduler's `run_sla_tier_pass` entirely, per
-    42-RESEARCH.md Open Question 2 -- aging reads the STORED columns)."""
+    42-RESEARCH.md Open Question 2 -- aging reads the STORED columns).
+    Plan 03 additionally accepts `asset_id` (a real FK to `assets.id`,
+    `ondelete="SET NULL"`) so `test_asset_ids_threads_into_aging_and_burndown`
+    can pin a finding to a specific group member/non-member asset."""
     now = datetime.now(UTC)
     return Vulnerability(
         tenant_id=tenant_id,
@@ -90,6 +115,7 @@ def _seed_vuln(
         remediated_at=remediated_at,
         sla_due_at=sla_due_at,
         sla_breached=sla_breached,
+        asset_id=asset_id,
     )
 
 
@@ -546,3 +572,238 @@ async def test_burndown_and_aging_numeric_types(db_session, tenant_a):
     assert isinstance(burndown["open_backlog"], int)
     assert not isinstance(burndown["open_backlog"], Decimal)
     assert burndown["days_to_clear"] is None or isinstance(burndown["days_to_clear"], int)
+
+
+# ── TREND-01 (Plan 03): group scoping + custom range + multi-boundary ─────
+
+
+@pytest.mark.asyncio
+async def test_group_trend_uses_current_membership_retroactively(db_session, tenant_a):
+    """D-05/D-06: a group trend point is the AVERAGE of exactly the
+    group's CURRENT members' scores on that historical day -- a
+    non-member's score, present in the SAME day's per-asset dict, must
+    never be folded into the average, even though it existed on that
+    date. The tenant-wide `avg_risk_exposure_score` key (999.0) is also
+    present on both days and must never leak into the group series
+    either -- proves the group branch reads the per-asset dict, not the
+    tenant-wide key."""
+    await db_session.commit()  # AssetGroup has a real FK to tenants (test_asset_groups.py precedent)
+
+    asset_member_1 = Asset(tenant_id=tenant_a, hostname="member-1.local")
+    asset_member_2 = Asset(tenant_id=tenant_a, hostname="member-2.local")
+    asset_non_member = Asset(tenant_id=tenant_a, hostname="non-member.local")
+    db_session.add_all([asset_member_1, asset_member_2, asset_non_member])
+    await db_session.flush()
+
+    group = AssetGroup(tenant_id=tenant_a, name="Prod Web Tier")
+    db_session.add(group)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            AssetGroupMember(group_id=group.id, asset_id=asset_member_1.id),
+            AssetGroupMember(group_id=group.id, asset_id=asset_member_2.id),
+        ]
+    )
+    await db_session.commit()
+
+    day1 = (datetime.now(UTC) - timedelta(days=2)).date()
+    day2 = (datetime.now(UTC) - timedelta(days=1)).date()
+    db_session.add_all(
+        [
+            DailySnapshot(
+                tenant_id=tenant_a,
+                snapshot_date=day1,
+                metrics={
+                    "avg_risk_exposure_score": 999.0,  # tenant-wide value -- must NOT leak into the group series
+                    "risk_model_version_snapshot": "v1",
+                    "asset_risk_exposure_scores": {
+                        str(asset_member_1.id): 10,
+                        str(asset_member_2.id): 20,
+                        str(asset_non_member.id): 990,
+                    },
+                },
+                created_at=datetime.now(UTC),
+            ),
+            DailySnapshot(
+                tenant_id=tenant_a,
+                snapshot_date=day2,
+                metrics={
+                    "avg_risk_exposure_score": 999.0,
+                    "risk_model_version_snapshot": "v1",
+                    "asset_risk_exposure_scores": {
+                        str(asset_member_1.id): 30,
+                        str(asset_member_2.id): 50,
+                        # asset_non_member has no score at all on day2 -- still excluded, not required.
+                    },
+                },
+                created_at=datetime.now(UTC),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    overview = await get_analytics_overview(db_session, tenant_a, days=30, scope="group", group_id=group.id)
+    assert overview is not None
+    by_date = {r["date"]: r["avg_risk_exposure_score"] for r in overview["trend"]}
+    assert by_date[day1.isoformat()] == 15.0  # avg(10, 20) -- excludes the non-member's 990
+    assert by_date[day2.isoformat()] == 40.0  # avg(30, 50)
+    assert overview["scope"] == "group"
+    assert overview["group_name"] == "Prod Web Tier"
+
+
+@pytest.mark.asyncio
+async def test_group_trend_none_for_zero_scored_day(db_session, tenant_a):
+    """D-06: a day where NONE of the group's current members have a score
+    in that day's per-asset dict yields avg_risk_exposure_score = None (a
+    rendered gap) -- never 0, even though 0 is a legitimate score value
+    elsewhere on this page."""
+    await db_session.commit()
+
+    asset_member = Asset(tenant_id=tenant_a, hostname="member.local")
+    other_asset = Asset(tenant_id=tenant_a, hostname="other.local")
+    db_session.add_all([asset_member, other_asset])
+    await db_session.flush()
+
+    group = AssetGroup(tenant_id=tenant_a, name="Empty-Scored Group")
+    db_session.add(group)
+    await db_session.flush()
+    db_session.add(AssetGroupMember(group_id=group.id, asset_id=asset_member.id))
+    await db_session.commit()
+
+    day = (datetime.now(UTC) - timedelta(days=1)).date()
+    db_session.add(
+        DailySnapshot(
+            tenant_id=tenant_a,
+            snapshot_date=day,
+            metrics={
+                "avg_risk_exposure_score": 0,
+                "risk_model_version_snapshot": "v1",
+                # Only the OTHER (non-member) asset has a score this day --
+                # the group's own member has none.
+                "asset_risk_exposure_scores": {str(other_asset.id): 5},
+            },
+            created_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+    overview = await get_analytics_overview(db_session, tenant_a, days=30, scope="group", group_id=group.id)
+    assert overview is not None
+    point = next(r for r in overview["trend"] if r["date"] == day.isoformat())
+    assert point["avg_risk_exposure_score"] is None
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_group_id_404(client_factory, db_session, tenant_a, tenant_b, admin_user):
+    """T-42-08 IDOR: a group_id belonging to tenant_b, requested by a
+    tenant_a user, 404s via list_members' tenant-scoped None-on-miss path
+    -- never a fetch-then-403, and no group data leaks into the
+    response."""
+    await db_session.commit()  # AssetGroup has a real FK to tenants
+
+    tenant_b_group = AssetGroup(tenant_id=tenant_b, name="Tenant B Prod")
+    db_session.add(tenant_b_group)
+    await db_session.commit()
+
+    client = client_factory(admin_user)
+    r = await client.get(f"/api/v1/analytics/overview?scope=group&group_id={tenant_b_group.id}")
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Asset group not found"
+
+
+@pytest.mark.asyncio
+async def test_asset_ids_threads_into_aging_and_burndown(db_session, tenant_a):
+    """D-02/Pitfall 5: group scope re-scopes EVERY chart, not only the
+    trend line -- aging + burndown narrow to the group's member
+    asset_ids; scope=all still sees the non-member's finding too."""
+    await db_session.commit()
+
+    asset_member = Asset(tenant_id=tenant_a, hostname="scoped-member.local")
+    asset_non_member = Asset(tenant_id=tenant_a, hostname="scoped-non-member.local")
+    db_session.add_all([asset_member, asset_non_member])
+    await db_session.flush()
+
+    group = AssetGroup(tenant_id=tenant_a, name="Scoped Group")
+    db_session.add(group)
+    await db_session.flush()
+    db_session.add(AssetGroupMember(group_id=group.id, asset_id=asset_member.id))
+    await db_session.commit()
+
+    vuln_member = _seed_vuln(tenant_a, severity="HIGH", status="OPEN", asset_id=asset_member.id)
+    vuln_non_member = _seed_vuln(tenant_a, severity="CRITICAL", status="OPEN", asset_id=asset_non_member.id)
+    db_session.add_all([vuln_member, vuln_non_member])
+    await db_session.commit()
+
+    tenant_wide = await get_analytics_overview(db_session, tenant_a, days=30)
+    group_scoped = await get_analytics_overview(db_session, tenant_a, days=30, scope="group", group_id=group.id)
+    assert tenant_wide is not None
+    assert group_scoped is not None
+
+    def _total_aging(buckets: list[dict]) -> int:
+        return sum(v for bucket in buckets for k, v in bucket.items() if k != "bucket")
+
+    assert _total_aging(tenant_wide["aging"]) == 2
+    assert _total_aging(group_scoped["aging"]) == 1
+    assert tenant_wide["burndown"]["open_backlog"] == 2
+    assert group_scoped["burndown"]["open_backlog"] == 1
+
+
+@pytest.mark.asyncio
+async def test_multiple_version_boundaries_each_marked(db_session, tenant_a):
+    """UI-SPEC E2: a window spanning 3 distinct risk_model_version_snapshot
+    values emits 2 boundaries (v1->v2 AND v2->v3) -- every in-window
+    boundary gets its own marker, not just the first/last."""
+    day1 = (datetime.now(UTC) - timedelta(days=3)).date()
+    day2 = (datetime.now(UTC) - timedelta(days=2)).date()
+    day3 = (datetime.now(UTC) - timedelta(days=1)).date()
+
+    db_session.add_all(
+        [
+            DailySnapshot(
+                tenant_id=tenant_a,
+                snapshot_date=day1,
+                metrics={"avg_risk_exposure_score": 10.0, "risk_model_version_snapshot": "v1"},
+                created_at=datetime.now(UTC),
+            ),
+            DailySnapshot(
+                tenant_id=tenant_a,
+                snapshot_date=day2,
+                metrics={"avg_risk_exposure_score": 20.0, "risk_model_version_snapshot": "v2"},
+                created_at=datetime.now(UTC),
+            ),
+            DailySnapshot(
+                tenant_id=tenant_a,
+                snapshot_date=day3,
+                metrics={"avg_risk_exposure_score": 30.0, "risk_model_version_snapshot": "v3"},
+                created_at=datetime.now(UTC),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    rows = await get_scoped_trend_series(db_session, tenant_a, start=day1, end=day3)
+    boundaries = detect_version_boundaries(rows)
+
+    assert boundaries == [
+        {"date": day2.isoformat(), "old_version": "v1", "new_version": "v2"},
+        {"date": day3.isoformat(), "old_version": "v2", "new_version": "v3"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_custom_range_span_capped(client_factory, db_session, tenant_a, admin_user):
+    """T-42-09 DoS guard: a custom range beyond MAX_ANALYTICS_WINDOW_DAYS
+    422s server-side; a to<from range 422s too -- never silently clamped,
+    never accepted."""
+    await db_session.commit()
+
+    client = client_factory(admin_user)
+
+    too_wide_from = (datetime.now(UTC) - timedelta(days=MAX_ANALYTICS_WINDOW_DAYS + 30)).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
+    r = await client.get(f"/api/v1/analytics/overview?scope=all&from={too_wide_from}&to={today}")
+    assert r.status_code == 422
+
+    yesterday = (datetime.now(UTC) - timedelta(days=1)).date().isoformat()
+    r2 = await client.get(f"/api/v1/analytics/overview?scope=all&from={today}&to={yesterday}")
+    assert r2.status_code == 422
