@@ -500,21 +500,27 @@ class AnalyticsTrendPointResponse(BaseModel):
 
 **If this table is empty:** N/A — see rows above. All backend data-model and existing-code claims in this document are `[VERIFIED]` by direct file reads or `[CITED]` from CONTEXT.md/UI-SPEC.md; the assumptions above are specifically the synthesis/recommendation layer where this research went beyond verbatim-verified fact to propose an implementation shape.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+*All four questions were resolved during planning (commit `0afd26f`); resolution markers added post-plan-check.*
 
 1. **Does D-02's "every chart" re-scoping literally require group-scoping the aging and burndown queries, or only the trend line?**
    - What we know: D-02 (TREND-01 section) explicitly lists "trend line, aging distribution, burndown" as all re-scoped by the single dropdown. D-08/D-09 (TREND-02 section)'s own decision text never mentions group-scoping and reads as tenant-wide-only when read in isolation.
    - What's unclear: Whether this is an intentional requirement carried by D-02 that D-08/D-09 simply didn't restate, or whether D-02's "every chart" was written before D-08/D-09 were finalized and is slightly over-broad.
    - Recommendation: Treat D-02 as authoritative (group-scope all three) per Common Pitfalls #5 — it is the more literal reading and the added `asset_ids: list[uuid.UUID] | None = None` parameter is a small, additive, low-risk change either way. Flag for a quick confirm during planning if the planner wants to descope it.
+   - **RESOLVED (Plan 42-03 T1/T2):** D-02 treated as authoritative — `asset_ids` threaded into the trend line, aging distribution, AND burndown (not just the trend line).
 
 2. **Should the aging chart trust the nightly-computed `Vulnerability.sla_due_at`/`sla_breached` columns, or recompute SLA state live via `resolve_state_for_vuln` at read time?**
    - What we know: `sla_due_at`/`sla_breached` are refreshed once per scheduler tick (effectively daily, alongside the snapshot capture) by `run_sla_tier_pass`, which already applies the Phase 39 exception-lapse-seconds adjustment. `resolve_state_for_vuln` (the underlying per-finding function) could be called again live for perfect freshness, but that means re-running the same `lapsed_exception_seconds` computation per open finding on every Analytics page load — a heavier read than reading the already-materialized columns.
    - What's unclear: Whether "live compute on-read" (D-13) is meant to apply to the SLA-state derivation itself, or only to the aggregation/bucketing built on top of already-fresh columns (matching how `get_sla_metrics`/`get_vuln_trends` already read `sla_due_at`/`sla_breached` directly rather than recomputing).
    - Recommendation: Read the stored `sla_due_at`/`sla_breached` columns directly (consistent with every existing SLA-reading function in this codebase — none of them re-invoke `resolve_state_for_vuln`); D-13's "live compute" is about the aggregation being uncached, not about re-deriving already-persisted per-row state.
+   - **RESOLVED (Plan 42-02 T1):** read the stored `sla_due_at`/`sla_breached` columns directly; do not recompute per-row via `resolve_state_for_vuln` (encoded in the task's `<read_first>`/`<action>`).
 
 3. **Exact SLA-tier aging bucket day-thresholds and the % of backlog overdue tile** — explicitly Claude's discretion per CONTEXT.md; no further research needed, just a planning-time decision following `copy-voice.md` and Pattern 5's percentage-of-tier-window recommendation above.
+   - **RESOLVED (Plan 42-02):** discretion exercised — SLA-tier bucket thresholds + overdue-percentage tile chosen at plan time per Pattern 5.
 
 4. **Exact minimum-history threshold for the D-04 empty state** — explicitly Claude's discretion per CONTEXT.md. Recommend gating on snapshot ROW COUNT in the window (not on a specific day-count target), per Anti-Patterns above.
+   - **RESOLVED (Plan 42-01):** discretion exercised — empty state gated on snapshot row count in the window, not a fixed day-count target.
 
 ## Environment Availability
 
