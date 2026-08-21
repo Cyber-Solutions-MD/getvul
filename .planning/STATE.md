@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 42
 current_phase_name: risk-trend-analytics-burndown
 status: executing
-stopped_at: Phase 42 Plan 01 (tracer) executed and human-verify checkpoint approved
-last_updated: "2026-08-21T12:03:19.000Z"
+stopped_at: Phase 42 Plan 02 (backlog aging + burndown) executed and human-verify checkpoint approved
+last_updated: "2026-08-21T13:02:14.000Z"
 last_activity: 2026-08-21
-last_activity_desc: Phase 42 Plan 01 (tracer) complete — tenant risk-exposure trend line shipped end-to-end
+last_activity_desc: Phase 42 Plan 02 complete — backlog aging + burndown rate shipped on /dashboard/analytics
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 36
-  completed_plans: 34
+  completed_plans: 35
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,8 +46,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 42 (risk-trend-analytics-burndown) — EXECUTING
-Status: Executing Phase 42 (1/3 plans complete)
-Last activity: 2026-08-21 — Phase 42 Plan 01 (tracer) complete: GET /api/v1/analytics/overview + /dashboard/analytics tenant risk-exposure trend line (5/5 backend + 7/7 frontend tests green); Task 3 human-verify checkpoint approved
+Status: Executing Phase 42 (2/3 plans complete)
+Last activity: 2026-08-21 — Phase 42 Plan 02 complete: backlog aging (3 SLA-tier buckets × severity) + burndown rate (net velocity + capped days-to-clear) shipped on /dashboard/analytics (11/11 backend + 12/12 frontend tests green); Task 3 human-verify checkpoint approved against orchestrator-seeded synthetic data
 Phase 40 result: ALERT-01..03 closed end-to-end — new-KEV/high-EPSS targeted alerts + scheduled owner/team digests + tenant-configurable/audited alerting settings pane.
 
 ## v5.0 Phase Map
@@ -531,6 +531,13 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 42]: 42-01: Task 3 (`checkpoint:human-verify`, `gate="blocking"`) was reviewed live and approved by the user. Real production data is single-version ("v1"), so the live checkpoint verified zero boundary markers / one continuous line only -- full multi-version segmented rendering stays deferred to 42-03's synthetic-fixture frontend verification, exactly as the plan's own Task 3 `how-to-verify` step 7 anticipated. Not a gap.
 - [Phase 42]: TREND-01 / TREND-03 left `[ ]` unmarked in REQUIREMENTS.md after 42-01 -- also declared by not-yet-executed 42-03-PLAN.md (group scope + custom range + synthetic-boundary verification); confirmed BLOCKED via `gsd-tools.cjs requirements ready-ids 42-01-PLAN.md TREND-01,TREND-03` (returned `{"ready":[],"blocked":["TREND-01","TREND-03"]}`). Mirrors the Phase 38 CAMP-01 / Phase 41 COV-01/COV-03 shared-ID-gate precedent. Do not flip until 42-03 also lands.
 - [Phase 42]: 42-01: `gsd-sdk` is not installed in this environment (no `query` subcommand exists on the installed `gsd-tools.cjs` -- confirmed via `gsd-tools.cjs query` returning "Unknown command"); hand-edited STATE.md/ROADMAP.md directly rather than running `state advance-plan`/`roadmap update-plan-progress`, per the pre-existing 39-*/40-*/41-* decision-log precedent that those CLI verbs reproducibly corrupt STATE.md frontmatter. A test invocation of `roadmap update-plan-progress 42` (run before the SUMMARY existed on disk) correctly returned a stale `0/3` count reflecting disk state at call-time, not a corruption -- reverted via `git checkout -- .planning/ROADMAP.md` and re-applied by hand after the SUMMARY commit landed.
+- [Phase 42]: 42-02: `get_aging_distribution` buckets open findings via two independent inequalities over the STORED `sla_due_at`/`sla_breached` columns (never recomputed per-row): `sla_breached` mirrors `compute_sla_state`'s own `now >= sla_due_at` for the within_sla/breached split, then `now - sla_due_at <= tier_days` separates `recently_breached` from `long_overdue` -- deterministic at the exact tier-boundary edge (no double-count, no drop); tier windows come exclusively from `sla_tier_service` (never `sla_service.py`'s legacy 5-severity constants)
+- [Phase 42]: 42-02: `get_burndown_rate`'s `days_to_clear` is populated ONLY on the `shrinking` branch, hard-capped at `MAX_PROJECTION_DAYS = 500` with an explicit `capped: bool` flag (renders "500+ d to clear" on overflow, UI-SPEC E4); `growing`/`no_change` carry `null` rather than a fabricated number
+- [Phase 42]: 42-02: `get_vuln_trends` gained an additive `asset_ids: list[uuid.UUID] | None = None` param (default preserves every existing call site byte-for-byte, grep-confirmed) -- the seam 42-03 will exercise for real group scoping
+- [Phase 42]: 42-02: `BurndownTile` omits `RiskRing` entirely (a rate, not a percentage) and never divides client-side -- `status`/`netPerWeek`/`daysToClear`/`capped` all arrive precomputed from `get_burndown_rate`; `BacklogAgingChart` imports `SEVERITY_FILLS` from `trend-chart.tsx` verbatim rather than redefining a color map
+- [Phase 42]: 42-02: Task 3's `checkpoint:human-verify` (`gate="blocking"`) was approved against ORCHESTRATOR-SEEDED SYNTHETIC data (a login-cache fix + tenant seed happened out-of-band, outside this plan's file changes) -- all 3 aging buckets populated, `aging_pct_overdue=44`, net 8.6/wk shrinking, 37 d to clear -- not production data; documented in 42-02-SUMMARY.md
+- [Phase 42]: TREND-02 marked `[x]` complete in REQUIREMENTS.md after 42-02 -- confirmed as the sole declaring plan via `gsd-tools.cjs requirements ready-ids 42-02-PLAN.md TREND-02` (`{"ready":["TREND-02"],"blocked":[],"total":1}`); TREND-01/TREND-03 remain `[ ]` open pending 42-03 (unchanged from the 42-01 precedent)
+- [Phase 42]: 42-02: re-confirmed (independently of the 42-01 finding) that `gsd-tools.cjs query roadmap.update-plan-progress 42 42-02 complete` corrupts `ROADMAP.md` formatting (dropped the `(tracer-led)` suffix, inserted stray blank lines, mangled the progress-table row spacing to `In Progress|  |`) and reports a stale plan count when the SUMMARY doesn't yet exist on disk at call time -- reverted via `git checkout -- .planning/ROADMAP.md` and hand-edited STATE.md/ROADMAP.md/REQUIREMENTS.md directly instead
 
 ## Performance Metrics
 
@@ -611,14 +618,16 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 41 P04 | 35min | 1 task | 6 files |
 | Phase 41 P05 | ~45min | 2 tasks | 8 files |
 | Phase 42 P01 | ~30min (+ human-verify checkpoint pause) | 2 auto tasks + 1 checkpoint | 15 files |
+| Phase 42 P02 | ~35min (+ human-verify checkpoint pause) | 2 auto tasks + 1 checkpoint | 10 files |
 
 ## Session
 
-**Last session:** 2026-08-21T12:03:19.000Z
-**Stopped at:** Phase 42 Plan 01 (tracer) complete — human-verify checkpoint approved
-**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/42-risk-trend-analytics-burndown/42-01-SUMMARY.md
+**Last session:** 2026-08-21T13:02:14.000Z
+**Stopped at:** Phase 42 Plan 02 complete — human-verify checkpoint approved
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/42-risk-trend-analytics-burndown/42-02-SUMMARY.md
 
 ## Operator Next Steps
 
-- Phase 42 (Risk Trend Analytics & Burndown) Plan 01 (tracer) is complete and human-approved: new `backend/app/analytics/` plain-async module (`get_scoped_trend_series`, `detect_version_boundaries`, `get_analytics_overview`) behind `GET /api/v1/analytics/overview` (require_viewer), 5/5 backend tests green including a synthetic multi-version boundary fixture; new `/dashboard/analytics` page + Analytics nav entry + `RiskTrendChart` (recharts pivot-by-version segmented line, first `connectNulls`/`ReferenceLine` usage in the codebase) with loading/empty/error/single-point states, 7/7 frontend tests green, `tsc --noEmit` clean, no freehand hex, no new dependency. Task 3's blocking `checkpoint:human-verify` was reviewed live and approved by the user (real data is single-version "v1", so only zero-boundary rendering was observable live; multi-segment rendering stays deferred to 42-03's synthetic fixture, as the plan anticipated). TREND-01/TREND-03 remain `[ ]` unmarked in REQUIREMENTS.md — confirmed BLOCKED via `requirements ready-ids` because sibling `42-03-PLAN.md` also declares both IDs and hasn't landed. Recommended next step: continue Phase 42 execution with `42-02-PLAN.md` (backlog aging + burndown rate tile, TREND-02) — no unmet depends_on, plans 02/03 are additive onto the same files.
+- Phase 42 (Risk Trend Analytics & Burndown) Plan 02 (backlog aging + burndown, TREND-02) is complete and human-approved: `get_aging_distribution` + `get_burndown_rate` service functions (Phase 39 exclusion predicate + Phase 36 tier windows honored verbatim, deterministic tier-boundary edge, `MAX_PROJECTION_DAYS=500` capped projection), 11/11 backend tests green; new `BacklogAgingChart` (3 severity-stacked SLA-tier buckets + overdue headline tile) + `BurndownTile` (directional net-per-week + capped projection, no RiskRing, no client-side division) wired under the trend line on `/dashboard/analytics`, sharing the single compute pass, 12/12 frontend tests green, `tsc --noEmit` clean, no freehand hex, no new dependency. Task 3's blocking `checkpoint:human-verify` was reviewed and approved by the user against orchestrator-seeded SYNTHETIC data (all 3 aging buckets populated, `aging_pct_overdue=44`, net 8.6/wk shrinking, 37 d to clear) — not production data. TREND-02 is now `[x]` complete in REQUIREMENTS.md (sole declaring plan, confirmed via `requirements ready-ids`); TREND-01/TREND-03 remain `[ ]` open pending 42-03. Recommended next step: continue Phase 42 execution with `42-03-PLAN.md` (group scope + custom date range + synthetic-fixture version-boundary frontend verification, TREND-01/TREND-03) — no unmet depends_on, additive onto the same files; this is the last plan in Phase 42.
+- Phase 42 Plan 01 (tracer) shipped the underlying spine this plan extended: `GET /api/v1/analytics/overview` + `/dashboard/analytics` tenant risk-exposure trend line (5/5 backend + 7/7 frontend tests green); its own human-verify checkpoint was approved separately. See 42-01-SUMMARY.md for detail.
 - Phase 41 (Coverage & Blind-Spot Detection) is fully executed: 5/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green; 41-04 — COV-03 backend: `POST /api/v1/coverage/assets/{asset_id}/route-to-owner` (require_analyst), resolve-then-notify-with-fallback mirroring `_fire_kev_epss_alert`, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only, 16/16 backend tests green; 41-05 — COV-03 frontend: `CoverageAssetDrillContent` (idKey="asset") + `RouteToOwnerDialog` (2-branch confirm) + `useRouteToOwner` mutation, wired on both the row action and the drill footer sharing one dialog/mutation instance, `canRouteToOwner` RBAC gate, 30/30 frontend tests green). COV-01/COV-02/COV-03 are all marked `[x]` complete in REQUIREMENTS.md. Optionally run `/gsd-verify-work 41` to close phase verification (no on-trust checkpoints were deferred this phase — every plan was `type="auto"`/`type="tracer"`, fully automated).

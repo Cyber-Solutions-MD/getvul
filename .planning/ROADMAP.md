@@ -272,9 +272,9 @@ Plans:
   2. Backlog aging (open findings by age × severity) and a burndown rate are visible on the same dashboard
   3. Trends annotate risk-model version boundaries rather than blending across them — a v4.0 model version change never produces a false cliff or false improvement
 
-**Plans**: 1/3 plans executed (tracer-led)
+**Plans**: 2/3 plans executed (tracer-led)
 - [x] 42-01-PLAN.md — Tracer: tenant risk-exposure trend line end-to-end (new analytics module + /analytics page + segmented chart + states) [TREND-01, TREND-03] *(2026-08-21 — GET /api/v1/analytics/overview + /dashboard/analytics; 5/5 backend + 7/7 frontend tests green; human-verify checkpoint approved; TREND-01/TREND-03 stay open pending 42-03)*
-- [ ] 42-02-PLAN.md — Backlog aging (SLA-tier buckets x severity) + burndown rate tile [TREND-02]
+- [x] 42-02-PLAN.md — Backlog aging (SLA-tier buckets x severity) + burndown rate tile [TREND-02] *(2026-08-21 — get_aging_distribution + get_burndown_rate (Phase 39 exclusion predicate + Phase 36 tier windows verbatim, MAX_PROJECTION_DAYS=500 capped); BacklogAgingChart + BurndownTile on /dashboard/analytics; 11/11 backend + 12/12 frontend tests green; human-verify checkpoint approved against orchestrator-seeded synthetic data; TREND-02 complete)*
 - [ ] 42-03-PLAN.md — Group scope (retroactive) + custom date range + synthetic-fixture version-boundary verification [TREND-01, TREND-03]
 **UI hint**: yes
 
@@ -331,7 +331,7 @@ Plans:
 | 39. Exception & Risk-Acceptance Workflow | 8/8 | Complete    | 2026-08-19 |
 | 40. Proactive Alerting & Digests | 5/5 | Complete    | 2026-08-20 |
 | 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
-| 42. Risk Trend Analytics & Burndown | 1/3 | In Progress | - |
+| 42. Risk Trend Analytics & Burndown | 2/3 | In Progress | - |
 | 43. Executive & Compliance Reporting | 0/? | Not started | - |
 | 44. Natural-Language Query Assistant | 0/? | Not started | - |
 | 45. Public API, Webhooks & SDK | 0/? | Not started | - |

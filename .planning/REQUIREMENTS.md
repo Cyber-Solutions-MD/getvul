@@ -68,7 +68,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 ### Risk Trend Analytics & Burndown (TREND) — Phase 42
 
 - [ ] **TREND-01**: Tenant / team / asset-group risk-exposure trend lines over a selectable window
-- [ ] **TREND-02**: Backlog aging (open findings by age × severity) and burndown rate
+- [x] **TREND-02**: Backlog aging (open findings by age × severity) and burndown rate *(Phase 42-02, 2026-08-21)*
 - [ ] **TREND-03**: Trends are risk-model-version-boundary aware (annotate, never blend across a v4.0 model version change)
 
 ### Executive & Compliance Reporting (RPT) — Phase 43
