@@ -22,6 +22,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
+from app.analytics.router import router as analytics_router
 from app.api.v1.ai import ai_router
 from app.assets.groups_router import router as asset_groups_router
 from app.assets.router import router as asset_router
@@ -321,6 +322,7 @@ def create_app() -> FastAPI:
     app.include_router(campaigns_router, prefix="/api/v1/campaigns", tags=["Campaigns"])
     app.include_router(exceptions_router, prefix="/api/v1/exceptions", tags=["Exceptions"])
     app.include_router(coverage_router, prefix="/api/v1/coverage", tags=["Coverage"])
+    app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
 
     app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
     app.include_router(search_router, prefix="/api/v1", tags=["Search"])
