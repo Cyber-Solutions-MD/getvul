@@ -1,9 +1,14 @@
 ---
 phase: 41-coverage-blind-spot-detection
 verified: 2026-08-21T08:39:39Z
-status: human_needed
-score: 3/3 roadmap success criteria verified (1 with a documented UX caveat requiring a human ship/no-ship decision)
-overrides_applied: 0
+status: passed
+score: 3/3 roadmap success criteria verified (1 accepted via override — documented UX caveat, ship-as-is decision)
+overrides_applied: 1
+overrides:
+  - must_have: "The confirm dialog has two copy branches — owner-resolved and unresolvable-owner — per the UI-SPEC Copywriting Contract"
+    reason: "Both copy branches are implemented and unit-tested in RouteToOwnerDialog, but real call sites in coverage/page.tsx cannot select the resolved branch because BlindSpotAssetResponse carries no owner-preview signal — adding one is a schema change explicitly out of this phase's reversibility scope. The end-to-end routing outcome (resolve/notify/audit) is correct regardless; only the pre-confirm dialog copy is a conservative default. Deferred to a future plan that adds an owner-preview field (see 41-UAT.md Deferred Follow-Ups)."
+    accepted_by: "Igor Chemencedji"
+    accepted_at: "2026-08-21T08:49:12Z"
 human_verification:
   - test: "Open /dashboard/coverage as an analyst for a tenant whose blind-spot asset has a resolvable owner (assigned_user matching a real tenant User row, or a Humaans/last-login match). Click 'Route to owner' on that row (or from the drill panel) and read the confirm dialog BEFORE clicking confirm."
     expected: "Decide whether it is acceptable that the pre-confirm dialog ALWAYS shows the D-09 'No owner found for this device / We'll notify your admins and the configured alert channel instead' copy — even though the backend will, in this scenario, actually resolve the real owner and email them directly (not the admins). After confirming, the success toast will then say '{hostname} routed to {realOwnerName}', contradicting what the dialog just told the analyst."
