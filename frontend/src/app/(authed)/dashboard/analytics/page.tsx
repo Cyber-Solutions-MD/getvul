@@ -16,10 +16,14 @@
  * checkpoint verifies "loading (skeleton) and error (PartialFailureBanner)
  * still cover all three sections as one compute pass."
  *
- * Plan 03 adds the scope dropdown and the custom date range onto this same
- * page shell.
+ * Plan 03 adds the scope dropdown (D-02) and the custom date range (D-03)
+ * onto this same page shell. `scope`/`customFrom`/`customTo` are owned
+ * HERE as plain component state (NOT threaded through `useUrlState` —
+ * RESEARCH Pitfall 3: that hook's enum-clamp shape doesn't fit free-form
+ * dates/UUIDs); only the 5-way window PRESET stays URL-state-driven,
+ * unchanged from Plan 01/02.
  */
-import { Suspense, type ReactNode } from 'react';
+import { Suspense, useState, type ReactNode } from 'react';
 import { PartialFailureBanner, EmptyState } from '@/components/states';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useDocumentTitle } from '@/hooks/use-document-title';
@@ -29,7 +33,7 @@ import { AnalyticsPageSkeleton } from '@/components/analytics/analytics-page-ske
 import { RiskTrendChart } from '@/components/analytics/risk-trend-chart';
 import { BacklogAgingChart } from '@/components/analytics/backlog-aging-chart';
 import { BurndownTile } from '@/components/analytics/burndown-tile';
-import { ScopeWindowControls } from '@/components/analytics/scope-window-controls';
+import { ScopeWindowControls, type ScopeValue } from '@/components/analytics/scope-window-controls';
 import { microcopy } from '@/components/analytics/microcopy';
 
 // Fallback shape for the populated branch's destructure below — the
@@ -44,7 +48,7 @@ const EMPTY_BURNDOWN: Burndown = {
   capped: false,
 };
 
-const ALLOWED_WINDOWS = ['7d', '30d', '90d', '1y'] as const;
+const ALLOWED_WINDOWS = ['7d', '30d', '90d', '1y', 'custom'] as const;
 
 // D-04 (42-CONTEXT.md): below this many snapshot points, render the guided
 // EmptyState instead of a misleading line. Locked at 1 (not the plan
@@ -74,7 +78,21 @@ function AnalyticsPageInner() {
   // Named windowPreset/setWindowPreset (not "window") to avoid shadowing
   // the global browser `window` object within this component's scope.
   const [windowPreset, setWindowPreset] = useUrlState<AnalyticsWindow>('window', ALLOWED_WINDOWS, '30d');
-  const q = useAnalytics(windowPreset);
+  // D-02/D-03 (Plan 03): plain component state, not URL state (Pitfall 3 —
+  // a group UUID / free-form date isn't a fixed enum useUrlState can clamp
+  // against). Defaults: tenant-wide scope, empty (unpicked) custom range.
+  const [scope, setScope] = useState<ScopeValue>({ type: 'all' });
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+
+  const isCustomWindow = windowPreset === 'custom';
+  const q = useAnalytics({
+    window: windowPreset,
+    scope: scope.type,
+    groupId: scope.type === 'group' ? scope.groupId : null,
+    from: isCustomWindow ? customFrom : null,
+    to: isCustomWindow ? customTo : null,
+  });
 
   const trend = q.data?.trend ?? [];
   const boundaries = q.data?.boundaries ?? [];
@@ -82,6 +100,7 @@ function AnalyticsPageInner() {
   const agingPctOverdue = q.data?.aging_pct_overdue ?? 0;
   const burndown = q.data?.burndown ?? EMPTY_BURNDOWN;
   const isBelowMinHistory = trend.length < MIN_HISTORY_POINTS;
+  const scopeLabel = scope.type === 'group' ? scope.groupName : microcopy.scope.allTenantLabel;
 
   return (
     <div className="space-y-4 p-6">
@@ -91,10 +110,22 @@ function AnalyticsPageInner() {
         <h1 className="text-3xl font-semibold text-text">{microcopy.page.h1}</h1>
       </header>
 
-      <ScopeWindowControls value={windowPreset} onChange={setWindowPreset} />
+      <ScopeWindowControls
+        scope={scope}
+        onScopeChange={setScope}
+        window={windowPreset}
+        onWindowChange={setWindowPreset}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFromChange={setCustomFrom}
+        onCustomToChange={setCustomTo}
+      />
 
       {/* WR-13: state branches are mutually exclusive — error > loading >
-          below-min-history empty > populated. */}
+          below-min-history empty > populated. While a custom range is
+          incomplete/invalid, useAnalytics disables the query (Pitfall 3 —
+          "fires no query until valid"), so this correctly parks on the
+          loading branch rather than showing stale data from a prior scope. */}
       {q.error ? (
         <PartialFailureBanner
           errors={[
@@ -110,9 +141,7 @@ function AnalyticsPageInner() {
       ) : isBelowMinHistory ? (
         <EmptyState>
           <EmptyState.Title>{microcopy.empty.insufficientHistory.title}</EmptyState.Title>
-          <EmptyState.Body>
-            {microcopy.empty.insufficientHistory.body(microcopy.scope.allTenantLabel)}
-          </EmptyState.Body>
+          <EmptyState.Body>{microcopy.empty.insufficientHistory.body(scopeLabel)}</EmptyState.Body>
         </EmptyState>
       ) : (
         // xl (32px) gap between the trend/aging/burndown sections, per

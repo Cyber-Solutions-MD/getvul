@@ -18,7 +18,7 @@
  * (UI-SPEC E3); and the burndown tile's no-change + overflow-capped
  * branches (UI-SPEC E4).
  */
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import type { ReactNode } from 'react';
@@ -79,8 +79,11 @@ beforeAll(() => {
   });
 });
 
+import userEvent from '@testing-library/user-event';
 import * as useAnalyticsModule from '@/lib/queries/use-analytics';
 import type { AgingBucket, AnalyticsOverviewResponse, Burndown } from '@/lib/queries/use-analytics';
+import * as useAssetGroupsModule from '@/lib/queries/use-asset-groups';
+import type { AssetGroupResponse } from '@/lib/queries/use-asset-groups';
 import AnalyticsPage from './page';
 
 function renderWithClient(ui: ReactNode) {
@@ -116,6 +119,8 @@ function mockQuery(overrides: {
         aging: overrides.data.aging ?? DEFAULT_AGING,
         aging_pct_overdue: overrides.data.aging_pct_overdue ?? 0,
         burndown: overrides.data.burndown ?? DEFAULT_BURNDOWN,
+        scope: overrides.data.scope ?? 'all',
+        group_name: overrides.data.group_name ?? null,
       }
     : undefined;
   vi.spyOn(useAnalyticsModule, 'useAnalytics').mockReturnValue({
@@ -127,10 +132,38 @@ function mockQuery(overrides: {
   } as unknown as ReturnType<typeof useAnalyticsModule.useAnalytics>);
 }
 
+// Plan 03 (D-02) — a small AssetGroup fixture factory + spy helper, mirrors
+// `mockQuery`'s convention. Defaults to an empty list in `beforeEach` below
+// so pre-Plan-03 tests (which don't care about groups) never attempt a
+// real network fetch through the unmocked hook.
+function mockGroups(groups: AssetGroupResponse[]) {
+  vi.spyOn(useAssetGroupsModule, 'useAssetGroupsList').mockReturnValue({
+    data: groups,
+    isPending: false,
+    error: null,
+  } as unknown as ReturnType<typeof useAssetGroupsModule.useAssetGroupsList>);
+}
+
+function makeGroup(name: string): AssetGroupResponse {
+  return {
+    id: `group-${name.toLowerCase().replace(/\s+/g, '-')}`,
+    tenant_id: 'tenant-a',
+    name,
+    description: null,
+    member_count: 3,
+    created_at: null,
+    updated_at: null,
+  };
+}
+
 describe('/dashboard/analytics page', () => {
   beforeEach(() => {
     replaceMock.mockClear();
     searchParamsMock = new URLSearchParams();
+    // Default: no groups, so pre-Plan-03 tests below render the scope
+    // dropdown's single 'All (tenant)' item and never exercise the
+    // search-filter branch. Plan 03 tests override this per-case.
+    mockGroups([]);
   });
 
   it('loading branch renders the skeleton, no alert/status', () => {
@@ -323,5 +356,133 @@ describe('/dashboard/analytics page', () => {
     renderWithClient(<AnalyticsPage />);
     const burndownTile = screen.getByTestId('burndown-tile');
     expect(within(burndownTile).getByText('500+ d to clear')).toBeInTheDocument();
+  });
+
+  // ── Plan 03 (TREND-01 D-02/D-03, TREND-03 UI-SPEC E2): scope dropdown,
+  //    custom range, multi-boundary ───────────────────────────────────────
+
+  it('scope dropdown lists All (tenant) + each asset group; selecting a group shows the mandatory caption and re-scopes', async () => {
+    const user = userEvent.setup();
+    const group = makeGroup('Production Web Tier');
+    mockGroups([group]);
+    mockQuery({
+      data: {
+        trend: [{ date: '2026-08-20', avg_risk_exposure_score: 15, risk_model_version: 'v1' }],
+        boundaries: [],
+      },
+    });
+    renderWithClient(<AnalyticsPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Scope' }));
+    expect(screen.getByRole('menuitem', { name: 'All (tenant)' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Production Web Tier' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('menuitem', { name: 'Production Web Tier' }));
+
+    expect(
+      screen.getByText("Shows Production Web Tier's current members, applied retroactively across this window."),
+    ).toBeInTheDocument();
+    // D-02: the SAME scope selection re-scopes useAnalytics's query (which
+    // feeds every chart on the page — trend/aging/burndown share this one
+    // call, D-13's single compute pass).
+    expect(useAnalyticsModule.useAnalytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: 'group', groupId: group.id }),
+    );
+  });
+
+  it('many groups: the inline search filter narrows the visible list (UI-SPEC E1 overflow)', async () => {
+    const user = userEvent.setup();
+    const groups = [
+      makeGroup('Production Web Tier'),
+      makeGroup('Staging Web Tier'),
+      makeGroup('Corp Laptops'),
+      makeGroup('Finance Servers'),
+      makeGroup('EU Region DBs'),
+      makeGroup('US Region DBs'),
+      makeGroup('Contractor Devices'),
+    ];
+    mockGroups(groups);
+    mockQuery({ data: { trend: [], boundaries: [] } });
+    renderWithClient(<AnalyticsPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Scope' }));
+    expect(screen.getAllByRole('menuitem')).toHaveLength(groups.length + 1); // + 'All (tenant)'
+
+    await user.type(screen.getByPlaceholderText('Search groups'), 'Finance');
+
+    const items = screen.getAllByRole('menuitem');
+    expect(items).toHaveLength(2); // 'All (tenant)' + 'Finance Servers'
+    expect(screen.getByRole('menuitem', { name: 'Finance Servers' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Production Web Tier' })).toBeNull();
+  });
+
+  it('custom range: To before From shows the order error and clears once corrected', () => {
+    searchParamsMock = new URLSearchParams('window=custom');
+    mockQuery({ isPending: true });
+    renderWithClient(<AnalyticsPage />);
+
+    const fromInput = screen.getByLabelText('From');
+    const toInput = screen.getByLabelText('To');
+    fireEvent.change(fromInput, { target: { value: '2026-08-20' } });
+    fireEvent.change(toInput, { target: { value: '2026-08-10' } });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('End date must be after start date.');
+
+    fireEvent.change(toInput, { target: { value: '2026-08-25' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('custom range: an incomplete/invalid range never enables the query (fires no request)', () => {
+    searchParamsMock = new URLSearchParams('window=custom');
+    mockQuery({ isPending: true });
+    renderWithClient(<AnalyticsPage />);
+
+    // Freshly selecting 'Custom range' with no dates picked yet.
+    expect(useAnalyticsModule.useAnalytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ window: 'custom', from: '', to: '' }),
+    );
+
+    const fromInput = screen.getByLabelText('From');
+    const toInput = screen.getByLabelText('To');
+    fireEvent.change(fromInput, { target: { value: '2026-08-20' } });
+    fireEvent.change(toInput, { target: { value: '2026-08-10' } });
+
+    // Still invalid (to < from) — the hook receives the raw values and is
+    // solely responsible for gating `enabled` off of them (see
+    // use-analytics.ts's exported isCustomRangeValid, unit-proven below).
+    expect(useAnalyticsModule.useAnalytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: '2026-08-20', to: '2026-08-10' }),
+    );
+    expect(useAnalyticsModule.isCustomRangeValid('2026-08-20', '2026-08-10')).toBe(false);
+  });
+
+  it('a 3-version, 2-boundary payload renders 2 ReferenceLine markers, not just the first (UI-SPEC E2)', () => {
+    mockQuery({
+      data: {
+        trend: [
+          { date: '2026-08-01', avg_risk_exposure_score: 10, risk_model_version: 'v1' },
+          { date: '2026-08-02', avg_risk_exposure_score: 20, risk_model_version: 'v2' },
+          { date: '2026-08-03', avg_risk_exposure_score: 30, risk_model_version: 'v3' },
+        ],
+        boundaries: [
+          { date: '2026-08-02', old_version: 'v1', new_version: 'v2' },
+          { date: '2026-08-03', old_version: 'v2', new_version: 'v3' },
+        ],
+      },
+    });
+    const { container } = renderWithClient(<AnalyticsPage />);
+    expect(container.querySelectorAll('.recharts-reference-line').length).toBe(2);
+    expect(container.querySelectorAll('.recharts-line').length).toBe(3);
+  });
+});
+
+describe('isCustomRangeValid / isCustomRangeComplete (use-analytics.ts)', () => {
+  it('is invalid while either field is empty, valid once complete and in order, invalid when reversed', () => {
+    expect(useAnalyticsModule.isCustomRangeComplete('', '')).toBe(false);
+    expect(useAnalyticsModule.isCustomRangeComplete('2026-08-01', '')).toBe(false);
+    expect(useAnalyticsModule.isCustomRangeValid('', '')).toBe(false);
+    expect(useAnalyticsModule.isCustomRangeValid('2026-08-01', '2026-08-10')).toBe(true);
+    expect(useAnalyticsModule.isCustomRangeValid('2026-08-10', '2026-08-01')).toBe(false);
+    expect(useAnalyticsModule.isCustomRangeValid('2026-08-01', '2026-08-01')).toBe(true); // to === from is valid (a 1-day range)
   });
 });

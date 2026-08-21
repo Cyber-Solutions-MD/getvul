@@ -2,12 +2,21 @@
 /**
  * useAnalytics — GET /api/v1/analytics/overview (Phase 42 Plan 01, tracer
  * slice: TREND-01/03; Plan 02 extends the response type additively with
- * TREND-02's aging/burndown keys — no shape change, same single query).
+ * TREND-02's aging/burndown keys; Plan 03 wires D-02 group scope + D-03
+ * custom date range fully through — no response shape change either time).
  * Merges use-trends.ts's range-param-in-key shape with
  * use-coverage-summary.ts's single-combined-payload shape: one query, one
  * loading/error state for the whole /dashboard/analytics page (D-13's
- * "single compute pass"). `scope` is a placeholder this plan always passes
- * as `'all'`; Plan 03 wires group scoping through fully.
+ * "single compute pass").
+ *
+ * Plan 03: the hook now takes a params OBJECT (not a bare window string) so
+ * the page can pass scope/groupId/from/to alongside the window preset.
+ * `enabled` lets the page gate the request itself while a custom range is
+ * incomplete/invalid (RESEARCH Pitfall 3 — "fires no query until valid").
+ * The cache key's `scope` stays a single string (`'all'` or
+ * `'group:<id>'`) — Plan 01's `queryKeys.analytics.overview(opts)` shape is
+ * NOT reshaped (its own "extend without a shape change" precedent);
+ * `group_id` is only ever a fetch-URL concern, not a new key field.
  *
  * Backend contract: backend/app/analytics/schemas.py::AnalyticsOverviewResponse
  * (snake_case end-to-end, CR-04 precedent — api() does no casing transform).
@@ -23,7 +32,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { queryKeys } from './keys';
 
-export type AnalyticsWindow = '7d' | '30d' | '90d' | '1y';
+export type AnalyticsWindow = '7d' | '30d' | '90d' | '1y' | 'custom';
 
 export type AnalyticsTrendPoint = {
   date: string;
@@ -70,21 +79,96 @@ export type AnalyticsOverviewResponse = {
   aging: AgingBucket[];
   aging_pct_overdue: number;
   burndown: Burndown;
+  // Plan 03 (D-02/D-06) — scope echo + the group's display name, mirroring
+  // backend/app/analytics/schemas.py::AnalyticsOverviewResponse. `null`
+  // when scope === 'all'.
+  scope: string;
+  group_name: string | null;
 };
 
-const WINDOW_DAYS: Record<AnalyticsWindow, number> = {
+// `Partial` (not a full Record) so indexing stays legal even when `window`
+// is statically typed as the full AnalyticsWindow union (including
+// 'custom', which never actually reaches this lookup — see the `!isCustom`
+// guard below) without a narrowing cast.
+const WINDOW_DAYS: Partial<Record<AnalyticsWindow, number>> = {
   '7d': 7,
   '30d': 30,
   '90d': 90,
   '1y': 365,
 };
 
-export function useAnalytics(window: AnalyticsWindow = '30d') {
-  const days = WINDOW_DAYS[window];
+// Single source of truth for the custom-range validity rule (RESEARCH
+// Pitfall 3) — `scope-window-controls.tsx` imports these SAME functions
+// (rather than re-deriving the rule) so the "show the order error" render
+// check and the "fire no query" enabled-gate below can never drift apart.
+// ISO (YYYY-MM-DD) strings compare lexicographically identically to date
+// order, so a plain string compare is correct here — no Date parsing.
+export function isCustomRangeComplete(from: string, to: string): boolean {
+  return !!from && !!to;
+}
+
+export function isCustomRangeValid(from: string, to: string): boolean {
+  return isCustomRangeComplete(from, to) && to >= from;
+}
+
+export type UseAnalyticsParams = {
+  window: AnalyticsWindow;
+  /** D-02 — defaults to tenant-wide. */
+  scope?: 'all' | 'group';
+  /** Required (and validated by the caller) when scope === 'group'. */
+  groupId?: string | null;
+  /** ISO dates (YYYY-MM-DD) — only read when window === 'custom'. */
+  from?: string | null;
+  to?: string | null;
+  /**
+   * Plan 03 / RESEARCH Pitfall 3: the page gates this `false` while a
+   * custom range is incomplete or invalid (to < from) so NO request is
+   * ever attempted with a malformed range — "fires no query until valid."
+   * Defaults to `true` (every non-custom window is always valid).
+   */
+  enabled?: boolean;
+};
+
+export function useAnalytics({
+  window,
+  scope = 'all',
+  groupId = null,
+  from = null,
+  to = null,
+  enabled = true,
+}: UseAnalyticsParams) {
+  const isCustom = window === 'custom';
+  const isGroupScoped = scope === 'group' && !!groupId;
+  const rangeValid = isCustomRangeValid(from ?? '', to ?? '');
+
+  const params = new URLSearchParams();
+  if (isGroupScoped) {
+    params.set('scope', 'group');
+    params.set('group_id', groupId as string);
+  }
+  if (isCustom && rangeValid) {
+    params.set('from', from as string);
+    params.set('to', to as string);
+  } else if (!isCustom) {
+    params.set('days', String(WINDOW_DAYS[window] ?? 30));
+  }
+
+  // Cache-key `scope` stays a single string — Plan 01's opts-object shape
+  // ({scope, window, from?, to?}) is NOT reshaped; a composite `group:<id>`
+  // value differentiates one group's cached series from another's.
+  const cacheScope = isGroupScoped ? `group:${groupId}` : 'all';
+
   return useQuery({
-    queryKey: queryKeys.analytics.overview({ scope: 'all', window }),
+    queryKey: queryKeys.analytics.overview({
+      scope: cacheScope,
+      window,
+      from: from ?? undefined,
+      to: to ?? undefined,
+    }),
     queryFn: ({ signal }) =>
-      api<AnalyticsOverviewResponse>(`/api/v1/analytics/overview?days=${days}`, { signal }),
+      api<AnalyticsOverviewResponse>(`/api/v1/analytics/overview?${params.toString()}`, { signal }),
+    // Custom range: only fire once both dates are present AND in order.
+    enabled: enabled && (!isCustom || rangeValid),
     staleTime: 0,
     retry: 1,
     refetchOnWindowFocus: false, // chart redraw on alt-tab is jarring (mirrors use-trends.ts)

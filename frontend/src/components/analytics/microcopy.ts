@@ -17,12 +17,16 @@ export const microcopy = {
   page: {
     h1: 'Analytics',
   },
-  // Plan 01 has no real scope dropdown yet (D-02's group scope ships in
-  // Plan 03) — `allTenantLabel` is the exact locked "Scope dropdown trigger
-  // (default)" copy, reused now as the empty-state scope substitution so
-  // Plan 03's real dropdown selection needs no copy change at the call site.
+  // Plan 03 (D-02) — the real scope dropdown: 'All (tenant)' + each
+  // AssetGroup, an accessible label for the trigger, a search-filter
+  // placeholder for the overflow case (UI-SPEC E1), and the mandatory
+  // group-scope caption (D-06), transcribed verbatim from the UI-SPEC.
   scope: {
     allTenantLabel: 'All (tenant)',
+    accessibleLabel: 'Scope',
+    searchPlaceholder: 'Search groups',
+    groupCaption: (groupName: string) =>
+      `Shows ${groupName}'s current members, applied retroactively across this window.`,
   },
   window: {
     d7: '7d',
@@ -33,7 +37,18 @@ export const microcopy = {
     d90A11y: 'Last 90 days',
     y1: '1y',
     y1A11y: 'Last year',
+    // Plan 03 (D-03) — the 5th preset, revealing the From/To fields below.
+    custom: 'Custom range',
+    customA11y: 'Custom date range',
     groupLabel: 'Trend window',
+  },
+  // Plan 03 (D-03) — custom date-range fields + client-side validation
+  // text (RESEARCH Pitfall 3: from/to are NOT run through useUrlState's
+  // enum allow-list; this is their own, separate validation surface).
+  customRange: {
+    from: 'From',
+    to: 'To',
+    orderError: 'End date must be after start date.',
   },
   trend: {
     h2: 'Risk-exposure trend',
