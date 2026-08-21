@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
 current_phase_name: coverage-blind-spot-detection
 status: executing
-stopped_at: Phase 41 Plan 04 complete (4/5 plans) — route-to-owner backend shipped (COV-03 backend)
-last_updated: "2026-08-21T08:11:00Z"
+stopped_at: Phase 41 Plan 05 complete (5/5 plans) — route-to-owner drill panel + confirm dialog + mutation shipped (COV-03 frontend); Phase 41 fully executed, COV-01/02/03 all closed
+last_updated: "2026-08-21T09:05:00Z"
 last_activity: 2026-08-21
-last_activity_desc: 41-04 complete — POST /api/v1/coverage/assets/{asset_id}/route-to-owner (require_analyst): resolves the never-scanned asset's owner via get_directory_user and notifies them to onboard the device, falling back to tenant admins + the coverage_unmanaged_asset alert channel (D-09) when no owner resolves, audit-then-commit (coverage.route_to_owner), notify-only; mirrors the shipped _fire_kev_epss_alert template. 5 new backend tests (resolved/fallback/channel-failure-isolated/RBAC/cross-tenant-404), 16/16 green.
+last_activity_desc: 41-05 complete — CoverageAssetDrillContent (idKey="asset", tickets-page DrillPanel precedent, Pitfall 8) + RouteToOwnerDialog (2-branch confirm — D-07 owner-resolved / D-09 unresolvable — secondary/violet-focus chrome, never bg-gradient-sunset) + useRouteToOwner mutation (retry:0, coverage.all invalidation, exact UI-SPEC toast copy); per-row + drill-footer "Route to owner" actions share one dialog/mutation instance; canRouteToOwner (OWNER/ADMIN/ANALYST) gates both, viewer sees it disabled never a raw 403. 30/30 frontend tests green (18 new). COV-03 marked [x] complete in REQUIREMENTS.md (closer plan, backend 41-04 + frontend 41-05). Phase 41 (coverage-blind-spot-detection) now 5/5 plans complete.
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -45,10 +45,10 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 41 (coverage-blind-spot-detection) — EXECUTING
-Status: Executing Phase 41 — Plan 04 of 5 complete (Wave 3)
-Last activity: 2026-08-21 — 41-04 complete: POST /api/v1/coverage/assets/{asset_id}/route-to-owner (require_analyst) — resolves a never-scanned asset's owner via get_directory_user and notifies them to onboard the device, falling back to tenant OWNER/ADMIN users + the tenant's coverage_unmanaged_asset alert channel (D-09) when no owner resolves, fail-closed audit-then-commit (coverage.route_to_owner), notify-only (no synthetic finding/ticket/column). Mirrors the shipped _fire_kev_epss_alert resolve-then-notify-with-fallback template. COV-03 backend delivered (requirement stays unmarked in REQUIREMENTS.md — shared with 41-05); frontend drill panel is Plan 05. Commit 7de92d8 (feat) + bccd706 (docs/summary).
-Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
+Phase: 41 (coverage-blind-spot-detection) — 5/5 PLANS COMPLETE (awaiting phase-close/verification)
+Status: Phase 41 all 5/5 plans complete (Plan 01 + Plan 02 + Plan 03 + Plan 04 + Plan 05 done). COV-01/COV-02/COV-03 all marked [x] complete in REQUIREMENTS.md.
+Last activity: 2026-08-21 — 41-05 complete: `CoverageAssetDrillContent` (3-region drill content mirroring `ticket-drill-content.tsx`, paired with `DrillPanel`'s `idKey="asset"` — the tickets-page precedent, never `/assets`'s full-page `router.push`, Pitfall 8) + `RouteToOwnerDialog` (2-branch confirm-only dialog — D-07 owner-resolved / D-09 unresolvable-owner copy, secondary/violet-focus chrome, never `bg-gradient-sunset`) + `useRouteToOwner(assetId)` mutation (`retry: 0`, `coverage.all` invalidation, exact UI-SPEC toast copy). Wired on `coverage/page.tsx`: row click opens the drill panel; the per-row action AND the drill footer's action share ONE dialog/mutation instance; `canRouteToOwner` (OWNER/ADMIN/ANALYST) computed once and passed down, so a viewer sees the action disabled, never a raw 403. Every real call site renders the D-09 unresolvable-owner dialog branch since no `BlindSpotAsset` row carries owner-preview data (no schema change, per the plan's own reversibility scope) — the resolved branch stays fully implemented/tested for a future owner-preview field. 30/30 frontend tests green (18 new: 5 mutation-hook, 5 dialog, 8 page-level drill/RBAC). `tsc`/lint clean. COV-03 marked [x] complete in REQUIREMENTS.md (backend 41-04 + frontend 41-05). Commits 0e498b6 (feat, Task 1) + c56b689 (feat, Task 2).
+Phase 40 result: ALERT-01..03 closed end-to-end — new-KEV/high-EPSS targeted alerts + scheduled owner/team digests + tenant-configurable/audited alerting settings pane.
 
 ## v5.0 Phase Map
 
@@ -519,6 +519,10 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 41]: 41-04: `route_to_owner`'s five collaborator imports (`get_directory_user`, `_email_owners_and_admins`, `dispatch_channel`, `_send_notification_email`, `_build_channel_config`) are local imports inside the function body, mirroring `_fire_kev_epss_alert`/`detect_and_escalate`'s own documented idiom -- each re-resolves the origin module's attribute fresh on every call, which is what makes `monkeypatch.setattr` on the origin module (not a local alias) effective in the new tests
 - [Phase 41]: 41-04: the router endpoint audits-then-commits via the real `audit()` helper (`coverage.route_to_owner`) rather than a raw scheduler-side `AuditLog(...)` insert -- `_fire_kev_epss_alert`'s own audit shape is scheduler-only (`user=None`) and doesn't apply here since a real analyst `CurrentUser` exists
 - [Phase 41]: COV-03 left `[ ]` unmarked in REQUIREMENTS.md after 41-04 -- also declared by not-yet-executed 41-05 (route-to-owner frontend drill panel); mirrors the Phase 38 CAMP-01 / Phase 41 COV-01 shared-ID-gate precedent. Do not flip until 41-05 also lands.
+- [Phase 41]: 41-05: no `BlindSpotAsset` row carries owner-preview data (no `assigned_user`/directory-email field on `BlindSpotAssetResponse`), and the plan's own reversibility scope explicitly forbids a schema/contract change beyond consuming the Plan 04 endpoint -- so `RouteToOwnerDialog`'s `ownerResolved`/`ownerName` props are real and fully unit-tested (both D-07/D-09 copy branches), but every current call site on `coverage/page.tsx` passes `ownerResolved={false}`, rendering the D-09 unresolvable-owner copy unconditionally. The eventual outcome is still always correct (the success toast reflects the real server-resolved `routed_to`); only the PRE-confirm dialog copy cannot preview which branch will fire. The `resolved` branch stays wired for a future plan that adds an owner-preview field.
+- [Phase 41]: 41-05: the per-row "Route to owner" action and the drill footer's "Route to owner" action share ONE `RouteToOwnerDialog` + ONE `useRouteToOwner(assetId)` instance at the `coverage/page.tsx` level (`routeToOwnerTarget` state), rather than each owning an independent dialog/mutation pair -- matches the plan's explicit instruction ("Instantiate useRouteToOwner(assetId) for the active asset and pass into the dialog")
+- [Phase 41]: COV-03 marked `[x]` complete in REQUIREMENTS.md after 41-05 -- both declaring plans (41-04 backend, 41-05 frontend) have landed; Phase 41 (coverage-blind-spot-detection) is now 5/5 plans complete, fully shipped
+- [Phase 41]: 41-05: hand-edited STATE.md/ROADMAP.md/REQUIREMENTS.md directly again (same rationale as 41-01/41-02/41-03/41-04 -- the `state advance-plan`/`roadmap update-plan-progress` CLI verbs reproducibly corrupt STATE.md frontmatter and mis-write plan counts per this project's decision log)
 
 ## Performance Metrics
 
@@ -597,13 +601,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 41 P02 | ~15min | 2 tasks | 2 files |
 | Phase 41 P03 | 48min | 2 tasks | 10 files |
 | Phase 41 P04 | 35min | 1 task | 6 files |
+| Phase 41 P05 | ~45min | 2 tasks | 8 files |
 
 ## Session
 
-**Last session:** 2026-08-21T08:11:00Z
-**Stopped at:** Phase 41 Plan 04 (41-04) complete — route-to-owner backend shipped (COV-03 backend)
-**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-05-PLAN.md
+**Last session:** 2026-08-21T09:05:00Z
+**Stopped at:** Phase 41 Plan 05 (41-05) complete; Phase 41 all 5/5 plans complete
+**Resume file:** none — Phase 41 fully executed; next is /gsd-plan-phase 42 (or /gsd-verify-work 41 to close phase verification first)
 
 ## Operator Next Steps
 
-- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 4/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green; 41-04 — COV-03 backend: `POST /api/v1/coverage/assets/{asset_id}/route-to-owner` (require_analyst), resolve-then-notify-with-fallback mirroring `_fire_kev_epss_alert`, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only, 16/16 backend tests green). COV-01 and COV-02 are both fully closed in REQUIREMENTS.md; COV-03 stays `[ ]` until 41-05 (frontend drill panel) also lands, mirroring the COV-01 41-01/41-02 shared-gate precedent. Wave 4's plan, 41-05 (COV-03 route-to-owner frontend), is the recommended next step — the last plan in this phase.
+- Phase 41 (Coverage & Blind-Spot Detection) is fully executed: 5/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green; 41-04 — COV-03 backend: `POST /api/v1/coverage/assets/{asset_id}/route-to-owner` (require_analyst), resolve-then-notify-with-fallback mirroring `_fire_kev_epss_alert`, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only, 16/16 backend tests green; 41-05 — COV-03 frontend: `CoverageAssetDrillContent` (idKey="asset") + `RouteToOwnerDialog` (2-branch confirm) + `useRouteToOwner` mutation, wired on both the row action and the drill footer sharing one dialog/mutation instance, `canRouteToOwner` RBAC gate, 30/30 frontend tests green). COV-01/COV-02/COV-03 are all marked `[x]` complete in REQUIREMENTS.md. Recommended next steps, in order: (1) optionally run `/gsd-verify-work 41` to close phase verification (no on-trust checkpoints were deferred this phase — every plan was `type="auto"`/`type="tracer"`, fully automated); (2) proceed to `/gsd-plan-phase 42` (Risk Trend Analytics & Burndown) — no unmet depends_on, independent of Phase 41.

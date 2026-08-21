@@ -59,7 +59,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 - [x] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR (completed 2026-08-18)
 - [x] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry (completed 2026-08-19)
 - [x] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests (completed 2026-08-19; Task 3 live-verify checkpoint approved on-trust, live third-party delivery deferred to /gsd-verify-work 40)
-- [ ] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %
+- [x] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %; route-to-owner (completed 2026-08-21)
 - [ ] **Phase 42: Risk Trend Analytics & Burndown** — Trend lines, backlog aging/burndown, version-boundary-aware
 - [ ] **Phase 43: Executive & Compliance Reporting** — Exec/board PDF, role-scoped dashboards, framework-control compliance view
 - [ ] **Phase 44: Natural-Language Query Assistant** — BYOK plain-English Q&A over tenant data, safe-schema constrained
@@ -241,7 +241,7 @@ Plans:
   2. Per-connector coverage percentage and stale-source gaps (a connector that hasn't reported in N days) are visible
   3. A newly-discovered unmanaged asset can be routed to an owner directly from the coverage view
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 **Wave 1**
 
 - [x] 41-01-PLAN.md — TRACER: blind-spot list end-to-end (COV-01) — backend coverage module + /dashboard/coverage page *(2026-08-20 — GET /api/v1/coverage/blind-spots + /dashboard/coverage page, all 5 loading/error/no-inventory/all-covered/populated states; 5/5 backend + 5/5 frontend tests green)*
@@ -257,7 +257,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 41-05-PLAN.md — Route-to-owner drill panel + confirm dialog + mutation (COV-03 frontend)
+- [x] 41-05-PLAN.md — Route-to-owner drill panel + confirm dialog + mutation (COV-03 frontend) *(2026-08-21 — CoverageAssetDrillContent (idKey="asset", tickets-page precedent) + RouteToOwnerDialog (2-branch confirm, secondary/violet chrome) + useRouteToOwner mutation; per-row + drill-footer actions share one dialog/mutation instance; canRouteToOwner (OWNER/ADMIN/ANALYST) gates both; 30/30 frontend tests green. COV-03 fully closed (backend 41-04 + frontend 41-05); Phase 41 complete, 5/5 plans)*
 
 **UI hint**: yes
 
