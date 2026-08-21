@@ -24,11 +24,13 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import structlog
 from sqlalchemy import ColumnElement, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.constants import ENRICHMENT_SOURCES, SCANNER_SOURCES
 from app.assets.models import Asset
+from app.auth.schemas import CurrentUser
 from app.connectors.service import _normalize_sync_status
 from app.coverage.schemas import (
     BlindSpotAssetListResponse,
@@ -36,7 +38,11 @@ from app.coverage.schemas import (
     CoverageConnectorCardResponse,
     CoverageSummaryResponse,
 )
+from app.notifications.alerting_config import merged_alerting_config
+from app.tenants.models import Tenant
 from app.ticketing.models import ConnectorConfig
+
+logger = structlog.get_logger()
 
 DEFAULT_PAGE_SIZE = 50
 
@@ -207,3 +213,75 @@ async def get_coverage_summary(db: AsyncSession, tenant_id: uuid.UUID) -> Covera
         has_authoritative_inventory=total > 0,
         has_scanner_connector=len(cards) > 0,
     )
+
+
+async def route_to_owner(
+    db: AsyncSession,
+    tenant: Tenant,
+    user: CurrentUser,
+    asset: Asset,
+) -> dict[str, str]:
+    """COV-03: resolve a never-scanned asset's owner via the directory and
+    tell them the device is in inventory but no scanner covers it (D-07,
+    notify-only -- no synthetic finding, no ticket, no new column). Falls
+    back to the tenant's OWNER/ADMIN users plus the tenant alert channel
+    when no owner resolves (D-09), so the riskiest shadow-IT asset is never
+    silently dropped. Mirrors `alerts.py::_fire_kev_epss_alert`'s
+    resolve-then-notify-with-fallback template, adapted to a real
+    `CurrentUser` actor: the caller (router) audits and commits, this
+    function never calls `db.commit()` and never constructs `AuditLog`
+    directly.
+
+    Local imports mirror `_fire_kev_epss_alert` / `detect_and_escalate`'s
+    own idiom -- each re-resolves the module attribute fresh on every call,
+    so `monkeypatch.setattr` on the origin module is honored by tests.
+    """
+    from app.assets.directory import get_directory_user
+    from app.notifications.alerts import _email_owners_and_admins
+    from app.notifications.escalation_channels import dispatch_channel
+    from app.notifications.service import _send_notification_email
+    from app.vulnerabilities.sla_tier_service import _build_channel_config
+
+    hostname = asset.hostname or "Unknown host"
+    title = f"Unmanaged device needs a scanner: {hostname}"
+    message = (
+        f"{hostname} is in your device inventory but no vulnerability scanner covers it. "
+        "Please onboard it to a scanner so its vulnerabilities can be tracked."
+    )
+    category = "coverage_route_to_owner"
+
+    # D-07: resolved owner gets emailed directly; an unresolved owner falls
+    # back to the tenant's OWNER/ADMIN users (`_email_owners_and_admins`
+    # already fans out to every matching user).
+    directory_user = await get_directory_user(db, tenant.id, asset)
+    if directory_user and directory_user.get("email"):
+        await _send_notification_email(db, tenant.id, directory_user["email"], title, message, category)
+        routed_to = directory_user.get("display_name") or directory_user["email"]
+    else:
+        await _email_owners_and_admins(db, tenant, title, message, category)
+        routed_to = "your admins"
+
+    # D-09: also push to the tenant's configured channel(s) for this routing
+    # key -- fail-isolated per channel, never blocks the email/audit above.
+    sla_config = tenant.sla_config or {}
+    channels = merged_alerting_config(tenant)["routing"].get("coverage_unmanaged_asset") or []
+    for channel in channels:
+        try:
+            channel_config = _build_channel_config(sla_config, channel, tenant)
+            outcome = await dispatch_channel(
+                channel,
+                channel_config,
+                {"hostname": hostname, "routed_to": routed_to, "category": category},
+            )
+        except Exception as e:  # decrypt/dispatch failure -- never blocks the email or the audit
+            outcome = {"ok": False, "error": str(e)}
+        if not outcome.get("ok"):
+            logger.warning(
+                "coverage_route_to_owner_channel_dispatch_failed",
+                tenant_id=str(tenant.id),
+                asset_id=str(asset.id),
+                channel=channel,
+                error=outcome.get("error"),
+            )
+
+    return {"hostname": hostname, "routed_to": routed_to}

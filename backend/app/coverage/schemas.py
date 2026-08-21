@@ -69,6 +69,19 @@ class CoverageSummaryResponse(BaseModel):
     has_scanner_connector: bool
 
 
+class RouteToOwnerResponse(BaseModel):
+    """POST /assets/{asset_id}/route-to-owner (Phase 41 Plan 04, COV-03):
+    the notify-only result of resolving a never-scanned asset's owner and
+    telling them to onboard it (D-07) -- `routed_to` is either the resolved
+    owner's display name/email, or the literal "your admins" fallback
+    string (D-09) when no owner resolves."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    hostname: str
+    routed_to: str
+
+
 class BlindSpotAssetListResponse(BaseModel):
     """Mirrors the existing `/assets` pagination envelope
     (`{items,total,page,page_size,pages}`, `assets/router.py::list_assets`)

@@ -49,6 +49,9 @@ DEFAULT_ALERTING_CONFIG: dict[str, Any] = {
         "new_kev_epss": ["slack"],  # ALERT-01 real-time push (D-07).
         "digest_owner": ["email"],  # ALERT-02 per-owner digest channel (D-09).
         "digest_team": ["slack"],  # ALERT-02 per-team digest channel (D-09).
+        "coverage_unmanaged_asset": [],  # Phase 41 COV-03 route-to-owner channel push (D-09);
+        # empty default -- dispatch treats an empty routing list as a no-op
+        # until a tenant configures a channel for this key.
     },
 }
 

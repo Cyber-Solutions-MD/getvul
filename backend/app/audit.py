@@ -78,6 +78,8 @@ class AuditLog(Base):
 #   EXC-03/EXC-04, system actor "system:exception-expiry", lazy-on-read
 #   Pattern 4 sweep guarded by resurfaced_audited_at IS NULL so it fires
 #   exactly once per naturally-lapsed exception)
+# coverage.route_to_owner (Phase 41 -- COV-03, analyst-actor, audit-then-commit;
+#   details={hostname, routed_to})
 
 
 # ── Syslog forwarder ──
