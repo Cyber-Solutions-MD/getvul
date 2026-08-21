@@ -1,7 +1,7 @@
 ---
 phase: 42
 slug: risk-trend-analytics-burndown
-status: draft
+status: verified
 shadcn_initialized: true
 preset: "frontend/components.json — style new-york, baseColor zinc, cssVariables true, iconLibrary lucide (existing, unmodified, untouched by this phase). Production does NOT consume shadcn's zinc theme directly — every screen consumes the sunset design-token layer from sketch-findings-getvul/foundation.md instead. A small set of Radix-based shadcn-generated primitives already live in frontend/src/components/ui (dropdown-menu.tsx, tooltip.tsx, form.tsx, input.tsx, textarea.tsx, label.tsx, button.tsx, card.tsx) restyled with sunset tokens rather than the zinc base color — this phase adds zero NEW shadcn-registry installs. The scope selector reuses dropdown-menu.tsx verbatim; the window-range control extends the existing hand-rolled RangeToggle idiom from trend-chart.tsx; the two new charts (segmented risk-exposure line + SLA-tier aging bars) are hand-rolled recharts, mirroring trend-chart.tsx's existing CSS-variable-fill pattern."
 created: 2026-08-21
@@ -148,63 +148,71 @@ Weights used: **400 (regular — body copy, table/legend text)** and **600 (semi
 > Empty-state and error-state COPY live in `## Copywriting Contract` above — this section covers
 > state coverage and REFERENCES those rows rather than restating the copy (de-dup).
 
-Applicable state considerations resolved: **17 covered, 5 backstop, 2 dismissed (not applicable) — 0 unresolved.**
+Applicable state considerations resolved (canonical `ui-consideration-probe` run over 5 surfaces, 37 applicable): **33 covered, 0 backstop, 4 dismissed (not applicable) — 0 unresolved.** Element kinds: E1 `form`, E2/E3/E4 `list-collection` (E2/E3 charts authored as data-display collections — the prose classifier has no "chart" cue and returned `unclassified`; kind-confirmation resolved them to `list-collection`), E5 `nav`.
 
-### E1 — Scope + window controls (header)
-
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | scope dropdown | ✅ covered | Zero `AssetGroup`s exist for the tenant → dropdown shows only `All (tenant)`, no group section, no empty-list affordance needed (a 1-item dropdown is a valid, non-broken state). |
-| overflow | scope dropdown | 🧪 backstop | { statement: "A tenant with a very large number of AssetGroups (e.g. 50+) gets a scrollable dropdown-menu list rather than an unbounded one, and/or a search-filter affordance inside the dropdown", verification: backstop } — D-02 doesn't specify a group-count ceiling; `dropdown-menu.tsx` supports scroll natively but a search affordance is not locked. Planner should confirm whether the existing group count in production ever approaches this before deciding. |
-| populated | window control | ✅ covered | 5 options (`7d/30d/90d/1y/Custom`) render via the existing `RangeToggle` `role="group"`/`aria-pressed` pattern, extended count. |
-| partial | window control | ✅ covered | Selected window exceeds available snapshot history → chart renders whatever history exists (no synthetic zero-fill), per D-03's "naturally bounded by however much history exists." |
-| overflow | custom range fields | ✅ covered | `To` before `From` (invalid range) is rejected client-side with the field-level helper-text pattern from `copy-voice.md` ("Must include a number and an uppercase letter." style — here: `End date must be after start date.`); no query fires until valid. |
-| zero-one-many | window control | ✅ covered | Every preset renders the same chart shapes regardless of point count — the empty-state threshold (D-04) is the actual gate, not the window control itself. |
-
-### E2 — Risk-exposure trend line (segmented, version-boundary aware)
+### E1 — Scope + window controls (form)
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| empty | trend chart | ✅ covered | Below the minimum-history threshold → D-04 guided `EmptyState`, see Copywriting Contract. |
-| loading | trend chart | ✅ covered | `TrendChartSkeleton`-style shimmer block in the chart's exact footprint (reuses the existing skeleton primitive, no new loading component). |
-| error | trend chart | ✅ covered | Reuses `PartialFailureBanner`; see Copywriting Contract "Error state." |
-| populated (no version boundary in window) | trend chart | ✅ covered | Single continuous violet line, no reference markers rendered — the boundary-detection logic simply finds zero boundaries in-window and renders the plain case. |
-| populated (≥1 version boundary in window) | trend chart | ✅ covered | Line breaks (no interpolation) at each boundary date + a labeled `ReferenceLine` per boundary, per D-11; multiple boundaries in one window each get their own marker (not just the first/last). |
-| zero-one-many | trend chart | 🧪 backstop | { statement: "A scope with exactly 1 data point in the window (just above the D-04 minimum-history threshold) renders as a single dot/point marker, not a broken zero-length line or a misleading flat line implying a trend", verification: backstop } — D-04's threshold is planner discretion; the single-point rendering treatment isn't specified in `42-CONTEXT.md` and needs an explicit decision at plan time. |
-| long-text | group-scope caption (D-06) | ✅ covered | Caption text is a fixed template (`Shows {group name}'s current members…`) — only the group name is variable and already length-bounded by the existing `AssetGroup.name` field/UI elsewhere (asset-groups management page), no new truncation risk introduced. |
-| overflow | version-boundary label | ✅ covered | Version strings (`v1`, `v2`, …) are short fixed-format tokens from `RISK_MODEL_VERSION` — no truncation risk. |
+| empty | scope dropdown | ✅ covered | Zero `AssetGroup`s → dropdown shows only `All (tenant)` (a valid 1-item state, no empty-list affordance); the window control always renders its 5 fixed presets. |
+| loading | controls | ✅ covered | Controls render inside the page skeleton shell (disabled) during the single compute pass (D-13); scope options hydrate with the page, no independent control-level spinner. |
+| error | controls | ✅ covered | On analytics read failure the whole page shows `PartialFailureBanner` (D-13, single compute pass); controls stay interactive so a retry re-runs the same window/scope. |
+| populated | controls | ✅ covered | Scope dropdown lists `All (tenant)` + each `AssetGroup`; window shows 5 presets via the existing `RangeToggle` (`role="group"` / `aria-pressed`) extended from 3 to 5 options. |
+| partial | window control | ✅ covered | Selected window exceeds available snapshot history → chart renders whatever history exists (no synthetic zero-fill), per D-03's "naturally bounded by however much history exists." Invalid custom range (`To` before `From`) is rejected client-side with field-level helper text (`End date must be after start date.`) — no query fires until valid. |
+| overflow | scope dropdown | ✅ covered | **[user decision]** Many `AssetGroup`s → a natively-scrollable `dropdown-menu` list **plus an inline search/filter input inside the dropdown** to narrow the list at high group counts. |
+| zero-one-many | window control | ✅ covered | Every preset renders the same control shapes regardless of point count — the D-04 empty threshold gates the charts, not the controls. |
+| long-text | scope trigger | ✅ covered | Trigger shows the selected `AssetGroup.name`, already length-bounded by the `AssetGroup.name` field elsewhere (asset-groups management page); ellipsis-truncates within the trigger width if needed. |
 
-### E3 — Backlog aging (SLA-tier stacked bars)
+### E2 — Risk-exposure trend line (list-collection; segmented, version-boundary aware)
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| empty | aging chart | ✅ covered | Zero open findings in scope (after Phase 39/40 exclusions, D-10) → all 3 buckets render at 0, not a separate empty-state shell (a "nothing overdue" 0-height chart is itself informative and matches the Coverage precedent's "quiet win" framing, not an error). |
+| empty | trend chart | ✅ covered | Below the minimum-history threshold → D-04 guided `EmptyState` (see Copywriting Contract "Empty state — insufficient history"). |
+| loading | trend chart | ✅ covered | `TrendChartSkeleton`-style shimmer in the chart's exact footprint (reuses the existing skeleton primitive, no new loading component). |
+| error | trend chart | ✅ covered | Reuses `PartialFailureBanner` (see Copywriting Contract "Error state"). |
+| populated | trend chart | ✅ covered | No boundary in window → single continuous violet line, no reference markers. ≥1 boundary → line breaks (no interpolation) at each boundary date + a labeled `ReferenceLine` per boundary (D-11); every in-window boundary gets its own marker, not just the first/last. |
+| partial | trend chart | ✅ covered | Window exceeds available history → renders only the available history (no zero-fill); the group-scope semantic caption (D-06) is shown whenever scope ≠ `All (tenant)`. |
+| overflow | version-boundary label | ✅ covered | Version strings (`v1 → v2`) are short fixed-format `RISK_MODEL_VERSION` tokens — no truncation risk; `ResponsiveContainer` scales the plot to its container. |
+| zero-one-many | trend chart | ✅ covered | **[user decision]** Exactly 1 data point in the window (just above the D-04 threshold) renders as a **single dot/point marker** — never a zero-length line or a misleading flat line implying a trend. |
+
+### E3 — Backlog aging (list-collection; SLA-tier stacked bars)
+
+| Category | Element(s) | Status | Resolution / Reason |
+|----------|------------|--------|---------------------|
+| empty | aging chart | ✅ covered | Zero open findings in scope (after Phase 39/40 exclusions, D-10) → all 3 buckets render at 0, not a separate empty-state shell (a "nothing overdue" 0-height chart is itself informative — the Coverage "quiet win" framing, not an error). |
 | loading | aging chart | ✅ covered | Same skeleton shimmer treatment as E2, sized to the bar-chart footprint. |
-| error | aging chart | ✅ covered | Shares the same read failure / `PartialFailureBanner` as the rest of the page (D-13 — one compute pass, not independently fetched). |
-| populated | aging chart | ✅ covered | 3 buckets × up to 4 severity segments each, `SEVERITY_FILLS` reused verbatim; tooltip on hover shows the exact count per severity per bucket, mirroring `SeverityTooltip`'s existing structure. |
-| zero-one-many | aging chart headline tile | 🧪 backstop | { statement: "The optional '% of backlog overdue' headline tile (discretion item) is included with a specific rounding/threshold rule (e.g. 0% renders as '0% of open backlog is overdue', not omitted or blank)", verification: backstop } — inclusion of this tile is explicitly discretionary per `42-CONTEXT.md`; if the planner chooses to build it, the zero-case rendering needs to be locked at plan time. |
-| overflow | bucket bars | ✅ covered | Bar chart width auto-scales via `ResponsiveContainer` (existing pattern from `trend-chart.tsx`) regardless of the largest bucket's count. |
+| error | aging chart | ✅ covered | Shares the page `PartialFailureBanner` (D-13 — one compute pass, not independently fetched). |
+| populated | aging chart | ✅ covered | 3 buckets × up to 4 severity segments each, `SEVERITY_FILLS` reused verbatim; hover tooltip shows the exact count per severity per bucket, mirroring `SeverityTooltip`'s existing structure. |
+| partial | aging chart | ✅ covered | A bucket missing a given severity simply renders that segment at 0 height; all 3 buckets always render (a missing bucket would misrepresent the distribution). |
+| overflow | bucket bars | ✅ covered | Bar-chart width auto-scales via `ResponsiveContainer` (existing `trend-chart.tsx` pattern) regardless of the largest bucket's count. |
+| zero-one-many | aging headline tile | ✅ covered | **[user decision]** The optional "% of backlog overdue" headline tile **is built**; at zero it renders `0% of open backlog is overdue` (explicit, never blank or omitted). |
 
-### E4 — Burndown rate tile
+### E4 — Burndown rate tile (list-collection)
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| empty | burndown tile | ✅ covered | Zero new-vs-resolved activity in the window (net = 0, no findings created or closed) → renders `Backlog shrinking — 0 findings/week net` is misleading; instead render a neutral variant: `No change this period` (net exactly 0, distinct copy from both the shrinking/growing rows above — locked here as a third copy branch). |
-| loading | burndown tile | ✅ covered | Skeleton block matching the tile's card footprint (`h-[N]px rounded-lg border border-border-subtle bg-surface-2 animate-pulse`, same idiom as `CoverageStripSkeleton`). |
+| empty | burndown tile | ✅ covered | Net-zero activity in the window (net = 0, nothing created or closed) → neutral third copy branch `No change this period`, distinct from the shrinking/growing rows (locked here as a third branch — `0 findings/week net` framed as "shrinking" would mislead). |
+| loading | burndown tile | ✅ covered | Skeleton block matching the tile's card footprint (`rounded-lg border border-border-subtle bg-surface-2 animate-pulse`, same idiom as `CoverageStripSkeleton`). |
 | error | burndown tile | ✅ covered | Shares the page-level `PartialFailureBanner` (single compute pass, D-13). |
-| populated | burndown tile | ✅ covered | Two branches (shrinking / growing) fully specified in Copywriting Contract, plus the empty (net=0) branch above. |
-| overflow | projected days-to-zero | 🧪 backstop | { statement: "An extremely small positive net-resolution rate produces an extremely large projected days-to-zero number (e.g. '14200d to clear') — needs either a display cap ('500+ d to clear') or is shown as-is", verification: backstop } — D-09 specifies the projection exists but not a display ceiling; a raw multi-thousand-day number reads as absurd/untrustworthy and should likely be capped, but the exact cap is not locked in `42-CONTEXT.md`. |
+| populated | burndown tile | ✅ covered | Shrinking / growing branches fully specified in the Copywriting Contract, plus the net-zero branch above. |
+| partial | burndown tile | ✅ covered | Velocity computes but no clear date is projectable (net-growing) → `Backlog growing — no clear date at this rate` (Copywriting Contract). |
+| overflow | projected days-to-clear | ✅ covered | **[user decision]** An extremely small positive net rate → the projection is **capped** (e.g. `500+ d to clear`) rather than showing an absurd multi-thousand-day raw number. |
+| zero-one-many | burndown tile | ✅ covered | A single week of data still yields a net rate; copy stays unit-consistent (`findings/week net`), no singular/plural special-case. |
 
-### E5 — Sidebar nav entry ("Analytics")
+### E5 — Sidebar nav entry ("Analytics", nav)
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| loading | nav entry | ✅ covered | Renders synchronously with the shell (static `nav-items.ts` entry) — no independent async load state. |
+| empty | nav entry | ✖ dismissed (N/A) | Nav entry is always present (static `nav-items.ts` entry); no data-driven empty state exists. |
+| loading | nav entry | ✅ covered | Renders synchronously with the shell (static entry) — no independent async load state. |
 | error | nav entry | ✖ dismissed (N/A) | Static nav entry; no data fetch at the nav level. |
-| overflow | nav entry | ✅ covered | `Analytics` is a single word, within the existing nav-label width budget (shorter than `Campaigns`/`Exceptions`). |
+| populated | nav entry | ✅ covered | Renders the `Analytics` label + `LineChart` icon; violet active strip when the `/analytics` route matches (inherited shell behavior). |
+| partial | nav entry | ✖ dismissed (N/A) | Static entry; no partial-data state. |
+| overflow | nav entry | ✅ covered | `Analytics` is a single word within the existing nav-label width budget (shorter than `Campaigns`/`Exceptions`). |
+| zero-one-many | nav entry | ✖ dismissed (N/A) | One fixed entry, not a collection. |
 | long-text | nav entry | ✖ dismissed (N/A) | Fixed label copy, no dynamic text. |
 
-**Backstop verification note for the planner:** the 5 backstop items (E1 group-dropdown overflow, E2 single-data-point rendering, E3 headline-tile zero-case, E4 days-to-zero display cap) each carry an unwired acceptance criterion — at verify time, each with no wired evidence routes to `insufficient_spec → human_needed`. The planner should scope explicit decisions for each before an executor implements them.
+**Planner note:** all 33 applicable considerations resolve to `covered` (with concrete truths) or `dismissed (N/A)` — there are no open backstops or unresolved rows for the planner to inherit as assumptions. The four discretion items in `42-CONTEXT.md` (scope-dropdown overflow, single-data-point trend rendering, aging headline-tile zero-case, days-to-clear display cap) were resolved by explicit user decision during the ui-phase probe and are marked `[user decision]` above — the planner should treat those as locked truths, not re-open them.
 
 ---
 
@@ -221,11 +229,11 @@ No new shadcn registry install this phase. The scope dropdown reuses the already
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (gsd-ui-checker, 2026-08-21) — Dimension 4 resolved on revision 1 (typography collapsed to 4 sizes). UI Considerations probe: 33 covered / 4 dismissed N/A / 0 backstop / 0 unresolved.
