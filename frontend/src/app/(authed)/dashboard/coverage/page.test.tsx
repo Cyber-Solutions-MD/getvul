@@ -1,7 +1,8 @@
 /**
  * page.test.tsx — tests for the /dashboard/coverage blind-spot list page
  * (Phase 41 Plan 01, COV-01 tracer slice; Plan 03 extends with a second
- * mocked query for the COV-02 coverage strip). Mirrors
+ * mocked query for the COV-02 coverage strip; Plan 05 extends with
+ * DrillPanel + RBAC-gated "Route to owner" tests). Mirrors
  * exceptions/page.test.tsx's `vi.spyOn(module, 'hook').mockReturnValueOnce`
  * convention (closer precedent than assets/page.test.tsx's factory `vi.mock`,
  * since both pages are single-query v5.0-era list screens).
@@ -13,15 +14,19 @@
  * exercising the exact same branch they did before Plan 03 added the
  * second read (page.tsx now branches on BOTH queries — see coverage strip
  * tests below for the has_scanner_connector: false / cards-populated cases).
+ *
+ * `searchParamsMock` is now mutable (`let`, mirroring
+ * vulnerabilities/page.test.tsx's `mockParams` convention) so the Plan 05
+ * drill-panel test can pre-set `?asset=<id>&open=drill` before rendering.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactNode } from 'react';
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
-const searchParamsMock = new URLSearchParams();
+let searchParamsMock = new URLSearchParams();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
@@ -31,6 +36,22 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/hooks/use-document-title', () => ({
   useDocumentTitle: vi.fn(),
+}));
+
+// Plan 05 (COV-03) — D-08 asymmetric RBAC gating. Mutable per-test via
+// `mockUseAuth.mockReturnValueOnce(...)`; defaults to an analyst so every
+// pre-existing (Plan 01/03) test keeps exercising the action-enabled path.
+const mockUseAuth = vi.fn(() => ({ user: { role: 'ANALYST', id: 'u1' } }));
+vi.mock('@/lib/auth', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+// Plan 05 (COV-03) — the route-to-owner mutation hook. Real toasts/queries
+// are irrelevant to these branch/RBAC tests (nothing here clicks "confirm"),
+// so a plain isPending-only stub is enough.
+const routeToOwnerMutate = vi.fn();
+vi.mock('@/lib/queries/use-route-to-owner', () => ({
+  useRouteToOwner: () => ({ mutate: routeToOwnerMutate, isPending: false }),
 }));
 
 import * as useBlindSpotAssetsModule from '@/lib/queries/use-blind-spot-assets';
@@ -82,10 +103,33 @@ function mockSummaryQuery(overrides: {
   } as unknown as ReturnType<typeof useCoverageSummaryModule.useCoverageSummary>);
 }
 
+const POPULATED_ONE_ROW: BlindSpotAssetListResponse = {
+  items: [
+    {
+      id: 'a1',
+      hostname: 'prod-db-01',
+      category: 'SERVER',
+      os: 'Ubuntu 22.04',
+      last_seen_at: null,
+      seen_by_sources: ['JAMF'],
+    },
+  ],
+  total: 1,
+  page: 1,
+  page_size: 50,
+  pages: 1,
+  has_authoritative_inventory: true,
+  total_authoritative_assets: 1,
+};
+
 describe('/dashboard/coverage page', () => {
   beforeEach(() => {
     pushMock.mockClear();
     replaceMock.mockClear();
+    routeToOwnerMutate.mockClear();
+    searchParamsMock = new URLSearchParams();
+    mockUseAuth.mockReset();
+    mockUseAuth.mockReturnValue({ user: { role: 'ANALYST', id: 'u1' } });
     mockSummaryQuery({});
   });
 
@@ -262,5 +306,49 @@ describe('/dashboard/coverage page', () => {
     const { container } = renderWithClient(<CoveragePage />);
     expect(container.querySelectorAll('[data-skeleton-row]').length).toBeGreaterThan(0);
     expect(screen.queryByText('No inventory source connected')).toBeNull();
+  });
+
+  // --- Plan 05 (COV-03) — DrillPanel (idKey="asset") + RBAC-gated "Route to owner" ---
+
+  it('clicking a blind-spot row updates the URL to ?asset={id}&open=drill (D-D-02)', () => {
+    mockQuery({ data: POPULATED_ONE_ROW });
+    renderWithClient(<CoveragePage />);
+    const row = screen.getByText('prod-db-01').closest('tr');
+    expect(row).not.toBeNull();
+    fireEvent.click(row!);
+    expect(replaceMock).toHaveBeenCalled();
+    const [target] = replaceMock.mock.calls[replaceMock.mock.calls.length - 1];
+    expect(target).toContain('asset=a1');
+    expect(target).toContain('open=drill');
+  });
+
+  it('?asset=a1&open=drill pre-opens the asset DrillPanel with the row content', () => {
+    searchParamsMock = new URLSearchParams('asset=a1&open=drill');
+    mockQuery({ data: POPULATED_ONE_ROW });
+    renderWithClient(<CoveragePage />);
+    const dialog = screen.getByRole('dialog', { name: 'Device detail' });
+    expect(dialog).toBeInTheDocument();
+    // Hostname renders both in the table row and the drill header — assert
+    // at least the drill's own mono heading is present.
+    expect(screen.getAllByText('prod-db-01').length).toBeGreaterThanOrEqual(2);
+    // "No scanner coverage" also renders in both the row badge and the
+    // drill body — scope this assertion to inside the dialog.
+    expect(within(dialog).getByText('No scanner coverage')).toBeInTheDocument();
+  });
+
+  it('viewer role: "Route to owner" row action is disabled (D-08 asymmetric RBAC, never a raw 403)', () => {
+    mockUseAuth.mockReturnValue({ user: { role: 'VIEWER', id: 'u2' } });
+    mockQuery({ data: POPULATED_ONE_ROW });
+    renderWithClient(<CoveragePage />);
+    const rowAction = screen.getByRole('button', { name: 'Route to owner' });
+    expect(rowAction).toBeDisabled();
+  });
+
+  it('analyst role: "Route to owner" row action is enabled', () => {
+    mockUseAuth.mockReturnValue({ user: { role: 'ANALYST', id: 'u1' } });
+    mockQuery({ data: POPULATED_ONE_ROW });
+    renderWithClient(<CoveragePage />);
+    const rowAction = screen.getByRole('button', { name: 'Route to owner' });
+    expect(rowAction).not.toBeDisabled();
   });
 });

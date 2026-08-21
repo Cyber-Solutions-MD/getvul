@@ -30,14 +30,22 @@
  *     assets" order, xl gap between the two halves)
  *
  * DrillPanel + the "Route to owner" action are Plan 04/05 (COV-03)
- * concerns — deliberately NOT wired here; rows are read-only for this
- * tracer.
+ * concerns. Plan 05 wires both: row click opens `DrillPanel` (generalized
+ * `idKey="asset"`, the tickets-page precedent — NOT `/assets`'s full-page
+ * `router.push`, Pitfall 8) rendering `CoverageAssetDrillContent`; the
+ * per-row action AND the drill footer's action share ONE
+ * `RouteToOwnerDialog` + ONE `useRouteToOwner(assetId)` instance at this
+ * page level (`routeToOwnerTarget` state below), rather than each owning an
+ * independent dialog/mutation pair.
  */
-import { Suspense, useMemo, type ReactNode } from 'react';
+import { Suspense, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth';
 import { microcopy } from '@/components/coverage/microcopy';
 import { CoverageConnectorCard } from '@/components/coverage/coverage-connector-card';
+import { CoverageAssetDrillContent } from '@/components/coverage/coverage-asset-drill-content';
+import { RouteToOwnerDialog } from '@/components/coverage/route-to-owner-dialog';
 import {
   SkeletonTable,
   EmptyState,
@@ -47,9 +55,11 @@ import {
 import { StatStrip } from '@/components/ui/stat-strip';
 import Pagination from '@/components/ui/Pagination';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
+import { DrillPanel } from '@/components/vulnerabilities/drill-panel';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useBlindSpotAssets, type BlindSpotAsset } from '@/lib/queries/use-blind-spot-assets';
 import { useCoverageSummary } from '@/lib/queries/use-coverage-summary';
+import { useRouteToOwner } from '@/lib/queries/use-route-to-owner';
 
 // 5-column skeleton shape mirrors the blind-spot table below.
 const SKELETON_COLUMNS: SkeletonColumn[] = [
@@ -102,7 +112,23 @@ function pageErrorFallback(err: Error, reset: () => void): ReactNode {
   );
 }
 
-function BlindSpotTable({ rows }: { rows: BlindSpotAsset[] }) {
+// Secondary-weight row action — NEVER bg-gradient-sunset (UI-SPEC Color:
+// this page has no page-level primary CTA). Mirrors CTA_SECONDARY's chrome
+// at a row-scale (smaller padding).
+const ROW_ACTION_BTN_CLASS =
+  'inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-2 px-2.5 py-1 text-xs font-medium text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet disabled:pointer-events-none disabled:opacity-50';
+
+function BlindSpotTable({
+  rows,
+  canRouteToOwner,
+  onRowClick,
+  onRouteToOwner,
+}: {
+  rows: BlindSpotAsset[];
+  canRouteToOwner: boolean;
+  onRowClick: (asset: BlindSpotAsset) => void;
+  onRouteToOwner: (asset: BlindSpotAsset) => void;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
@@ -123,11 +149,25 @@ function BlindSpotTable({ rows }: { rows: BlindSpotAsset[] }) {
             <th scope="col" className="px-3 py-2" data-col="never-scanned">
               {microcopy.columns.neverScanned}
             </th>
+            <th scope="col" className="px-3 py-2" data-col="actions">
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="border-b border-border-subtle">
+            <tr
+              key={r.id}
+              tabIndex={0}
+              onClick={() => onRowClick(r)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onRowClick(r);
+                }
+              }}
+              className="cursor-pointer border-b border-border-subtle hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+            >
               <td className="px-3 py-3 font-mono text-text">{r.hostname}</td>
               <td className="px-3 py-3 text-text-muted">{categoryLabel(r.category)}</td>
               <td className="px-3 py-3 text-text-muted">{r.os ?? '—'}</td>
@@ -141,6 +181,23 @@ function BlindSpotTable({ rows }: { rows: BlindSpotAsset[] }) {
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber/40 bg-amber/10 px-2 py-0.5 text-xs text-[var(--color-amber-on-soft)]">
                   {microcopy.badge.noScannerCoverage}
                 </span>
+              </td>
+              <td className="px-3 py-3">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    // Row itself opens the drill on click — the row action
+                    // must not also trigger that (D-04's two independent
+                    // entry points into the same dialog).
+                    e.stopPropagation();
+                    onRouteToOwner(r);
+                  }}
+                  disabled={!canRouteToOwner}
+                  title={canRouteToOwner ? undefined : microcopy.routeToOwner.disabledHint}
+                  className={ROW_ACTION_BTN_CLASS}
+                >
+                  {microcopy.routeToOwner.rowAction}
+                </button>
               </td>
             </tr>
           ))}
@@ -173,6 +230,14 @@ function CoveragePageInner() {
   const router = useRouter();
   useDocumentTitle(microcopy.page.h1);
 
+  // D-08 asymmetric RBAC — analyst+ can invoke "Route to owner"; a viewer
+  // sees it disabled, never a raw 403 to react to (the backend
+  // `require_analyst` gate is defense-in-depth only). Mirrors
+  // connectors/page.tsx:98-99's role-check convention.
+  const { user } = useAuth();
+  const canRouteToOwner =
+    user?.role === 'OWNER' || user?.role === 'ADMIN' || user?.role === 'ANALYST';
+
   const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
   const q = useBlindSpotAssets({ page: pageNum });
   const summaryQ = useCoverageSummary();
@@ -203,6 +268,36 @@ function CoveragePageInner() {
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : (pathname ?? '/'), { scroll: false });
   };
+
+  // Asset id from URL for the drill panel (D-D-02, idKey="asset" — the
+  // tickets-page precedent, NOT `/assets`'s full-page navigation, Pitfall 8).
+  const assetIdFromUrl = params?.get('asset') ?? null;
+  const selectedAsset: BlindSpotAsset | undefined = useMemo(
+    () => items.find((a) => a.id === assetIdFromUrl) ?? undefined,
+    [items, assetIdFromUrl],
+  );
+
+  // Row click → set ?asset=<id>&open=drill (D-D-02).
+  const onRowClick = useCallback(
+    (asset: BlindSpotAsset) => {
+      const sp = new URLSearchParams(params?.toString() ?? '');
+      sp.set('asset', asset.id);
+      sp.set('open', 'drill');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : (pathname ?? '/'), { scroll: false });
+    },
+    [router, pathname, params],
+  );
+
+  // "Route to owner" — a single shared dialog + mutation instance for BOTH
+  // the row action and the drill footer action (not one pair each).
+  const [routeToOwnerTarget, setRouteToOwnerTarget] = useState<BlindSpotAsset | null>(null);
+  const routeToOwnerMutation = useRouteToOwner(routeToOwnerTarget?.id ?? '');
+  const handleRouteToOwnerConfirm = useCallback(() => {
+    routeToOwnerMutation.mutate(undefined, {
+      onSuccess: () => setRouteToOwnerTarget(null),
+    });
+  }, [routeToOwnerMutation]);
 
   return (
     <div className="space-y-4 p-6">
@@ -274,7 +369,12 @@ function CoveragePageInner() {
               <CoverageConnectorCard key={card.connector_type} card={card} />
             ))}
           </StatStrip>
-          <BlindSpotTable rows={items} />
+          <BlindSpotTable
+            rows={items}
+            canRouteToOwner={canRouteToOwner}
+            onRowClick={onRowClick}
+            onRouteToOwner={setRouteToOwnerTarget}
+          />
           {(q.data?.pages ?? 1) > 1 && (
             <Pagination
               page={pageNum}
@@ -286,6 +386,39 @@ function CoveragePageInner() {
           )}
         </div>
       )}
+
+      {/* Drill panel (D-D-02, idKey="asset" — tickets-page precedent,
+          Pitfall 8: never the /assets full-page navigation). */}
+      <DrillPanel
+        idKey="asset"
+        id={assetIdFromUrl}
+        ariaLabel="Device detail"
+        renderContent={({ onClose }) => (
+          <CoverageAssetDrillContent
+            asset={selectedAsset}
+            canRouteToOwner={canRouteToOwner}
+            onRouteToOwner={() => {
+              if (selectedAsset) setRouteToOwnerTarget(selectedAsset);
+            }}
+            onClose={onClose}
+          />
+        )}
+      />
+
+      {/* Single shared confirm dialog for BOTH the row action and the
+          drill footer action (D-07/D-09). No per-row owner signal exists
+          today (see microcopy.ts's doc comment) — every call site renders
+          the unresolvable (D-09) branch. */}
+      <RouteToOwnerDialog
+        open={routeToOwnerTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRouteToOwnerTarget(null);
+        }}
+        hostname={routeToOwnerTarget?.hostname ?? ''}
+        ownerResolved={false}
+        onConfirm={handleRouteToOwnerConfirm}
+        isPending={routeToOwnerMutation.isPending}
+      />
     </div>
   );
 }
