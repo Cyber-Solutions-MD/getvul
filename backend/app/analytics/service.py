@@ -32,6 +32,29 @@ Plan 02 (TREND-02) additions -- `get_aging_distribution` / `get_burndown_rate`
     (42-RESEARCH.md Pitfall 2). The stored `sla_due_at`/`sla_breached`
     columns are read directly, never recomputed live via
     `resolve_state_for_vuln` (42-RESEARCH.md Open Question 2, RESOLVED).
+
+Plan 03 (TREND-01 group scope + D-03 custom range + TREND-03 multi-boundary)
+additions:
+
+  - D-05/D-06/D-07: `get_scoped_trend_series` gains an optional `member_ids`
+    param -- when provided (group scope), each historical day's average is
+    recomputed RETROACTIVELY by intersecting that day's
+    `asset_risk_exposure_scores` dict against the group's CURRENT
+    membership, never a stored/point-in-time value. A day with zero scored
+    current members yields `None` (a gap), never `0` (D-06).
+  - T-42-08 (IDOR): `_resolve_group_scope` reuses
+    `app.assets.groups_service.list_members`'s tenant-scoped,
+    None-on-cross-tenant-miss lookup -- mirrors that module's own
+    "return None/False on a miss, let the caller 404" convention rather
+    than raising an HTTP-specific exception from this plain-async,
+    HTTP-agnostic module (D-16); the router converts `None` to a 404.
+  - Pitfall 5/D-02: `get_analytics_overview` threads the SAME group-derived
+    `asset_ids` into `get_aging_distribution`/`get_burndown_rate` (both
+    already accept it, wired in Plan 02) so scope re-scopes EVERY chart,
+    not only the trend line.
+  - `MAX_ANALYTICS_WINDOW_DAYS` bounds a custom `[start, end]` range
+    server-side (T-42-09 DoS guard), mirroring the existing `/trends`
+    `le=365` idiom on the days-count precedent.
 """
 
 from __future__ import annotations
@@ -43,6 +66,7 @@ from typing import Any
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.assets.groups_service import get_group, list_members
 from app.exceptions.service import active_exception_subquery
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import Vulnerability
@@ -70,16 +94,39 @@ _SEVERITY_BUCKET_KEYS: dict[str, str] = {
 # 42-CONTEXT.md; 500d (~1.4y) is far past any window this page offers.
 MAX_PROJECTION_DAYS = 500
 
+# T-42-09 (DoS guard): a defensive server-side cap on a custom [start, end]
+# range's span (D-03/Plan 03), mirroring the existing `/trends` `le=365`
+# idiom on the days-count precedent -- ~1096d (~3y) covers any legitimate
+# historical-comparison use case while bounding the daily_snapshots scan.
+MAX_ANALYTICS_WINDOW_DAYS = 1096
+
 
 async def get_scoped_trend_series(
-    db: AsyncSession, tenant_id: uuid.UUID, *, start: date, end: date
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    start: date,
+    end: date,
+    member_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """T-42-01 (tenant isolation): `DailySnapshot.tenant_id == tenant_id` is
     inline in this query's `.where(...)` -- never a post-fetch filter.
     Ascending by `snapshot_date` (one row per day, no timestamp ties) and
     bounded by `[start, end]` -- never the legacy 90-row LIMIT (D-13).
-    ALWAYS reads `avg_risk_exposure_score` (D-12) -- never branches on the
-    tenant's consumer-cutover flag.
+
+    Tenant scope (`member_ids=None`, the default -- byte-identical to
+    before Plan 03): ALWAYS reads `avg_risk_exposure_score` (D-12) -- never
+    branches on the tenant's consumer-cutover flag.
+
+    Group scope (`member_ids` provided -- Plan 03, D-05/D-06/D-07): each
+    row's average is recomputed RETROACTIVELY by intersecting that day's
+    `asset_risk_exposure_scores` dict against the group's CURRENT member
+    set, then averaging -- exactly D-06's "current membership applied
+    retroactively" semantic, never a stored/point-in-time value. A day
+    where none of the group's current members have a score in that day's
+    dict yields `avg_risk_exposure_score = None` -- a real gap (D-06),
+    NEVER `0`, even though `0` is a legitimate score elsewhere on this page
+    (42-RESEARCH.md Anti-Patterns: never gate/collapse on a falsy score).
     """
     rows = (
         await db.execute(
@@ -92,14 +139,22 @@ async def get_scoped_trend_series(
         )
     ).all()
 
-    return [
-        {
-            "date": r.snapshot_date.isoformat(),
-            "avg_risk_exposure_score": r.metrics.get("avg_risk_exposure_score"),
-            "risk_model_version": r.metrics.get("risk_model_version_snapshot"),
-        }
-        for r in rows
-    ]
+    series: list[dict[str, Any]] = []
+    for r in rows:
+        if member_ids is None:
+            avg_score = r.metrics.get("avg_risk_exposure_score")
+        else:
+            per_asset_scores: dict[str, Any] = r.metrics.get("asset_risk_exposure_scores", {})
+            scoped_values = [v for k, v in per_asset_scores.items() if k in member_ids]
+            avg_score = round(sum(scoped_values) / len(scoped_values), 1) if scoped_values else None
+        series.append(
+            {
+                "date": r.snapshot_date.isoformat(),
+                "avg_risk_exposure_score": avg_score,
+                "risk_model_version": r.metrics.get("risk_model_version_snapshot"),
+            }
+        )
+    return series
 
 
 def detect_version_boundaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -311,20 +366,91 @@ async def get_burndown_rate(
     }
 
 
-async def get_analytics_overview(db: AsyncSession, tenant_id: uuid.UUID, *, days: int = 30) -> dict[str, Any]:
-    """GET /api/v1/analytics/overview orchestrator (D-15). Structured so
-    Plan 03 adds scope/group params onto this same return shape without
-    reshaping it (D-16). Plan 02 adds the "aging"/"aging_pct_overdue"/
-    "burndown" keys additively -- "trend"/"boundaries" are unchanged."""
-    end = datetime.now(UTC).date()
-    start = end - timedelta(days=days)
+async def _resolve_group_scope(
+    db: AsyncSession, tenant_id: uuid.UUID, group_id: uuid.UUID
+) -> tuple[set[str], list[uuid.UUID], str] | None:
+    """D-05/D-06 group-scope resolution for `get_analytics_overview`.
 
-    trend = await get_scoped_trend_series(db, tenant_id, start=start, end=end)
+    T-42-08 IDOR guard: `list_members` (Phase 32,
+    `app.assets.groups_service`) is ALREADY the tenant-scoped,
+    None-on-miss lookup this module's guard needs (42-RESEARCH.md "Don't
+    Hand-Roll" / mirrors `coverage/router.py::_get_asset_or_404`'s "tenant
+    filter inline in the WHERE clause, never fetch-then-403" shape) --
+    `None` here means the group_id does not exist OR belongs to a
+    different tenant. Mirrors `groups_service.py`'s OWN "return None/False
+    on a miss, let the caller decide" convention (its module docstring)
+    rather than raising an HTTP-specific exception from this plain-async,
+    HTTP-agnostic module (D-16) -- `get_analytics_overview` below
+    propagates the `None`, and the router converts THAT to a 404, exactly
+    like every other tenant-scoped lookup in this codebase.
+    """
+    members = await list_members(db, tenant_id, group_id)
+    if members is None:
+        return None
+    group = await get_group(db, tenant_id, group_id)
+    group_name = group.name if group is not None else ""
+    member_ids = {str(a.id) for a in members}
+    asset_ids = [a.id for a in members]
+    return member_ids, asset_ids, group_name
+
+
+async def get_analytics_overview(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    days: int = 30,
+    start: date | None = None,
+    end: date | None = None,
+    scope: str = "all",
+    group_id: uuid.UUID | None = None,
+) -> dict[str, Any] | None:
+    """GET /api/v1/analytics/overview orchestrator (D-15). Plan 02 added
+    the "aging"/"aging_pct_overdue"/"burndown" keys additively --
+    "trend"/"boundaries" unchanged. Plan 03 adds `scope`/`group_id` (D-02
+    group scoping) and `start`/`end` (D-03 custom range) params, plus the
+    additive `scope`/`group_name` response keys the frontend's mandatory
+    group-scope caption reads (D-06) -- still no reshape of the existing
+    keys (D-16).
+
+    `start`/`end` (a validated custom range, router-supplied) take
+    precedence over `days` (a preset window) when both are given -- the
+    router only ever supplies one pair, never both (see router.py).
+
+    Returns `None` when `scope="group"` and `group_id` does not
+    exist/belong to this tenant (T-42-08 -- mirrors `_resolve_group_scope`'s
+    own None-on-miss convention); the router converts that to a 404, never
+    a fetch-then-403.
+    """
+    member_ids: set[str] | None = None
+    asset_ids: list[uuid.UUID] | None = None
+    group_name: str | None = None
+
+    if scope == "group":
+        if group_id is None:
+            return None
+        resolved = await _resolve_group_scope(db, tenant_id, group_id)
+        if resolved is None:
+            return None
+        member_ids, asset_ids, group_name = resolved
+
+    if start is not None and end is not None:
+        range_start, range_end = start, end
+    else:
+        range_end = datetime.now(UTC).date()
+        range_start = range_end - timedelta(days=days)
+
+    trend = await get_scoped_trend_series(db, tenant_id, start=range_start, end=range_end, member_ids=member_ids)
     boundaries = detect_version_boundaries(trend)
 
     now = datetime.now(UTC)
-    aging = await get_aging_distribution(db, tenant_id, now=now)
-    burndown = await get_burndown_rate(db, tenant_id, days=days)
+    aging = await get_aging_distribution(db, tenant_id, asset_ids=asset_ids, now=now)
+    # Pitfall 5/D-02: aging + burndown re-scope to the SAME group-derived
+    # asset_ids -- "every chart" re-scopes as one mental model, not just
+    # the trend line. Burndown's window is span-derived (at least 1 day,
+    # defensively) rather than reusing `days` verbatim, so a custom range
+    # narrower/wider than a preset still yields a sane velocity window.
+    span_days = max((range_end - range_start).days, 1)
+    burndown = await get_burndown_rate(db, tenant_id, days=span_days, asset_ids=asset_ids)
 
     aging_buckets = [{"bucket": bucket_id, **counts} for bucket_id, counts in aging["buckets"].items()]
 
@@ -334,4 +460,6 @@ async def get_analytics_overview(db: AsyncSession, tenant_id: uuid.UUID, *, days
         "aging": aging_buckets,
         "aging_pct_overdue": aging["pct_overdue"],
         "burndown": burndown,
+        "scope": scope,
+        "group_name": group_name,
     }

@@ -91,9 +91,13 @@ class BurndownResponse(BaseModel):
 
 class AnalyticsOverviewResponse(BaseModel):
     """GET /api/v1/analytics/overview (TREND-01/03 tracer slice; TREND-02
-    aging/burndown added Plan 02). Plan 03 adds scope/group params onto
+    aging/burndown added Plan 02). Plan 03 adds `scope`/`group_name` onto
     this same shape without reshaping it (D-16 reusable-service-layer
-    contract)."""
+    contract) -- `group_name` powers the frontend's mandatory D-06
+    group-scope caption ("Shows {group name}'s current members, applied
+    retroactively across this window."); it is `None` when `scope ==
+    "all"`.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,3 +106,5 @@ class AnalyticsOverviewResponse(BaseModel):
     aging: list[AgingBucketResponse]
     aging_pct_overdue: int
     burndown: BurndownResponse
+    scope: str
+    group_name: str | None
