@@ -4,8 +4,8 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
 current_phase_name: coverage-blind-spot-detection
-status: executing
-stopped_at: Phase 41 Plan 05 complete (5/5 plans) — route-to-owner drill panel + confirm dialog + mutation shipped (COV-03 frontend); Phase 41 fully executed, COV-01/02/03 all closed
+status: awaiting_uat
+stopped_at: Phase 41 all 5 plans executed; verification = human_needed — 1 UAT item open (SC3 route-to-owner pre-confirm dialog always shows "no owner found" copy). Run /gsd-verify-work 41 to close.
 last_updated: "2026-08-21T09:05:00Z"
 last_activity: 2026-08-21
 last_activity_desc: 41-05 complete — CoverageAssetDrillContent (idKey="asset", tickets-page DrillPanel precedent, Pitfall 8) + RouteToOwnerDialog (2-branch confirm — D-07 owner-resolved / D-09 unresolvable — secondary/violet-focus chrome, never bg-gradient-sunset) + useRouteToOwner mutation (retry:0, coverage.all invalidation, exact UI-SPEC toast copy); per-row + drill-footer "Route to owner" actions share one dialog/mutation instance; canRouteToOwner (OWNER/ADMIN/ANALYST) gates both, viewer sees it disabled never a raw 403. 30/30 frontend tests green (18 new). COV-03 marked [x] complete in REQUIREMENTS.md (closer plan, backend 41-04 + frontend 41-05). Phase 41 (coverage-blind-spot-detection) now 5/5 plans complete.
