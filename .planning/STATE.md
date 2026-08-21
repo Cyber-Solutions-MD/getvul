@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
 current_phase_name: coverage-blind-spot-detection
 status: executing
-stopped_at: Phase 41 Plan 03 complete (3/5 plans) — per-connector coverage strip + staleness shipped (COV-02)
-last_updated: "2026-08-21T07:58:26Z"
+stopped_at: Phase 41 Plan 04 complete (4/5 plans) — route-to-owner backend shipped (COV-03 backend)
+last_updated: "2026-08-21T08:11:00Z"
 last_activity: 2026-08-21
-last_activity_desc: 41-03 complete — GET /api/v1/coverage/summary (per-connector coverage %, D-06 stale badges, wire-normalized sync status) + CoverageConnectorCard strip wired above the blind-spot list + "No scanner connected" empty variant (UI-SPEC E4 backstop); Task 1 backend salvaged from an interrupted prior run (cf346ee), Task 2 frontend executed this session (1c44f2c)
+last_activity_desc: 41-04 complete — POST /api/v1/coverage/assets/{asset_id}/route-to-owner (require_analyst): resolves the never-scanned asset's owner via get_directory_user and notifies them to onboard the device, falling back to tenant admins + the coverage_unmanaged_asset alert channel (D-09) when no owner resolves, audit-then-commit (coverage.route_to_owner), notify-only; mirrors the shipped _fire_kev_epss_alert template. 5 new backend tests (resolved/fallback/channel-failure-isolated/RBAC/cross-tenant-404), 16/16 green.
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,8 +46,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 41 (coverage-blind-spot-detection) — EXECUTING
-Status: Executing Phase 41 — Plan 03 of 5 complete (Wave 2)
-Last activity: 2026-08-21 — 41-03 complete: GET /api/v1/coverage/summary (per-connector coverage % D-05, D-06 strict-stale badges, wire-normalized sync status Pitfall 3) + CoverageConnectorCard strip wired above the blind-spot list (StatStrip, xl gap, D-04) + "No scanner connected" empty-state branch (UI-SPEC E4 backstop). COV-02 requirement closed. Task 1 (backend) was found already committed from an interrupted prior run (cf346ee, verified not redone); Task 2 (frontend) executed and committed this session (1c44f2c).
+Status: Executing Phase 41 — Plan 04 of 5 complete (Wave 3)
+Last activity: 2026-08-21 — 41-04 complete: POST /api/v1/coverage/assets/{asset_id}/route-to-owner (require_analyst) — resolves a never-scanned asset's owner via get_directory_user and notifies them to onboard the device, falling back to tenant OWNER/ADMIN users + the tenant's coverage_unmanaged_asset alert channel (D-09) when no owner resolves, fail-closed audit-then-commit (coverage.route_to_owner), notify-only (no synthetic finding/ticket/column). Mirrors the shipped _fire_kev_epss_alert resolve-then-notify-with-fallback template. COV-03 backend delivered (requirement stays unmarked in REQUIREMENTS.md — shared with 41-05); frontend drill panel is Plan 05. Commit 7de92d8 (feat) + bccd706 (docs/summary).
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -516,6 +516,9 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 41]: 41-03: added a local `CONNECTOR_DISPLAY_LABEL` map (6 scanner types) inside `coverage-connector-card.tsx` -- the `/coverage/summary` payload has only the raw uppercase `connector_type` string, no `connector_name` field the way `ConnectorConfig` has, so no existing display-label lookup could be reused
 - [Phase 41]: 41-03: no literal `.stale-pill` CSS class exists in the codebase despite the UI-SPEC calling it "the existing token" -- reused the actual precedent instead, the inline amber chrome already established by `page.tsx`'s "No scanner coverage" row badge (`border-amber/40 bg-amber/10 text-[var(--color-amber-on-soft)]`)
 - [Phase 41]: COV-02 is now closed in REQUIREMENTS.md -- 41-03 is its sole declaring plan, no shared-ID gate (unlike COV-01's 41-01/41-02 split)
+- [Phase 41]: 41-04: `route_to_owner`'s five collaborator imports (`get_directory_user`, `_email_owners_and_admins`, `dispatch_channel`, `_send_notification_email`, `_build_channel_config`) are local imports inside the function body, mirroring `_fire_kev_epss_alert`/`detect_and_escalate`'s own documented idiom -- each re-resolves the origin module's attribute fresh on every call, which is what makes `monkeypatch.setattr` on the origin module (not a local alias) effective in the new tests
+- [Phase 41]: 41-04: the router endpoint audits-then-commits via the real `audit()` helper (`coverage.route_to_owner`) rather than a raw scheduler-side `AuditLog(...)` insert -- `_fire_kev_epss_alert`'s own audit shape is scheduler-only (`user=None`) and doesn't apply here since a real analyst `CurrentUser` exists
+- [Phase 41]: COV-03 left `[ ]` unmarked in REQUIREMENTS.md after 41-04 -- also declared by not-yet-executed 41-05 (route-to-owner frontend drill panel); mirrors the Phase 38 CAMP-01 / Phase 41 COV-01 shared-ID-gate precedent. Do not flip until 41-05 also lands.
 
 ## Performance Metrics
 
@@ -593,13 +596,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 41 P01 | 31min | 2 tasks | 13 files |
 | Phase 41 P02 | ~15min | 2 tasks | 2 files |
 | Phase 41 P03 | 48min | 2 tasks | 10 files |
+| Phase 41 P04 | 35min | 1 task | 6 files |
 
 ## Session
 
-**Last session:** 2026-08-21T07:58:26Z
-**Stopped at:** Phase 41 Plan 03 (41-03) complete — per-connector coverage strip + staleness shipped (COV-02)
-**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-04-PLAN.md
+**Last session:** 2026-08-21T08:11:00Z
+**Stopped at:** Phase 41 Plan 04 (41-04) complete — route-to-owner backend shipped (COV-03 backend)
+**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-05-PLAN.md
 
 ## Operator Next Steps
 
-- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 3/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green). COV-01 and COV-02 are both now fully closed in REQUIREMENTS.md. Wave 3's plan, 41-04 (COV-03 route-to-owner backend), is the recommended next step, followed by Wave 4 (41-05, COV-03 frontend).
+- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 4/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green; 41-04 — COV-03 backend: `POST /api/v1/coverage/assets/{asset_id}/route-to-owner` (require_analyst), resolve-then-notify-with-fallback mirroring `_fire_kev_epss_alert`, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only, 16/16 backend tests green). COV-01 and COV-02 are both fully closed in REQUIREMENTS.md; COV-03 stays `[ ]` until 41-05 (frontend drill panel) also lands, mirroring the COV-01 41-01/41-02 shared-gate precedent. Wave 4's plan, 41-05 (COV-03 route-to-owner frontend), is the recommended next step — the last plan in this phase.

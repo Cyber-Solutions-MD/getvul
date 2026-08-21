@@ -40,7 +40,7 @@ key-decisions:
 patterns-established:
   - "coverage_unmanaged_asset joins new_kev_epss/digest_owner/digest_team as the fourth DEFAULT_ALERTING_CONFIG['routing'] key — an empty list default, so dispatch is a no-op until a tenant explicitly configures a channel for it (no migration, one-line JSONB default)."
 
-requirements-completed: [COV-03]
+requirements-completed: []  # COV-03 shared with 41-05 (frontend drill panel); not yet closeable until both declaring plans land
 
 # Metrics
 duration: 35min
@@ -105,7 +105,7 @@ None — no external service configuration required. Tenants that want the D-09 
 ## Next Phase Readiness
 
 - `POST /api/v1/coverage/assets/{asset_id}/route-to-owner` and its `RouteToOwnerResponse` contract are ready for Plan 05 (COV-03 frontend, route-to-owner drill panel) to build against.
-- COV-03's backend half can now be marked complete in REQUIREMENTS.md.
+- COV-03 is shared with 41-05 (mirrors the COV-01/41-01+41-02 split) — left `[ ]` unmarked in REQUIREMENTS.md until 41-05 also lands.
 - No blockers.
 
 ## Self-Check: PASSED

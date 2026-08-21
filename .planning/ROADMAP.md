@@ -241,7 +241,7 @@ Plans:
   2. Per-connector coverage percentage and stale-source gaps (a connector that hasn't reported in N days) are visible
   3. A newly-discovered unmanaged asset can be routed to an owner directly from the coverage view
 
-**Plans**: 3/5 plans executed
+**Plans**: 4/5 plans executed
 **Wave 1**
 
 - [x] 41-01-PLAN.md — TRACER: blind-spot list end-to-end (COV-01) — backend coverage module + /dashboard/coverage page *(2026-08-20 — GET /api/v1/coverage/blind-spots + /dashboard/coverage page, all 5 loading/error/no-inventory/all-covered/populated states; 5/5 backend + 5/5 frontend tests green)*
@@ -253,7 +253,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 41-04-PLAN.md — Route-to-owner write endpoint + D-09 fallback + audit (COV-03 backend)
+- [x] 41-04-PLAN.md — Route-to-owner write endpoint + D-09 fallback + audit (COV-03 backend) *(2026-08-21 — POST /api/v1/coverage/assets/{asset_id}/route-to-owner (require_analyst): resolve-then-notify-with-fallback mirroring _fire_kev_epss_alert, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only; 5 new backend tests, 16/16 green)*
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
