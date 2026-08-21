@@ -241,7 +241,7 @@ Plans:
   2. Per-connector coverage percentage and stale-source gaps (a connector that hasn't reported in N days) are visible
   3. A newly-discovered unmanaged asset can be routed to an owner directly from the coverage view
 
-**Plans**: 2/5 plans executed
+**Plans**: 3/5 plans executed
 **Wave 1**
 
 - [x] 41-01-PLAN.md — TRACER: blind-spot list end-to-end (COV-01) — backend coverage module + /dashboard/coverage page *(2026-08-20 — GET /api/v1/coverage/blind-spots + /dashboard/coverage page, all 5 loading/error/no-inventory/all-covered/populated states; 5/5 backend + 5/5 frontend tests green)*
@@ -249,7 +249,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 41-03-PLAN.md — Per-connector coverage strip + staleness (COV-02)
+- [x] 41-03-PLAN.md — Per-connector coverage strip + staleness (COV-02) *(2026-08-21 — GET /api/v1/coverage/summary + CoverageConnectorCard strip above the blind-spot list + "No scanner connected" empty variant; 11/11 backend + 16/16 frontend tests green)*
 
 **Wave 3** *(blocked on Wave 2 completion)*
 

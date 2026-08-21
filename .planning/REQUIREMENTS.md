@@ -62,7 +62,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 ### Coverage & Blind-Spot Detection (COV) — Phase 41
 
 - [x] **COV-01**: Reconcile authoritative inventory (IdP / MDM / HR / CMDB) against scanner-seen assets; list assets with zero findings / never scanned *(Phase 41-01/41-02, 2026-08-20)*
-- [ ] **COV-02**: Per-connector coverage % and stale-source gaps
+- [x] **COV-02**: Per-connector coverage % and stale-source gaps *(Phase 41-03, 2026-08-21)*
 - [ ] **COV-03**: A newly-discovered unmanaged asset can be routed to an owner
 
 ### Risk Trend Analytics & Burndown (TREND) — Phase 42

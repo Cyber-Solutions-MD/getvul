@@ -5,15 +5,15 @@ milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 41
 current_phase_name: coverage-blind-spot-detection
 status: executing
-stopped_at: Phase 41 Plan 02 complete (2/5 plans) — Intune sync SyncLog + tenant-scoping defect fixed (COV-01)
-last_updated: "2026-08-20T13:20:45Z"
-last_activity: 2026-08-20
-last_activity_desc: 41-02 complete — run_intune_sync SyncLog construction fixed (connector_id/tenant_id, uppercase status) + tenant-scoped Asset upsert + integration test
+stopped_at: Phase 41 Plan 03 complete (3/5 plans) — per-connector coverage strip + staleness shipped (COV-02)
+last_updated: "2026-08-21T07:58:26Z"
+last_activity: 2026-08-21
+last_activity_desc: 41-03 complete — GET /api/v1/coverage/summary (per-connector coverage %, D-06 stale badges, wire-normalized sync status) + CoverageConnectorCard strip wired above the blind-spot list + "No scanner connected" empty variant (UI-SPEC E4 backstop); Task 1 backend salvaged from an interrupted prior run (cf346ee), Task 2 frontend executed this session (1c44f2c)
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -46,8 +46,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 41 (coverage-blind-spot-detection) — EXECUTING
-Status: Executing Phase 41 — Plan 02 of 5 complete (Wave 1)
-Last activity: 2026-08-20 — 41-02 complete: run_intune_sync SyncLog construction fixed (connector_id/tenant_id, uppercase RUNNING/SUCCESS/FAILED) + both Asset lookups + the Asset constructor tenant-scoped (closes T-41-05 cross-tenant matching bug) + integration test proving a SyncLog + tenant-scoped INTUNE-tagged Asset are persisted
+Status: Executing Phase 41 — Plan 03 of 5 complete (Wave 2)
+Last activity: 2026-08-21 — 41-03 complete: GET /api/v1/coverage/summary (per-connector coverage % D-05, D-06 strict-stale badges, wire-normalized sync status Pitfall 3) + CoverageConnectorCard strip wired above the blind-spot list (StatStrip, xl gap, D-04) + "No scanner connected" empty-state branch (UI-SPEC E4 backstop). COV-02 requirement closed. Task 1 (backend) was found already committed from an interrupted prior run (cf346ee, verified not redone); Task 2 (frontend) executed and committed this session (1c44f2c).
 Phase 39 result: EXC-01..04 closed end-to-end — governed exceptions module, compute-on-read exclusion across ~12 consumers, D-16 SLA subtraction, dashboards/exports exclusion, frontend grant/list/revoke.
 
 ## v5.0 Phase Map
@@ -511,6 +511,11 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 41]: 41-02: Task 2 (tdd="true") test was written and committed after Task 1's fix (per the plan's own task ordering) rather than as a literal RED-then-GREEN cycle -- the new DB-integration test proves the already-landed fix; no gap in behavior coverage existed at any commit boundary, so this is documented as a TDD Gate Compliance note in the SUMMARY, not a rule violation
 - [Phase 41]: COV-01 is now closable in REQUIREMENTS.md -- both declaring plans (41-01, 41-02) have landed; flip the checkbox at the next requirements-mark-complete pass
 - [Phase 41]: 41-02: `gsd-sdk`'s `state advance-plan` CLI verb was invoked once, confirmed it silently corrupted STATE.md frontmatter (`total_phases` 6→10, `completed_plans` 29→30 without basis, `current_phase`/`current_phase_name` keys dropped entirely) exactly per the 39-01/40-*/41-01 decision-log precedent -- reverted via `git checkout` and hand-edited frontmatter/Current Position/Decisions/Performance Metrics/Session/Operator Next Steps instead
+- [Phase 41]: 41-03: Task 1 (backend `GET /coverage/summary`) was found already committed at `cf346ee` from an interrupted prior execution run -- verified via `git log --grep="41-03"` + a full re-run of `tests/test_coverage.py` (11/11 green) rather than redone; no backend files touched in the resumed session
+- [Phase 41]: 41-03: `page.tsx`'s WR-13 branch machine now derives from TWO queries (`useBlindSpotAssets` + `useCoverageSummary`), combined via `isLoading = q.isPending || summaryQ.isPending` / `queryError = q.error ?? summaryQ.error` -- extended the pre-existing `page.test.tsx` mock harness with a `mockSummaryQuery` helper (default `has_scanner_connector: true`, `cards: []`) so all 5 Plan 01 branch tests kept landing on the same branch (Rule 1 auto-fix, in-scope consequence of this plan's own page.tsx change)
+- [Phase 41]: 41-03: added a local `CONNECTOR_DISPLAY_LABEL` map (6 scanner types) inside `coverage-connector-card.tsx` -- the `/coverage/summary` payload has only the raw uppercase `connector_type` string, no `connector_name` field the way `ConnectorConfig` has, so no existing display-label lookup could be reused
+- [Phase 41]: 41-03: no literal `.stale-pill` CSS class exists in the codebase despite the UI-SPEC calling it "the existing token" -- reused the actual precedent instead, the inline amber chrome already established by `page.tsx`'s "No scanner coverage" row badge (`border-amber/40 bg-amber/10 text-[var(--color-amber-on-soft)]`)
+- [Phase 41]: COV-02 is now closed in REQUIREMENTS.md -- 41-03 is its sole declaring plan, no shared-ID gate (unlike COV-01's 41-01/41-02 split)
 
 ## Performance Metrics
 
@@ -587,13 +592,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 40 P05 | ~25min (+ on-trust checkpoint) | 2 auto tasks + 1 checkpoint | 6 files |
 | Phase 41 P01 | 31min | 2 tasks | 13 files |
 | Phase 41 P02 | ~15min | 2 tasks | 2 files |
+| Phase 41 P03 | 48min | 2 tasks | 10 files |
 
 ## Session
 
-**Last session:** 2026-08-20T13:20:45Z
-**Stopped at:** Phase 41 Plan 02 (41-02) complete — Intune sync SyncLog + tenant-scoping defect fixed
-**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-03-PLAN.md
+**Last session:** 2026-08-21T07:58:26Z
+**Stopped at:** Phase 41 Plan 03 (41-03) complete — per-connector coverage strip + staleness shipped (COV-02)
+**Resume file:** .planning/phases/41-coverage-blind-spot-detection/41-04-PLAN.md
 
 ## Operator Next Steps
 
-- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 2/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test). COV-01 is now fully closable in REQUIREMENTS.md (both its declaring plans, 41-01 and 41-02, have landed). Wave 2's plan, 41-03 (COV-02 coverage strip), is the recommended next step, followed by Wave 3 (41-04, COV-03 backend) and Wave 4 (41-05, COV-03 frontend).
+- Phase 41 (Coverage & Blind-Spot Detection) is IN PROGRESS: 3/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green). COV-01 and COV-02 are both now fully closed in REQUIREMENTS.md. Wave 3's plan, 41-04 (COV-03 route-to-owner backend), is the recommended next step, followed by Wave 4 (41-05, COV-03 frontend).
