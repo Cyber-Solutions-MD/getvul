@@ -10,6 +10,12 @@
  * row badge, and the "Never scanned" column header). Plan 02/03 extend
  * this module additively — coverage-strip and route-to-owner copy — rather
  * than inventing a second copy module for the same page.
+ *
+ * `scannerAbsent` (Plan 03, COV-02, UI-SPEC E4 backstop): the third empty
+ * variant — >=1 authoritative (MDM/HR) connector configured but zero
+ * scanner connectors exist. Distinct from `noInventory` above, which is
+ * about the authoritative side being empty; this is the inverse ("we know
+ * about your devices, but nothing scans them").
  */
 export const microcopy = {
   page: {
@@ -35,6 +41,14 @@ export const microcopy = {
       title: 'Every device is covered',
       body: (n: number) =>
         `All ${n} device${n === 1 ? '' : 's'} in your inventory ${n === 1 ? 'has' : 'have'} been touched by at least one scanner. Nothing to route right now.`,
+    },
+    // Plan 03 (COV-02, UI-SPEC E4 backstop) — inventory exists, but zero
+    // scanner connectors configured. Never the noInventory copy above (that
+    // is about the authoritative/MDM+HR side, not the scanner side).
+    scannerAbsent: {
+      title: 'No scanner connected',
+      body: 'You have inventory sources connected, but no vulnerability scanner. Connect one to measure coverage.',
+      action: 'Connect a scanner',
     },
   },
   columns: {

@@ -1,12 +1,18 @@
 /**
  * page.test.tsx — tests for the /dashboard/coverage blind-spot list page
- * (Phase 41 Plan 01, COV-01 tracer slice). Mirrors
+ * (Phase 41 Plan 01, COV-01 tracer slice; Plan 03 extends with a second
+ * mocked query for the COV-02 coverage strip). Mirrors
  * exceptions/page.test.tsx's `vi.spyOn(module, 'hook').mockReturnValueOnce`
  * convention (closer precedent than assets/page.test.tsx's factory `vi.mock`,
  * since both pages are single-query v5.0-era list screens).
  *
  * One test per branch (WR-13 state-branch order): loading, error,
  * no-inventory-empty (D-11), all-covered-empty (quiet win), populated.
+ * `mockSummaryQuery` defaults every pre-existing test to
+ * `has_scanner_connector: true` so the Plan 01 branch assertions keep
+ * exercising the exact same branch they did before Plan 03 added the
+ * second read (page.tsx now branches on BOTH queries — see coverage strip
+ * tests below for the has_scanner_connector: false / cards-populated cases).
  */
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -29,6 +35,8 @@ vi.mock('@/hooks/use-document-title', () => ({
 
 import * as useBlindSpotAssetsModule from '@/lib/queries/use-blind-spot-assets';
 import type { BlindSpotAssetListResponse } from '@/lib/queries/use-blind-spot-assets';
+import * as useCoverageSummaryModule from '@/lib/queries/use-coverage-summary';
+import type { CoverageSummaryResponse } from '@/lib/queries/use-coverage-summary';
 import CoveragePage from './page';
 
 function renderWithClient(ui: ReactNode) {
@@ -50,10 +58,35 @@ function mockQuery(overrides: {
   } as unknown as ReturnType<typeof useBlindSpotAssetsModule.useBlindSpotAssets>);
 }
 
+// Plan 03 (COV-02) — defaults to has_scanner_connector: true, no cards, so
+// every pre-existing Plan 01 branch test above keeps exercising the exact
+// branch it did before this query existed (isPopulated only requires
+// hasScannerConnector, not a non-empty cards array).
+function mockSummaryQuery(overrides: {
+  data?: CoverageSummaryResponse;
+  isPending?: boolean;
+  error?: Error | null;
+}) {
+  const defaultData: CoverageSummaryResponse = {
+    cards: [],
+    total_authoritative_assets: 0,
+    has_authoritative_inventory: false,
+    has_scanner_connector: true,
+  };
+  vi.spyOn(useCoverageSummaryModule, 'useCoverageSummary').mockReturnValue({
+    data: overrides.data ?? defaultData,
+    isPending: overrides.isPending ?? false,
+    isLoading: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useCoverageSummaryModule.useCoverageSummary>);
+}
+
 describe('/dashboard/coverage page', () => {
   beforeEach(() => {
     pushMock.mockClear();
     replaceMock.mockClear();
+    mockSummaryQuery({});
   });
 
   it('loading branch renders the skeleton table, no alert/status', () => {
@@ -138,5 +171,96 @@ describe('/dashboard/coverage page', () => {
     expect(screen.getByText('No scanner coverage')).toBeInTheDocument();
     // Subtitle uses the real total (1 device, singular-safe).
     expect(screen.getByText(/1 device in inventory has never been touched/)).toBeInTheDocument();
+  });
+
+  // --- Plan 03 (COV-02) — coverage strip branches ---
+
+  it('renders the coverage strip cards above the blind-spot table when populated', () => {
+    mockQuery({
+      data: {
+        items: [
+          {
+            id: 'a1',
+            hostname: 'prod-db-01',
+            category: 'SERVER',
+            os: 'Ubuntu 22.04',
+            last_seen_at: null,
+            seen_by_sources: ['JAMF'],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 50,
+        pages: 1,
+        has_authoritative_inventory: true,
+        total_authoritative_assets: 1,
+      },
+    });
+    mockSummaryQuery({
+      data: {
+        cards: [
+          {
+            connector_type: 'QUALYS',
+            coverage_pct: 75,
+            is_stale: false,
+            stale_days: null,
+            last_sync_status: 'ok',
+            last_sync_at: '2026-08-19T00:00:00Z',
+          },
+        ],
+        total_authoritative_assets: 1,
+        has_authoritative_inventory: true,
+        has_scanner_connector: true,
+      },
+    });
+    renderWithClient(<CoveragePage />);
+    expect(document.querySelector('[data-coverage-card][data-connector-type="QUALYS"]')).not.toBeNull();
+    expect(screen.getByText('prod-db-01')).toBeInTheDocument();
+  });
+
+  it('scanner-absent empty state (E4 backstop) renders when inventory exists but no scanner connector does', () => {
+    mockQuery({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 50,
+        pages: 0,
+        has_authoritative_inventory: true,
+        total_authoritative_assets: 5,
+      },
+    });
+    mockSummaryQuery({
+      data: {
+        cards: [],
+        total_authoritative_assets: 5,
+        has_authoritative_inventory: true,
+        has_scanner_connector: false,
+      },
+    });
+    renderWithClient(<CoveragePage />);
+    expect(screen.getByText('No scanner connected')).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: 'Connect a scanner' });
+    expect(cta).toBeInTheDocument();
+    expect(screen.queryByText('Every device is covered')).toBeNull();
+    expect(screen.queryByText('No inventory source connected')).toBeNull();
+  });
+
+  it('loading branch waits on BOTH queries — summary still pending keeps the skeleton up even once blind-spots resolves', () => {
+    mockQuery({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 50,
+        pages: 0,
+        has_authoritative_inventory: false,
+        total_authoritative_assets: 0,
+      },
+    });
+    mockSummaryQuery({ isPending: true });
+    const { container } = renderWithClient(<CoveragePage />);
+    expect(container.querySelectorAll('[data-skeleton-row]').length).toBeGreaterThan(0);
+    expect(screen.queryByText('No inventory source connected')).toBeNull();
   });
 });

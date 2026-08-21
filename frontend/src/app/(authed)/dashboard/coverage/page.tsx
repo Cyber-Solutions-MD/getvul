@@ -1,9 +1,11 @@
 'use client';
 /**
- * /dashboard/coverage — Phase 41 Plan 01 (COV-01) tracer slice: the
+ * /dashboard/coverage — Phase 41 Plan 01 (COV-01) tracer slice + Plan 03
+ * (COV-02) coverage strip: the per-connector coverage strip (top) plus the
  * blind-spot asset list (authoritative MDM/HR inventory that no scanner
- * has ever touched). Lives under `(authed)/dashboard` so the existing auth
- * guard + persistent shell apply (Pitfall 2 — never `/coverage`).
+ * has ever touched, below). Lives under `(authed)/dashboard` so the
+ * existing auth guard + persistent shell apply (Pitfall 2 — never
+ * `/coverage`).
  *
  * Composition mirrors exceptions/page.tsx (Phase 39) and assets/page.tsx
  * (Phase 12):
@@ -11,33 +13,43 @@
  *
  * State branches (mutually exclusive, WR-13 — error checked FIRST since
  * `items` defaults to `[]` on error, so item-based branches would
- * otherwise ALSO render):
- *   q.error                                  -> PartialFailureBanner
- *   isLoading                                -> SkeletonTable
- *   !has_authoritative_inventory              -> EmptyState "No inventory
+ * otherwise ALSO render). Plan 03 adds a second read (useCoverageSummary)
+ * feeding into the SAME branch machine rather than a parallel one:
+ *   error (either query)                      -> PartialFailureBanner
+ *   isLoading (either query)                  -> skeleton strip + SkeletonTable
+ *   !has_authoritative_inventory               -> EmptyState "No inventory
  *     source connected" (D-11 — never a misleading 0%/100%, never a
  *     total-assets fallback)
+ *   has_authoritative_inventory && !has_scanner_connector -> EmptyState
+ *     "No scanner connected" (UI-SPEC E4 backstop — inventory exists, but
+ *     nothing scans it; distinct from the D-11 case above)
  *   total === 0 (inventory exists, zero blind spots) -> EmptyState "Every
  *     device is covered" (quiet win, no CTA)
- *   else                                      -> blind-spot table + Pagination
+ *   else                                       -> coverage strip + blind-spot
+ *     table + Pagination (D-04 top-to-bottom "see the gap, then see the
+ *     assets" order, xl gap between the two halves)
  *
- * DrillPanel + the "Route to owner" action are Plan 03 (COV-03) concerns —
- * deliberately NOT wired here; rows are read-only for this tracer.
+ * DrillPanel + the "Route to owner" action are Plan 04/05 (COV-03)
+ * concerns — deliberately NOT wired here; rows are read-only for this
+ * tracer.
  */
 import { Suspense, useMemo, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { microcopy } from '@/components/coverage/microcopy';
+import { CoverageConnectorCard } from '@/components/coverage/coverage-connector-card';
 import {
   SkeletonTable,
   EmptyState,
   PartialFailureBanner,
   type SkeletonColumn,
 } from '@/components/states';
+import { StatStrip } from '@/components/ui/stat-strip';
 import Pagination from '@/components/ui/Pagination';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useBlindSpotAssets, type BlindSpotAsset } from '@/lib/queries/use-blind-spot-assets';
+import { useCoverageSummary } from '@/lib/queries/use-coverage-summary';
 
 // 5-column skeleton shape mirrors the blind-spot table below.
 const SKELETON_COLUMNS: SkeletonColumn[] = [
@@ -138,6 +150,23 @@ function BlindSpotTable({ rows }: { rows: BlindSpotAsset[] }) {
   );
 }
 
+// Skeleton strip cards (state-patterns.md — subtle animate-pulse block,
+// mirrors dashboard/hero.tsx's isPending shape) shown while useCoverageSummary
+// resolves. 3 is an arbitrary placeholder count (StatStrip's real column
+// ladder takes over once actual cards render); no data shape is implied.
+function CoverageStripSkeleton() {
+  return (
+    <StatStrip aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="h-[168px] rounded-lg border border-border-subtle bg-surface-2 p-6 animate-pulse"
+        />
+      ))}
+    </StatStrip>
+  );
+}
+
 function CoveragePageInner() {
   const params = useSearchParams();
   const pathname = usePathname();
@@ -146,17 +175,26 @@ function CoveragePageInner() {
 
   const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
   const q = useBlindSpotAssets({ page: pageNum });
+  const summaryQ = useCoverageSummary();
 
-  const isLoading = q.isPending;
+  const isLoading = q.isPending || summaryQ.isPending;
+  const queryError = q.error ?? summaryQ.error;
   const items = useMemo(() => q.data?.items ?? [], [q.data]);
   const total = q.data?.total ?? 0;
   const hasAuthoritativeInventory = q.data?.has_authoritative_inventory ?? false;
   const totalAuthoritativeAssets = q.data?.total_authoritative_assets ?? 0;
+  const hasScannerConnector = summaryQ.data?.has_scanner_connector ?? false;
+  const coverageCards = summaryQ.data?.cards ?? [];
+
+  // UI-SPEC E4 backstop: inventory exists but zero scanner connectors —
+  // distinct from the D-11 !hasAuthoritativeInventory case below.
+  const isScannerAbsent = hasAuthoritativeInventory && !hasScannerConnector;
+  const isPopulated = hasAuthoritativeInventory && hasScannerConnector && total > 0;
 
   // Subtitle only makes sense once we know the real, populated-with-blind-
   // spots state (41-UI-SPEC.md Copywriting Contract: "populated, has blind
   // spots") — the loading/error/empty branches below carry their own copy.
-  const showSubtitle = !q.error && !isLoading && hasAuthoritativeInventory && total > 0;
+  const showSubtitle = !queryError && !isLoading && isPopulated;
 
   const handlePageChange = (next: number) => {
     const sp = new URLSearchParams(params?.toString() ?? '');
@@ -178,21 +216,29 @@ function CoveragePageInner() {
       </header>
 
       {/* WR-13: state branches are mutually exclusive — error > loading >
-          the two D-11 empty variants (branched on has_authoritative_
-          inventory/total, never on items.length alone) > populated. */}
-      {q.error ? (
+          the three empty variants (D-11 no-inventory, E4 scanner-absent,
+          quiet-win all-covered — branched on has_authoritative_inventory/
+          has_scanner_connector/total, never on items.length alone) >
+          populated. */}
+      {queryError ? (
         <PartialFailureBanner
           errors={[
             {
               code: 'http_error',
               // WR-10: pass full message; banner truncates visually.
-              requestId: String((q.error as Error).message) || 'unknown',
+              requestId: String((queryError as Error).message) || 'unknown',
             },
           ]}
-          onRetry={() => q.refetch()}
+          onRetry={() => {
+            q.refetch();
+            summaryQ.refetch();
+          }}
         />
       ) : isLoading ? (
-        <SkeletonTable columns={SKELETON_COLUMNS} rows={10} />
+        <div className="space-y-8">
+          <CoverageStripSkeleton />
+          <SkeletonTable columns={SKELETON_COLUMNS} rows={10} />
+        </div>
       ) : !hasAuthoritativeInventory ? (
         <EmptyState>
           <EmptyState.Title>{microcopy.empty.noInventory.title}</EmptyState.Title>
@@ -203,13 +249,31 @@ function CoveragePageInner() {
             </Link>
           </EmptyState.Actions>
         </EmptyState>
+      ) : isScannerAbsent ? (
+        <EmptyState>
+          <EmptyState.Title>{microcopy.empty.scannerAbsent.title}</EmptyState.Title>
+          <EmptyState.Body>{microcopy.empty.scannerAbsent.body}</EmptyState.Body>
+          <EmptyState.Actions>
+            <Link href="/dashboard/connectors" className={CTA_SECONDARY}>
+              {microcopy.empty.scannerAbsent.action}
+            </Link>
+          </EmptyState.Actions>
+        </EmptyState>
       ) : total === 0 ? (
         <EmptyState>
           <EmptyState.Title>{microcopy.empty.allCovered.title}</EmptyState.Title>
           <EmptyState.Body>{microcopy.empty.allCovered.body(totalAuthoritativeAssets)}</EmptyState.Body>
         </EmptyState>
       ) : (
-        <>
+        <div className="space-y-8">
+          {/* D-04: coverage strip (the "see the gap %" half) renders above
+              the blind-spot list (the "see the assets behind it" half),
+              xl gap (32px) between them. */}
+          <StatStrip>
+            {coverageCards.map((card) => (
+              <CoverageConnectorCard key={card.connector_type} card={card} />
+            ))}
+          </StatStrip>
           <BlindSpotTable rows={items} />
           {(q.data?.pages ?? 1) > 1 && (
             <Pagination
@@ -220,7 +284,7 @@ function CoveragePageInner() {
               onPageChange={handlePageChange}
             />
           )}
-        </>
+        </div>
       )}
     </div>
   );
