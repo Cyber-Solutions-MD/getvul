@@ -272,7 +272,10 @@ Plans:
   2. Backlog aging (open findings by age × severity) and a burndown rate are visible on the same dashboard
   3. Trends annotate risk-model version boundaries rather than blending across them — a v4.0 model version change never produces a false cliff or false improvement
 
-**Plans**: TBD
+**Plans**: 3 plans (tracer-led)
+- [ ] 42-01-PLAN.md — Tracer: tenant risk-exposure trend line end-to-end (new analytics module + /analytics page + segmented chart + states) [TREND-01, TREND-03]
+- [ ] 42-02-PLAN.md — Backlog aging (SLA-tier buckets x severity) + burndown rate tile [TREND-02]
+- [ ] 42-03-PLAN.md — Group scope (retroactive) + custom date range + synthetic-fixture version-boundary verification [TREND-01, TREND-03]
 **UI hint**: yes
 
 ### Phase 43: Executive & Compliance Reporting
