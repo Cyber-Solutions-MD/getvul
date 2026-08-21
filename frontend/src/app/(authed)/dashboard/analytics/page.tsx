@@ -28,7 +28,13 @@ import { PartialFailureBanner, EmptyState } from '@/components/states';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useUrlState } from '@/hooks/use-url-state';
-import { useAnalytics, type AnalyticsWindow, type Burndown } from '@/lib/queries/use-analytics';
+import {
+  useAnalytics,
+  isCustomRangeComplete,
+  isCustomRangeValid,
+  type AnalyticsWindow,
+  type Burndown,
+} from '@/lib/queries/use-analytics';
 import { AnalyticsPageSkeleton } from '@/components/analytics/analytics-page-skeleton';
 import { RiskTrendChart } from '@/components/analytics/risk-trend-chart';
 import { BacklogAgingChart } from '@/components/analytics/backlog-aging-chart';
@@ -87,6 +93,17 @@ function AnalyticsPageInner() {
   const [customTo, setCustomTo] = useState('');
 
   const isCustomWindow = windowPreset === 'custom';
+  // UI-audit fix (Phase 42 polish, finding #1): while the custom window is
+  // active but the range is incomplete/invalid, use-analytics.ts sets
+  // `enabled: false` — TanStack Query v5 never transitions `isPending` away
+  // from true for a query that has never fetched, so this branch must be
+  // checked BEFORE q.isPending or the page renders a perpetual loading
+  // skeleton stacked under the "End date must be after start date." error.
+  // isCustomRangeValid already implies isCustomRangeComplete (see
+  // use-analytics.ts), but both are named here to match the branch's own
+  // "complete AND valid" framing rather than relying on that implication.
+  const isAwaitingValidCustomRange =
+    isCustomWindow && !(isCustomRangeComplete(customFrom, customTo) && isCustomRangeValid(customFrom, customTo));
   const q = useAnalytics({
     window: windowPreset,
     scope: scope.type,
@@ -111,29 +128,38 @@ function AnalyticsPageInner() {
   const scopeLabel = scope.type === 'group' ? scope.groupName : microcopy.scope.allTenantLabel;
 
   return (
-    <div className="space-y-4 p-6">
-      <header className="space-y-1">
-        {/* 42-UI-SPEC.md Typography: Heading role, 32px (text-3xl), 600
-            weight — mirrors coverage/page.tsx's h1 treatment. */}
-        <h1 className="text-3xl font-semibold text-text">{microcopy.page.h1}</h1>
-      </header>
+    <div className="p-6">
+      {/* 42-UI-SPEC.md Spacing Scale `2xl` (48px, mb-12): the page header
+          (title + scope/window controls) reads as ONE block, separated from
+          the first chart/state section by 3x the internal xl (32px)
+          section rhythm below — UI-audit fix #4b (was a flat space-y-4). */}
+      <div className="space-y-4 mb-12">
+        <header className="space-y-1">
+          {/* 42-UI-SPEC.md Typography: Heading role, 32px (text-3xl), 600
+              weight — mirrors coverage/page.tsx's h1 treatment. */}
+          <h1 className="text-3xl font-semibold text-text">{microcopy.page.h1}</h1>
+        </header>
 
-      <ScopeWindowControls
-        scope={scope}
-        onScopeChange={setScope}
-        window={windowPreset}
-        onWindowChange={setWindowPreset}
-        customFrom={customFrom}
-        customTo={customTo}
-        onCustomFromChange={setCustomFrom}
-        onCustomToChange={setCustomTo}
-      />
+        <ScopeWindowControls
+          scope={scope}
+          onScopeChange={setScope}
+          window={windowPreset}
+          onWindowChange={setWindowPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+        />
+      </div>
 
-      {/* WR-13: state branches are mutually exclusive — error > loading >
-          below-min-history empty > populated. While a custom range is
-          incomplete/invalid, useAnalytics disables the query (Pitfall 3 —
-          "fires no query until valid"), so this correctly parks on the
-          loading branch rather than showing stale data from a prior scope. */}
+      {/* WR-13: state branches are mutually exclusive — error >
+          awaiting-valid-range > loading > below-min-history empty >
+          populated. The awaiting-valid-range branch (UI-audit fix #1) must
+          come before q.isPending: while a custom range is incomplete/
+          invalid, useAnalytics disables the query, and TanStack Query v5
+          never moves `isPending` off `true` for a query that has never
+          fetched — without this branch the page would show a permanent
+          loading skeleton stacked under the inline order-error text. */}
       {q.error ? (
         <PartialFailureBanner
           errors={[
@@ -144,6 +170,11 @@ function AnalyticsPageInner() {
           ]}
           onRetry={() => q.refetch()}
         />
+      ) : isAwaitingValidCustomRange ? (
+        <EmptyState>
+          <EmptyState.Title>{microcopy.customRange.awaitingRangeTitle}</EmptyState.Title>
+          <EmptyState.Body>{microcopy.customRange.awaitingRangeBody}</EmptyState.Body>
+        </EmptyState>
       ) : q.isPending ? (
         <AnalyticsPageSkeleton />
       ) : isBelowMinHistory ? (

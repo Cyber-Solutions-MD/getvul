@@ -452,6 +452,38 @@ describe('/dashboard/analytics page', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('custom range: active + incomplete renders the awaiting-valid-range affordance, not the loading skeleton (UI-audit fix #1)', () => {
+    searchParamsMock = new URLSearchParams('window=custom');
+    // The query IS pending (TanStack Query v5 never moves isPending off
+    // true for a disabled/never-fetched query) — but with no dates picked
+    // yet, the page must show the neutral guided copy, not the skeleton.
+    mockQuery({ isPending: true });
+    renderWithClient(<AnalyticsPage />);
+
+    expect(screen.queryByTestId('analytics-page-skeleton')).toBeNull();
+    expect(screen.getByText('Waiting on a valid range')).toBeInTheDocument();
+    expect(
+      screen.getByText('Set a From date and a To date on or after it to see the trend for that window.'),
+    ).toBeInTheDocument();
+  });
+
+  it('custom range: active + invalid order (To before From) still renders the awaiting-valid-range affordance, not the skeleton (UI-audit fix #1)', () => {
+    searchParamsMock = new URLSearchParams('window=custom');
+    mockQuery({ isPending: true });
+    renderWithClient(<AnalyticsPage />);
+
+    const fromInput = screen.getByLabelText('From');
+    const toInput = screen.getByLabelText('To');
+    fireEvent.change(fromInput, { target: { value: '2026-08-20' } });
+    fireEvent.change(toInput, { target: { value: '2026-08-10' } });
+
+    // Both the inline field-level order error AND the page-level guided
+    // affordance render together — neither implies "still loading."
+    expect(screen.getByRole('alert')).toHaveTextContent('End date must be after start date.');
+    expect(screen.queryByTestId('analytics-page-skeleton')).toBeNull();
+    expect(screen.getByText('Waiting on a valid range')).toBeInTheDocument();
+  });
+
   it('custom range: an incomplete/invalid range never enables the query (fires no request)', () => {
     searchParamsMock = new URLSearchParams('window=custom');
     mockQuery({ isPending: true });

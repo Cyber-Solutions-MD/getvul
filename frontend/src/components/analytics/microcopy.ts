@@ -49,6 +49,13 @@ export const microcopy = {
     from: 'From',
     to: 'To',
     orderError: 'End date must be after start date.',
+    // UI-audit fix (Phase 42 polish, finding #1) — rendered instead of the
+    // loading skeleton while the custom range is incomplete/invalid, so a
+    // deliberately-disabled query (use-analytics.ts's `enabled` gate) never
+    // reads as a stuck fetch. Neutral, not an error — the order-error text
+    // above already covers the invalid-order case inline in the controls.
+    awaitingRangeTitle: 'Waiting on a valid range',
+    awaitingRangeBody: 'Set a From date and a To date on or after it to see the trend for that window.',
   },
   trend: {
     h2: 'Risk-exposure trend',

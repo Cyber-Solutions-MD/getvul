@@ -99,7 +99,10 @@ export function ScopeWindowControls({
             <button
               type="button"
               aria-label={microcopy.scope.accessibleLabel}
-              className="flex max-w-[220px] items-center gap-2 rounded-md border border-border-subtle bg-surface-2 px-3 py-1.5 text-sm text-text hover:border-border"
+              // UI-audit fix #4a: py-1 (4px), not py-1.5 (6px) — the 4px
+              // grid, matching the sibling window-toggle buttons' own py-1
+              // below (42-UI-SPEC.md Spacing Scale: "must be multiples of 4").
+              className="flex max-w-[220px] items-center gap-2 rounded-md border border-border-subtle bg-surface-2 px-3 py-1 text-sm text-text hover:border-border"
             >
               {/* min-w-0 lets truncate actually shrink inside this flex row
                   (UI-SPEC E1 long-text — a long AssetGroup.name ellipsizes,
@@ -154,9 +157,18 @@ export function ScopeWindowControls({
                 // Verbose a11y string lives in a sr-only span — the visible
                 // compact label ('7d') remains the accessible name.
                 onClick={() => onWindowChange(o.id)}
+                // UI-audit fix #3 (Color reserved-list item 3): the active
+                // preset gets a violet underline/indicator, per
+                // 42-UI-SPEC.md's "RangeToggle's existing bg-surface-2
+                // text-text active chrome extended with a violet
+                // underline/indicator." border-b-2 is present on every
+                // button (border-transparent when inactive) so the violet
+                // border never introduces a layout shift between states.
                 className={cn(
-                  'rounded-sm px-3 py-1 text-xs font-mono transition-colors',
-                  active ? 'bg-surface-2 text-text' : 'text-text-muted hover:text-text',
+                  'rounded-sm border-b-2 px-3 py-1 text-xs font-mono transition-colors',
+                  active
+                    ? 'border-violet bg-surface-2 text-text'
+                    : 'border-transparent text-text-muted hover:text-text',
                 )}
               >
                 {o.label}
