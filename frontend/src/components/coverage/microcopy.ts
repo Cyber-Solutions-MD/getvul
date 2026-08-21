@@ -16,6 +16,16 @@
  * scanner connectors exist. Distinct from `noInventory` above, which is
  * about the authoritative side being empty; this is the inverse ("we know
  * about your devices, but nothing scans them").
+ *
+ * `routeToOwner` (Plan 05, COV-03): copy for the "Route to owner" row/drill
+ * action + its 2-branch confirm dialog + toasts, verbatim from
+ * 41-UI-SPEC.md's Copywriting Contract. `dialog.resolved` needs a real
+ * owner first name to interpolate — no `BlindSpotAsset` row currently
+ * carries owner data (D-07/D-09's directory resolution happens entirely
+ * server-side inside the route-to-owner endpoint, and this plan is
+ * explicitly frontend-only/no-schema-change), so every current call site
+ * renders the `unresolvable` branch; `resolved` stays fully wired (and
+ * tested) for the day a future plan adds an owner-preview field.
  */
 export const microcopy = {
   page: {
@@ -60,5 +70,29 @@ export const microcopy = {
   },
   badge: {
     noScannerCoverage: 'No scanner coverage',
+  },
+  // Plan 05 (COV-03) — "Route to owner" row/drill action, confirm dialog,
+  // and toasts. Verbatim from 41-UI-SPEC.md's Copywriting Contract.
+  routeToOwner: {
+    rowAction: 'Route to owner',
+    pendingLabel: 'Notifying…',
+    // Shown as the `title` attribute on the disabled action for a viewer
+    // (D-08 asymmetric RBAC) — never a silent omission.
+    disabledHint: 'Requires analyst access or higher',
+    errorToast:
+      "Couldn't send the notification. Try again, or check the device's owner directly in your directory connector.",
+    dialog: {
+      resolved: {
+        title: (ownerFirstName: string) => `Notify ${ownerFirstName} about this device?`,
+        body: (hostname: string, ownerFirstName: string) =>
+          `${hostname} is in your inventory but no scanner covers it. We'll email ${ownerFirstName} to onboard it — this doesn't create a ticket or a finding.`,
+        confirm: 'Notify owner',
+      },
+      unresolvable: {
+        title: 'No owner found for this device',
+        body: "We couldn't resolve an owner from your directory. We'll notify your admins and the configured alert channel instead so this isn't silently dropped.",
+        confirm: 'Notify admins',
+      },
+    },
   },
 } as const;
