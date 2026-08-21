@@ -22,15 +22,27 @@ blind spots" (and render the real device count in that quiet-win copy).
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import ColumnElement, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.constants import ENRICHMENT_SOURCES, SCANNER_SOURCES
 from app.assets.models import Asset
-from app.coverage.schemas import BlindSpotAssetListResponse, BlindSpotAssetResponse
+from app.connectors.service import _normalize_sync_status
+from app.coverage.schemas import (
+    BlindSpotAssetListResponse,
+    BlindSpotAssetResponse,
+    CoverageConnectorCardResponse,
+    CoverageSummaryResponse,
+)
+from app.ticketing.models import ConnectorConfig
 
 DEFAULT_PAGE_SIZE = 50
+
+# D-06: a connector is "stale" when it hasn't reported in MORE than 7 days --
+# strict `>`, never `>=` (a connector synced exactly 7 days ago is NOT stale).
+STALE_THRESHOLD = timedelta(days=7)
 
 
 def _authoritative_clause() -> ColumnElement[bool]:
@@ -124,4 +136,74 @@ async def list_blind_spot_assets(
         pages=(total + safe_page_size - 1) // safe_page_size,
         has_authoritative_inventory=total_authoritative_assets > 0,
         total_authoritative_assets=total_authoritative_assets,
+    )
+
+
+async def _count_covered_assets(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    authoritative: ColumnElement[bool],
+    connector_type: str,
+) -> int:
+    """How many authoritative assets a single connector's source has
+    touched -- the numerator of that connector's coverage % (D-05)."""
+    count_q = select(func.count()).select_from(
+        select(Asset.id)
+        .where(
+            Asset.tenant_id == tenant_id,
+            Asset.is_ignored.is_(False),
+            authoritative,
+            Asset.seen_by_sources.contains([connector_type]),
+        )
+        .subquery()
+    )
+    return (await db.execute(count_q)).scalar() or 0
+
+
+async def get_coverage_summary(db: AsyncSession, tenant_id: uuid.UUID) -> CoverageSummaryResponse:
+    """COV-02: for each enabled scanner connector (Pitfall 6 -- iterate
+    `ConnectorConfig` where `connector_type in SCANNER_SOURCES`, never
+    special-case vendor names), what fraction of the authoritative (MDM/HR)
+    inventory it actually covers (D-05), plus a stale-source flag when it
+    hasn't reported in >7 days (D-06) and the wire-normalized sync status
+    (Pitfall 3). Reuses the identical `authoritative` clause the blind-spot
+    reconciliation above already uses -- one source of truth, not a second
+    query shape."""
+    authoritative = _authoritative_clause()
+    total = await _count_authoritative_assets(db, tenant_id, authoritative)
+
+    conn_q = select(ConnectorConfig).where(
+        ConnectorConfig.tenant_id == tenant_id,
+        ConnectorConfig.is_enabled.is_(True),
+        ConnectorConfig.connector_type.in_(SCANNER_SOURCES),
+    )
+    connectors = (await db.execute(conn_q)).scalars().all()
+
+    now = datetime.now(timezone.utc)
+    cards: list[CoverageConnectorCardResponse] = []
+    for conn in connectors:
+        covered = await _count_covered_assets(db, tenant_id, authoritative, conn.connector_type)
+        # D-11: null (never 0/100) when the denominator is zero.
+        coverage_pct = round(100 * covered / total) if total else None
+
+        last_sync_at = conn.last_sync_at
+        is_stale = bool(last_sync_at and (now - last_sync_at) > STALE_THRESHOLD)
+        stale_days = (now - last_sync_at).days if is_stale and last_sync_at else None
+
+        cards.append(
+            CoverageConnectorCardResponse(
+                connector_type=conn.connector_type,
+                coverage_pct=coverage_pct,
+                is_stale=is_stale,
+                stale_days=stale_days,
+                last_sync_status=_normalize_sync_status(conn.last_sync_status),
+                last_sync_at=last_sync_at,
+            )
+        )
+
+    return CoverageSummaryResponse(
+        cards=cards,
+        total_authoritative_assets=total,
+        has_authoritative_inventory=total > 0,
+        has_scanner_connector=len(cards) > 0,
     )

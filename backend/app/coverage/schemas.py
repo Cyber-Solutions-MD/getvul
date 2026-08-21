@@ -32,6 +32,43 @@ class BlindSpotAssetResponse(BaseModel):
     seen_by_sources: list[str]
 
 
+class CoverageConnectorCardResponse(BaseModel):
+    """One enabled scanner connector's coverage card (Phase 41 Plan 03,
+    COV-02): what fraction of the authoritative (MDM/HR) inventory it
+    actually touches (D-05), plus staleness (D-06) and wire-normalized
+    sync status (Pitfall 3 -- never a raw uppercase DB value)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    connector_type: str
+    # D-11 misleading-number guard: null (never 0 or 100) when the
+    # authoritative-asset denominator is zero.
+    coverage_pct: int | None
+    # D-06: strict `now - last_sync_at > 7 days`, never >=.
+    is_stale: bool
+    stale_days: int | None
+    # Wire-normalized via app.connectors.service._normalize_sync_status
+    # ("ok"|"failed"|"syncing"|None) -- never the raw uppercase DB value.
+    last_sync_status: str | None
+    last_sync_at: datetime | None
+
+
+class CoverageSummaryResponse(BaseModel):
+    """GET /coverage/summary (COV-02): the per-connector coverage strip
+    the frontend renders above the blind-spot list."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    cards: list[CoverageConnectorCardResponse]
+    total_authoritative_assets: int
+    has_authoritative_inventory: bool
+    # True when >=1 enabled scanner connector exists at all -- distinct from
+    # has_authoritative_inventory, so the frontend can render a
+    # scanner-specific empty variant ("No scanner connected") when inventory
+    # exists but no scanner connector does.
+    has_scanner_connector: bool
+
+
 class BlindSpotAssetListResponse(BaseModel):
     """Mirrors the existing `/assets` pagination envelope
     (`{items,total,page,page_size,pages}`, `assets/router.py::list_assets`)

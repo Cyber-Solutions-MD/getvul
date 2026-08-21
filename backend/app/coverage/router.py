@@ -24,8 +24,9 @@ from sqlalchemy import select
 from app.assets.models import Asset
 from app.auth.rbac import require_viewer
 from app.auth.schemas import CurrentUser
-from app.coverage.schemas import BlindSpotAssetListResponse
+from app.coverage.schemas import BlindSpotAssetListResponse, CoverageSummaryResponse
 from app.coverage.service import DEFAULT_PAGE_SIZE
+from app.coverage.service import get_coverage_summary as _get_coverage_summary
 from app.coverage.service import list_blind_spot_assets as _list_blind_spot_assets
 from app.dependencies import DBSession
 
@@ -58,3 +59,15 @@ async def list_blind_spot_assets_endpoint(
     distinguish "no inventory source connected" (D-11) from "fully
     covered, zero blind spots." Tenant-scoped throughout (T-41-01)."""
     return await _list_blind_spot_assets(db, user.tenant_id, page, page_size)
+
+
+@router.get("/summary", response_model=CoverageSummaryResponse)
+async def get_coverage_summary_endpoint(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+) -> CoverageSummaryResponse:
+    """COV-02: per-connector coverage % (D-05), staleness (D-06, strict
+    >7d), and wire-normalized sync status (Pitfall 3) for every enabled
+    scanner connector -- the strip rendered above the blind-spot list.
+    Tenant-scoped throughout (T-41-07)."""
+    return await _get_coverage_summary(db, user.tenant_id)
