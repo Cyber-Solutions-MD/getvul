@@ -32,16 +32,17 @@ evidence: Playwright + API — scope dropdown lists 8 named groups; "Search grou
 
 ### 4. Empty-membership group renders the D-04 empty state (backstop)
 expected: Selecting a group whose CURRENT membership is entirely empty renders the D-04 "insufficient history / trends appear after a few days" empty affordance (NOT an all-None misleading/gapless line); aging + burndown render their zero-scope state for the same group.
-result: issue
-reported: "Selecting a zero-member group ('Decommissioned (empty)') renders an all-null trend line, not the guided 'Trends appear after a few days of history' empty state. Confirmed via UI (no empty copy, line element renders) and API (31 trend rows, all avg_risk_exposure_score=null). Aging + burndown correctly show zero-scope (all buckets 0, open_backlog 0)."
+result: pass
+reported: "Initially FAILED: a zero-member group ('Decommissioned (empty)') rendered an all-null trend line, not the guided empty state. FIXED inline (commit b9dc1ae) — the empty-state gate now keys on the count of scored (non-null) points. Re-verified live via Playwright: the D-04 'Trends appear after a few days of history' empty state renders with zero trend-line elements."
 severity: minor
 coverage_id: D9
+resolved_by: "commit b9dc1ae (inline fix during this UAT session)"
 
 ## Summary
 
 total: 4
-passed: 3
-issues: 1
+passed: 4
+issues: 0
 pending: 0
 skipped: 0
 
@@ -49,14 +50,16 @@ skipped: 0
 
 - gap_id: G-42-4
   truth: "A group whose CURRENT membership is entirely empty renders the D-04 'insufficient history' empty affordance, not an all-None misleading/gapless line."
-  status: failed
-  reason: "User-requested automated UAT confirmed the empty-membership group renders an all-null RiskTrendChart line instead of the guided EmptyState. API returns 31 trend rows all with avg_risk_exposure_score=null; aging/burndown correctly zero-scope."
+  status: resolved
+  resolved_by: "commit b9dc1ae"
+  resolved_at: 2026-08-21
+  reason: "User-requested automated UAT confirmed the empty-membership group rendered an all-null RiskTrendChart line instead of the guided EmptyState (API returned 31 trend rows all with avg_risk_exposure_score=null). Fixed inline: the empty-state gate now counts scored (non-null) points instead of raw rows. Re-verified live (D-04 empty state renders, zero line elements) + regression test added (page.test.tsx, 19/19 green)."
   severity: minor
   test: 4
   artifacts:
-    - "frontend/src/app/(authed)/dashboard/analytics/page.tsx — the isBelowMinHistory / empty-state gate that decides EmptyState vs populated RiskTrendChart branch"
-  missing:
-    - "The empty-state gate keys on trend.length (row COUNT), never on whether every row's avg_risk_exposure_score is null. A zero-member group still returns one row per snapshot day (each null, correct D-06 gap semantics), so the count-based gate stays false and the populated (all-null line) branch renders. Fix: additionally treat a series whose non-null score count is 0 (or below the min-history threshold) as empty, so it falls to the D-04 EmptyState. Aging/burndown already handle zero-scope correctly — no backend change needed; this is a single frontend gate condition in page.tsx."
+    - "frontend/src/app/(authed)/dashboard/analytics/page.tsx — empty-state gate now keys on scoredPointCount (non-null) instead of trend.length"
+    - "frontend/src/app/(authed)/dashboard/analytics/page.test.tsx — added all-null-series → EmptyState regression test"
+  missing: []
 
 ## Notes
 
