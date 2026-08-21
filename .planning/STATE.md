@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 42
-current_phase_name: Risk Trend Analytics & Burndown
-status: planning
-stopped_at: Phase 42 context gathered
-last_updated: "2026-08-21T09:14:09.951Z"
+current_phase_name: risk-trend-analytics-burndown
+status: executing
+stopped_at: Phase 42 Plan 01 (tracer) executed and human-verify checkpoint approved
+last_updated: "2026-08-21T12:03:19.000Z"
 last_activity: 2026-08-21
-last_activity_desc: Phase 41 complete, transitioned to Phase 42
+last_activity_desc: Phase 42 Plan 01 (tracer) complete — tenant risk-exposure trend line shipped end-to-end
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 33
-  completed_plans: 33
+  total_plans: 36
+  completed_plans: 34
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 41 — coverage-blind-spot-detection
+**Current focus:** Phase 42 — risk-trend-analytics-burndown
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 42 — Risk Trend Analytics & Burndown
-Status: Ready to plan
-Last activity: 2026-08-21 — Phase 41 complete, transitioned to Phase 42
+Phase: 42 (risk-trend-analytics-burndown) — EXECUTING
+Status: Executing Phase 42 (1/3 plans complete)
+Last activity: 2026-08-21 — Phase 42 Plan 01 (tracer) complete: GET /api/v1/analytics/overview + /dashboard/analytics tenant risk-exposure trend line (5/5 backend + 7/7 frontend tests green); Task 3 human-verify checkpoint approved
 Phase 40 result: ALERT-01..03 closed end-to-end — new-KEV/high-EPSS targeted alerts + scheduled owner/team digests + tenant-configurable/audited alerting settings pane.
 
 ## v5.0 Phase Map
@@ -523,6 +523,14 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 - [Phase 41]: 41-05: the per-row "Route to owner" action and the drill footer's "Route to owner" action share ONE `RouteToOwnerDialog` + ONE `useRouteToOwner(assetId)` instance at the `coverage/page.tsx` level (`routeToOwnerTarget` state), rather than each owning an independent dialog/mutation pair -- matches the plan's explicit instruction ("Instantiate useRouteToOwner(assetId) for the active asset and pass into the dialog")
 - [Phase 41]: COV-03 marked `[x]` complete in REQUIREMENTS.md after 41-05 -- both declaring plans (41-04 backend, 41-05 frontend) have landed; Phase 41 (coverage-blind-spot-detection) is now 5/5 plans complete, fully shipped
 - [Phase 41]: 41-05: hand-edited STATE.md/ROADMAP.md/REQUIREMENTS.md directly again (same rationale as 41-01/41-02/41-03/41-04 -- the `state advance-plan`/`roadmap update-plan-progress` CLI verbs reproducibly corrupt STATE.md frontmatter and mis-write plan counts per this project's decision log)
+- [Phase 42]: 42-01: `get_scoped_trend_series` always reads `metrics["avg_risk_exposure_score"]` unconditionally -- never branches on `Tenant.cutover_risk_exposure_scoring` (D-12) -- and is bounded by `snapshot_date.between(start, end)` rather than the legacy `get_risk_score_trend` `.limit(90)` pattern (D-13); proven by `test_tenant_trend_ignores_cutover_flag` / `test_tenant_trend_respects_date_range`
+- [Phase 42]: 42-01: `backend/app/analytics/service.py` is plain async with no FastAPI `Depends` (D-16) -- `get_analytics_overview` is directly callable by Phase 43's report generator without an HTTP round-trip; mirrors `backend/app/coverage/` exactly (D-01)
+- [Phase 42]: 42-01: `detect_version_boundaries` is novel logic with no codebase precedent (`risk_model_version_snapshot` has never varied in real data -- `RISK_MODEL_VERSION = "v1"` since inception) -- proven via a SYNTHETIC fixture (`test_version_boundary_detected_and_segmented`), not real production data
+- [Phase 42]: 42-01: frontend `MIN_HISTORY_POINTS` locked at 1, not the plan action text's illustrative "e.g. 2" -- 42-UI-SPEC.md's E2 zero-one-many decision is LOCKED: a lone snapshot point renders a single dot, never the empty state; the empty branch gates on `trend.length` (row count), never on a falsy score value
+- [Phase 42]: 42-01: `RiskTrendChart` pivots the series into one `<Line dataKey=score_{version}>` per detected `risk_model_version` (null outside that version's own dates) so `connectNulls={false}` breaks the line at a boundary with zero interpolation; one neutral `<ReferenceLine stroke="var(--color-border-strong)">` per boundary (never violet/severity/success) -- first `connectNulls`/`ReferenceLine` usage in this codebase (42-RESEARCH.md Pattern 4, no prior precedent)
+- [Phase 42]: 42-01: Task 3 (`checkpoint:human-verify`, `gate="blocking"`) was reviewed live and approved by the user. Real production data is single-version ("v1"), so the live checkpoint verified zero boundary markers / one continuous line only -- full multi-version segmented rendering stays deferred to 42-03's synthetic-fixture frontend verification, exactly as the plan's own Task 3 `how-to-verify` step 7 anticipated. Not a gap.
+- [Phase 42]: TREND-01 / TREND-03 left `[ ]` unmarked in REQUIREMENTS.md after 42-01 -- also declared by not-yet-executed 42-03-PLAN.md (group scope + custom range + synthetic-boundary verification); confirmed BLOCKED via `gsd-tools.cjs requirements ready-ids 42-01-PLAN.md TREND-01,TREND-03` (returned `{"ready":[],"blocked":["TREND-01","TREND-03"]}`). Mirrors the Phase 38 CAMP-01 / Phase 41 COV-01/COV-03 shared-ID-gate precedent. Do not flip until 42-03 also lands.
+- [Phase 42]: 42-01: `gsd-sdk` is not installed in this environment (no `query` subcommand exists on the installed `gsd-tools.cjs` -- confirmed via `gsd-tools.cjs query` returning "Unknown command"); hand-edited STATE.md/ROADMAP.md directly rather than running `state advance-plan`/`roadmap update-plan-progress`, per the pre-existing 39-*/40-*/41-* decision-log precedent that those CLI verbs reproducibly corrupt STATE.md frontmatter. A test invocation of `roadmap update-plan-progress 42` (run before the SUMMARY existed on disk) correctly returned a stale `0/3` count reflecting disk state at call-time, not a corruption -- reverted via `git checkout -- .planning/ROADMAP.md` and re-applied by hand after the SUMMARY commit landed.
 
 ## Performance Metrics
 
@@ -602,13 +610,15 @@ The v1.0 roadmap is sourced from a codebase audit performed 2026-05-08 against c
 | Phase 41 P03 | 48min | 2 tasks | 10 files |
 | Phase 41 P04 | 35min | 1 task | 6 files |
 | Phase 41 P05 | ~45min | 2 tasks | 8 files |
+| Phase 42 P01 | ~30min (+ human-verify checkpoint pause) | 2 auto tasks + 1 checkpoint | 15 files |
 
 ## Session
 
-**Last session:** 2026-08-21T09:14:09.926Z
-**Stopped at:** Phase 42 context gathered
-**Resume file:** .planning/phases/42-risk-trend-analytics-burndown/42-CONTEXT.md
+**Last session:** 2026-08-21T12:03:19.000Z
+**Stopped at:** Phase 42 Plan 01 (tracer) complete — human-verify checkpoint approved
+**Resume file:** /Users/chemencedji/Desktop/getvul/.planning/phases/42-risk-trend-analytics-burndown/42-01-SUMMARY.md
 
 ## Operator Next Steps
 
-- Phase 41 (Coverage & Blind-Spot Detection) is fully executed: 5/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green; 41-04 — COV-03 backend: `POST /api/v1/coverage/assets/{asset_id}/route-to-owner` (require_analyst), resolve-then-notify-with-fallback mirroring `_fire_kev_epss_alert`, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only, 16/16 backend tests green; 41-05 — COV-03 frontend: `CoverageAssetDrillContent` (idKey="asset") + `RouteToOwnerDialog` (2-branch confirm) + `useRouteToOwner` mutation, wired on both the row action and the drill footer sharing one dialog/mutation instance, `canRouteToOwner` RBAC gate, 30/30 frontend tests green). COV-01/COV-02/COV-03 are all marked `[x]` complete in REQUIREMENTS.md. Recommended next steps, in order: (1) optionally run `/gsd-verify-work 41` to close phase verification (no on-trust checkpoints were deferred this phase — every plan was `type="auto"`/`type="tracer"`, fully automated); (2) proceed to `/gsd-plan-phase 42` (Risk Trend Analytics & Burndown) — no unmet depends_on, independent of Phase 41.
+- Phase 42 (Risk Trend Analytics & Burndown) Plan 01 (tracer) is complete and human-approved: new `backend/app/analytics/` plain-async module (`get_scoped_trend_series`, `detect_version_boundaries`, `get_analytics_overview`) behind `GET /api/v1/analytics/overview` (require_viewer), 5/5 backend tests green including a synthetic multi-version boundary fixture; new `/dashboard/analytics` page + Analytics nav entry + `RiskTrendChart` (recharts pivot-by-version segmented line, first `connectNulls`/`ReferenceLine` usage in the codebase) with loading/empty/error/single-point states, 7/7 frontend tests green, `tsc --noEmit` clean, no freehand hex, no new dependency. Task 3's blocking `checkpoint:human-verify` was reviewed live and approved by the user (real data is single-version "v1", so only zero-boundary rendering was observable live; multi-segment rendering stays deferred to 42-03's synthetic fixture, as the plan anticipated). TREND-01/TREND-03 remain `[ ]` unmarked in REQUIREMENTS.md — confirmed BLOCKED via `requirements ready-ids` because sibling `42-03-PLAN.md` also declares both IDs and hasn't landed. Recommended next step: continue Phase 42 execution with `42-02-PLAN.md` (backlog aging + burndown rate tile, TREND-02) — no unmet depends_on, plans 02/03 are additive onto the same files.
+- Phase 41 (Coverage & Blind-Spot Detection) is fully executed: 5/5 plans complete (41-01 — COV-01 tracer: backend `GET /api/v1/coverage/blind-spots` + `/dashboard/coverage` page, all 5 loading/error/empty/populated states, 5/5 backend + 5/5 frontend tests green; 41-02 — `run_intune_sync` SyncLog construction + tenant-scoping defect fixed, closing T-41-05/T-41-06, proven by a new DB-integration test; 41-03 — COV-02 per-connector coverage strip: `GET /api/v1/coverage/summary` + `CoverageConnectorCard` strip above the blind-spot list + "No scanner connected" empty variant, 11/11 backend + 16/16 frontend tests green; 41-04 — COV-03 backend: `POST /api/v1/coverage/assets/{asset_id}/route-to-owner` (require_analyst), resolve-then-notify-with-fallback mirroring `_fire_kev_epss_alert`, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only, 16/16 backend tests green; 41-05 — COV-03 frontend: `CoverageAssetDrillContent` (idKey="asset") + `RouteToOwnerDialog` (2-branch confirm) + `useRouteToOwner` mutation, wired on both the row action and the drill footer sharing one dialog/mutation instance, `canRouteToOwner` RBAC gate, 30/30 frontend tests green). COV-01/COV-02/COV-03 are all marked `[x]` complete in REQUIREMENTS.md. Optionally run `/gsd-verify-work 41` to close phase verification (no on-trust checkpoints were deferred this phase — every plan was `type="auto"`/`type="tracer"`, fully automated).
