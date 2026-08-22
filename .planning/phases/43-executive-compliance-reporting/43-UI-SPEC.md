@@ -1,7 +1,7 @@
 ---
 phase: 43
 slug: executive-compliance-reporting
-status: draft
+status: approved
 shadcn_initialized: true
 preset: new-york / zinc base / lucide icons (repo-wide install from Phase 9 — components.json pre-exists, not first-init this phase)
 created: 2026-08-22
@@ -62,7 +62,7 @@ Inherited from the locked 1.25 modular scale (`foundation.md`). This phase intro
 | Heading | 32px (`--text-3xl`) | 600 (semibold) | 1.2 |
 | Display | 40px (`--text-4xl`) | 600 (semibold) | 1.2 |
 
-**This phase's two load-bearing weights are 400 and 600** (body vs. everything-emphasized: page titles, stat hero numbers, CTA labels). Weight 500 appears only inside pre-built status/severity/SLA pill components this phase reuses verbatim — never introduced fresh in new Phase 43 components.
+**Three weight values appear in the table above (400 / 500 / 600), but this phase introduces only two load-bearing weights: 400 and 600** (body vs. everything-emphasized: page titles, stat hero numbers, CTA labels). Weight 500 is confined strictly to pre-built status/severity/SLA pill/badge chrome this phase reuses verbatim — it is never introduced fresh in any new Phase 43 component. This matches the system-wide convention already codified in the Phase 41 and Phase 42 UI-SPECs.
 
 Display (40px/600) is reserved for: the SLA-compliance % hero number (leadership/compliance lens tile), MTTR-by-tier hero numbers. Heading (32px/600) is reserved for: `/dashboard/compliance` page title, "Board report" section headers. Mono (JetBrains Mono, tabular-nums) applies to: control IDs (`PCI 6.3.3`), percentages, day counts, dates, request IDs — per `foundation.md`.
 
@@ -192,13 +192,67 @@ Each is a new toggle key in the existing section-list convention (`reports.py`'s
 
 ---
 
+## UI Considerations
+
+State/element coverage from the post-verification UI-consideration probe (42 applicable considerations across 9 surfaces). Shape-rooted STATE coverage lives here; empty/error-state COPY lives in the Copywriting Contract and is referenced, not restated. All resolved `covered` — 38 already pinned by the spec, 4 newly decided (marked ★).
+
+### E1 — Lens switcher (4-segment toggle)
+- **long-text** — `covered`: Segment labels are a fixed closed set (`Analyst` / `IT-ops` / `Compliance` / `Leadership`), not user data — no dynamic length. Segments size to content; the control never wraps (top-right of header, single row).
+
+### E2 — `/dashboard/compliance` page (control-card grid)
+- **loading** — `covered`: Skeleton control cards (`.skeleton`/`.skel-pill` shimmer), never a spinner-only page — see RPT-03 States.
+- **empty** — `covered`: Two-branch zero-denominator empty state, full-page centered card — copy in Copywriting Contract (Empty state).
+- **error** — `covered`: Amber inline banner; cards for metrics that resolved still render — copy in Copywriting Contract (secondary error state).
+- **partial** — `covered`: Partial metric-source failure renders resolved framework cards + the amber banner; the page is never blanked for one failed source (RPT-03 States).
+- **populated** — `covered`: Grid of control cards grouped by framework, 2-col desktop / 1-col mobile (RPT-03 Layout).
+- **overflow** — `covered`: Many controls → normal page scroll; grid reflows to 1-col on mobile. No fixed-height clipping.
+- **zero-one-many** — `covered`: Framework chip bar + per-framework grouping reads identically at 1 or many frameworks; `All` chip is the default. Empty case handled by the empty state above.
+- **long-text** — ★ `covered`: Control name and evidencing-metric line **wrap freely; the card grows to fit** (grid row aligns to tallest card). No hidden text — chosen for auditability/print fidelity over a tidy uniform grid.
+
+### E3 — Compliance control card
+- **loading** — `covered`: Card-level skeleton (shared with E2 page skeleton).
+- **empty** — `covered`: The `Not yet measured` neutral status (faint text on `--color-surface-2`, dashed border) IS the zero-denominator/empty state — mandatory, never rendered as `fail` (Color §"Not yet measured").
+- **error** — `covered`: A card whose single metric source fails inherits the page-level partial/amber path (E2 partial); the card is not independently error-styled.
+- **partial** — `covered`: `Not yet measured` covers absent-denominator; `Partial` status covers partially-met controls (four-state palette).
+- **populated** — `covered`: Control ID (mono) + name + evidencing line + status pill, per RPT-03 card spec.
+- **overflow** — ★ `covered`: Long name/evidencing text wraps and the card grows (same decision as E2 long-text) — no clip.
+- **zero-one-many** — `covered`: Single-card surface; multiplicity handled at the E2 grid level.
+- **long-text** — ★ `covered`: See E2 long-text — wrap, card grows.
+
+### E4 — Export board report dialog
+- **loading** — ★ `covered`: On submit, the `Export board report` CTA enters an **inline loading state (spinner + "Generating…" label, disabled to block double-submit)**; the dialog stays open until the file is ready or an error shows. Matches the spec's existing button-state conventions.
+- **empty** — `covered`: Dialog always has defaults — period preset defaults to `Last quarter`, scheduling toggle unchecked (D-03/D-04); no empty form state exists.
+- **error** — `covered`: Generation failure → name-the-failure + "retry with charts off (tables only)" — copy in Copywriting Contract (Error state). Dialog remains open.
+- **partial** — `covered`: Chart-render partial failure degrades to tables-only via the same retry path (Copywriting Error state).
+- **long-text** — `covered`: Recipient list / custom date values render in the existing `ScheduledReport` inline fields (mono for dates); no new long-text surface introduced by this phase.
+
+### E5 — Empty state (compliance, zero-denominator)
+- **loading/empty/error/populated/partial/overflow/zero-one-many** — `covered`: E5 is itself the empty *state* of E2; its content, two branches, and CTAs are fully specified in the Copywriting Contract (Empty state) and RPT-03 States (full-page centered card, sunset-gradient icon shell). No sub-states of an empty state apply.
+
+### E6 — Error states (generation + metric-fetch)
+- **loading/empty/error/populated/partial/overflow/zero-one-many** — `covered`: E6 enumerates the *error states* themselves — both branches (board-report generation failed; SLA data unreachable, amber banner with last-compute time + View trace/Retry now) are fully specified in the Copywriting Contract and RPT-03 States, including the partial-render rule.
+
+### E7 — Destructive confirm dialog (stop scheduled report)
+- **long-text** — `covered`: `{cadence}` is a fixed enum interpolation rendered in mono; two-button dialog (Cancel / Stop sending), fixed copy — no variable-length body (Copywriting Contract, Destructive confirmation).
+
+### E8 — Leadership / Compliance lens widget composition
+- **no-data (MTTR-by-tier, SLA-compliance %)** — ★ `covered`: Each metric tile reuses the **`Not yet measured` neutral zero-denominator treatment** (faint text, dashed affordance) when its metric has no data (no closed findings → MTTR; no SLA policy → SLA %) — never `0` / `0%`, which would read as a real value to a board audience.
+- **risk-trend tile no-history** — ★ `covered`: With <2 data points the trend hero renders a **neutral centered "not enough history to plot a trend yet — check back after N days" note** instead of a misleading line (applies to both the web tile and the PDF chart — see E9). Chosen over single-point/flat marker or hiding the widget.
+- **populated / composition** — `covered`: Ordered focal points per lens fully specified (Leadership items 1–5; Compliance items 1–4). Framework-posture strip aggregates pass/partial/fail/not-measured counts.
+
+### E9 — PDF board report (RPT-01, light/branded surface)
+- **empty (no/insufficient data)** — ★ `covered`: Trend chart with <2 points renders the neutral "not enough history" note (same rule as E8) on the white PDF surface using print-safe neutral gray, never a fabricated line. Zero-denominator MTTR/SLA sections render their tables/labels with the `Not yet measured` equivalent rather than `0`.
+- **loading** — `covered` (N/A user-facing): PDF is generated server-side; the user-facing progress lives on the E4 export CTA, not inside the PDF.
+- **error** — `covered`: Chart-render failure → retry with charts off (tables only) — E4/Copywriting Error state.
+- **populated** — `covered`: New sections (risk trend, MTTR by tier, SLA compliance) appended in the existing tenant-branded light layout; print-safe light-mode hex values specified (RPT-01 PDF Rendering Contract) — never dark-theme tokens.
+
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: FLAG (non-blocking — 3 weight values in table; 500 confined to inherited pill/badge chrome, matching Phase 41/42 convention)
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (2026-08-22) — 5 PASS, 1 non-blocking FLAG
