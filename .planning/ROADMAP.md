@@ -289,7 +289,11 @@ Plans:
   2. Role-scoped dashboards (analyst / IT-ops / compliance / leadership) render, each tenant-scoped and each showing only what that role needs
   3. A compliance view maps findings to framework controls (SOC 2 / ISO 27001 / PCI DSS / NIST CSF)
 
-**Plans**: TBD
+**Plans**: 4 plans (tracer-led)
+- [ ] 43-01-PLAN.md — Tracer: compliance posture end-to-end (new compliance/ package + catalog + /overview endpoint + /dashboard/compliance page) [RPT-03]
+- [ ] 43-02-PLAN.md — RPT-01 backend: matplotlib chart PDF sections + period params + MTTR period extension + scheduled board report [RPT-01]
+- [ ] 43-03-PLAN.md — RPT-01 frontend: export-board-report dialog (period presets + scheduling disclosure) + human-verify PDF [RPT-01]
+- [ ] 43-04-PLAN.md — RPT-02: dashboard lens switcher + leadership/compliance widgets + framework-posture strip + human-verify [RPT-02]
 **UI hint**: yes
 
 ### Phase 44: Natural-Language Query Assistant
