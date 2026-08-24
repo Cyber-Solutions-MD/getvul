@@ -73,7 +73,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 
 ### Executive & Compliance Reporting (RPT) — Phase 43
 
-- [ ] **RPT-01**: Exportable exec/board report (PDF) with risk trend + MTTR-by-tier + SLA compliance for a selected period
+- [x] **RPT-01**: Exportable exec/board report (PDF) with risk trend + MTTR-by-tier + SLA compliance for a selected period *(Phase 43-02/43-03, 2026-08-24)*
 - [ ] **RPT-02**: Role-scoped dashboards (analyst / IT-ops / compliance / leadership), tenant-scoped
 - [x] **RPT-03**: Compliance view mapping findings to framework controls (SOC 2 / ISO 27001 / PCI DSS / NIST CSF)
 
