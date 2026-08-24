@@ -6,6 +6,7 @@ import csv
 import io
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -618,6 +619,126 @@ async def generate_executive_summary_csv(db: AsyncSession, tenant_id: uuid.UUID,
     w.writerow(["Resolved", t["resolved"]])
 
     return output.getvalue()
+
+
+# ── RPT-01 chart-render helpers (Phase 43 Plan 02, D-01a/D-02) ─────────────
+#
+# Server-side chart rasterization for the 3 new board-PDF sections (risk
+# trend / MTTR by tier / SLA compliance). Every helper below constructs a
+# `matplotlib.figure.Figure` directly and drives it with
+# `matplotlib.backends.backend_agg.FigureCanvasAgg` -- the `pyplot` module
+# must NEVER be imported anywhere in this codebase; it keeps a global
+# mutable figure registry documented as unsafe under concurrent access
+# (43-RESEARCH.md Pitfall 5). matplotlib is imported lazily inside each
+# helper, mirroring this module's own `from fpdf import FPDF` lazy-import
+# convention below, not at module top-level.
+
+
+def _render_risk_trend_chart(
+    trend: list[dict[str, Any]],
+    boundaries: list[dict[str, Any]],
+    primary_color: tuple[int, int, int],
+) -> io.BytesIO:
+    """RPT-01 risk-trend line chart. `trend` is `get_scoped_trend_series()`'s
+    list (`date`/`avg_risk_exposure_score`/`risk_model_version`);
+    `boundaries` is `detect_version_boundaries()`'s output. With fewer than
+    2 real (non-null-score) data points, renders a neutral "not enough
+    history" note instead of a plotted line (E9) -- never a fabricated or
+    misleading line. `primary_color` is the tenant's own brand RGB (never
+    the sunset palette, per 43-UI-SPEC.md's PDF Rendering Contract).
+    """
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    fig = Figure(figsize=(7.2, 4.0), dpi=200)
+    ax = fig.add_subplot(111)
+
+    points = [
+        (row["date"], row["avg_risk_exposure_score"]) for row in trend if row.get("avg_risk_exposure_score") is not None
+    ]
+
+    if len(points) < 2:
+        ax.text(
+            0.5,
+            0.5,
+            "Not enough history to plot a trend yet",
+            ha="center",
+            va="center",
+            fontsize=12,
+            color="#6B7280",  # neutral gray -- never a fabricated line (E9)
+            transform=ax.transAxes,
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+    else:
+        dates = [p[0] for p in points]
+        scores = [p[1] for p in points]
+        color_hex = "#{:02x}{:02x}{:02x}".format(*primary_color)
+        ax.plot(dates, scores, color=color_hex, linewidth=2)
+        ax.set_ylabel("Avg Risk Exposure Score")
+        ax.set_title("Risk Trend")
+        step = max(1, len(dates) // 8)
+        ax.set_xticks(dates[::step])
+        ax.tick_params(axis="x", rotation=45, labelsize=7)
+        boundary_dates = {b["date"] for b in boundaries}
+        for d in dates:
+            if d in boundary_dates:
+                # Neutral gray dashed -- NEVER colored (43-UI-SPEC.md).
+                ax.axvline(x=d, color="#9CA3AF", linestyle="--", linewidth=1)
+
+    fig.tight_layout()
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()  # type: ignore[no-untyped-call]
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=200)
+    buf.seek(0)
+    return buf
+
+
+def _render_mttr_by_tier_chart(tiers: list[str], days: list[float], colors: list[str]) -> io.BytesIO:
+    """RPT-01 MTTR-by-tier grouped bar chart. `colors` are the print-safe
+    light-mode severity hexes (43-UI-SPEC.md), never dark-theme tokens."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    fig = Figure(figsize=(7.2, 4.0), dpi=200)
+    ax = fig.add_subplot(111)
+    ax.bar(tiers, days, color=colors)
+    ax.set_ylabel("MTTR (days)")
+    ax.set_title("MTTR by Risk Tier")
+    fig.tight_layout()
+
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()  # type: ignore[no-untyped-call]
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=200)
+    buf.seek(0)
+    return buf
+
+
+def _render_sla_compliance_chart(compliance_pct: float, color: str) -> io.BytesIO:
+    """RPT-01 SLA-compliance bar/gauge. `color` is a pre-resolved
+    light-mode success/warning/danger hex (43-UI-SPEC.md) chosen by the
+    caller from the pass/approaching/breached thresholds."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    fig = Figure(figsize=(7.2, 2.2), dpi=200)
+    ax = fig.add_subplot(111)
+    ax.barh(["SLA Compliance"], [compliance_pct], color=color)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("% remediated within SLA (trailing 90 days)")
+    ax.text(min(compliance_pct + 2, 96), 0, f"{compliance_pct:.1f}%", va="center", fontsize=10)
+    fig.tight_layout()
+
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()  # type: ignore[no-untyped-call]
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=200)
+    buf.seek(0)
+    return buf
 
 
 async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID, filters: dict | None = None) -> bytes:
