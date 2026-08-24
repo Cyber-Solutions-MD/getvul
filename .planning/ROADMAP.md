@@ -298,7 +298,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 43-02-PLAN.md — RPT-01 backend: matplotlib chart PDF sections + period params + MTTR period extension + scheduled board report [RPT-01]
+- [x] 43-02-PLAN.md — RPT-01 backend: matplotlib chart PDF sections + period params + MTTR period extension + scheduled board report [RPT-01]
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -350,7 +350,7 @@ Plans:
 | 40. Proactive Alerting & Digests | 5/5 | Complete    | 2026-08-20 |
 | 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
 | 42. Risk Trend Analytics & Burndown | 3/3 | Complete    | 2026-08-21 |
-| 43. Executive & Compliance Reporting | 1/4 | In Progress | - |
+| 43. Executive & Compliance Reporting | 2/4 | In Progress | - |
 | 44. Natural-Language Query Assistant | 0/? | Not started | - |
 | 45. Public API, Webhooks & SDK | 0/? | Not started | - |
 
