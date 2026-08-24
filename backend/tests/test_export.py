@@ -447,6 +447,34 @@ async def test_top_remediations_section_still_renders_real_rows_when_present(db_
     assert not any(b"No remediation actions recorded yet" in t for t in tokens)
 
 
+async def test_pdf_legacy_sections_are_gated_by_requested_sections_list(db_session, tenant_a):
+    """CR-01 regression (43-REVIEW.md): before this fix, the six
+    pre-existing (non-RPT-01) sections -- Vulnerability Overview, Assets by
+    Type, Risk Distribution, Top N Riskiest Hosts, Top N Remediations, and
+    Ticket Status -- were drawn unconditionally regardless of the caller's
+    `sections` list (only the 3 new RPT-01 chart sections honored it). A
+    request for a single narrow section must render ONLY that section's
+    text -- every other legacy section's header must be absent, matching
+    the `sections`-honoring behavior already proven for the CSV/text
+    renderers and for the 3 new chart sections."""
+    pdf_bytes = bytes(await generate_executive_summary_pdf(db_session, tenant_a, {"sections": ["tickets"]}))
+    tokens = _pdf_text_tokens(pdf_bytes)
+    joined = b" ".join(tokens)
+
+    # The one requested section must render.
+    assert b"Ticket Status" in joined
+
+    # Every other legacy section's header text must be absent.
+    for absent in (
+        b"Vulnerability Overview",
+        b"Assets by Type",
+        b"Risk Distribution",
+        b"Riskiest Hosts",
+        b"Remediations (by impact)",
+    ):
+        assert absent not in joined, f"{absent!r} rendered despite sections=['tickets']"
+
+
 # ── Task 3: export_resource period params + validation + audit ─────────────
 
 

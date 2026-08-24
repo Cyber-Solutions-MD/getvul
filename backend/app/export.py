@@ -933,47 +933,55 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
     n = len(d["top_hosts"])
 
     # Vulnerabilities
-    if "vulns" not in sec:
-        pass
-    else:
+    #
+    # [Rule 1 - Bug, found during CR-01 (Phase 43 code review)]: the header
+    # was gated by `if "vulns" in sec:` but the per-metric `for` loop below
+    # it was NOT nested under that guard, so every row still printed even
+    # when "vulns" was excluded from `sections` (only the header was ever
+    # skipped). Nesting the loop inside the guard makes the whole block --
+    # header and rows -- honor the caller's requested `sections`, matching
+    # `generate_executive_summary`/`generate_executive_summary_csv`.
+    if "vulns" in sec:
         section("Vulnerability Overview")
-    for label, val in [
-        ("Total Vulnerabilities", f"{v['total']:,}"),
-        ("Open / In Progress", f"{v['open']:,}"),
-        ("Critical (open)", f"{v['critical']:,}"),
-        ("High (open)", f"{v['high']:,}"),
-        ("Exploitable (open)", f"{v['exploitable']:,}"),
-        ("CISA KEV (open)", f"{v['kev']:,}"),
-    ]:
-        row(label, val)
-    pdf.ln(5)
+        for label, val in [
+            ("Total Vulnerabilities", f"{v['total']:,}"),
+            ("Open / In Progress", f"{v['open']:,}"),
+            ("Critical (open)", f"{v['critical']:,}"),
+            ("High (open)", f"{v['high']:,}"),
+            ("Exploitable (open)", f"{v['exploitable']:,}"),
+            ("CISA KEV (open)", f"{v['kev']:,}"),
+        ]:
+            row(label, val)
+        pdf.ln(5)
 
     # Assets by type
-    section("Assets by Type")
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.cell(60, 6, "  Category")
-    pdf.cell(30, 6, "Count", align="R")
-    pdf.cell(40, 6, "Avg Risk", align="R", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 9)
-    for cat, count, avg in sorted(a["by_category"], key=lambda x: -x[1]):
-        pdf.cell(60, 5, f"  {cat}")
-        pdf.cell(30, 5, f"{count:,}", align="R")
-        pdf.cell(40, 5, f"{avg:.1f}", align="R", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.cell(60, 5, "  TOTAL")
-    pdf.cell(30, 5, f"{a['total']:,}", align="R", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(5)
+    if "assets" in sec:
+        section("Assets by Type")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(60, 6, "  Category")
+        pdf.cell(30, 6, "Count", align="R")
+        pdf.cell(40, 6, "Avg Risk", align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 9)
+        for cat, count, avg in sorted(a["by_category"], key=lambda x: -x[1]):
+            pdf.cell(60, 5, f"  {cat}")
+            pdf.cell(30, 5, f"{count:,}", align="R")
+            pdf.cell(40, 5, f"{avg:.1f}", align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(60, 5, "  TOTAL")
+        pdf.cell(30, 5, f"{a['total']:,}", align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
 
     # Risk distribution
-    section("Risk Distribution")
-    for label, val in [
-        ("Critical (80+)", a["risk"]["critical"]),
-        ("High (50-79)", a["risk"]["high"]),
-        ("Medium (20-49)", a["risk"]["medium"]),
-        ("Low (<20)", a["risk"]["low"]),
-    ]:
-        row(label, f"{val:,}")
-    pdf.ln(5)
+    if "risk" in sec:
+        section("Risk Distribution")
+        for label, val in [
+            ("Critical (80+)", a["risk"]["critical"]),
+            ("High (50-79)", a["risk"]["high"]),
+            ("Medium (20-49)", a["risk"]["medium"]),
+            ("Low (<20)", a["risk"]["low"]),
+        ]:
+            row(label, f"{val:,}")
+        pdf.ln(5)
 
     # RPT-01 (Phase 43 Plan 02): risk trend -> MTTR by tier -> SLA
     # compliance, in that exact order (43-UI-SPEC.md PDF Rendering
@@ -1097,19 +1105,20 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
 
     n = len(d["top_hosts"])
     # Top N hosts
-    section(f"Top {n} Riskiest Hosts")
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.cell(55, 6, "  Hostname")
-    pdf.cell(20, 6, "Risk", align="R")
-    pdf.cell(35, 6, "Type")
-    pdf.cell(0, 6, "User", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 9)
-    for h in d["top_hosts"]:
-        pdf.cell(55, 5, f"  {h['hostname'][:25]}")
-        pdf.cell(20, 5, str(h["risk"]), align="R")
-        pdf.cell(35, 5, f"  {h['type'] or '-'}")
-        pdf.cell(0, 5, h["user"] or "-", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(5)
+    if "top_hosts" in sec:
+        section(f"Top {n} Riskiest Hosts")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(55, 6, "  Hostname")
+        pdf.cell(20, 6, "Risk", align="R")
+        pdf.cell(35, 6, "Type")
+        pdf.cell(0, 6, "User", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 9)
+        for h in d["top_hosts"]:
+            pdf.cell(55, 5, f"  {h['hostname'][:25]}")
+            pdf.cell(20, 5, str(h["risk"]), align="R")
+            pdf.cell(35, 5, f"  {h['type'] or '-'}")
+            pdf.cell(0, 5, h["user"] or "-", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
 
     nr = len(d["top_remediations"])
     # Top N remediations
@@ -1122,30 +1131,32 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
     # explicit empty-state line instead, consistent with the "Not yet
     # measured" / "Not enough history to plot a trend yet" copy already
     # used by the RPT-01 zero-data sections above.
-    if nr == 0:
-        section("Top Remediations (by impact)")
-        row("Top Remediations", "No remediation actions recorded yet")
-    else:
-        section(f"Top {nr} Remediations (by impact)")
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(45, 6, "  Product")
-        pdf.cell(20, 6, "Sev")
-        pdf.cell(15, 6, "Hosts", align="R")
-        pdf.cell(15, 6, "Vulns", align="R")
-        pdf.cell(0, 6, "  Action", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 8)
-        for r in d["top_remediations"]:
-            pdf.cell(45, 5, f"  {(r['product'] or '?')[:20]}")
-            pdf.cell(20, 5, r["severity"])
-            pdf.cell(15, 5, str(r["hosts"]), align="R")
-            pdf.cell(15, 5, str(r["vulns"]), align="R")
-            pdf.cell(0, 5, f"  {(r['action'] or '')[:45]}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(5)
+    if "top_remediations" in sec:
+        if nr == 0:
+            section("Top Remediations (by impact)")
+            row("Top Remediations", "No remediation actions recorded yet")
+        else:
+            section(f"Top {nr} Remediations (by impact)")
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(45, 6, "  Product")
+            pdf.cell(20, 6, "Sev")
+            pdf.cell(15, 6, "Hosts", align="R")
+            pdf.cell(15, 6, "Vulns", align="R")
+            pdf.cell(0, 6, "  Action", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Helvetica", "", 8)
+            for r in d["top_remediations"]:
+                pdf.cell(45, 5, f"  {(r['product'] or '?')[:20]}")
+                pdf.cell(20, 5, r["severity"])
+                pdf.cell(15, 5, str(r["hosts"]), align="R")
+                pdf.cell(15, 5, str(r["vulns"]), align="R")
+                pdf.cell(0, 5, f"  {(r['action'] or '')[:45]}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
 
     # Tickets
-    section("Ticket Status")
-    for label, val in [("Total Tickets", t["total"]), ("Open", t["open"]), ("Resolved", t["resolved"])]:
-        row(label, f"{val:,}")
+    if "tickets" in sec:
+        section("Ticket Status")
+        for label, val in [("Total Tickets", t["total"]), ("Open", t["open"]), ("Resolved", t["resolved"])]:
+            row(label, f"{val:,}")
 
     # Footer on each page
     #
