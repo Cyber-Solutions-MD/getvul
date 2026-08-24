@@ -61,7 +61,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 - [x] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests (completed 2026-08-19; Task 3 live-verify checkpoint approved on-trust, live third-party delivery deferred to /gsd-verify-work 40)
 - [x] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %; route-to-owner (5/5 plans executed; verification = human_needed — awaiting UAT on SC3 route-to-owner dialog copy) (completed 2026-08-21)
 - [x] **Phase 42: Risk Trend Analytics & Burndown** — Trend lines, backlog aging/burndown, version-boundary-aware (3/3 plans executed; human-verify checkpoints approved against orchestrator-seeded synthetic data — TREND-03's version-boundary proof is synthetic-fixture-only by design, real tenant history stays single-version; run /gsd-verify-work 42) (completed 2026-08-21)
-- [ ] **Phase 43: Executive & Compliance Reporting** — Exec/board PDF, role-scoped dashboards, framework-control compliance view
+- [x] **Phase 43: Executive & Compliance Reporting** — Exec/board PDF (RPT-01) + built-in framework-control compliance view (RPT-03) + 4-lens role-scoped dashboard (RPT-02): analyst/IT-ops unchanged, leadership/compliance surface trend-and-posture widgets + framework-posture strip (4/4 plans executed; human-verify checkpoints approved — 43-03 PDF export dialog live-verified against real generated PDFs, 43-04 all four dashboard lenses live-verified in-browser) (completed 2026-08-24)
 - [ ] **Phase 44: Natural-Language Query Assistant** — BYOK plain-English Q&A over tenant data, safe-schema constrained
 - [ ] **Phase 45: Public API, Webhooks & SDK** — Tenant-scoped REST API, signed event webhooks, OpenAPI spec + SDK
 
@@ -291,7 +291,7 @@ Plans:
   2. Role-scoped dashboards (analyst / IT-ops / compliance / leadership) render, each tenant-scoped and each showing only what that role needs
   3. A compliance view maps findings to framework controls (SOC 2 / ISO 27001 / PCI DSS / NIST CSF)
 
-**Plans**: 4 plans (tracer-led)
+**Plans**: 4/4 plans executed (tracer-led)
 **Wave 1**
 
 - [x] 43-01-PLAN.md — Tracer: compliance posture end-to-end (new compliance/ package + catalog + /overview endpoint + /dashboard/compliance page) [RPT-03]
@@ -306,7 +306,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 43-04-PLAN.md — RPT-02: dashboard lens switcher + leadership/compliance widgets + framework-posture strip + human-verify [RPT-02]
+- [x] 43-04-PLAN.md — RPT-02: dashboard lens switcher + leadership/compliance widgets + framework-posture strip + human-verify [RPT-02] *(2026-08-24 — useLens (URL + localStorage dual-persistence, default analyst) + 4-segment LensSwitcher; analyst/IT-ops render the pre-existing triage dashboard byte-for-byte; leadership lens = Export board report CTA + risk-trend + MTTR-by-tier tile + SLA-compliance tile + framework-posture strip (no triage widgets); compliance lens = hero-sized posture strip + compact SLA/trend + "View full compliance page" link; GET /vulnerabilities/sla/metrics gained an additive exclude_exceptions param so the SLA tile matches the compliance page/board PDF (Pitfall 2); "Not yet measured" honesty on every zero-denominator tile, never 0/0%; 2 backend + 19 new frontend tests green (44 backend / 1169 frontend total unaffected elsewhere); human-verify checkpoint approved in-browser. Phase 43 complete, 4/4 plans)*
 
 **UI hint**: yes
 
@@ -350,7 +350,7 @@ Plans:
 | 40. Proactive Alerting & Digests | 5/5 | Complete    | 2026-08-20 |
 | 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
 | 42. Risk Trend Analytics & Burndown | 3/3 | Complete    | 2026-08-21 |
-| 43. Executive & Compliance Reporting | 3/4 | In Progress | - |
+| 43. Executive & Compliance Reporting | 4/4 | Complete    | 2026-08-24 |
 | 44. Natural-Language Query Assistant | 0/? | Not started | - |
 | 45. Public API, Webhooks & SDK | 0/? | Not started | - |
 
