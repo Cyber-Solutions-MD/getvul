@@ -30,6 +30,7 @@ from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
 from app.auth.schemas import CurrentUser
 from app.campaigns.router import router as campaigns_router
+from app.compliance.router import router as compliance_router
 from app.config import settings
 from app.connectors.router import router as connector_router
 from app.coverage.router import router as coverage_router
@@ -323,6 +324,7 @@ def create_app() -> FastAPI:
     app.include_router(exceptions_router, prefix="/api/v1/exceptions", tags=["Exceptions"])
     app.include_router(coverage_router, prefix="/api/v1/coverage", tags=["Coverage"])
     app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
+    app.include_router(compliance_router, prefix="/api/v1/compliance", tags=["Compliance"])
 
     app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
     app.include_router(search_router, prefix="/api/v1", tags=["Search"])
