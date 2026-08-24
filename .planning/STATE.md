@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
-current_phase: 42
-current_phase_name: risk-trend-analytics-burndown
-status: executing
-stopped_at: Phase 43 UI-SPEC approved
-last_updated: "2026-08-22T12:04:17.728Z"
-last_activity: 2026-08-21
-last_activity_desc: "Phase 42 Plan 03 complete: group scoping (retroactive current-membership intersection + IDOR 404 guard) + custom date-range window (span-capped, To>From validated) + synthetic 3-version boundary verification (2 boundaries for 3 versions) shipped on /dashboard/analytics (17/17 backend + 18/18 frontend tests green); Task 3 human-verify checkpoint approved against orchestrator-seeded synthetic data. TREND-01/TREND-02/TREND-03 all complete — Phase 42 (Risk Trend Analytics & Burndown) fully shipped, 3/3 plans."
+current_phase: 43
+current_phase_name: executive-compliance-reporting
+status: Ready to execute
+stopped_at: Phase 43 planned (4 plans, tracer-led)
+last_updated: "2026-08-22T16:00:00.000Z"
+last_activity: 2026-08-22
+last_activity_desc: "Phase 43 (Executive & Compliance Reporting) planned: 4 plans in 4 waves (tracer-led). Research + pattern-map completed; VALIDATION.md seeded; COVERAGE.md non-external-API declaration written. Plan-checker passed on revision iteration 2 (3 blockers + warning 4 fixed: compliance empty-state root-cause branch via useCoverageSummary; E7 stop-scheduled-report confirm built; leadership SLA tile exception-consistent via additive exclude_exceptions; SLA-section trailing-90d caption). Requirements 3/3 + decision coverage 14/14 gates green. Ready for /gsd-execute-phase 43."
 progress:
   total_phases: 8
   completed_phases: 7
@@ -24,7 +24,7 @@ See: [.planning/PROJECT.md](PROJECT.md) (updated 2026-08-04 after v3.0 milestone
 
 **Core value:** A vuln-triage analyst can open one dashboard, see the same CVE-on-host correlated across multiple scanners, identify the asset's owner from IdP/MDM/HR, and ship a Jira/Asana ticket — without ever opening a scanner console. **v3.0 shipped AI that helps the analyst *decide and act*, grounded in the tenant's own data, using the tenant's own AI key (BYOK).**
 
-**Current focus:** Phase 42 — risk-trend-analytics-burndown
+**Current focus:** Phase 43 — executive-compliance-reporting
 
 ## Deferred Items
 
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 42 (risk-trend-analytics-burndown) — COMPLETE (3/3 plans; pending /gsd-verify-work 42)
-Status: Phase 42 fully shipped; awaiting phase verification / Phase 43 planning
-Last activity: 2026-08-21 — Phase 42 Plan 03 complete: group scoping (retroactive current-membership intersection + IDOR 404 guard) + custom date-range window (span-capped, To>From validated) + synthetic 3-version boundary verification (2 boundaries for 3 versions) shipped on /dashboard/analytics (17/17 backend + 18/18 frontend tests green); Task 3 human-verify checkpoint approved against orchestrator-seeded synthetic data. TREND-01/TREND-02/TREND-03 all complete — Phase 42 (Risk Trend Analytics & Burndown) fully shipped, 3/3 plans.
+Phase: 43 (executive-compliance-reporting) — PLANNED (4 plans, tracer-led; ready for /gsd-execute-phase 43)
+Status: Phase 43 plans created + verified (plan-checker passed iteration 2); Phase 42 remains COMPLETE (3/3; pending /gsd-verify-work 42)
+Last activity: 2026-08-24 — Phase 43 planned: 4 plans in 4 sequential waves (01 tracer RPT-03 compliance vertical → 02 RPT-01 PDF backend → 03 RPT-01 export dialog → 04 RPT-02 dashboard lenses). Research resolved D-02 (matplotlib Agg PNG→fpdf2, Pillow already transitive) + D-09 (sourced 4-framework control catalog) and surfaced 3 code landmines (fake-100 compliance_pct; missing exception-exclusion; no-period-param MTTR/SLA) all threaded into plans. Requirements 3/3 + decision coverage 14/14 gates green.
 Phase 40 result: ALERT-01..03 closed end-to-end — new-KEV/high-EPSS targeted alerts + scheduled owner/team digests + tenant-configurable/audited alerting settings pane.
 
 ## v5.0 Phase Map

@@ -273,9 +273,11 @@ Plans:
   3. Trends annotate risk-model version boundaries rather than blending across them — a v4.0 model version change never produces a false cliff or false improvement
 
 **Plans**: 3/3 plans executed (tracer-led)
+
 - [x] 42-01-PLAN.md — Tracer: tenant risk-exposure trend line end-to-end (new analytics module + /analytics page + segmented chart + states) [TREND-01, TREND-03] *(2026-08-21 — GET /api/v1/analytics/overview + /dashboard/analytics; 5/5 backend + 7/7 frontend tests green; human-verify checkpoint approved; TREND-01/TREND-03 stay open pending 42-03)*
 - [x] 42-02-PLAN.md — Backlog aging (SLA-tier buckets x severity) + burndown rate tile [TREND-02] *(2026-08-21 — get_aging_distribution + get_burndown_rate (Phase 39 exclusion predicate + Phase 36 tier windows verbatim, MAX_PROJECTION_DAYS=500 capped); BacklogAgingChart + BurndownTile on /dashboard/analytics; 11/11 backend + 12/12 frontend tests green; human-verify checkpoint approved against orchestrator-seeded synthetic data; TREND-02 complete)*
 - [x] 42-03-PLAN.md — Group scope (retroactive) + custom date range + synthetic-fixture version-boundary verification [TREND-01, TREND-03] *(2026-08-21 — searchable scope dropdown (All tenant + asset groups) re-scopes trend/aging/burndown via retroactive current-membership intersection (None-for-empty-day) + IDOR 404 guard; 5th "Custom range" preset with native From/To date inputs + To>From validation; synthetic 3-version ("v1"->"v2"->"v3") fixture proves segmented non-interpolated trend lines with neutral boundary markers (2 boundaries for 3 versions); 17/17 backend + 18/18 frontend tests green; human-verify checkpoint approved against orchestrator-seeded synthetic data. TREND-01/TREND-03 fully closed; Phase 42 complete, 3/3 plans)*
+
 **UI hint**: yes
 
 ### Phase 43: Executive & Compliance Reporting
@@ -290,10 +292,22 @@ Plans:
   3. A compliance view maps findings to framework controls (SOC 2 / ISO 27001 / PCI DSS / NIST CSF)
 
 **Plans**: 4 plans (tracer-led)
+**Wave 1**
+
 - [ ] 43-01-PLAN.md — Tracer: compliance posture end-to-end (new compliance/ package + catalog + /overview endpoint + /dashboard/compliance page) [RPT-03]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 43-02-PLAN.md — RPT-01 backend: matplotlib chart PDF sections + period params + MTTR period extension + scheduled board report [RPT-01]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 43-03-PLAN.md — RPT-01 frontend: export-board-report dialog (period presets + scheduling disclosure) + human-verify PDF [RPT-01]
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 43-04-PLAN.md — RPT-02: dashboard lens switcher + leadership/compliance widgets + framework-posture strip + human-verify [RPT-02]
+
 **UI hint**: yes
 
 ### Phase 44: Natural-Language Query Assistant
