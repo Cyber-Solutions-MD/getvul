@@ -51,3 +51,62 @@ suppressed.
 reports) always requests the full default section list; no user-visible
 under- or over-rendering has been observed. It is a dead code-path
 (unused toggle capability), not a correctness bug for current callers.
+
+## Plan 03, Task 2 (checkpoint pre-verification)
+
+### Page-break footer/row overlap in a real multi-page board PDF
+
+**Found during:** Pre-verification for the Task 2 human-verify checkpoint —
+generating a real board PDF end-to-end (dev-seeded tenant, default `quarter`
+period) via `GET /api/v1/export/summary` against the live local backend, then
+reading the resulting PDF to confirm section order/branding.
+
+**Issue:** With the full 9-section default (20 assets / 204 open vulns
+seeded), the "Top 5 Riskiest Hosts" table spans the page 1 -> page 2 break.
+The last visible row on page 1 ("dev-server-01 94 - -") visually overlaps
+the "Demo Organization — Confidential | Page 1/2" footer text drawn at the
+bottom of the same page — the row and the footer render on top of each
+other. The single-page ("charts off", 6-section) variant does not exhibit
+this, since it never spans a page break.
+
+**Why not fixed here:** Pagination/page-break layout is pre-existing
+`generate_executive_summary_pdf` (`backend/app/export.py`) behavior,
+untouched by this plan (`43-03`'s `files_modified` is frontend-only: the
+export dialog + its test). Plan 02's own SUMMARY already flagged this
+exact gap: "multi-page pagination under a large realistic dataset ... was
+not exercised." This is the first real multi-page sample generated against
+a realistically-seeded (not hand-crafted) dataset, surfacing the gap Plan 02
+called out in advance.
+
+**Suggested fix (future):** Reserve bottom margin for the footer (e.g. an
+fpdf2 page-break check before drawing each table row, comparing `pdf.get_y()`
+against the footer's y-position) so a row never draws underneath it.
+
+**Impact:** Cosmetic only — data is not lost or wrong, just visually
+overlapping at the exact page-break boundary. Does not block Plan 03 (no
+file in this plan's scope produces or fixes it). Worth a small dedicated fix
+in a future reporting-polish pass.
+
+### "Top 0 Remediations (by impact)" section header renders a literal 0
+
+**Found during:** Same pre-verification pass as above.
+
+**Issue:** When the seeded tenant has no closed/remediated CVE-host pairs
+(only fresh `OPEN` findings), the "Top Remediations" section header renders
+as literally "Top 0 Remediations (by impact)" followed by an empty table
+(header row only, no data rows) — a real zero-count number rather than an
+honest empty-state message ("No remediations recorded yet" or similar).
+
+**Why not fixed here:** Pre-existing `_collect_summary_data`/
+`generate_executive_summary_pdf` section, untouched by this plan. Not a new
+regression from `43-03`'s frontend-only change; also not one of the 3
+sections (risk_trend/mttr_by_tier/sla_compliance) that Plan 02 was scoped to
+make zero-data-honest.
+
+**Suggested fix (future):** When the top-remediations list is empty, render
+an explanatory line instead of "Top 0 ...", consistent with the
+zero-denominator discipline already applied to the 3 new RPT-01 sections.
+
+**Impact:** Low — cosmetic, and only visible for a brand-new/lightly-seeded
+tenant with no remediation history yet (matches this checkpoint's demo
+data, not a typical production tenant with real closed tickets).
