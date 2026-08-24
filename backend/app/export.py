@@ -5,18 +5,21 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analytics.service import detect_version_boundaries, get_scoped_trend_series
 from app.assets.models import Asset
 from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
 from app.exceptions.service import active_exception_subquery
 from app.tenants.models import Tenant, User
 from app.ticketing.models import Ticket
 from app.vulnerabilities.models import Vulnerability
+from app.vulnerabilities.service import get_mttr_by_tier
+from app.vulnerabilities.sla_service import get_sla_metrics
 
 
 async def export_vulnerabilities_csv(db: AsyncSession, tenant_id: uuid.UUID, filters: dict) -> str:
@@ -306,6 +309,44 @@ async def export_remediations_csv(db: AsyncSession, tenant_id: uuid.UUID) -> str
     return output.getvalue()
 
 
+def last_completed_quarter(today: date) -> tuple[date, date]:
+    """RPT-01 D-03 default board-report period: the most-recently
+    *completed* calendar quarter (never the in-progress one) --
+    43-RESEARCH.md's verified sketch, Open Question 1 RESOLVED. No prior
+    "quarter" date-math exists anywhere in this codebase (verified via
+    grep) -- this is genuinely new logic, not a re-derivation. Reused by
+    `main.py::export_resource`'s `period=quarter` preset (Task 3) so the
+    route's explicit choice and this module's own fallback-when-no-period
+    default share one definition."""
+    q = (today.month - 1) // 3 + 1  # current quarter, 1-4
+    first_of_this_q = date(today.year, 3 * (q - 1) + 1, 1)
+    end = first_of_this_q - timedelta(days=1)  # last day of the previous quarter
+    start_month = 3 * ((end.month - 1) // 3) + 1
+    start = date(end.year, start_month, 1)
+    return start, end
+
+
+# RPT-01 MTTR-by-tier display order + print-safe light-mode hexes
+# (43-UI-SPEC.md) -- "not_tracked" (a below-floor scored finding, see
+# RemediationEvent's own docstring) deliberately has no bar; it isn't a
+# named risk tier in the UI sense.
+_MTTR_TIER_DISPLAY: tuple[tuple[str, str, str], ...] = (
+    ("critical", "Critical", "#DC2626"),
+    ("high", "High", "#EA580C"),
+    ("moderate", "Moderate", "#B45309"),
+)
+
+
+def _sla_compliance_color(compliance_pct: float) -> str:
+    """43-UI-SPEC.md light-mode success/warning/danger thresholds for the
+    SLA-compliance gauge (pass >=95 / approaching >=80 / breached <80)."""
+    if compliance_pct >= 95:
+        return "#15803D"
+    if compliance_pct >= 80:
+        return "#B45309"
+    return "#DC2626"
+
+
 async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters: dict | None = None) -> dict:
     """Collect all data needed for the executive summary."""
     f = filters or {}
@@ -318,7 +359,17 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
     kev_filter = f.get("cisa_kev")
     top_count = f.get("top_count", 5) or 5
     min_risk = f.get("min_risk", 0) or 0
-    sections = f.get("sections") or ["vulns", "assets", "risk", "top_hosts", "top_remediations", "tickets"]
+    sections = f.get("sections") or [
+        "vulns",
+        "assets",
+        "risk",
+        "top_hosts",
+        "top_remediations",
+        "tickets",
+        "risk_trend",
+        "mttr_by_tier",
+        "sla_compliance",
+    ]
 
     # EXC-02/D-15 (Phase 39 Tier 2 #14): an actively-excepted finding is
     # excluded from every count/query below that spreads `*open_filter`
@@ -440,6 +491,57 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
         )
     ).scalar_one()
 
+    # RPT-01 (Phase 43 Plan 02): period-scoped risk-trend + MTTR-by-tier,
+    # plus a fixed trailing-90-day SLA-compliance metric (D-01a -- direct
+    # service calls, never re-derived). Only computed when actually
+    # requested (`want_new_sections`) so CSV/txt exports and any caller
+    # that omits the 3 new keys never pay for these extra queries --
+    # backward-compatible with the pre-existing 6-section shape (43-02
+    # Task 2 acceptance criteria).
+    #
+    # `period_start`/`period_end` are caller-supplied `date`s (Task 3's
+    # `export_resource` period/from/to params thread through here as
+    # `filters["period_start"]`/`filters["period_end"]`); default to the
+    # most-recently-completed calendar quarter (D-03) for callers that
+    # don't supply either -- scheduled reports (no period UI) and any
+    # direct/programmatic caller.
+    #
+    # Pitfall 3: `get_sla_metrics()` has NO period parameter -- its
+    # trailing-90-day window is fixed regardless of `period_start`/
+    # `period_end`; the PDF renderer captions this explicitly rather than
+    # silently implying it's period-scoped like the other two.
+    want_new_sections = any(key in sections for key in ("risk_trend", "mttr_by_tier", "sla_compliance"))
+    risk_trend_data: dict[str, Any] = {}
+    mttr_by_tier_data: dict[str, Any] = {}
+    sla_compliance_data: dict[str, Any] = {}
+    if want_new_sections:
+        period_start_in = f.get("period_start")
+        period_end_in = f.get("period_end")
+        if isinstance(period_start_in, date) and isinstance(period_end_in, date):
+            period_start, period_end = period_start_in, period_end_in
+        else:
+            period_start, period_end = last_completed_quarter(now.date())
+
+        trend = await get_scoped_trend_series(db, tenant_id, start=period_start, end=period_end)
+        boundaries = detect_version_boundaries(trend)
+        risk_trend_data = {
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+            "series": trend,
+            "boundaries": boundaries,
+        }
+
+        mttr_start = datetime.combine(period_start, time.min, tzinfo=UTC)
+        mttr_end = datetime.combine(period_end, time.max, tzinfo=UTC)
+        mttr_rows = await get_mttr_by_tier(db, tenant_id, start=mttr_start, end=mttr_end)
+        mttr_by_tier_data = {
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+            "rows": mttr_rows,
+        }
+
+        sla_compliance_data = await get_sla_metrics(db, tenant_id, exclude_exceptions=True)
+
     return {
         "org": tenant.name,
         "generated": now,
@@ -472,6 +574,9 @@ async def _collect_summary_data(db: AsyncSession, tenant_id: uuid.UUID, filters:
             for r in top_rems
         ],
         "tickets": {"total": ticket_total, "open": ticket_open, "resolved": ticket_total - ticket_open},
+        "risk_trend": risk_trend_data,
+        "mttr_by_tier": mttr_by_tier_data,
+        "sla_compliance": sla_compliance_data,
     }
 
 
@@ -743,8 +848,12 @@ def _render_sla_compliance_chart(compliance_pct: float, color: str) -> io.BytesI
 
 async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID, filters: dict | None = None) -> bytes:
     """Generate executive summary as PDF."""
+    import structlog
     from fpdf import FPDF
 
+    logger = structlog.get_logger()
+
+    f = filters or {}
     d = await _collect_summary_data(db, tenant_id, filters)
     v, a, t = d["vulns"], d["assets"], d["tickets"]
 
@@ -762,6 +871,17 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
     accent_b = brand.get("accent_color_b", 250)
 
     pdf = FPDF()
+    # [Rule 1 - Bug, discovered Phase 43 Plan 02]: fpdf2's core-font default
+    # `core_fonts_encoding` is "latin-1", which does NOT cover the em-dash
+    # (U+2014) this function's title (line ~920) and footer (below) have
+    # ALWAYS hardcoded -- every call to this function has always raised
+    # `FPDFUnicodeEncodingException` for any tenant name, a pre-existing,
+    # previously-undiscovered crash (Wave 0 gap: no test ever called this
+    # function before 43-RESEARCH.md's Validation Architecture / this
+    # plan's test_export.py). cp1252 is a superset-compatible encoding for
+    # this font (identical for ASCII, adds the em-dash at 0x97) -- fixes
+    # the crash without changing any visible rendered text.
+    pdf.core_fonts_encoding = "cp1252"
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
@@ -795,7 +915,7 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
     pdf.set_text_color(0, 0, 0)
     pdf.ln(8)
 
-    def section(title):
+    def section(title: str) -> None:
         pdf.set_font("Helvetica", "B", 13)
         pdf.set_fill_color(accent_r, accent_g, accent_b)
         pdf.set_text_color(primary_r, primary_g, primary_b)
@@ -803,7 +923,7 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
         pdf.set_text_color(0, 0, 0)
         pdf.ln(3)
 
-    def row(label, value):
+    def row(label: str, value: str) -> None:
         pdf.set_font("Helvetica", "", 10)
         pdf.cell(90, 6, f"  {label}")
         pdf.set_font("Helvetica", "B", 10)
@@ -854,6 +974,126 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
     ]:
         row(label, f"{val:,}")
     pdf.ln(5)
+
+    # RPT-01 (Phase 43 Plan 02): risk trend -> MTTR by tier -> SLA
+    # compliance, in that exact order (43-UI-SPEC.md PDF Rendering
+    # Contract "board narrative first"). Each section is independently
+    # toggle-gated via `sec` and embeds a Task-1 chart helper's PNG via
+    # `pdf.image(buf, w=180)`. A chart-render failure (or an explicit
+    # `filters["charts_enabled"] = False` request) degrades that ONE
+    # section to a tables-only render rather than silently dropping it
+    # (E9 -- "never a silently-dropped section").
+    charts_enabled = bool(f.get("charts_enabled", True))
+
+    if "risk_trend" in sec:
+        section("Risk Trend")
+        rt = d["risk_trend"]
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.cell(0, 5, f"  {rt['period_start']} to {rt['period_end']}", new_x="LMARGIN", new_y="NEXT")
+
+        chart_rendered = False
+        chart_failed = False
+        if charts_enabled:
+            try:
+                buf = _render_risk_trend_chart(rt["series"], rt["boundaries"], (primary_r, primary_g, primary_b))
+                pdf.image(buf, w=180)
+                chart_rendered = True
+            except Exception as e:
+                logger.warning("board_pdf_chart_render_failed", section="risk_trend", error=str(e))
+                chart_failed = True
+
+        if chart_failed or not charts_enabled:
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.cell(0, 5, "  (chart unavailable -- showing table)", new_x="LMARGIN", new_y="NEXT")
+
+        if not chart_rendered:
+            scored = [
+                p["avg_risk_exposure_score"] for p in rt["series"] if p.get("avg_risk_exposure_score") is not None
+            ]
+            if len(scored) >= 2:
+                row("Start of period", f"{scored[0]:.1f}")
+                row("End of period", f"{scored[-1]:.1f}")
+                row("Change", f"{scored[-1] - scored[0]:+.1f}")
+            elif len(scored) == 1:
+                row("Risk score (period)", f"{scored[0]:.1f}")
+            else:
+                row("Risk Trend", "Not enough history to plot a trend yet")
+        pdf.ln(5)
+
+    if "mttr_by_tier" in sec:
+        section("MTTR by Risk Tier")
+        mt = d["mttr_by_tier"]
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.cell(0, 5, f"  {mt['period_start']} to {mt['period_end']}", new_x="LMARGIN", new_y="NEXT")
+
+        by_tier = {r["tier_at_remediation"]: r for r in mt["rows"]}
+        measured = [
+            (label, by_tier[key]["avg_seconds"] / 86400.0, color)
+            for key, label, color in _MTTR_TIER_DISPLAY
+            if by_tier.get(key) and by_tier[key]["count"] > 0 and by_tier[key]["avg_seconds"] is not None
+        ]
+
+        chart_rendered = False
+        chart_failed = False
+        if measured and charts_enabled:
+            try:
+                buf = _render_mttr_by_tier_chart(
+                    [m[0] for m in measured], [m[1] for m in measured], [m[2] for m in measured]
+                )
+                pdf.image(buf, w=180)
+                chart_rendered = True
+            except Exception as e:
+                logger.warning("board_pdf_chart_render_failed", section="mttr_by_tier", error=str(e))
+                chart_failed = True
+
+        if chart_failed or (measured and not charts_enabled):
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.cell(0, 5, "  (chart unavailable -- showing table)", new_x="LMARGIN", new_y="NEXT")
+
+        if not chart_rendered:
+            for key, label, _color in _MTTR_TIER_DISPLAY:
+                r = by_tier.get(key)
+                if r and r["count"] > 0 and r["avg_seconds"] is not None:
+                    row(f"{label} MTTR", f"{r['avg_seconds'] / 86400.0:.1f} days ({r['count']:,} remediated)")
+                else:
+                    row(f"{label} MTTR", "Not yet measured")
+        pdf.ln(5)
+
+    if "sla_compliance" in sec:
+        section("SLA Compliance")
+        sla = d["sla_compliance"]
+        not_measured = sla.get("remediated_total", 0) == 0
+
+        chart_rendered = False
+        chart_failed = False
+        if not not_measured and charts_enabled:
+            try:
+                color = _sla_compliance_color(sla["compliance_pct"])
+                buf = _render_sla_compliance_chart(sla["compliance_pct"], color)
+                pdf.image(buf, w=180)
+                chart_rendered = True
+            except Exception as e:
+                logger.warning("board_pdf_chart_render_failed", section="sla_compliance", error=str(e))
+                chart_failed = True
+
+        if chart_failed or (not not_measured and not charts_enabled):
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.cell(0, 5, "  (chart unavailable -- showing table)", new_x="LMARGIN", new_y="NEXT")
+
+        if not chart_rendered:
+            if not_measured:
+                row("SLA Compliance", "Not yet measured")
+            else:
+                row("SLA Compliance", f"{sla['compliance_pct']:.1f}%")
+                row("Remediated within SLA", f"{sla['remediated_within_sla']:,} / {sla['remediated_total']:,}")
+                row("Currently Breached", f"{sla['breached']:,}")
+                row("At Risk (72h)", f"{sla['at_risk']:,}")
+
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(120, 120, 120)
+        pdf.cell(0, 5, "  Trailing 90-day metric, independent of the selected period", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
 
     n = len(d["top_hosts"])
     # Top N hosts

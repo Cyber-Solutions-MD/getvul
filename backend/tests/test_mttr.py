@@ -487,6 +487,69 @@ async def test_get_mttr_by_tier_groups_by_tier_and_tenant(db_session, tenant_a, 
     assert sum(r["count"] for r in rows) == 3
 
 
+def _remediation_event(
+    *,
+    tenant_id: uuid.UUID,
+    vulnerability_id: uuid.UUID,
+    tier_at_remediation: str = "critical",
+    duration_seconds: int = 86400,
+    first_detected_at: datetime | None = None,
+    remediated_at: datetime | None = None,
+) -> RemediationEvent:
+    """Constructs a `RemediationEvent` row directly (bypassing
+    `mark_vulnerability_remediated`, which hardcodes `remediated_at=now`)
+    so the test controls `remediated_at` precisely -- needed to prove the
+    Phase 43 Plan 02 `start`/`end` window filter."""
+    now = datetime.now(UTC)
+    return RemediationEvent(
+        tenant_id=tenant_id,
+        vulnerability_id=vulnerability_id,
+        tier_at_remediation=tier_at_remediation,
+        duration_seconds=duration_seconds,
+        first_detected_at=first_detected_at or (now - timedelta(days=5)),
+        remediated_at=remediated_at or now,
+    )
+
+
+async def test_get_mttr_by_tier_start_end_filters_to_remediated_at_window(db_session, tenant_a):
+    """Phase 43 Plan 02 (RPT-01, 43-RESEARCH.md Pitfall 3): the optional
+    `start`/`end` keyword-only params scope the aggregate to a
+    `remediated_at` window; the default (no window) call stays
+    byte-identical to the pre-existing all-time aggregate -- proves the
+    extension is genuinely additive, not a hidden behavior change for the
+    two existing call sites (`compliance/service.py`,
+    `GET /vulnerabilities/mttr/by-tier`)."""
+    now = datetime.now(UTC)
+    v1 = _vuln(tenant_id=tenant_a, risk_exposure_score=85)
+    v2 = _vuln(tenant_id=tenant_a, risk_exposure_score=90)
+    db_session.add_all([v1, v2])
+    await db_session.flush()
+
+    in_window = _remediation_event(
+        tenant_id=tenant_a,
+        vulnerability_id=v1.id,
+        tier_at_remediation="critical",
+        remediated_at=now - timedelta(days=3),
+    )
+    out_of_window = _remediation_event(
+        tenant_id=tenant_a,
+        vulnerability_id=v2.id,
+        tier_at_remediation="critical",
+        remediated_at=now - timedelta(days=60),
+    )
+    db_session.add_all([in_window, out_of_window])
+    await db_session.commit()
+
+    windowed = await get_mttr_by_tier(db_session, tenant_a, start=now - timedelta(days=10), end=now)
+    by_tier = {r["tier_at_remediation"]: r for r in windowed}
+    assert by_tier["critical"]["count"] == 1  # only in_window
+
+    default_call = await get_mttr_by_tier(db_session, tenant_a)
+    explicit_none = await get_mttr_by_tier(db_session, tenant_a, start=None, end=None)
+    assert default_call == explicit_none
+    assert sum(r["count"] for r in default_call) == 2  # both rows, unfiltered
+
+
 # ── 6. GET /vulnerabilities/mttr/by-tier -- admin-gated, tenant-scoped ─────
 
 

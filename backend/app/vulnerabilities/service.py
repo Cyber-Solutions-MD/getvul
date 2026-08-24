@@ -504,19 +504,40 @@ async def reopen_vulnerability(db: AsyncSession, vuln: Vulnerability) -> bool:
     return True
 
 
-async def get_mttr_by_tier(db: AsyncSession, tenant_id: uuid.UUID) -> list[dict[str, Any]]:
+async def get_mttr_by_tier(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> list[dict[str, Any]]:
     """SLA-04: tier-grouped MTTR aggregate over the durable `RemediationEvent`
     table -- mirrors `trends.py`'s `get_mttr_trend` shape (group by tier
     instead of week). Does NOT touch the pre-existing flat MTTR queries in
     this file's `get_dashboard_stats`, `dashboard.py`, or `trends.py`
-    (Pitfall 11 -- those stay untouched, this is purely additive)."""
+    (Pitfall 11 -- those stay untouched, this is purely additive).
+
+    Phase 43 Plan 02 (RPT-01) extension: `start`/`end` are additive,
+    keyword-only, default-`None` params -- every pre-existing call site
+    (`compliance/service.py`, `GET /vulnerabilities/mttr/by-tier`) passes
+    neither and is byte-for-byte unaffected (43-RESEARCH.md Pitfall 3 --
+    this aggregate had no period parameter at all before this). When BOTH
+    are supplied, an inclusive `RemediationEvent.remediated_at.between(start,
+    end)` filter scopes the aggregate to that window -- one additive
+    `.where()` clause, never a re-derivation of the underlying MTTR
+    formula.
+    """
+    conditions = [RemediationEvent.tenant_id == tenant_id]
+    if start is not None and end is not None:
+        conditions.append(RemediationEvent.remediated_at.between(start, end))
+
     mttr_q = (
         select(
             RemediationEvent.tier_at_remediation,
             func.avg(RemediationEvent.duration_seconds).label("avg_seconds"),
             func.count().label("count"),
         )
-        .where(RemediationEvent.tenant_id == tenant_id)
+        .where(*conditions)
         .group_by(RemediationEvent.tier_at_remediation)
     )
     rows = (await db.execute(mttr_q)).all()
