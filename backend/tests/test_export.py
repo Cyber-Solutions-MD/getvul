@@ -404,6 +404,49 @@ async def test_pdf_footer_loop_never_spawns_a_spurious_trailing_page(db_session,
     assert any(b"host-089" in t for page in pages for t in page)
 
 
+async def test_top_remediations_section_renders_honest_empty_state_when_none_recorded(db_session, tenant_a):
+    """A tenant with zero remediation-linked open findings must never
+    render a literal "Top 0 Remediations (by impact)" header + an empty
+    table -- an honest empty-state line instead, consistent with the
+    "Not yet measured" / "Not enough history" copy used by the other
+    RPT-01 zero-data sections."""
+    pdf_bytes = bytes(await generate_executive_summary_pdf(db_session, tenant_a, {"sections": ["top_remediations"]}))
+    tokens = _pdf_text_tokens(pdf_bytes)
+    joined = b" ".join(tokens)
+    assert b"Top 0 Remediations" not in joined
+    assert any(b"No remediation actions recorded yet" in t for t in tokens)
+
+
+async def test_top_remediations_section_still_renders_real_rows_when_present(db_session, tenant_a):
+    """The honest-empty-state fix must not regress the populated case."""
+    from app.assets.models import Asset
+
+    asset = Asset(tenant_id=tenant_a, hostname="host-rem-01", risk_score=80, device_category="SERVER")
+    db_session.add(asset)
+    await db_session.flush()
+    vuln = Vulnerability(
+        tenant_id=tenant_a,
+        cve_id=f"CVE-{uuid.uuid4().hex[:8]}",
+        severity="CRITICAL",
+        source="CROWDSTRIKE",
+        status="OPEN",
+        asset_id=asset.id,
+        remediation_id="patch-openssl-3.0.14",
+        remediation_action="Upgrade OpenSSL to 3.0.14",
+        affected_product="OpenSSL",
+        first_detected_at=datetime.now(UTC) - timedelta(days=3),
+        last_seen_at=datetime.now(UTC),
+    )
+    db_session.add(vuln)
+    await db_session.commit()
+
+    pdf_bytes = bytes(await generate_executive_summary_pdf(db_session, tenant_a, {"sections": ["top_remediations"]}))
+    tokens = _pdf_text_tokens(pdf_bytes)
+    joined = b" ".join(tokens)
+    assert b"Top 1 Remediations" in joined
+    assert not any(b"No remediation actions recorded yet" in t for t in tokens)
+
+
 # ── Task 3: export_resource period params + validation + audit ─────────────
 
 

@@ -1113,20 +1113,33 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
 
     nr = len(d["top_remediations"])
     # Top N remediations
-    section(f"Top {nr} Remediations (by impact)")
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.cell(45, 6, "  Product")
-    pdf.cell(20, 6, "Sev")
-    pdf.cell(15, 6, "Hosts", align="R")
-    pdf.cell(15, 6, "Vulns", align="R")
-    pdf.cell(0, 6, "  Action", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 8)
-    for r in d["top_remediations"]:
-        pdf.cell(45, 5, f"  {(r['product'] or '?')[:20]}")
-        pdf.cell(20, 5, r["severity"])
-        pdf.cell(15, 5, str(r["hosts"]), align="R")
-        pdf.cell(15, 5, str(r["vulns"]), align="R")
-        pdf.cell(0, 5, f"  {(r['action'] or '')[:45]}", new_x="LMARGIN", new_y="NEXT")
+    #
+    # [Rule 1 - Bug, found during Phase 43 Plan 03's checkpoint pre-
+    # verification]: a tenant with zero remediation-linked open findings
+    # previously rendered a literal "Top 0 Remediations (by impact)"
+    # header followed by an empty table -- a fabricated-looking "0" a
+    # board reader could mistake for a real, measured metric. Render an
+    # explicit empty-state line instead, consistent with the "Not yet
+    # measured" / "Not enough history to plot a trend yet" copy already
+    # used by the RPT-01 zero-data sections above.
+    if nr == 0:
+        section("Top Remediations (by impact)")
+        row("Top Remediations", "No remediation actions recorded yet")
+    else:
+        section(f"Top {nr} Remediations (by impact)")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(45, 6, "  Product")
+        pdf.cell(20, 6, "Sev")
+        pdf.cell(15, 6, "Hosts", align="R")
+        pdf.cell(15, 6, "Vulns", align="R")
+        pdf.cell(0, 6, "  Action", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 8)
+        for r in d["top_remediations"]:
+            pdf.cell(45, 5, f"  {(r['product'] or '?')[:20]}")
+            pdf.cell(20, 5, r["severity"])
+            pdf.cell(15, 5, str(r["hosts"]), align="R")
+            pdf.cell(15, 5, str(r["vulns"]), align="R")
+            pdf.cell(0, 5, f"  {(r['action'] or '')[:45]}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(5)
 
     # Tickets

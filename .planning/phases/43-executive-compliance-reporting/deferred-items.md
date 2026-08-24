@@ -103,7 +103,19 @@ overlapping at the exact page-break boundary. Does not block Plan 03 (no
 file in this plan's scope produces or fixes it). Worth a small dedicated fix
 in a future reporting-polish pass.
 
-### "Top 0 Remediations (by impact)" section header renders a literal 0
+### "Top 0 Remediations (by impact)" section header renders a literal 0 — RESOLVED
+
+**Status:** Fixed per the same explicit user directive as the footer fix
+above (scope expansion into `backend/app/export.py`, approved for Plan 03).
+Fix: when `top_remediations` is empty, render `section("Top Remediations
+(by impact)")` (no fabricated "0" in the header) followed by
+`row("Top Remediations", "No remediation actions recorded yet")` instead of
+an empty table — consistent with the "Not yet measured" / "Not enough
+history" copy already used by the RPT-01 zero-data sections. Verified via
+`test_top_remediations_section_renders_honest_empty_state_when_none_recorded`
+(confirmed to fail on the pre-fix code) and
+`test_top_remediations_section_still_renders_real_rows_when_present`
+(guards the populated path against regression).
 
 **Found during:** Same pre-verification pass as above.
 
@@ -126,3 +138,38 @@ zero-denominator discipline already applied to the 3 new RPT-01 sections.
 **Impact:** Low — cosmetic, and only visible for a brand-new/lightly-seeded
 tenant with no remediation history yet (matches this checkpoint's demo
 data, not a typical production tenant with real closed tickets).
+
+### 2 related-but-distinct header-count bugs noticed while fixing the PDF issues above (NOT fixed)
+
+**Found during:** Reading `export.py` end-to-end to implement the 2
+user-approved PDF fixes above. Neither of these is one of the 2 explicitly
+authorized fixes, so per the Scope Boundary rule they are logged here, not
+fixed.
+
+1. **`generate_executive_summary` (the plain-text export) reuses the wrong
+   count variable for its remediations header.** `n = len(d["top_hosts"])`
+   is computed once near the top of the function and used for BOTH
+   `f"TOP {n} RISKIEST HOSTS"` and `f"TOP {n} REMEDIATIONS"` — the second
+   should use `len(d["top_remediations"])` instead. Whenever the two lists
+   have different lengths (the common case), the TEXT export's
+   remediations header shows the wrong count. The PDF export does not
+   share this bug (it correctly computes `nr = len(d["top_remediations"])`
+   separately).
+2. **`generate_executive_summary_csv` hardcodes `"TOP 5 RISKIEST HOSTS"` /
+   `"TOP 5 REMEDIATIONS"` as literal section labels**, regardless of the
+   actual requested `top_count` or the real row count returned. A caller
+   requesting `top_count=10` (or with fewer than 5 real rows) gets a
+   CSV section header that doesn't match its own table.
+
+**Why not fixed here:** Both are pre-existing, in a different function
+(`generate_executive_summary` / `generate_executive_summary_csv`, not the
+`generate_executive_summary_pdf` this plan's checkpoint directive
+authorized touching) and unrelated to the 2 named PDF issues above.
+
+**Suggested fix (future):** Mirror the PDF export's own `nr =
+len(d["top_remediations"])` pattern in the text export; parameterize the
+CSV export's section labels on the real row count the same way.
+
+**Impact:** Low — cosmetic label-count mismatches in the TXT/CSV export
+formats only; the PDF (the primary board-report format this phase cares
+about) is unaffected.
