@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
-current_phase: 43
-current_phase_name: executive-compliance-reporting
-status: executing
+current_phase: 44
+current_phase_name: Natural-Language Query Assistant
+status: planning
 stopped_at: Phase 43 Plan 04 complete (RPT-02 dashboard lens switcher + leadership/compliance widgets) -- Phase 43 fully shipped, 4/4 plans
-last_updated: "2026-08-24T11:45:00.000Z"
+last_updated: "2026-08-24T12:12:18.955Z"
 last_activity: 2026-08-24
-last_activity_desc: "Phase 43 Plan 04 (43-04, RPT-02) executed: useLens() (URL ?lens= + localStorage dual-persistence, default analyst) + 4-segment LensSwitcher on /dashboard; analyst/IT-ops render the pre-existing triage dashboard byte-for-byte; leadership lens = Export board report CTA (opens Plan 03's dialog) + risk-trend chart (Phase 42's RiskTrendChart, next/dynamic-deferred) + MTTR-by-tier tile + SLA-compliance tile + framework-posture strip, no triage widgets; compliance lens = hero-sized posture strip + compact SLA/trend + 'View full compliance page' link. GET /vulnerabilities/sla/metrics gained an additive exclude_exceptions param so the tile matches the compliance page/board PDF (Pitfall 2). Every zero-denominator tile renders 'Not yet measured', never 0/0%. 2 backend + 19 new frontend tests green (44 backend / 1169 frontend total unaffected elsewhere), tsc/eslint clean, mypy 0 new errors vs baseline. Human-verify checkpoint approved by the user in-browser against the live local dev stack (hot-reload). RPT-02 marked complete in REQUIREMENTS.md/ROADMAP.md -- 43-04 is its sole declaring plan. Phase 43 (Executive & Compliance Reporting) is now fully shipped: RPT-01/RPT-02/RPT-03 all [x], 4/4 plans complete."
+last_activity_desc: Phase 43 complete, transitioned to Phase 44
 progress:
   total_phases: 8
   completed_phases: 8
@@ -45,9 +45,9 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 
 ## Current Position
 
-Phase: 43 (executive-compliance-reporting) — COMPLETE (4/4 plans; pending /gsd-verify-work 43)
-Status: Phase 43 fully shipped; RPT-01 (43-02/43-03), RPT-02 (43-04), RPT-03 (43-01) all [x] complete in REQUIREMENTS.md.
-Last activity: 2026-08-24 — Plan 43-04 executed (RPT-02): useLens() URL+localStorage lens persistence + 4-segment LensSwitcher; analyst/IT-ops render the pre-existing triage dashboard unchanged; leadership lens (Export board report CTA + risk-trend chart + MTTR-by-tier tile + SLA-compliance tile + framework-posture strip, no triage widgets) and compliance lens (hero-sized posture strip + compact SLA/trend + link to the full compliance page) shipped; GET /vulnerabilities/sla/metrics gained an additive exclude_exceptions param closing the last SLA-compliance divergence path (Pitfall 2). Human-verify checkpoint approved by the user in-browser. Phase 43 (Executive & Compliance Reporting) is now fully shipped, 4/4 plans.
+Phase: 44 — Natural-Language Query Assistant
+Status: Ready to plan
+Last activity: 2026-08-24 — Phase 43 complete, transitioned to Phase 44
 Phase 40 result: ALERT-01..03 closed end-to-end — new-KEV/high-EPSS targeted alerts + scheduled owner/team digests + tenant-configurable/audited alerting settings pane.
 
 ## v5.0 Phase Map
