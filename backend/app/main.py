@@ -6,7 +6,7 @@ import time
 import uuid
 import uuid as _uuid
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 from typing import Any
 
 import structlog
@@ -398,8 +398,14 @@ def create_app() -> FastAPI:
         section: list[str] | None = Query(None),
         top_count: int = Query(5),
         min_risk: int = Query(0),
+        period: str | None = Query(None, pattern="^(30d|90d|quarter|year)$"),
+        from_: date | None = Query(None, alias="from"),
+        to: date | None = Query(None, alias="to"),
     ):
         """Export data. Resources: vulnerabilities, assets, users, tickets, remediations, summary."""
+        from fastapi import HTTPException
+
+        from app.analytics.service import MAX_ANALYTICS_WINDOW_DAYS
         from app.audit import audit
         from app.export import (
             export_assets_csv,
@@ -408,6 +414,7 @@ def create_app() -> FastAPI:
             export_users_csv,
             export_vulnerabilities_csv,
             generate_executive_summary,
+            last_completed_quarter,
         )
 
         filters = {"format": format}
@@ -447,6 +454,48 @@ def create_app() -> FastAPI:
             filename = f"getvul_remediations_{now}.csv"
         elif resource == "summary":
             fmt = filters.get("format", "txt") if isinstance(filters.get("format"), str) else "txt"
+
+            # RPT-01 (Phase 43 Plan 02): resolve the requested reporting
+            # period -- a preset (30d/90d/quarter/year), a validated custom
+            # [from, to], or the D-03 default (most-recently-completed
+            # calendar quarter) when neither is supplied. The custom-range
+            # validation (both-or-neither, to>=from, span cap) is ported
+            # verbatim from analytics/router.py so an unbounded custom
+            # range is never accepted (T-43-05/V5 DoS guard).
+            if from_ is not None or to is not None:
+                if from_ is None or to is None:
+                    raise HTTPException(status_code=422, detail="Both 'from' and 'to' are required for a custom range")
+                if to < from_:
+                    raise HTTPException(status_code=422, detail="'to' must not be before 'from'")
+                if (to - from_).days > MAX_ANALYTICS_WINDOW_DAYS:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Custom range cannot exceed {MAX_ANALYTICS_WINDOW_DAYS} days",
+                    )
+                period_start, period_end = from_, to
+                resolved_period = "custom"
+            else:
+                today = datetime.now(UTC).date()
+                if period == "30d":
+                    period_start, period_end, resolved_period = today - timedelta(days=30), today, "30d"
+                elif period == "90d":
+                    period_start, period_end, resolved_period = today - timedelta(days=90), today, "90d"
+                elif period == "year":
+                    period_start, period_end, resolved_period = today - timedelta(days=365), today, "year"
+                else:
+                    # "quarter" explicitly, or no period supplied at all --
+                    # D-03/UI-SPEC's default preset is the last-completed
+                    # calendar quarter (board cadence).
+                    period_start, period_end = last_completed_quarter(today)
+                    resolved_period = "quarter"
+
+            # T-43-08 (Repudiation): extend the audit trail with the
+            # resolved period so a later reviewer can see exactly what
+            # window a board report covered, not just that one was made.
+            filters["period"] = resolved_period
+            filters["period_start"] = period_start.isoformat()
+            filters["period_end"] = period_end.isoformat()
+
             await audit(db, user, "export.summary", "report", f"summary.{fmt}", filters)
             await db.commit()
 
@@ -458,6 +507,8 @@ def create_app() -> FastAPI:
                 "sections": filters.get("section"),
                 "top_count": filters.get("top_count", 5),
                 "min_risk": filters.get("min_risk", 0),
+                "period_start": period_start,
+                "period_end": period_end,
             }
 
             if fmt == "pdf":

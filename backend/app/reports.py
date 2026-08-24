@@ -58,7 +58,28 @@ async def create_report(db: AsyncSession, tenant_id: uuid.UUID, data: dict) -> d
         schedule=data.get("schedule", "weekly"),
         format=data.get("format", "pdf"),
         recipients=data.get("recipients", []),
-        sections=data.get("sections", ["vulns", "assets", "risk", "top_hosts", "top_remediations", "tickets"]),
+        sections=data.get(
+            "sections",
+            # Phase 43 Plan 02 (RPT-01 D-04): the 3 new board-report
+            # sections are appended at the end of the pre-existing default
+            # list -- never inserted mid-list -- so a newly-created report
+            # that doesn't specify `sections` explicitly stores the same
+            # effective default `export.py::_collect_summary_data` already
+            # falls back to. Kept in lockstep with that default and with
+            # `_send_report`'s own fallback below (43-PATTERNS.md: 3 call
+            # sites, one literal list each).
+            [
+                "vulns",
+                "assets",
+                "risk",
+                "top_hosts",
+                "top_remediations",
+                "tickets",
+                "risk_trend",
+                "mttr_by_tier",
+                "sla_compliance",
+            ],
+        ),
         filters=data.get("filters", {}),
         is_enabled=data.get("is_enabled", True),
         created_at=datetime.now(UTC),
@@ -179,7 +200,25 @@ async def _send_report(db: AsyncSession, report: ScheduledReport) -> None:
         "device_type": report.filters.get("device_type") if report.filters else None,
         "exploit_available": report.filters.get("exploit_available") if report.filters else None,
         "cisa_kev": report.filters.get("cisa_kev") if report.filters else None,
-        "sections": report.sections or ["vulns", "assets", "risk", "top_hosts", "top_remediations", "tickets"],
+        # Phase 43 Plan 02 (RPT-01 D-04): fallback for a pre-existing
+        # `ScheduledReport` row whose `sections` is empty/None -- kept in
+        # lockstep with `create_report`'s own default above and with
+        # `export.py::_collect_summary_data`'s default. No `period_start`/
+        # `period_end` key here: `ScheduledReport` has no period field
+        # (out of scope this phase), so `_collect_summary_data` falls back
+        # to its own last-completed-quarter default every scheduled run.
+        "sections": report.sections
+        or [
+            "vulns",
+            "assets",
+            "risk",
+            "top_hosts",
+            "top_remediations",
+            "tickets",
+            "risk_trend",
+            "mttr_by_tier",
+            "sla_compliance",
+        ],
         "top_count": report.filters.get("top_count", 10) if report.filters else 10,
         "min_risk": report.filters.get("min_risk", 0) if report.filters else 0,
     }

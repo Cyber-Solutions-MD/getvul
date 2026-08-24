@@ -20,7 +20,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from PIL import Image
+from sqlalchemy import select
 
+from app.analytics.service import MAX_ANALYTICS_WINDOW_DAYS
+from app.audit import AuditLog
 from app.export import (
     _collect_summary_data,
     _render_mttr_by_tier_chart,
@@ -28,6 +31,7 @@ from app.export import (
     _render_sla_compliance_chart,
     _sla_compliance_color,
     generate_executive_summary_pdf,
+    last_completed_quarter,
 )
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.service import mark_vulnerability_remediated
@@ -321,3 +325,93 @@ def test_sla_compliance_color_thresholds():
     assert _sla_compliance_color(80.0) == "#B45309"
     assert _sla_compliance_color(79.9) == "#DC2626"
     assert _sla_compliance_color(0.0) == "#DC2626"
+
+
+# ── Task 3: export_resource period params + validation + audit ─────────────
+
+
+async def _last_audit_row(db_session, tenant_id: uuid.UUID) -> AuditLog:
+    rows = (
+        await db_session.execute(
+            select(AuditLog)
+            .where(AuditLog.tenant_id == tenant_id, AuditLog.action == "export.summary")
+            .order_by(AuditLog.created_at.desc())
+        )
+    ).scalars()
+    return next(iter(rows))
+
+
+async def test_export_resource_period_quarter_resolves_to_last_completed_quarter(client, db_session, tenant_a):
+    # WR-13 (conftest.py db_session docstring): the route's own `get_db()`
+    # session is a SEPARATE connection from this test's `db_session` --
+    # `tenant_a`/the authed user (flushed by upstream fixtures, not yet
+    # committed) must be committed before the route's `audit()` INSERT can
+    # see the tenant row it FK-references.
+    await db_session.commit()
+    resp = await client.get("/api/v1/export/summary?format=txt&period=quarter")
+    assert resp.status_code == 200
+
+    expected_start, expected_end = last_completed_quarter(datetime.now(UTC).date())
+    audit_row = await _last_audit_row(db_session, tenant_a)
+    assert audit_row.details["period"] == "quarter"
+    assert audit_row.details["period_start"] == expected_start.isoformat()
+    assert audit_row.details["period_end"] == expected_end.isoformat()
+
+
+async def test_export_resource_default_period_is_last_completed_quarter(client, db_session, tenant_a):
+    """D-03/UI-SPEC default: no `period`/`from`/`to` supplied at all still
+    resolves to the last-completed calendar quarter, not an unbounded or
+    all-time window."""
+    await db_session.commit()  # WR-13 -- see comment above
+    resp = await client.get("/api/v1/export/summary?format=txt")
+    assert resp.status_code == 200
+
+    expected_start, expected_end = last_completed_quarter(datetime.now(UTC).date())
+    audit_row = await _last_audit_row(db_session, tenant_a)
+    assert audit_row.details["period"] == "quarter"
+    assert audit_row.details["period_start"] == expected_start.isoformat()
+    assert audit_row.details["period_end"] == expected_end.isoformat()
+
+
+async def test_export_resource_custom_range_both_or_neither_422(client):
+    resp = await client.get("/api/v1/export/summary?format=txt&from=2026-01-01")
+    assert resp.status_code == 422
+
+
+async def test_export_resource_custom_range_to_before_from_422(client):
+    resp = await client.get("/api/v1/export/summary?format=txt&from=2026-06-01&to=2026-01-01")
+    assert resp.status_code == 422
+
+
+async def test_export_resource_custom_range_over_cap_422(client):
+    # 2000-01-01 to 2026-01-01 spans ~9,490 days -- comfortably over
+    # MAX_ANALYTICS_WINDOW_DAYS (1096, ~3y) either way this constant moves.
+    assert (datetime(2026, 1, 1, tzinfo=UTC).date() - datetime(2000, 1, 1, tzinfo=UTC).date()).days > (
+        MAX_ANALYTICS_WINDOW_DAYS
+    )
+    resp = await client.get("/api/v1/export/summary?format=txt&from=2000-01-01&to=2026-01-01")
+    assert resp.status_code == 422
+
+
+async def test_export_resource_custom_range_within_cap_succeeds(client, db_session, tenant_a):
+    await db_session.commit()  # WR-13 -- see comment above
+    resp = await client.get("/api/v1/export/summary?format=txt&from=2026-01-01&to=2026-01-31")
+    assert resp.status_code == 200
+
+    audit_row = await _last_audit_row(db_session, tenant_a)
+    assert audit_row.details["period"] == "custom"
+    assert audit_row.details["period_start"] == "2026-01-01"
+    assert audit_row.details["period_end"] == "2026-01-31"
+
+
+async def test_export_resource_audit_records_requested_sections(client, db_session, tenant_a):
+    """The pre-existing `filters["section"]` echo (unchanged) plus the new
+    period fields together let a reviewer see exactly what a given export
+    covered."""
+    await db_session.commit()  # WR-13 -- see comment above
+    resp = await client.get("/api/v1/export/summary?format=txt&section=risk_trend&section=sla_compliance&period=90d")
+    assert resp.status_code == 200
+
+    audit_row = await _last_audit_row(db_session, tenant_a)
+    assert audit_row.details["section"] == ["risk_trend", "sla_compliance"]
+    assert audit_row.details["period"] == "90d"
