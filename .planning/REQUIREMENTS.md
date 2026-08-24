@@ -75,7 +75,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 
 - [ ] **RPT-01**: Exportable exec/board report (PDF) with risk trend + MTTR-by-tier + SLA compliance for a selected period
 - [ ] **RPT-02**: Role-scoped dashboards (analyst / IT-ops / compliance / leadership), tenant-scoped
-- [ ] **RPT-03**: Compliance view mapping findings to framework controls (SOC 2 / ISO 27001 / PCI DSS / NIST CSF)
+- [x] **RPT-03**: Compliance view mapping findings to framework controls (SOC 2 / ISO 27001 / PCI DSS / NIST CSF)
 
 ### Natural-Language Query Assistant (NLQ) — Phase 44 · (AINL-01, deferred from v3.1)
 
