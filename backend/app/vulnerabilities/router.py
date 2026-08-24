@@ -203,11 +203,21 @@ async def trend_analytics(
 async def sla_metrics(
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_viewer)],
+    exclude_exceptions: bool = Query(False),
 ):
-    """Get SLA compliance metrics."""
+    """Get SLA compliance metrics.
+
+    Phase 43 Plan 04 (RPT-02, T-43-15): additive, default-`False`
+    `exclude_exceptions` query param -- byte-identical for every existing
+    consumer that omits it. The leadership/compliance-lens SLA-compliance
+    tile (`use-sla-metrics.ts`) requests `exclude_exceptions=true` so its
+    % matches the compliance page (Plan 01) and the board PDF (Plan 02),
+    both of which already call `get_sla_metrics(..., exclude_exceptions=
+    True)` directly -- never a divergent board number (Pitfall 2).
+    """
     from app.vulnerabilities.sla_service import get_sla_metrics
 
-    return await get_sla_metrics(db, user.tenant_id)
+    return await get_sla_metrics(db, user.tenant_id, exclude_exceptions=exclude_exceptions)
 
 
 @router.post("/sla/backfill")
