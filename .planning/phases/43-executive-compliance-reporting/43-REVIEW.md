@@ -48,6 +48,12 @@ findings:
   info: 2
   total: 5
 status: issues_found
+fixed_at: 2026-08-24T15:05:00Z
+resolved:
+  - CR-01
+  - WR-01
+  - WR-02
+fix_status: partially_resolved (both blocking/warning findings fixed; IN-01/IN-02 remain open, non-blocking)
 ---
 
 # Phase 43: Code Review Report
@@ -65,9 +71,21 @@ The one BLOCKER is in the pre-existing (not newly-added) part of `export.py`'s P
 
 A secondary WARNING concerns three of the new leadership-lens dashboard tiles silently collapsing a genuine backend error into the same "not yet measured" rendering used for an honestly-empty tenant, with no retry affordance, unlike the sibling risk-trend widget on the same lens.
 
+## Fix Verification
+
+| ID | Status | Evidence |
+|----|--------|----------|
+| CR-01 | ✓ Resolved | Commit `5eb137c` — `backend/app/export.py`'s six legacy PDF blocks (`vulns`/`assets`/`risk`/`top_hosts`/`top_remediations`/`tickets`) are now each wrapped in `if "<key>" in sec:`, matching the CSV/TXT renderers and the 3 RPT-01 chart sections; the `vulns` data-row loop is nested inside its own guard. Regression test `test_pdf_legacy_sections_are_gated_by_requested_sections_list` in `backend/tests/test_export.py` requests `sections=["tickets"]` and asserts every other legacy section header is absent from the rendered PDF text. `uv run pytest tests/test_export.py tests/test_reports.py -q` → 30 passed. |
+| WR-01 | ✓ Resolved | Commit `6624801` — `LeadershipSlaTile`/`LeadershipPostureStrip` (`require_viewer`-gated) now render `PartialFailureBanner` with `onRetry` on any `q.error`, same as `RiskTrendWidget`. `LeadershipMttrTile` (`require_admin`-gated) keeps the intentional "403 reads as not yet measured" RBAC-floor behavior but now surfaces any OTHER error (500, network) via the same banner + retry. New tests added to `frontend/src/app/(authed)/dashboard/page.test.tsx` covering the 403-vs-500 MTTR branch, the SLA/posture error branches, retry wiring, and sibling-widget survival. `npx tsc --noEmit`, `npx eslint`, and `npx vitest run page.test.tsx` all green (16/16 tests). |
+| WR-02 | ✓ Resolved | Commit `019655f` — `backend/app/compliance/__init__.py` now carries a package-level docstring describing the RPT-03 tracer slice's scope, matching the documentation voice of `catalog.py`/`service.py`/`router.py`. `test_compliance.py` (11 tests) still green. |
+
+IN-01 and IN-02 remain open (non-blocking, informational) — see the Info section below.
+
 ## Critical Issues
 
 ### CR-01: Board-PDF `sections` filter is only honored for the 3 new RPT-01 chart sections — legacy sections always render regardless of the request
+
+**Resolution:** ✓ Resolved — see Fix Verification table above (commit `5eb137c`).
 
 **File:** `backend/app/export.py:936-1148`
 
@@ -124,6 +142,8 @@ Add a regression test that requests a narrow `sections` list (e.g. `["risk_trend
 
 ### WR-01: Leadership-lens dashboard tiles collapse real backend errors into the same rendering as an honestly-empty tenant, with no retry
 
+**Resolution:** ✓ Resolved — see Fix Verification table above (commit `6624801`).
+
 **File:** `frontend/src/app/(authed)/dashboard/page.tsx:119-161`
 
 **Issue:** `LeadershipMttrTile`, `LeadershipSlaTile`, and `LeadershipPostureStrip` all use the pattern:
@@ -150,6 +170,8 @@ function LeadershipSlaTile({ compact = false }: { compact?: boolean }) {
 `LeadershipMttrTile`'s comment explicitly documents that a non-admin's 403 is intentionally treated this way (a reasonable RBAC-floor decision) — but that same code path also silently swallows a genuine 500, which is a distinct failure mode from "you don't have this role" and arguably deserves its own signal.
 
 ### WR-02: `compliance/__init__.py` is an empty file with no module docstring or exports
+
+**Resolution:** ✓ Resolved — see Fix Verification table above (commit `019655f`).
 
 **File:** `backend/app/compliance/__init__.py`
 
