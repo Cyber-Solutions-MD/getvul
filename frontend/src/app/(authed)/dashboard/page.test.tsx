@@ -53,6 +53,7 @@ vi.mock('@/lib/queries/use-sla-metrics', () => ({ useSlaMetrics: vi.fn() }));
 vi.mock('@/lib/queries/use-compliance', () => ({ useComplianceOverview: vi.fn() }));
 
 import DashboardPage from './page';
+import { ApiError } from '@/lib/api';
 import { useStats } from '@/lib/queries/use-stats';
 import { useTrends } from '@/lib/queries/use-trends';
 import { useTopTriage } from '@/lib/queries/use-top-triage';
@@ -286,6 +287,88 @@ describe('DashboardPage', () => {
       for (const label of ['Analyst', 'IT-ops', 'Compliance', 'Leadership']) {
         expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
       }
+    });
+  });
+
+  // ── WR-01 (43-REVIEW.md): leadership-lens tiles distinguish a genuine
+  // backend error from an honestly-empty tenant, with a retry affordance. ──
+  describe('leadership-lens error states (WR-01)', () => {
+    beforeEach(() => {
+      mockSearchParamsGet.mockImplementation((key: string) => (key === 'lens' ? 'leadership' : null));
+    });
+
+    it('MTTR tile: a non-admin 403 keeps the existing honest "Not yet measured" treatment (no banner)', async () => {
+      (useMttrByTier as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        isPending: false,
+        error: new ApiError('Forbidden', 403, 'req_mttr_403'),
+        refetch: vi.fn(),
+        data: undefined,
+      });
+      render(<DashboardPage />, { wrapper });
+      expect(await screen.findByText('MTTR by tier')).toBeInTheDocument();
+      expect(screen.getAllByText('Not yet measured').length).toBeGreaterThan(0);
+      expect(screen.queryByText(/Some data is incomplete|unreachable/)).not.toBeInTheDocument();
+    });
+
+    it('MTTR tile: a genuine 500 renders a PartialFailureBanner with retry, distinct from the empty state', async () => {
+      const refetch = vi.fn();
+      (useMttrByTier as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        isPending: false,
+        error: new ApiError('Internal Server Error', 500, 'req_mttr_500'),
+        refetch,
+        data: undefined,
+      });
+      render(<DashboardPage />, { wrapper });
+      const banner = await screen.findByText('MTTR by tier connector is unreachable');
+      expect(banner.closest('[role="alert"]')).toHaveTextContent('500');
+      const retryButton = screen.getByRole('button', { name: /retry now/i });
+      await userEvent.setup().click(retryButton);
+      expect(refetch).toHaveBeenCalled();
+    });
+
+    it('SLA tile: a query error renders a PartialFailureBanner with retry (require_viewer-gated, so any error is a real bug)', async () => {
+      const refetch = vi.fn();
+      (useSlaMetrics as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        isPending: false,
+        error: new ApiError('Internal Server Error', 500, 'req_sla_500'),
+        refetch,
+        data: undefined,
+      });
+      render(<DashboardPage />, { wrapper });
+      await screen.findByText('SLA compliance connector is unreachable');
+      const retryButton = screen.getByRole('button', { name: /retry now/i });
+      await userEvent.setup().click(retryButton);
+      expect(refetch).toHaveBeenCalled();
+    });
+
+    it('Framework posture strip: a query error renders a PartialFailureBanner with retry', async () => {
+      const refetch = vi.fn();
+      (useComplianceOverview as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        isPending: false,
+        error: new ApiError('Internal Server Error', 500, 'req_posture_500'),
+        refetch,
+        data: undefined,
+      });
+      render(<DashboardPage />, { wrapper });
+      await screen.findByText('Framework posture connector is unreachable');
+      const retryButton = screen.getByRole('button', { name: /retry now/i });
+      await userEvent.setup().click(retryButton);
+      expect(refetch).toHaveBeenCalled();
+    });
+
+    it('SLA/posture failures do not unmount sibling leadership widgets (D-E-01 partial failure)', async () => {
+      (useSlaMetrics as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        isPending: false,
+        error: new ApiError('Internal Server Error', 500, 'req_sla_500'),
+        refetch: vi.fn(),
+        data: undefined,
+      });
+      render(<DashboardPage />, { wrapper });
+      await screen.findByText('SLA compliance connector is unreachable');
+      // MTTR tile (happy path, unaffected) and the SLA-failure banner
+      // co-exist on the page.
+      expect(screen.getByText('MTTR by tier')).toBeInTheDocument();
+      expect(screen.getByText('Framework posture')).toBeInTheDocument();
     });
   });
 });

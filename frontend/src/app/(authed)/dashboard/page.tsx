@@ -15,11 +15,12 @@ import { SlaComplianceTile } from '@/components/dashboard/sla-compliance-tile';
 import { FrameworkPostureStrip } from '@/components/dashboard/framework-posture-strip';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { PartialFailureBanner } from '@/components/states';
+import { ApiError } from '@/lib/api';
 import { useStats } from '@/lib/queries/use-stats';
 import { useLens, type Lens } from '@/hooks/use-lens';
 import { useAnalytics, type AnalyticsTrendPoint, type VersionBoundary } from '@/lib/queries/use-analytics';
 import { useMttrByTier } from '@/lib/queries/use-mttr-by-tier';
-import { useSlaMetrics } from '@/lib/queries/use-sla-metrics';
+import { useSlaMetrics, type SlaMetrics } from '@/lib/queries/use-sla-metrics';
 import { useComplianceOverview } from '@/lib/queries/use-compliance';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { microcopy } from '@/components/dashboard/microcopy';
@@ -116,13 +117,45 @@ function RiskTrendWidget({ compact = false }: { compact?: boolean }) {
   );
 }
 
+// WR-01 (43-REVIEW.md): shared ApiError → PartialFailureBanner `errors` row
+// shape, mirroring finding-drill-content.tsx's existing conversion so the
+// banner always gets a real HTTP code + request ID instead of "unknown".
+function toErrorRow(error: unknown): { code: number | string; requestId: string; message?: string } {
+  return error instanceof ApiError
+    ? { code: error.code, requestId: error.requestId, message: error.message }
+    : { code: 'ERR', requestId: 'unknown', message: error instanceof Error ? error.message : undefined };
+}
+
+const ZERO_SLA_METRICS: SlaMetrics = {
+  sla_config: {},
+  open_with_sla: 0,
+  breached: 0,
+  at_risk: 0,
+  within_sla: 0,
+  compliance_pct: 0,
+  remediated_within_sla: 0,
+  remediated_total: 0,
+  breach_by_severity: {},
+  avg_days_remaining: null,
+};
+
 function LeadershipMttrTile() {
   const q = useMttrByTier();
-  if (q.isPending || q.error || !q.data) {
-    // Admin-gated route (unchanged, out of this plan's scope) — a
-    // non-admin viewer on the leadership lens sees the same honest
-    // "Not yet measured" treatment as a tenant with zero remediation
-    // history, rather than a scary crash.
+  if (q.error) {
+    // Admin-gated route (unchanged, out of this plan's scope): a non-admin
+    // viewer's 403 here is an existing, intentional RBAC-floor decision —
+    // keep treating it the same as an honestly-empty tenant ("Not yet
+    // measured"), NOT as a failure banner. Any OTHER error (500, network)
+    // is a distinct, genuine failure mode and deserves its own signal +
+    // retry, matching RiskTrendWidget on the same lens (WR-01).
+    if (q.error instanceof ApiError && q.error.code === 403) {
+      return <MttrByTierTile rows={[]} />;
+    }
+    return (
+      <PartialFailureBanner errors={[toErrorRow(q.error)]} onRetry={() => q.refetch()} source="MTTR by tier" />
+    );
+  }
+  if (q.isPending || !q.data) {
     return <MttrByTierTile rows={[]} />;
   }
   return <MttrByTierTile rows={q.data} />;
@@ -130,31 +163,29 @@ function LeadershipMttrTile() {
 
 function LeadershipSlaTile({ compact = false }: { compact?: boolean }) {
   const q = useSlaMetrics();
-  if (q.isPending || q.error || !q.data) {
+  if (q.error) {
+    // require_viewer-gated (unlike MTTR's require_admin) — a 403 here would
+    // itself indicate a real bug, so every error is treated as a genuine
+    // failure (WR-01), never collapsed into the honest-empty rendering.
     return (
-      <SlaComplianceTile
-        compact={compact}
-        metrics={{
-          sla_config: {},
-          open_with_sla: 0,
-          breached: 0,
-          at_risk: 0,
-          within_sla: 0,
-          compliance_pct: 0,
-          remediated_within_sla: 0,
-          remediated_total: 0,
-          breach_by_severity: {},
-          avg_days_remaining: null,
-        }}
-      />
+      <PartialFailureBanner errors={[toErrorRow(q.error)]} onRetry={() => q.refetch()} source="SLA compliance" />
     );
+  }
+  if (q.isPending || !q.data) {
+    return <SlaComplianceTile compact={compact} metrics={ZERO_SLA_METRICS} />;
   }
   return <SlaComplianceTile compact={compact} metrics={q.data} />;
 }
 
 function LeadershipPostureStrip({ variant = 'compact' }: { variant?: 'compact' | 'hero' }) {
   const q = useComplianceOverview();
-  if (q.isPending || q.error || !q.data) {
+  if (q.error) {
+    // require_viewer-gated — same rationale as LeadershipSlaTile above.
+    return (
+      <PartialFailureBanner errors={[toErrorRow(q.error)]} onRetry={() => q.refetch()} source="Framework posture" />
+    );
+  }
+  if (q.isPending || !q.data) {
     return <FrameworkPostureStrip controls={[]} variant={variant} />;
   }
   return <FrameworkPostureStrip controls={q.data.controls} variant={variant} />;
