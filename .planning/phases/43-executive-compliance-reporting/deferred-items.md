@@ -54,7 +54,23 @@ under- or over-rendering has been observed. It is a dead code-path
 
 ## Plan 03, Task 2 (checkpoint pre-verification)
 
-### Page-break footer/row overlap in a real multi-page board PDF
+### Page-break footer/row overlap in a real multi-page board PDF — RESOLVED
+
+**Status:** Fixed per an explicit user directive at checkpoint approval time
+(scope expansion into `backend/app/export.py`, approved for Plan 03). Root
+cause + fix: `generate_executive_summary_pdf`'s retroactive per-page footer
+loop ran with `set_auto_page_break(auto=True, margin=15)` still active;
+`set_y(-15)` positions exactly at the auto-break trigger threshold, so
+fpdf2's own auto-break fired on the footer's own `cell()` call — corrupting
+placement (page N's footer landed at the top of page N+1) and minting a
+genuinely spurious, otherwise-blank trailing page. Fix: call
+`pdf.set_auto_page_break(auto=False)` immediately before the footer loop (a
+manual, already-fully-paginated stamp pass has no business triggering a new
+page). Verified via a throwaway fpdf2 repro before touching production
+code, and via a real regression test
+(`test_pdf_footer_loop_never_spawns_a_spurious_trailing_page` in
+`backend/tests/test_export.py`) confirmed to fail on the pre-fix code and
+pass on the post-fix code.
 
 **Found during:** Pre-verification for the Task 2 human-verify checkpoint —
 generating a real board PDF end-to-end (dev-seeded tenant, default `quarter`

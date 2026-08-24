@@ -1135,6 +1135,22 @@ async def generate_executive_summary_pdf(db: AsyncSession, tenant_id: uuid.UUID,
         row(label, f"{val:,}")
 
     # Footer on each page
+    #
+    # [Rule 1 - Bug, found during Phase 43 Plan 03's checkpoint pre-
+    # verification against a real multi-page report]: `set_auto_page_break`
+    # was still enabled (set near the top of this function) during this
+    # retroactive per-page footer stamp. `set_y(-15)` positions exactly at
+    # the auto-break trigger threshold (page_height - margin), so fpdf2's
+    # OWN auto-page-break logic fired on the very `cell()` call meant to
+    # draw the footer -- silently advancing to the next page before
+    # drawing anything. On a real 2-page report this meant: page 1's
+    # footer text landed at the TOP of page 2 (visually colliding with
+    # page 2's real content), and the final loop iteration's misfire
+    # minted a genuinely spurious, otherwise-blank trailing page (a report
+    # that should have 2 pages came out as 3). Disabling auto-page-break
+    # for this manual, already-fully-paginated stamp pass is the standard
+    # fix for a post-hoc footer/page-numbering loop in fpdf2.
+    pdf.set_auto_page_break(auto=False)
     for page_num in range(1, pdf.pages_count + 1):
         pdf.page = page_num
         pdf.set_y(-15)

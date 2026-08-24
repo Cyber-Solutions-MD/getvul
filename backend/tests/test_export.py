@@ -327,6 +327,83 @@ def test_sla_compliance_color_thresholds():
     assert _sla_compliance_color(0.0) == "#DC2626"
 
 
+# ── Plan 03 checkpoint fixes: page-break footer overlap + honest empty
+# remediations state ────────────────────────────────────────────────────────
+
+
+_FOOTER_RE = re.compile(rb"Confidential\s*\|\s*Page")
+
+
+def _pdf_per_page_text_tokens(pdf_bytes: bytes) -> list[list[bytes]]:
+    """Test-only helper: like `_pdf_text_tokens`, but keeps each content
+    stream's tokens SEPARATE (in file order) instead of merging every
+    page's text into one flat list. Needed to make a claim about a
+    SPECIFIC page (e.g. "the last page is not blank except for its own
+    footer") -- a fact a globally-merged token list cannot distinguish,
+    since real content and a spurious trailing page's lone footer token
+    would land in the same bucket. Streams with zero extracted text (e.g.
+    a bare embedded-PNG XObject stream, not FlateDecode at all) are
+    dropped rather than appearing as an empty page entry."""
+    streams = re.findall(rb"stream\r?\n(.*?)\r?\nendstream", pdf_bytes, re.DOTALL)
+    pages: list[list[bytes]] = []
+    for s in streams:
+        with contextlib.suppress(zlib.error):
+            blob = zlib.decompress(s)
+            tokens = re.findall(rb"\((.*?)\)\s*Tj", blob)
+            if tokens:
+                pages.append(tokens)
+    return pages
+
+
+async def test_pdf_footer_loop_never_spawns_a_spurious_trailing_page(db_session, tenant_a):
+    """Regression for the bug found during Plan 03's checkpoint pre-
+    verification: the retroactive per-page footer loop used to run with
+    `auto_page_break` still enabled, and `set_y(-15)` sits exactly at the
+    auto-break trigger threshold -- so fpdf2's own page-advance fired
+    mid-loop, corrupting footer placement and minting an extra, otherwise-
+    blank trailing page whose ONLY content was that one misplaced footer
+    stamp. Verified directly against both the pre-fix and post-fix code
+    (via a throwaway repro) before writing this assertion -- a naive
+    "serialized page count matches fpdf2's own declared /Count" check is
+    tautologically always true (fpdf2 never loses track of its own page
+    bookkeeping, buggy or not) and would not have caught this."""
+    from app.assets.models import Asset
+
+    for i in range(90):
+        db_session.add(
+            Asset(
+                tenant_id=tenant_a,
+                hostname=f"host-{i:03d}",
+                risk_score=90 - (i % 50),
+                device_category="SERVER",
+            )
+        )
+    await db_session.commit()
+
+    pdf_bytes = bytes(
+        await generate_executive_summary_pdf(db_session, tenant_a, {"sections": ["top_hosts"], "top_count": 90})
+    )
+    assert pdf_bytes.startswith(b"%PDF")
+
+    pages = _pdf_per_page_text_tokens(pdf_bytes)
+    # Precondition sanity check: this scenario must genuinely force a
+    # multi-page report, otherwise the assertion below would pass
+    # vacuously without ever exercising the footer-loop page-break path.
+    assert len(pages) >= 2, "test setup did not force a multi-page PDF -- increase the host row count"
+
+    # The bug's exact symptom: the LAST page (in file order) contains
+    # nothing but its own retroactively-stamped footer -- every real page
+    # must carry substantive section/table content beyond that footer.
+    last_page_non_footer = [t for t in pages[-1] if not _FOOTER_RE.search(t)]
+    assert last_page_non_footer, (
+        f"last page's only text is its own footer stamp ({pages[-1]!r}) -- this is the "
+        "spurious blank trailing page created by the auto-page-break/footer-loop bug"
+    )
+    # The tail of the host table must appear on a REAL page (host-089 is
+    # the 90th, last-created row), never lost to a spurious page shuffle.
+    assert any(b"host-089" in t for page in pages for t in page)
+
+
 # ── Task 3: export_resource period params + validation + audit ─────────────
 
 
