@@ -177,4 +177,19 @@ export const queryKeys = {
     all: ['compliance'] as const,
     overview: () => ['compliance', 'overview'] as const,
   },
+  // Phase 43 (43-04, RPT-02) — leadership/compliance dashboard-lens tiles.
+  // Both GET routes have no filter/pagination params (mirror coverage.
+  // summary's/compliance.overview's no-arg shape).
+  mttrByTier: {
+    all: ['mttr-by-tier'] as const,
+    list: () => ['mttr-by-tier', 'list'] as const,
+  },
+  slaMetrics: {
+    all: ['sla-metrics'] as const,
+    // Cache key carries excludeExceptions so a future caller that wants
+    // the raw (non-exception-excluded) number can coexist in the cache
+    // without collision — this plan's use-sla-metrics.ts only ever passes
+    // true (D-15/T-43-15 exception-consistency requirement).
+    get: (opts: { excludeExceptions: boolean }) => ['sla-metrics', opts] as const,
+  },
 } as const;
