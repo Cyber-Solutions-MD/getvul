@@ -167,4 +167,14 @@ export const queryKeys = {
     overview: (opts: { scope: string; window: string; from?: string; to?: string }) =>
       ['analytics', 'overview', opts] as const,
   },
+  // Phase 43 (43-01, RPT-03) — /dashboard/compliance tracer slice. GET
+  // /api/v1/compliance/overview has no filter/pagination params (mirrors
+  // coverage.summary's no-arg shape) so overview() takes no opts; the
+  // framework chip bar filters the fetched array client-side. Top-level
+  // key, distinct from the pre-existing CSPM-nested `cspm.compliance()`
+  // above — no collision (different top-level property name).
+  compliance: {
+    all: ['compliance'] as const,
+    overview: () => ['compliance', 'overview'] as const,
+  },
 } as const;

@@ -3,6 +3,7 @@
 // This is a plain .ts file (no JSX) — all types + arrays + helpers in one place.
 import {
   Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban, Target, ShieldOff, Radar, LineChart,
+  ShieldCheck,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -57,6 +58,9 @@ export const WORKFLOW_ITEMS: NavItem[] = [
   // view. No chip per D-N-01 (not one of the three chip-carrying
   // destinations).
   { label: 'Analytics', href: '/dashboard/analytics', icon: LineChart },
+  // Phase 43 (43-01, RPT-03) — framework-control compliance posture view.
+  // No chip per D-N-01 (not one of the three chip-carrying destinations).
+  { label: 'Compliance', href: '/dashboard/compliance', icon: ShieldCheck },
 ];
 
 export const UNLABELED_ITEMS: NavItem[] = [
