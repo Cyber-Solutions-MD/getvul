@@ -1,7 +1,7 @@
 ---
 phase: 44
 slug: natural-language-query-assistant
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-24
@@ -109,21 +109,59 @@ No other element on this page uses accent color. Severity/SLA/status colors on t
 
 ## UI Considerations
 
-Applicable state considerations resolved: 9 covered, 2 backstop, 0 unresolved.
+Post-verification UI-consideration probe (ui-consideration-probe.cjs) over 8 described surfaces
+(question input `E1`, Ask button `E2`, starter chips `E3`, interpretation summary `E4`, result table
+`E5`, narrative answer prose `E6`, Configure-AI inert card `E7`, degraded/refusal card family `E8`).
+**43 applicable considerations resolved: 23 covered · 4 backstop · 0 unresolved · 16 dismissed (N/A).**
+E6 came back `unclassified` (streaming prose has no cue the heuristic matches) and was manually
+classified to `covered` under the D-15 streaming contract. No genuinely-open design decision
+surfaced — every category maps to a locked CONTEXT.md decision or an already-approved contract row
+above; the two backstops (input char-cap, predicate wrap) remain planner-discretion visual checks.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty (first-run) | Ask page, no question asked yet | ✅ covered | D-11 curated starter-question chips render as the empty state (see Copywriting Contract) — mandatory per `state-patterns.md`, satisfied by reuse of `EmptyState` shell with custom starter-chip actions |
-| empty (zero matching rows) | Result table, after a valid translated filter returns 0 rows | ✅ covered | "Nothing matches that" `EmptyState` reuse, interpretation summary still shown above it so the analyst sees exactly what was searched (Copywriting Contract row) |
-| loading (translation in-flight) | Query submission → interpretation not yet returned | ✅ covered | Reuses `AnalyzingIndicator`'s pulsing-violet-dot affordance verbatim ("Interpreting your question…") — no new spinner |
-| loading (query executing, D-15 results-first) | Result table after interpretation lands, before narrative streams | ✅ covered | D-15: interpretation + result table render as soon as the deterministic query executes; narrative prose streams in afterward via the reused buffer-then-validate SSE pattern with its own `AnalyzingIndicator`-style "Answering…" line |
-| error (AI unconfigured) | Whole page, tenant has no Anthropic key | ✅ covered | D-12 `DegradedCard variant="neutral"` inert state, verbatim reuse (Copywriting Contract) |
-| error (out-of-scope refusal) | Result area, question can't map to the safe schema | ✅ covered | D-14 `DegradedCard variant="neutral"` refuse-and-guide, pointing back to D-11 starter examples |
-| error (safety-flagged) | Result area, injection attempt or unsafe-denylisted pattern detected | ✅ covered | `DegradedCard variant="danger"`, reserved exclusively for this per the Color contract — matches the v3.0 prompt-injection-defense precedent, never conflated with the ordinary refusal above |
-| error (rate-limited / budget-exceeded) | Result area, fail-closed budget breaker trips | ✅ covered | `DegradedCard variant="amber"`, mirrors the existing degraded/partial-failure amber convention |
-| error (transient failure — model call/network) | Result area, a non-refusal, non-budget failure | ✅ covered | Amber inline error banner with HTTP code + request ID + `View trace` / `Retry now`, verbatim `state-patterns.md` error-banner pattern |
-| long-text | Question input field | 🧪 backstop | Input should soft-wrap and accept up to a bounded length (recommend 500 chars with a counter, mirroring `CommentInput`'s char-count-warning precedent) to bound the injection/cost surface per NLQ-02 — exact cap is planner discretion per CONTEXT.md; flagged here as a visual-state check (counter renders, doesn't clip) rather than an asserted number |
-| overflow | Interpretation-summary predicate list (many predicates on one question) | 🧪 backstop | Predicate tokens should wrap onto multiple lines (`flex-wrap`) rather than truncate or scroll — no prior sketch explicitly covers a multi-predicate wrap case, so this is a visual-state check at implementation/verification time rather than an asserted layout |
+### Covered (concrete truth)
+
+| Element | Category | Truth |
+|---------|----------|-------|
+| E1 input | empty | Unfilled field shows the placeholder; the page's first-run empty state renders the D-11 starter chips (Copywriting Contract) — the mandatory empty state per `state-patterns.md` |
+| E1 input | loading | On submit the field is disabled while translation is in-flight, paired with the "Interpreting your question…" `AnalyzingIndicator` |
+| E1 input | error | Translation failure shows "Couldn't translate that question" banner with `Retry now`; the typed question is retained |
+| E2 Ask button | loading | Button enters a disabled/pending state during the in-flight translation request |
+| E2 Ask button | error | On failure the error banner + `Retry now` restores the actionable state (Copywriting Contract error row) |
+| E3 chips | long-text | The 4 chip labels are fixed curated copy (longest ~70 chars); chips `flex-wrap` onto multiple lines rather than truncate (reuses `EmptyState.Suggestion` behavior) |
+| E4 interp. summary | loading | Card appears when translation lands; before that the "Interpreting…" indicator holds its place |
+| E4 interp. summary | error | A failed translation shows the error banner in place of the summary |
+| E4 interp. summary | populated | Mono predicate tokens, e.g. `severity=Critical · KEV=true · first_seen>30d` (Copywriting Contract) |
+| E4 interp. summary | zero-one-many | One predicate vs many handled by the same `flex-wrap`; a translated query always carries ≥1 predicate |
+| E5 result table | empty | "Nothing matches that" `EmptyState`, interpretation summary still shown above so the analyst sees exactly what was searched |
+| E5 result table | loading | D-15 results-first: table region shows a loading state until the deterministic query returns |
+| E5 result table | error | Error banner replaces the table on failure |
+| E5 result table | populated | Reused list-row primitives, top-N rows, `{topN} of {total} total` caption |
+| E5 result table | partial | The top-N truncation IS the partial-data affordance — the caption states how many of the total are shown (D-07) |
+| E5 result table | overflow | The result-table wrapper scrolls (reused list layout); rows never clip the page |
+| E5 result table | zero-one-many | Zero → empty state; the `{topN} of {total} total` caption carries singular/plural framing at one vs many |
+| E6 narrative prose | streaming (manual) | D-15 streaming answer: "Answering…" indicator while the buffer-then-validate SSE streams; validated prose renders on success; a rejected buffer falls back to the error banner |
+| E7 Configure-AI card | error | The AI-unconfigured inert state itself (D-12), with role-specific body copy (Admin/Owner vs Analyst/Viewer) |
+| E7 Configure-AI card | populated | "AI isn't set up yet" heading + role body + `Configure AI` CTA (Copywriting Contract) |
+| E8 degraded family | error | Full family enumerated — refusal (neutral), safety-flagged (danger), budget (amber), transient (amber banner) — each with distinct copy + `DegradedCard` variant per the Color + Copywriting contracts |
+| E8 degraded family | populated | Each variant's heading/body/CTA copy is defined in the Copywriting Contract |
+| E8 degraded family | long-text | Request ID and HTTP code are bounded mono strings; body copy is fixed and wraps within the card |
+
+### Backstop (visual-state check at implementation/verification)
+
+| Element | Category | Statement | Verification |
+|---------|----------|-----------|--------------|
+| E1 input | long-text | Bounded length (recommend ~500 chars) with a live counter mirroring `CommentInput`'s char-count-warning, to bound the injection/cost surface per NLQ-02; exact cap is planner discretion per CONTEXT.md | backstop — counter renders and text never clips |
+| E1 input | overflow | Input soft-wraps and grows to a bounded height, then scrolls internally rather than clipping | backstop — long question never clips the field |
+| E4 interp. summary | overflow | Predicate tokens `flex-wrap` onto multiple lines rather than truncate or scroll (no prior sketch covers a multi-predicate wrap) | backstop — many-predicate summary wraps, no truncation |
+| E8 degraded family | overflow | The transient-error body carries a request ID + HTTP code + `View trace`/`Retry now` — these must wrap and the buttons must not clip on narrow viewports | backstop — error card wraps, buttons reachable at mobile width |
+
+### Dismissed — not applicable (16)
+
+- **E1 input** partial — a single free-text field has one atomic value, no partial-record state.
+- **E2 Ask button** empty / partial / long-text — a CTA with a fixed "Ask" label has no data payload or dynamic text.
+- **E4 interp. summary** empty — the card is not rendered until translation returns predicates (the page empty state is E3). partial — predicates are emitted atomically by the translator; no partially-mapped state.
+- **E7 Configure-AI card** empty / loading / partial / overflow / zero-one-many / long-text — a static singleton inert card with fixed short copy; it *is* the empty-of-AI state, nothing loads or overflows inside it.
+- **E8 degraded family** empty / loading / partial / zero-one-many — terminal error cards, shown one at a time after a failure resolves; no nested data/loading/collection state.
 
 ---
 
@@ -140,11 +178,11 @@ Not applicable — no shadcn (`Tool: none`, see Design System section). No third
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: FLAG (non-blocking) — CTA `Ask` is a bare verb; consider `Ask GetVul`/`Run Query`. Contextually unambiguous next to the question input.
+- [x] Dimension 2 Visuals: FLAG (non-blocking) — no explicit focal-point declaration; recommend one sentence naming the gradient "Ask" button as the primary anchor and the interpretation summary as the secondary anchor once results land.
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS (not applicable — bespoke design system)
 
-**Approval:** pending
+**Approval:** APPROVED — 6/6 dimensions clear, 2 non-blocking FLAGs (recommendations recorded above).
