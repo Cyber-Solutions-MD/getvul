@@ -321,7 +321,7 @@ Plans:
   2. Queries are constrained to a safe, predefined schema — no free-form SQL generation, no injection path, no cross-tenant reach
   3. The assistant is inert (a "configure AI" state) until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold and guardrails verbatim — no shared/fallback key
 
-**Plans**: 2/6 plans executed (tracer-led)
+**Plans**: 3/6 plans executed (tracer-led)
 
 Plans:
 **Wave 1**
@@ -334,7 +334,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 44-03-PLAN.md — Frontend data + components (useQueryStream, DegradedCard export, ask/ query-box/starter/interpreted/result-table)
+- [x] 44-03-PLAN.md — Frontend data + components (useQueryStream, DegradedCard export, ask/ query-box/starter/interpreted/result-table) *(2026-08-25 — useQueryStream: body-carrying SSE hook, D-15 results-first state machine (interpreted→results→streaming→done, entity/filter/rows/total carried forward), no_key/refuse/error{kind} terminal states; DegradedCard exported (zero-behavior-change one-line diff); 4 ask/ components — query-box (~500-char cap + counter mirroring CommentInput, gradient-sunset CTA), starter-questions (exactly 4 curated UI-SPEC chips, EmptyState.Suggestion chrome), interpreted-filter (D-04 "Interpreted as:" mono predicate tokens, known-key map + generic fallback so no predicate is ever silently dropped), result-table (D-08 entity-dispatch thin wrapper over VulnTable/AssetsTable/TicketsTable + "{topN} of {total} total" caption). TDD RED/GREEN pairs for Tasks 1+3; tsc/eslint clean; no deviations.)*
 - [ ] 44-05-PLAN.md — D-17 read-only deep-link (buildNlqDeepLink + boolean/numeric URL-state + list-page wiring)
 - [ ] 44-06-PLAN.md — Eval + red-team CI gate (NLQ goldens + 6th red-team capability + ci.yml wiring)
 
