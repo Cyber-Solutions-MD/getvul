@@ -1,12 +1,17 @@
 ---
-status: testing
+status: partial
 phase: 44-natural-language-query-assistant
 source: [44-VERIFICATION.md, 44-04-SUMMARY.md]
 started: 2026-08-25
 updated: 2026-08-25
+note: "The 1 live item (full Ask flow with a BYOK key + interactive browser) was accepted as tracked debt by the user at phase close (2026-08-25), consistent with the 24/26/27/40 proceed-on-trust precedent. Plan 44-04 carried an explicit checkpoint:human-verify (autonomous:false); all 8 code-level must-haves and 222 automated tests pass (zero gaps, zero regressions). This item requires a live Docker stack + a configured tenant Anthropic key + browser observation, none available in the headless run. Re-run /gsd-verify-work 44 once available."
 ---
 
 ## Current Test
+
+[testing paused — the 1 live item is blocked on prerequisites (configured tenant Anthropic key, live browser). Re-run /gsd-verify-work 44 once available.]
+
+<details><summary>Deferred test detail</summary>
 
 number: 1
 name: Full live Ask flow (BYOK key + interactive browser)
@@ -19,6 +24,8 @@ expected: |
   5. "Open in {Vulnerabilities|Assets|Tickets}" deep-links carry the SAME interpreted filter into the real list page and the list returns the matching rows.
   6. Refuse (out-of-scope question), zero-results (with interpretation retained), budget-exceeded, and safety-flagged states each render their dedicated card — exercised against real model responses, not just mocked.
 awaiting: user response
+
+</details>
 
 ## Notes
 

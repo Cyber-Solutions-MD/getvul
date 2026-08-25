@@ -1,9 +1,11 @@
 ---
 phase: 44-natural-language-query-assistant
 verified: 2026-08-25T14:21:45Z
-status: human_needed
-score: 8/8 must-haves verified (code-level)
-overrides_applied: 0
+status: passed
+status_note: "PASSED WITH ACCEPTED DEBT. All 8 code-level must-haves verified; 222 automated tests pass (test_ai_injection_redteam 102, test_nlq_golden_evals 10, plus full suite; zero gaps, zero regressions). The 1 remaining human_verification item is the full live Ask flow (BYOK key + interactive browser), documented in 44-04-SUMMARY.md as a `checkpoint:human-verify` (autonomous:false) deferred on-trust during headless execution. On 2026-08-25 the user explicitly chose to ACCEPT it as TRACKED DEBT rather than block the ship, consistent with the Phase 24/26/27/40 proceed-on-trust precedent. NOT observed — tracked in 44-UAT.md; close via /gsd-verify-work 44. Conscious user risk-acceptance, not live confirmation."
+human_verification_disposition: waived-accepted-as-debt
+score: 8/8 verifiable must-haves verified (1 live item accepted as debt)
+overrides_applied: 1
 human_verification:
   - test: "Full live Ask flow: configure an Anthropic key (BYOK) for a tenant, then submit the north-star question 'which internet-facing hosts have an unremediated KEV older than 30 days?' in a live browser session, and step through configure-AI gate -> empty state -> interpreted -> results -> streaming narrative -> Open-in deep-link into Vulnerabilities."
     expected: "Configure-AI DegradedCard renders when unconfigured; after BYOK setup, submitting a question shows the interpreted filter + result table BEFORE the streamed narrative; 'Open in Vulnerabilities' navigates to a filtered list showing the same rows; refuse/zero-results/budget/safety/transient-error states each render their distinct copy/variant when triggered."
@@ -14,7 +16,7 @@ human_verification:
 
 **Phase Goal:** An analyst can ask a plain-English question over their own vuln/asset/ticket data and get a grounded, tenant-scoped answer with the underlying result set shown — reusing the v3.0 BYOK AI scaffold rather than building a second AI stack.
 **Verified:** 2026-08-25T14:21:45Z
-**Status:** human_needed
+**Status:** passed (with accepted debt — 1 waived live item, see status_note)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
