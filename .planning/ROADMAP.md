@@ -324,12 +324,24 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 44-01-PLAN.md — TRACER: end-to-end NLQ backend spine (translate→execute→results-first→narrate, vuln entity, BYOK-gated)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 44-02-PLAN.md — Backend query surface expansion (D-03 predicates + assets/tickets entity branches + hostname resolution)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 44-03-PLAN.md — Frontend data + components (useQueryStream, DegradedCard export, ask/ query-box/starter/interpreted/result-table)
-- [ ] 44-04-PLAN.md — Ask page composition + 'Ask' nav entry + all states + human-verify checkpoint
 - [ ] 44-05-PLAN.md — D-17 read-only deep-link (buildNlqDeepLink + boolean/numeric URL-state + list-page wiring)
 - [ ] 44-06-PLAN.md — Eval + red-team CI gate (NLQ goldens + 6th red-team capability + ci.yml wiring)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 44-04-PLAN.md — Ask page composition + 'Ask' nav entry + all states + human-verify checkpoint
+
 **UI hint**: yes
 
 ### Phase 45: Public API, Webhooks & SDK
