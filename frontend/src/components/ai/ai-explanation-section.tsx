@@ -44,7 +44,12 @@ type DegradedCardProps = {
   icon?: 'sparkles' | 'clock';
 };
 
-function DegradedCard({ variant, heading, body, action, icon = 'sparkles' }: DegradedCardProps) {
+// Phase 44 (44-03 Task 1): exported so the ask/ (NLQ) components can reuse
+// this exact card verbatim for refusal/budget/safety/configure states
+// (Pitfall 8) -- a one-line, zero-behavior-change diff. Every existing
+// internal call site in this file is unaffected (still a plain local
+// reference to the same function).
+export function DegradedCard({ variant, heading, body, action, icon = 'sparkles' }: DegradedCardProps) {
   // Phase 25 UI-SPEC §Color: the `danger` variant reuses the EXACT
   // `border-danger bg-danger-soft text-danger` token combo already
   // established in ticket-provider-picker.tsx's error alert -- no new hex,
