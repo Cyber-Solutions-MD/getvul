@@ -34,6 +34,7 @@ async def audit_log_ai_call(
     resource_id: str,
     status: str,
     cost_estimate_usd: float | None = None,
+    action_prefix: str = "explain",
 ) -> None:
     """Write one AI-call audit row.
 
@@ -51,6 +52,13 @@ async def audit_log_ai_call(
     Management). Every call site — including a validation_failed attempt —
     must call this exactly once per attempt (AI-06: no silent unlogged call).
 
+    `action_prefix` (Phase 44 Plan 01, additive) — defaults to "explain" so
+    every existing call site (`explain.py::_run_explain_stream`, every
+    `explain_*.py` route that transitively calls it) is unaffected byte-
+    for-byte. `query_assistant.py`'s NLQ orchestrator passes
+    `action_prefix="query"` so its rows land as `ai.query.*`, never
+    silently mislabeled `ai.explain.*` (D-16 audit vocabulary, NLQ-02).
+
     Does NOT commit — mirrors `rotate_credentials()`'s pattern of adding to
     the session and letting the caller's own transaction boundary commit.
     """
@@ -58,7 +66,7 @@ async def audit_log_ai_call(
         tenant_id=tenant_id,
         user_id=None,
         user_email=user_email,
-        action=f"ai.explain.{resource_type}",
+        action=f"ai.{action_prefix}.{resource_type}",
         resource_type=resource_type,
         resource_id=resource_id,
         details={

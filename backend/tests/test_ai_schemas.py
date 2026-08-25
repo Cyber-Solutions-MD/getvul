@@ -12,14 +12,19 @@ are never assumed enforced by the model call itself.
 from __future__ import annotations
 
 import json
+import uuid
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
 
+from app.ai.audit import audit_log_ai_call
 from app.ai.schemas import (
     MAX_BUSINESS_RISK_CHARS,
     MAX_SUMMARY_CHARS,
+    AssetFilterInput,
     BusinessRuleError,
     Citation,
     CitationSource,
@@ -27,8 +32,24 @@ from app.ai.schemas import (
     ExplainRemediationGuidanceResponse,
     ExplainResponseBase,
     ExplainVulnResponse,
+    NlqAnswerResponse,
+    NlqFilterResponse,
+    TicketFilterInput,
+    VulnFilterInput,
     recheck_business_rules,
+    recheck_nlq_filter_exclusivity,
 )
+from app.audit import AuditLog
+
+
+@dataclass
+class _FakeUsage:
+    """Minimal stand-in for an Anthropic Message.usage object — mirrors
+    test_ai_audit.py's own fixture-free dataclass, avoiding an anthropic
+    SDK import in a schema-validation test file."""
+
+    input_tokens: int
+    output_tokens: int
 
 
 def _valid_payload(**overrides: Any) -> dict[str, Any]:
@@ -181,9 +202,7 @@ def test_remediation_guidance_response_has_zero_new_fields() -> None:
     """ExplainRemediationGuidanceResponse mirrors ExplainHostResponse's
     zero-new-fields shape (D-03) — cited steps live as prose inside
     `summary`, never a new dedicated field."""
-    assert set(ExplainRemediationGuidanceResponse.model_fields.keys()) == set(
-        ExplainResponseBase.model_fields.keys()
-    )
+    assert set(ExplainRemediationGuidanceResponse.model_fields.keys()) == set(ExplainResponseBase.model_fields.keys())
     resp = ExplainRemediationGuidanceResponse.model_validate(_valid_payload())
     assert resp.grounded is True
 
@@ -212,6 +231,152 @@ def test_recheck_business_rules_accepts_prioritization_response_unchanged() -> N
     route passes its own *_ALLOWLIST."""
     resp = ExplainPrioritizationResponse.model_validate(_valid_payload())
     recheck_business_rules(resp, allowed_source_fields=frozenset({"cve_id", "severity"}))  # must not raise
+
+
+# ── NlqFilterResponse / *FilterInput (Phase 44 Plan 01, D-01/D-02/NLQ-02):
+# the flat, non-union translate-call filter contract + its exclusivity
+# recheck gate (mirrors recheck_business_rules's "Anthropic strips
+# constraints, recheck explicitly" precedent) ──
+
+
+def _nlq_filter_payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "entity": "vulnerabilities",
+        "vulnerability_filter": {
+            "severity": ["CRITICAL"],
+            "cisa_kev": True,
+            "exploit_available": None,
+            "age_days_min": 30,
+            "status": None,
+        },
+        "asset_filter": None,
+        "ticket_filter": None,
+        "groundable": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_nlq_filter_rejects_unknown_field() -> None:
+    """extra='forbid' on NlqFilterResponse itself -- an unexpected top-level
+    key must raise ValidationError, never be silently dropped."""
+    payload = _nlq_filter_payload()
+    payload["tenant_id"] = "should-never-be-accepted"
+    with pytest.raises(ValidationError):
+        NlqFilterResponse.model_validate_json(json.dumps(payload))
+
+
+def test_vuln_filter_input_rejects_unknown_field() -> None:
+    """extra='forbid' on the nested VulnFilterInput too -- a hallucinated
+    field inside the entity's own filter object is rejected, not ignored."""
+    payload = _nlq_filter_payload()
+    payload["vulnerability_filter"]["asset_hostname"] = "should-be-rejected"
+    with pytest.raises(ValidationError):
+        NlqFilterResponse.model_validate_json(json.dumps(payload))
+
+
+def test_vuln_filter_input_has_no_asset_hostname_field() -> None:
+    """W3: the vulnerabilities entity is never host-scoped -- a hostname
+    predicate is outside the D-17 vuln deep-link's own param set."""
+    assert "asset_hostname" not in VulnFilterInput.model_fields
+
+
+def test_ticket_filter_input_is_the_only_one_carrying_asset_hostname() -> None:
+    assert "asset_hostname" in TicketFilterInput.model_fields
+    assert "asset_hostname" not in VulnFilterInput.model_fields
+    assert "asset_hostname" not in AssetFilterInput.model_fields
+
+
+def test_nlq_exclusivity_recheck_raises_when_groundable_but_filter_null() -> None:
+    resp = NlqFilterResponse.model_validate(_nlq_filter_payload(vulnerability_filter=None))
+    with pytest.raises(BusinessRuleError):
+        recheck_nlq_filter_exclusivity(resp)
+
+
+def test_nlq_exclusivity_recheck_raises_when_second_entity_also_populated() -> None:
+    resp = NlqFilterResponse.model_validate(_nlq_filter_payload(asset_filter={"device_category": "SERVER"}))
+    with pytest.raises(BusinessRuleError):
+        recheck_nlq_filter_exclusivity(resp)
+
+
+def test_nlq_exclusivity_recheck_passes_for_well_formed_groundable_response() -> None:
+    resp = NlqFilterResponse.model_validate(_nlq_filter_payload())
+    recheck_nlq_filter_exclusivity(resp)  # must not raise
+
+
+def test_nlq_exclusivity_recheck_passes_for_honest_refusal() -> None:
+    """A groundable=false response with every filter null is the D-14
+    honest-refusal shape -- NOT an error."""
+    resp = NlqFilterResponse.model_validate(_nlq_filter_payload(vulnerability_filter=None, groundable=False))
+    recheck_nlq_filter_exclusivity(resp)  # must not raise
+
+
+def test_nlq_filter_schema_has_no_oneof() -> None:
+    """Pitfall 2 / RESEARCH Open Question 1: a discriminated union would
+    emit 'oneOf', which Anthropic's structured-outputs docs do not list as
+    supported. The flat, non-union schema must never contain it, and every
+    $ref must resolve internally (no external $ref outside $defs)."""
+    dumped = json.dumps(NlqFilterResponse.model_json_schema())
+    assert "oneOf" not in dumped
+    schema = NlqFilterResponse.model_json_schema()
+    for value in schema.get("properties", {}).values():
+        for branch in value.get("anyOf", []):
+            if "$ref" in branch:
+                assert branch["$ref"].startswith("#/$defs/")
+
+
+def test_nlq_answer_response_has_zero_new_fields() -> None:
+    """NlqAnswerResponse mirrors every other ExplainResponseBase subclass in
+    this module -- the narrative lives as prose, never a new field."""
+    assert set(NlqAnswerResponse.model_fields.keys()) == set(ExplainResponseBase.model_fields.keys())
+    resp = NlqAnswerResponse.model_validate(_valid_payload())
+    assert resp.grounded is True
+
+
+# ── audit_log_ai_call's additive action_prefix param (Phase 44 Plan 01,
+# Pitfall 3): default preserves "ai.explain.<rt>" byte-for-byte;
+# action_prefix="query" writes "ai.query.<rt>" ──
+
+
+async def test_audit_action_prefix_default(db_session: Any, tenant_a: Any) -> None:
+    resource_id = f"vuln-{uuid.uuid4().hex[:8]}"
+
+    await audit_log_ai_call(
+        db_session,
+        tenant_id=tenant_a,
+        user_email="analyst@tenant-a.test",
+        model="claude-sonnet-5",
+        usage=_FakeUsage(input_tokens=10, output_tokens=5),
+        resource_type="vuln",
+        resource_id=resource_id,
+        status="ok",
+    )
+    await db_session.commit()
+
+    rows = (await db_session.execute(select(AuditLog).where(AuditLog.resource_id == resource_id))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].action == "ai.explain.vuln"
+
+
+async def test_audit_action_prefix_query(db_session: Any, tenant_a: Any) -> None:
+    resource_id = f"query-translate-{uuid.uuid4().hex[:8]}"
+
+    await audit_log_ai_call(
+        db_session,
+        tenant_id=tenant_a,
+        user_email="analyst@tenant-a.test",
+        model="claude-sonnet-5",
+        usage=_FakeUsage(input_tokens=10, output_tokens=5),
+        resource_type="vulnerabilities",
+        resource_id=resource_id,
+        status="ok",
+        action_prefix="query",
+    )
+    await db_session.commit()
+
+    rows = (await db_session.execute(select(AuditLog).where(AuditLog.resource_id == resource_id))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].action == "ai.query.vulnerabilities"
 
 
 def test_scanner_verbatim_citation_is_substring_of_source_field() -> None:

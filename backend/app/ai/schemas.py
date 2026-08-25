@@ -16,6 +16,7 @@ are enforced by the model call itself.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -159,3 +160,124 @@ def recheck_business_rules(
                 raise BusinessRuleError(
                     f"citation.source_field {citation.source_field!r} is not in the allowed source-field set"
                 )
+
+
+# ── Natural-Language Query filter contract (NLQ-01/NLQ-02, Phase 44 Plan 01) ──
+#
+# D-01/Pitfall 2: a flat, NON-union response schema -- deliberately NOT a
+# Pydantic discriminated union (`Field(discriminator="entity")`), which
+# would emit "oneOf" in JSON Schema (Anthropic's structured-outputs docs
+# list anyOf/allOf as supported, not oneOf). Three independently-optional
+# filter fields + `recheck_nlq_filter_exclusivity()` (mirroring
+# `recheck_business_rules()`'s own "Anthropic strips constraints, recheck
+# explicitly" precedent) enforce "exactly one of the three matches
+# `entity`" explicitly in Python -- never assumed structurally enforced by
+# the model call alone. Verified empirically this session:
+# `NlqFilterResponse.model_json_schema()` contains no "oneOf" key and every
+# `$ref` resolves to `#/$defs/...` (self-contained, no external $ref).
+
+
+class VulnFilterInput(BaseModel):
+    """The ONLY filter shape a vulnerabilities-entity NLQ answer may take.
+    EXISTING VulnerabilityFilter predicates only this plan (severity,
+    cisa_kev, exploit_available, age_days_min, status) -- Plan 02 adds
+    asset_internet_facing/sla_breached. Deliberately NO asset_hostname: the
+    vulnerabilities entity is never host-scoped (W3) -- a hostname
+    predicate is outside the D-17 vuln deep-link's own param set, so
+    allowing one here would let a vulnerabilities answer silently narrow
+    past what "Open in Vulnerabilities" can express. Host-scoped questions
+    route to the tickets entity instead, where TicketFilterInput.
+    asset_hostname IS resolved server-side."""
+
+    model_config = {"extra": "forbid"}
+
+    severity: list[str] | None = None
+    cisa_kev: bool | None = None
+    exploit_available: bool | None = None
+    age_days_min: int | None = None
+    status: list[str] | None = None
+
+
+class AssetFilterInput(BaseModel):
+    """The ONLY filter shape an assets-entity NLQ answer may take. Maps an
+    EXISTING AssetFilter predicate this plan (device_category) --
+    deliberately NO internet_facing (Plan 02 adds it once AssetFilter
+    itself gains the field) and NO hostname (TicketFilterInput is the only
+    *FilterInput model carrying one)."""
+
+    model_config = {"extra": "forbid"}
+
+    device_category: str | None = None
+
+
+class TicketFilterInput(BaseModel):
+    """The ONLY filter shape a tickets-entity NLQ answer may take.
+    `asset_hostname` is the ONLY hostname-carrying field across all three
+    *FilterInput models -- resolved server-side to an asset_id; the model
+    never sees or invents a UUID (Plan 02's `_resolve_hostname`)."""
+
+    model_config = {"extra": "forbid"}
+
+    status: str | None = None
+    asset_hostname: str | None = None
+
+
+class NlqFilterResponse(BaseModel):
+    """Translate-call response (CALL 1, D-01/D-02): the model picks exactly
+    ONE entity and fills in ONLY that entity's own filter object. Flat and
+    non-union by construction (see module comment above) -- the unsupported
+    union keyword Pitfall 2 warns about is not even structurally reachable
+    here. `groundable=false` (D-14) is a legitimate, honest refusal, not a
+    failure: the caller treats it as a terminal "can't answer that"
+    outcome, never a retry target. This schema structurally has NO
+    tenant_id field anywhere -- query execution always uses the
+    authenticated session's tenant_id (NLQ-02)."""
+
+    model_config = {"extra": "forbid"}
+
+    entity: Literal["vulnerabilities", "assets", "tickets"]
+    vulnerability_filter: VulnFilterInput | None = None
+    asset_filter: AssetFilterInput | None = None
+    ticket_filter: TicketFilterInput | None = None
+    groundable: bool = Field(
+        ...,
+        description="False when the question cannot be honestly mapped to one of the allowed filter fields.",
+    )
+
+
+class NlqAnswerResponse(ExplainResponseBase):
+    """The narrate-call response (CALL 2, D-13). No additional fields --
+    mirrors every other ExplainResponseBase subclass in this module: the
+    narrative lives as prose in `summary`/`business_risk`, grounded ONLY in
+    the executed rows + exact count the caller supplies (never a new
+    number, never a row not present in the result set)."""
+
+
+def recheck_nlq_filter_exclusivity(resp: NlqFilterResponse) -> None:
+    """Second validation gate for the translate call -- mirrors
+    `recheck_business_rules()`'s own "Anthropic strips constraints, recheck
+    explicitly" precedent, generalized here to a cross-field structural
+    rule rather than a char-budget/allowlist one. Anthropic's structured-
+    output schema translator enforces field TYPES but not this
+    "exactly one entity's filter is populated, and it matches `entity`"
+    constraint -- never assumed enforced by the model call itself.
+
+    Raises BusinessRuleError when:
+    - `groundable` is true but the chosen entity's own filter is null (the
+      model claimed it could answer, but forgot to actually fill in a
+      filter).
+    - Any OTHER entity's filter is non-null (more than one filter
+      populated) -- regardless of `groundable`.
+    A `groundable=false` response with every filter null (the honest,
+    D-14 refusal shape) passes this check cleanly -- it is not an error.
+    """
+    filters = {
+        "vulnerabilities": resp.vulnerability_filter,
+        "assets": resp.asset_filter,
+        "tickets": resp.ticket_filter,
+    }
+    matching = filters.pop(resp.entity)
+    if resp.groundable and matching is None:
+        raise BusinessRuleError(f"entity={resp.entity!r} but its own filter is null")
+    if any(other is not None for other in filters.values()):
+        raise BusinessRuleError("more than one entity's filter is populated")
