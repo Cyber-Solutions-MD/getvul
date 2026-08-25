@@ -135,6 +135,22 @@ class AsanaConfigUpdate(BaseModel):
 # ── Ticket Rules ──
 
 
+class TicketQueryFilter(BaseModel):
+    """Phase 44 / NLQ-01: an NLQ-only translation wrapper above
+    `list_tickets`'s existing loose kwargs (D-01) -- `list_tickets` itself
+    is NOT refactored or given `extra="forbid"` (it has other callers with
+    other conventions); this schema is the strict, validated shape the
+    orchestrator maps the model-emitted `TicketFilterInput` (ai/schemas.py)
+    onto BEFORE calling `list_tickets`. `asset_hostname` is resolved
+    server-side to a real asset_id via `_resolve_hostname` -- the model
+    never supplies (or invents) a UUID."""
+
+    model_config = {"extra": "forbid"}
+
+    status: str | None = None
+    asset_hostname: str | None = None
+
+
 class TicketRuleConditions(BaseModel):
     device_category: list[str] | None = None
     min_risk_score: int | None = None

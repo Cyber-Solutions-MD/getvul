@@ -142,6 +142,14 @@ class VulnerabilityFilter(BaseModel):
     exploit_available: bool | None = None
     cisa_kev: bool | None = None
     asset_id: uuid.UUID | None = None
+    # Phase 44 / NLQ-01 / D-03: the north-star question's two missing
+    # predicates. asset_internet_facing filters via Asset.internet_facing
+    # (a subquery, not a JOIN -- see service.py::_apply_filters for the
+    # Pitfall-1 double-join rationale). sla_breached maps directly to the
+    # stored, scheduler-refreshed Vulnerability.sla_breached derived mirror
+    # (Pitfall 6) -- never a live resolve_state_for_vuln recompute.
+    asset_internet_facing: bool | None = None
+    sla_breached: bool | None = None
     search: str | None = Field(None, max_length=200, description="Search CVE ID or product name")
     age_days_min: int | None = Field(None, ge=0)
     age_days_max: int | None = Field(None, ge=0)

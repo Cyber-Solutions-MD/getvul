@@ -109,6 +109,26 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: VulnerabilityFi
     if filters.age_days_max is not None:
         cutoff = datetime.now(UTC) - timedelta(days=filters.age_days_max)
         query = query.where(Vulnerability.first_detected_at >= cutoff)
+    if filters.sla_breached is not None:
+        # Phase 44 / D-03 / Pitfall 6: the STORED derived-mirror column
+        # (refreshed <=60s by run_sla_tier_pass), never a live
+        # resolve_state_for_vuln recompute -- an ad-hoc NLQ answer accepts
+        # the same staleness window Phase 40 alerting already accepts.
+        query = query.where(Vulnerability.sla_breached == filters.sla_breached)
+    if filters.asset_internet_facing is not None:
+        # Phase 44 / D-03 / Pitfall 1: a correlated IN-subquery, deliberately
+        # NOT a `.join(Asset, ...)` call here. list_vulnerabilities (and
+        # list_vulnerabilities_by_host) already `.outerjoin(Asset, ...)`
+        # AFTER calling this function -- adding a second join to the same
+        # table inside _apply_filters would double-join on those two paths.
+        # A subquery predicate filters identically on both the COUNT path
+        # (which never joins Asset today) and the data path (which already
+        # does), with zero risk of a duplicate-join InvalidRequestError.
+        query = query.where(
+            Vulnerability.asset_id.in_(
+                select(Asset.id).where(Asset.internet_facing == filters.asset_internet_facing)
+            )
+        )
 
     return query
 

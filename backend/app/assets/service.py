@@ -30,6 +30,8 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: AssetFilter) ->
         query = query.where(Asset.risk_score >= filters.risk_score_min)
     if filters.device_category:
         query = query.where(Asset.device_category == filters.device_category)
+    if filters.internet_facing is not None:
+        query = query.where(Asset.internet_facing == filters.internet_facing)
     if filters.search:
         query = query.where(
             or_(
