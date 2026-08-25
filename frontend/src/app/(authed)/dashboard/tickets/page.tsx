@@ -61,6 +61,13 @@ const SOURCE_ALLOW = ['CROWDSTRIKE', 'NESSUS', 'DEFENDER', 'WIZ', 'QUALYS', 'RAP
 const VIEW_ALLOW = ['list', 'board'] as const;
 type View = (typeof VIEW_ALLOW)[number];
 
+// Phase 44 / NLQ-01 / D-17: `asset_id` (buildNlqDeepLink's mapped name for
+// the resolved ticket-entity asset UUID) must be bounded-parsed before use
+// (T-44-11) — a plain RFC-4122 UUID shape, matching the backend's
+// `uuid.UUID` Query param type (a malformed value 422s server-side anyway,
+// but this keeps a garbage/injected string out of the fetch entirely).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // CR-06: narrow the backend-lowercased provider string to the literal union
 // without an unchecked `as` cast.
 function isTicketProvider(v: string | null): v is 'jira' | 'asana' | 'github' {
@@ -125,6 +132,10 @@ function TicketsPageInner() {
   const [view, setView] = useUrlState<View>('view', VIEW_ALLOW, 'list');
   const search = params?.get('search') ?? '';
   const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
+  // Phase 44 / NLQ-01 / D-17 — bounded UUID clamp (T-44-11); anything not
+  // shaped like a UUID is dropped rather than reaching the fetch.
+  const rawAssetId = params?.get('asset_id') ?? null;
+  const assetId = rawAssetId && UUID_RE.test(rawAssetId) ? rawAssetId : null;
 
   // Ticket id from URL for drill panel.
   const ticketIdFromUrl = params?.get('ticket') ?? null;
@@ -138,8 +149,9 @@ function TicketsPageInner() {
       sla: sla.length ? sla : undefined,
       source: source.length ? source : undefined,
       search: search || undefined,
+      asset_id: assetId ?? undefined,
     }),
-    [status, provider, severity, sla, source, search],
+    [status, provider, severity, sla, source, search, assetId],
   );
 
   const q = useTickets({ filters, page: pageNum, view });
