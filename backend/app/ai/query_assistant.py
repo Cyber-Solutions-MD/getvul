@@ -466,6 +466,19 @@ async def _run_query_stream(
                 )
                 rows = ticket_result["items"]
                 total = ticket_result["total"]
+
+            # Phase 44 / NLQ-01 / D-17: surface the server-resolved UUID (not
+            # just the raw hostname string) in the interpreted filter the
+            # frontend receives. Without this, `buildNlqDeepLink` has no way
+            # to express "open these in Tickets" -- the tickets list page's
+            # `asset_id` URL param needs a UUID, and only this orchestrator
+            # (via `_resolve_hostname`) ever resolves one; the model itself
+            # never sees or invents a UUID (D-01/D-02). Additive dict key --
+            # `interpreted_filter` is a plain dump, not a validated schema,
+            # so this can't reintroduce a model-supplied UUID trust issue.
+            interpreted_filter["resolved_asset_id"] = (
+                str(resolved_asset_id) if resolved_asset_id is not None else None
+            )
         else:
             # Every groundable NlqFilterResponse structurally has its own
             # entity's filter populated (recheck_nlq_filter_exclusivity) --

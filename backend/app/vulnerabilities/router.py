@@ -62,6 +62,16 @@ async def list_vulns(
     search: str | None = Query(None),
     age_days_min: int | None = Query(None, ge=0),
     age_days_max: int | None = Query(None, ge=0),
+    # Phase 44 / NLQ-01 / D-17: VulnerabilityFilter already carries these two
+    # predicates (Plan 02, for the AI query-assistant path) but this router
+    # never bound them as explicit Query params, so `?sla_breached=` /
+    # `?asset_internet_facing=` were silently dropped before reaching
+    # VulnerabilityFilter — the deep-link's two additive predicates would
+    # otherwise 404-silently (no filtering effect). Wiring them here is the
+    # remaining piece that makes the D-17 deep-link's full param set actually
+    # filter (mirrors the existing exploit_available/cisa_kev pattern).
+    sla_breached: bool | None = Query(None),
+    asset_internet_facing: bool | None = Query(None),
     # T-11-01: pydantic-validated Literal. Unknown sort fields surface as
     # 422 (not 500) before the handler runs.
     sort: Literal[
@@ -129,6 +139,8 @@ async def list_vulns(
         search=search,
         age_days_min=age_days_min,
         age_days_max=age_days_max,
+        sla_breached=sla_breached,
+        asset_internet_facing=asset_internet_facing,
         sort=sort,
         order=order,
         group=group,

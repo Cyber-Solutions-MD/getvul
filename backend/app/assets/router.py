@@ -93,6 +93,13 @@ async def list_assets(
     sort_dir: str = Query("desc", description="asc or desc"),
     show_ignored: str = Query("active", description="active, ignored, or all"),
     os_family: str = Query("", description="comma-separated subset of {linux, windows, macos, other}"),
+    # Phase 44 / NLQ-01 / D-17: AssetFilter.internet_facing already exists
+    # (Plan 02, for the AI query-assistant's `list_assets` service-layer
+    # path in app/assets/service.py) but this router builds its query
+    # inline and never called that service function, so the deep-link's
+    # `?internet_facing=` param would otherwise be silently ignored (no
+    # filtering effect). Native column, no join — same pattern as min_risk.
+    internet_facing: bool | None = Query(None),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -169,6 +176,8 @@ async def list_assets(
 
     if min_risk > 0:
         query = query.where(Asset.risk_score >= min_risk)
+    if internet_facing is not None:
+        query = query.where(Asset.internet_facing == internet_facing)
 
     # T-12-01 mitigation: hardcoded ILIKE prefix patterns per family — values are baked
     # into source, never composed from user input. The `os_family` query param is parsed
