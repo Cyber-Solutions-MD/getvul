@@ -82,10 +82,15 @@ async def list_assets(
                 id=asset.id,
                 hostname=asset.hostname,
                 os_name=asset.os_name,
+                os_version=asset.os_version,
                 asset_type=asset.asset_type,
                 cloud_provider=asset.cloud_provider,
                 seen_by_sources=asset.seen_by_sources,
                 risk_score=asset.risk_score,
+                device_category=asset.device_category,
+                model=asset.model,
+                assigned_user=asset.assigned_user,
+                managed_by=asset.managed_by,
                 open_vuln_count=open_count,
             )
         )

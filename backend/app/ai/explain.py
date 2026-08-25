@@ -52,7 +52,7 @@ from typing import Any, cast
 
 import redis.asyncio as redis
 from anthropic import APIStatusError, AsyncAnthropic, RateLimitError
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -135,7 +135,14 @@ def _chunk_for_replay(text: str, size: int = 80) -> list[str]:
     return [text[i : i + size] for i in range(0, len(text), size)]
 
 
-def _build_output_config(response_model: type[ExplainResponseBase], model: str) -> dict[str, Any]:
+def _build_output_config(response_model: type[BaseModel], model: str) -> dict[str, Any]:
+    # Phase 44 Plan 01: widened from `type[ExplainResponseBase]` to the
+    # actually-generic `type[BaseModel]` -- the body below only ever calls
+    # `.model_json_schema()`, a plain Pydantic BaseModel method with no
+    # ExplainResponseBase-specific behavior. query_assistant.py's
+    # `_call_structured()` is the first caller needing this for a
+    # non-ExplainResponseBase model (`NlqFilterResponse`); every existing
+    # caller (an ExplainResponseBase subclass IS a BaseModel) is unaffected.
     config: dict[str, Any] = {
         "format": {"type": "json_schema", "schema": response_model.model_json_schema()},
     }
