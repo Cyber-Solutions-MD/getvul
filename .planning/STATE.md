@@ -4,16 +4,16 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 44
 current_phase_name: Natural-Language Query Assistant
-status: executing
+status: "Phase 44 shipped — PR #30"
 stopped_at: Phase 44 Plan 04 complete — /dashboard/ask page composition + 'Ask' nav entry (all NLQ-01/NLQ-03 states); Phase 44 now 6/6 plans executed. Live human-verify checkpoint deferred on trust (Phase 24-27/40 precedent) — run /gsd-verify-work 44 to close it out.
-last_updated: "2026-08-25T14:13:52.000Z"
+last_updated: "2026-08-25T14:39:35.577Z"
 last_activity: 2026-08-25
-last_activity_desc: 44-04 executed — /dashboard/ask page.tsx composes every NLQ-01/NLQ-03 state (D-12 Configure-AI inert gate, D-11 first-run empty state with 4 click-to-fill starter chips, D-15 results-first interpreted-filter+result-table before the streamed narrative, D-04 interpretation always shown, D-17 Open-in deep-link, D-14 refuse, zero-results with interpretation retained, budget-exceeded/safety-flagged/transient-error terminal states) + an always-visible 'Ask' WORKFLOW_ITEMS nav entry. 3 Rule-2 deviations to Plan 03 files (QueryBox lifted to a controlled component so starter chips can fill it; interpreted-filter.tsx exports formatInterpretedFilterSummary() so the zero-results body can't drift from the card above it; use-query-stream.ts's error phase gains optional httpStatus/requestId off the real fetch Response for the transient-error banner). 8 new page tests green + full 1215-test frontend suite unaffected; tsc/eslint clean. Live human-verify checkpoint (configure-AI gate -> submit -> results-first -> streaming -> refuse/zero/budget/error -> Open-in deep-link) deferred on trust — documented PENDING in 44-04-SUMMARY.md with exact manual steps. Phase 44 (Natural-Language Query Assistant) complete, 6/6 plans.
 progress:
   total_phases: 9
   completed_phases: 9
   total_plans: 46
   completed_plans: 46
+last_activity_desc: 44-04 executed — /dashboard/ask page.tsx composes every NLQ-01/NLQ-03 state (D-12 Configure-AI inert gate, D-11 first-run empty state with 4 click-to-fill starter chips, D-15 results-first interpreted-filter+result-table before the streamed narrative, D-04 interpretation always shown, D-17 Open-in deep-link, D-14 refuse, zero-results with interpretation retained, budget-exceeded/safety-flagged/transient-error terminal states) + an always-visible 'Ask' WORKFLOW_ITEMS nav entry. 3 Rule-2 deviations to Plan 03 files (QueryBox lifted to a controlled component so starter chips can fill it; interpreted-filter.tsx exports formatInterpretedFilterSummary() so the zero-results body can't drift from the card above it; use-query-stream.ts's error phase gains optional httpStatus/requestId off the real fetch Response for the transient-error banner). 8 new page tests green + full 1215-test frontend suite unaffected; tsc/eslint clean. Live human-verify checkpoint (configure-AI gate -> submit -> results-first -> streaming -> refuse/zero/budget/error -> Open-in deep-link) deferred on trust — documented PENDING in 44-04-SUMMARY.md with exact manual steps. Phase 44 (Natural-Language Query Assistant) complete, 6/6 plans.
 ---
 
 # STATE — GetVul GSD Session Memory
@@ -47,8 +47,8 @@ Items acknowledged and deferred at v3.0 milestone close on 2026-08-04 (user chos
 ## Current Position
 
 Phase: 44 — Natural-Language Query Assistant
-Status: 6/6 plans complete (Waves 1-4 all done) — awaiting /gsd-verify-work 44 (live human-verify checkpoint deferred on trust, Phase 24-27/40 precedent)
-Last activity: 2026-08-25 — 44-04 executed: /dashboard/ask page composition + 'Ask' nav entry — the full D-09 workflow (inert/empty/results-first/refuse/zero-results/budget/safety/error) is now user-reachable, closing out Phase 44
+Status: Phase 44 shipped — PR #30
+Last activity: 2026-08-25
 Phase 44 Plan 01 result: D-01 tool/filter contract proven (flat non-union NlqFilterResponse, no oneOf) + <user_question>/<query_results> untrusted-content isolation + translation-only D-19 cache + single inflight lock; assets/tickets entities deferred to 44-02 (guarded refuse placeholder).
 Phase 44 Plan 02 result: NLQ-01 fully satisfied — all three entities (vulnerabilities/assets/tickets) answer end-to-end; the north-star multi-predicate question and all 4 UI-SPEC starter questions resolve; hostname->UUID resolution is deterministic and server-side; unresolvable hostnames are zero-results, never a refusal. Frontend (44-03/44-04/44-05) and the eval/red-team gate (44-06) remain.
 Phase 44 Plan 03 result: Frontend data + presentational layer complete — useQueryStream's state machine structurally guarantees D-15 (interpreted/results visible before any narrative text, proven via a controllable-reader test); DegradedCard importable for ask/'s degraded states; ResultTable proves D-08 (never a second table) via mocked-primitive dispatch tests; query-box/starter-questions/interpreted-filter render verbatim UI-SPEC copy on sunset tokens only. No page composition yet — 44-04 remains.
