@@ -321,7 +321,7 @@ Plans:
   2. Queries are constrained to a safe, predefined schema — no free-form SQL generation, no injection path, no cross-tenant reach
   3. The assistant is inert (a "configure AI" state) until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold and guardrails verbatim — no shared/fallback key
 
-**Plans**: 1/6 plans executed (tracer-led)
+**Plans**: 2/6 plans executed (tracer-led)
 
 Plans:
 **Wave 1**
@@ -330,7 +330,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 44-02-PLAN.md — Backend query surface expansion (D-03 predicates + assets/tickets entity branches + hostname resolution)
+- [x] 44-02-PLAN.md — Backend query surface expansion (D-03 predicates + assets/tickets entity branches + hostname resolution) *(2026-08-25 — VulnerabilityFilter.asset_internet_facing (subquery, no Pitfall-1 double-join) + sla_breached (stored derived-mirror column); AssetFilter.internet_facing (native column); ticketing/schemas.py TicketQueryFilter (extra=forbid, list_tickets untouched); _run_query_stream's assets/tickets branches replace the Plan-01 guarded refuse placeholder with real list_assets/list_tickets execution, server-side _resolve_hostname before list_tickets (never a model-emitted UUID), unresolvable hostname -> zero-results not refusal; FEW_SHOT_QUERY_TRANSLATE extended with the north-star + all 4 UI-SPEC starter questions. 29 new/modified tests green + 48+58 regression tests unaffected. Phase 44 NLQ-01 complete (all 3 entities wired).)*
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -371,7 +371,7 @@ Plans:
 | 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
 | 42. Risk Trend Analytics & Burndown | 3/3 | Complete    | 2026-08-21 |
 | 43. Executive & Compliance Reporting | 4/4 | Complete    | 2026-08-24 |
-| 44. Natural-Language Query Assistant | 0/? | Not started | - |
+| 44. Natural-Language Query Assistant | 2/6 | In Progress | - |
 | 45. Public API, Webhooks & SDK | 0/? | Not started | - |
 
 ## Next

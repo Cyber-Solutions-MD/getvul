@@ -79,7 +79,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 
 ### Natural-Language Query Assistant (NLQ) — Phase 44 · (AINL-01, deferred from v3.1)
 
-- [ ] **NLQ-01**: Plain-English questions over the tenant's own vuln/asset/ticket data return grounded, tenant-scoped answers with the underlying result set shown
+- [x] **NLQ-01**: Plain-English questions over the tenant's own vuln/asset/ticket data return grounded, tenant-scoped answers with the underlying result set shown *(Phase 44-01/44-02, 2026-08-25 — all three entities (vulnerabilities/assets/tickets) wired end-to-end)*
 - [ ] **NLQ-02**: Queries are constrained to a safe schema (no free-form SQL, no injection, no cross-tenant reach)
 - [ ] **NLQ-03**: Inert until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold + guardrails
 
