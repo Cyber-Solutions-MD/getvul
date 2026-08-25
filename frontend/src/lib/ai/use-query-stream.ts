@@ -66,7 +66,12 @@ export type QueryStreamState =
     }
   | { phase: 'no_key' }
   | { phase: 'refuse' }
-  | { phase: 'error'; kind: QueryStreamErrorKind };
+  // 44-04 (UI-SPEC E8 backstop): httpStatus/requestId are OPTIONAL and only
+  // ever populated when a real fetch() Response was obtained (the
+  // transient-error banner's "HTTP code + request ID" contract) -- the
+  // pre-fetch network-failure catch (no Response object exists yet) leaves
+  // both undefined, and callers must never assume either is present.
+  | { phase: 'error'; kind: QueryStreamErrorKind; httpStatus?: number; requestId?: string };
 
 type InterpretedEvent = { type: 'interpreted'; entity: NlqEntity; filter: Record<string, unknown> };
 type ResultsEvent = { type: 'results'; rows: unknown[]; total: number };
@@ -83,6 +88,33 @@ type RawSseEvent =
   | NoKeyEvent
   | RefuseEvent
   | ErrorEvent;
+
+// 44-04 (E8 backstop, Rule 2): the transient-error DegradedCard/banner needs
+// an HTTP code + request ID to point the analyst at (mirrors
+// PartialFailureBanner's own ErrorRow shape, T-11-15 -- code + requestId
+// only, never a raw stack). Both are read defensively via optional chaining
+// so a test's plain `{ ok, body }` Response stub (no `.headers`/`.status`)
+// never throws -- the fields simply come back `undefined` and are omitted
+// from state (keeping every existing `toEqual({phase:'error',kind:...})`
+// assertion in use-query-stream.test.ts byte-identical).
+function statusOf(res: Response | undefined): number | undefined {
+  return typeof res?.status === 'number' ? res.status : undefined;
+}
+
+function requestIdOf(res: Response | undefined): string | undefined {
+  return res?.headers?.get?.('X-Request-ID') ?? undefined;
+}
+
+function errorState(kind: QueryStreamErrorKind, res?: Response): QueryStreamState {
+  const httpStatus = statusOf(res);
+  const requestId = requestIdOf(res);
+  return {
+    phase: 'error',
+    kind,
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
+    ...(requestId !== undefined ? { requestId } : {}),
+  };
+}
 
 /**
  * useQueryStream() -- fetch() + ReadableStream SSE consumer for the
@@ -116,7 +148,7 @@ export function useQueryStream() {
     }
 
     if (!res.ok || !res.body) {
-      setState({ phase: 'error', kind: 'unknown' });
+      setState(errorState('unknown', res));
       return;
     }
 
@@ -181,12 +213,12 @@ export function useQueryStream() {
           } else if (evt.type === 'refuse') {
             setState({ phase: 'refuse' });
           } else if (evt.type === 'error') {
-            setState({ phase: 'error', kind: evt.kind });
+            setState(errorState(evt.kind, res));
           }
         }
       }
     } catch {
-      setState({ phase: 'error', kind: 'unknown' });
+      setState(errorState('unknown', res));
     }
   }, []);
 

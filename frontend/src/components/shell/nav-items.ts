@@ -3,7 +3,7 @@
 // This is a plain .ts file (no JSX) — all types + arrays + helpers in one place.
 import {
   Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban, Target, ShieldOff, Radar, LineChart,
-  ShieldCheck,
+  ShieldCheck, Sparkles,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -61,6 +61,11 @@ export const WORKFLOW_ITEMS: NavItem[] = [
   // Phase 43 (43-01, RPT-03) — framework-control compliance posture view.
   // No chip per D-N-01 (not one of the three chip-carrying destinations).
   { label: 'Compliance', href: '/dashboard/compliance', icon: ShieldCheck },
+  // Phase 44 (44-04, D-09/NLQ-01) — natural-language query assistant.
+  // ALWAYS visible regardless of AI-configured state (D-12: the inert
+  // "Configure AI" card lives on the page itself, never a hidden nav item).
+  // No chip per D-N-01 (not one of the three chip-carrying destinations).
+  { label: 'Ask', href: '/dashboard/ask', icon: Sparkles },
 ];
 
 export const UNLABELED_ITEMS: NavItem[] = [

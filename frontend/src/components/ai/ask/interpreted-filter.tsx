@@ -63,6 +63,15 @@ function tokensFor(filter: Record<string, unknown>): string[] {
     .filter((token): token is string => token !== null);
 }
 
+// 44-04 (Plan 04, D-04): exported so the zero-results EmptyState body
+// ("Interpreted as: {predicate summary}. Try broadening a term...") can
+// reuse the EXACT SAME token-formatting logic this card renders -- the
+// predicate summary can never drift between the two surfaces since both
+// read from this one function.
+export function formatInterpretedFilterSummary(filter: Record<string, unknown>): string {
+  return tokensFor(filter).join(' · ');
+}
+
 export type InterpretedFilterProps = {
   filter: Record<string, unknown>;
 };

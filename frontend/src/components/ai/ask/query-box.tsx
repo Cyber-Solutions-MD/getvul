@@ -12,22 +12,28 @@
  *   - long-text: bounded to 500 chars with a live counter; text never clips.
  *   - overflow: soft-wraps and grows to a bounded height, then scrolls
  *     internally (max-h-40 overflow-y-auto) rather than clipping.
+ *
+ * 44-04 (Plan 04, D-11): lifted to a CONTROLLED component (`value`/
+ * `onChange` owned by the page) so a starter-question chip click can fill
+ * the box -- this component has exactly one consumer (the Ask page, built
+ * by this same plan), so there is no other call site to keep an
+ * uncontrolled API for.
  */
-import { useCallback, useState, type KeyboardEvent } from 'react';
+import { useCallback, type KeyboardEvent } from 'react';
 import { Sparkles } from 'lucide-react';
 
 const MAX_LENGTH = 500;
 const WARN_THRESHOLD = 450;
 
 export type QueryBoxProps = {
+  value: string;
+  onChange: (value: string) => void;
   onAsk: (question: string) => void;
   /** True while a question is in-flight (translate/execute/narrate) -- disables the field + CTA. */
   pending?: boolean;
 };
 
-export function QueryBox({ onAsk, pending = false }: QueryBoxProps) {
-  const [question, setQuestion] = useState('');
-
+export function QueryBox({ value: question, onChange, onAsk, pending = false }: QueryBoxProps) {
   const trimmed = question.trim();
   const isEmpty = trimmed.length === 0;
   const isDisabled = isEmpty || pending;
@@ -55,7 +61,7 @@ export function QueryBox({ onAsk, pending = false }: QueryBoxProps) {
       <div className="flex flex-col gap-2">
         <textarea
           value={question}
-          onChange={(e) => setQuestion(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Which internet-facing hosts have an unremediated KEV older than 30 days?"
           maxLength={MAX_LENGTH}
