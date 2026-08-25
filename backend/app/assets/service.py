@@ -30,6 +30,8 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: AssetFilter) ->
         query = query.where(Asset.risk_score >= filters.risk_score_min)
     if filters.device_category:
         query = query.where(Asset.device_category == filters.device_category)
+    if filters.internet_facing is not None:
+        query = query.where(Asset.internet_facing == filters.internet_facing)
     if filters.search:
         query = query.where(
             or_(
@@ -82,10 +84,15 @@ async def list_assets(
                 id=asset.id,
                 hostname=asset.hostname,
                 os_name=asset.os_name,
+                os_version=asset.os_version,
                 asset_type=asset.asset_type,
                 cloud_provider=asset.cloud_provider,
                 seen_by_sources=asset.seen_by_sources,
                 risk_score=asset.risk_score,
+                device_category=asset.device_category,
+                model=asset.model,
+                assigned_user=asset.assigned_user,
+                managed_by=asset.managed_by,
                 open_vuln_count=open_count,
             )
         )

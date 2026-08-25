@@ -16,8 +16,9 @@ import Pagination from '@/components/ui/Pagination';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useUrlState } from '@/hooks/use-url-state';
 import { useUrlStateList } from '@/hooks/use-url-state-list';
+import { useUrlStateBool, useUrlStateNumber } from '@/hooks/use-url-state-scalar';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { useVulnerabilities, type VulnerabilitiesFilters } from '@/lib/queries/use-vulnerabilities';
+import { useVulnerabilities, type VulnerabilitiesFilters, type VulnerabilitySummary } from '@/lib/queries/use-vulnerabilities';
 import { useConnectors } from '@/lib/queries/use-connectors';
 import { queryKeys } from '@/lib/queries/keys';
 
@@ -76,6 +77,16 @@ function VulnerabilitiesPageInner() {
   const [sort, setSort] = useUrlState<SortField>('sort', SORT_FIELDS, '');
   const [order, setOrder] = useUrlState<Order>('order', ORDERS, 'desc');
 
+  // Phase 44 / NLQ-01 / D-17 — the full D-17 field set (boolean + bounded-
+  // numeric, previously zero URL-param path — see 44-PATTERNS.md). Param
+  // names match buildNlqDeepLink's FIELD_MAP exactly so a deep-linked URL
+  // filters this page identically to how the assistant answered it.
+  const [cisaKev, setCisaKev] = useUrlStateBool('cisa_kev', false);
+  const [exploitAvailable, setExploitAvailable] = useUrlStateBool('exploit_available', false);
+  const [slaBreached, setSlaBreached] = useUrlStateBool('sla_breached', false);
+  const [assetInternetFacing, setAssetInternetFacing] = useUrlStateBool('asset_internet_facing', false);
+  const [ageDaysMin, setAgeDaysMin] = useUrlStateNumber('age_days_min', { min: 0, defaultValue: null });
+
   // Search is free-text — chip-bar owns the debounce. Page reads the flushed value.
   const search = params?.get('search') ?? '';
   const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
@@ -89,7 +100,12 @@ function VulnerabilitiesPageInner() {
     source: source.length > 0 ? source : undefined,
     status: status.length > 0 ? status : undefined,
     search: search || undefined,
-  }), [severity, source, status, search]);
+    kev_only: cisaKev || undefined,
+    exploit_only: exploitAvailable || undefined,
+    sla_breached: slaBreached || undefined,
+    asset_internet_facing: assetInternetFacing || undefined,
+    age_days_min: ageDaysMin ?? undefined,
+  }), [severity, source, status, search, cisaKev, exploitAvailable, slaBreached, assetInternetFacing, ageDaysMin]);
 
   const q = useVulnerabilities({ filters, group, page: pageNum, sort, order });
   const connectorsQ = useConnectors();
@@ -128,7 +144,21 @@ function VulnerabilitiesPageInner() {
     router.replace(qs ? `${pathname}?${qs}` : (pathname ?? '/'), { scroll: false });
   }, [router, pathname, params]);
 
-  const hasActiveFilters = severity.length > 0 || source.length > 0 || status.length > 0 || search.length > 0;
+  // Rule 1 fix: a D-17 deep-link may carry ONLY a boolean/numeric predicate
+  // (e.g. ?cisa_kev=true, no severity/source/status/search) — without these
+  // in the check, a zero-result deep-link fell through every render branch
+  // to `null` (no empty state at all), violating the mandatory empty-state
+  // contract (state-patterns.md).
+  const hasActiveFilters =
+    severity.length > 0 ||
+    source.length > 0 ||
+    status.length > 0 ||
+    search.length > 0 ||
+    cisaKev ||
+    exploitAvailable ||
+    slaBreached ||
+    assetInternetFacing ||
+    ageDaysMin != null;
 
   // Normalize facets per-key (Rule 1 defensive) — backend may return `{}` in
   // the empty-filtered branch; ChipBar's index access (facets.severity[…]) NPEs without this.
@@ -140,6 +170,25 @@ function VulnerabilitiesPageInner() {
   }), [rawFacets]);
 
   const isEmptyFiltered = !!q.data && q.data.items.length === 0 && hasActiveFilters;
+
+  // Deep-link + row-open contract carries `?cve=<value>`, where <value> is a
+  // CVE string (top5-card deep-link, group-by-cve rows) OR already a UUID.
+  // The detail/escalations endpoints accept ONLY a UUID, so resolve the value
+  // to the loaded list item's UUID `id` before it reaches the drill (the
+  // resolution use-vulnerability-detail.ts documents). Falls back to the raw
+  // value when the target isn't on the loaded page (e.g. a deep-linked CVE
+  // not in the current result set).
+  const resolvedDrillId = useMemo(() => {
+    if (!cveDeepLink) return null;
+    // Only the group-by-cve shape (VulnerabilitySummary) carries id/cve_id;
+    // the group-by-host shape has neither, so the guard narrows the union and
+    // host-mode falls through to the raw value.
+    const match = (q.data?.items ?? []).find(
+      (it): it is VulnerabilitySummary =>
+        'id' in it && (it.cve_id === cveDeepLink || it.id === cveDeepLink),
+    );
+    return match?.id ?? cveDeepLink;
+  }, [cveDeepLink, q.data]);
 
   return (
     <>
@@ -182,7 +231,23 @@ function VulnerabilitiesPageInner() {
             <EmptyState.Title>{microcopy.empty.title}</EmptyState.Title>
             <EmptyState.Body>{microcopy.empty.body}</EmptyState.Body>
             <EmptyState.Actions>
-              <button type="button" onClick={() => { setSeverity([]); setSource([]); }} className={CTA_PRIMARY}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSeverity([]);
+                  setSource([]);
+                  // Rule 1 fix: "Clear all" must also clear the D-17
+                  // boolean/numeric predicates a deep-link may have set,
+                  // or a zero-result deep-link can never be cleared from
+                  // this CTA.
+                  setCisaKev(false);
+                  setExploitAvailable(false);
+                  setSlaBreached(false);
+                  setAssetInternetFacing(false);
+                  setAgeDaysMin(null);
+                }}
+                className={CTA_PRIMARY}
+              >
                 {microcopy.empty.clearAll}
               </button>
               <button type="button" onClick={() => toggleSeverity('medium')} className={CTA_SECONDARY}>
@@ -224,8 +289,8 @@ function VulnerabilitiesPageInner() {
           mounts at a time: desktop covers ≥900px, mobile gates on <900px via
           useMediaQuery internally. cveDeepLink + drillOpen passed inline so the
           deep-link wiring stays greppable in this file. */}
-      <DrillPanel cveId={drillOpen ? cveDeepLink : null} />
-      <DrillPanelMobile cveId={drillOpen ? cveDeepLink : null} />
+      <DrillPanel cveId={drillOpen ? resolvedDrillId : null} />
+      <DrillPanelMobile cveId={drillOpen ? resolvedDrillId : null} />
     </>
   );
 }

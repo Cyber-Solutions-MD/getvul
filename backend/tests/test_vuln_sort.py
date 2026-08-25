@@ -155,6 +155,55 @@ async def test_sort_sla_due_at_asc_orders_soonest_first(client, db_session, tena
 
 
 @pytest.mark.asyncio
+async def test_list_response_includes_sla_state_key(client, db_session, tenant_a):
+    """Phase 36 / SLA-01/SLA-02, Pitfall 3: GET /vulnerabilities list items
+    carry `sla_state` + `sla_due_at` (previously undeclared on
+    VulnerabilitySummary -- FastAPI silently drops undeclared response-model
+    attributes). Covers the D-03 NULL-score severity fallback (mapped to the
+    "critical" tier via severity, not the "moderate" default) and the D-12
+    not_tracked floor (risk_exposure_score < 20).
+    """
+    now = datetime.now(UTC)
+    fallback = _seed_vuln(tenant_a, cve_id="CVE-SLA36-FALLBACK", severity="CRITICAL")
+    fallback.first_detected_at = now - timedelta(days=10)  # > critical's 7d fallback window
+    floor = _seed_vuln(tenant_a, cve_id="CVE-SLA36-FLOOR", severity="LOW")
+    floor.risk_exposure_score = 10  # < RISK_SCORE_TIER_MEDIUM (20) -> D-12 not_tracked
+    for v in (fallback, floor):
+        db_session.add(v)
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/vulnerabilities?cve_id=CVE-SLA36&limit=10")
+    assert resp.status_code == 200, resp.text
+    by_cve = {item["cve_id"]: item for item in resp.json().get("items", [])}
+
+    assert "sla_state" in by_cve["CVE-SLA36-FALLBACK"]
+    assert "sla_due_at" in by_cve["CVE-SLA36-FALLBACK"]
+    assert by_cve["CVE-SLA36-FALLBACK"]["sla_state"] == "breached"
+    assert by_cve["CVE-SLA36-FALLBACK"]["sla_due_at"] is not None
+
+    assert by_cve["CVE-SLA36-FLOOR"]["sla_state"] == "not_tracked"
+    assert by_cve["CVE-SLA36-FLOOR"]["sla_due_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_detail_response_includes_sla_state_key(client, db_session, tenant_a):
+    """Phase 36 / SLA-01/SLA-02: GET /vulnerabilities/{id} ALSO carries
+    sla_state + sla_due_at — this phase's must_haves require BOTH the list
+    AND the detail response to carry these fields."""
+    now = datetime.now(UTC)
+    v = _seed_vuln(tenant_a, cve_id="CVE-SLA36-DETAIL", severity="CRITICAL")
+    v.first_detected_at = now - timedelta(days=1)  # within critical's 7d window -> on_track
+    db_session.add(v)
+    await db_session.commit()
+
+    resp = await client.get(f"/api/v1/vulnerabilities/{v.id}")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["sla_state"] == "on_track"
+    assert body["sla_due_at"] is not None
+
+
+@pytest.mark.asyncio
 async def test_sort_rejects_invalid_field_with_422(client):
     """T-11-01: ?sort=password is not in the Literal allow-list → 422 not 500.
 

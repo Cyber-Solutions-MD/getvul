@@ -5,9 +5,19 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PlainSerializer
+
+# Emit numeric score columns as JSON numbers (float), not Pydantic v2's default
+# Decimal-as-string form ("10.0"). Frontend consumers do arithmetic/.toFixed on
+# these, and the string form silently crashed the drill panel (a `number`-typed
+# field arriving as a string). `when_used="json"` keeps Python-mode/from_attributes
+# reads as Decimal for any in-process caller; only the wire form changes.
+ScoreDecimal = Annotated[
+    Decimal,
+    PlainSerializer(lambda v: float(v), return_type=float, when_used="json"),
+]
 
 # ── Responses ──
 
@@ -29,10 +39,10 @@ class VulnerabilityResponse(BaseModel):
     tenant_id: uuid.UUID
     cve_id: str | None
     vulnerability_name: str | None
-    cvss_v3_score: Decimal | None
+    cvss_v3_score: ScoreDecimal | None
     cvss_v3_vector: str | None
     severity: str
-    epss_score: Decimal | None
+    epss_score: ScoreDecimal | None
     exploit_available: bool
     cisa_kev: bool
     asset_id: uuid.UUID | None
@@ -45,8 +55,8 @@ class VulnerabilityResponse(BaseModel):
     remediation_action: str | None = None
     exploit_status_id: int | None = None
     exploit_status_name: str | None = None
-    epss_percentile: Decimal | None = None
-    native_priority_score: Decimal | None = None
+    epss_percentile: ScoreDecimal | None = None
+    native_priority_score: ScoreDecimal | None = None
     native_priority_rating: str | None = None
     source_signals: dict[str, Any] | None = None
     remediation_info: str | None
@@ -67,6 +77,14 @@ class VulnerabilityResponse(BaseModel):
     risk_exposure_score: int | None = None
     risk_exposure_breakdown: list[RiskBreakdownComponent] | None = None
     risk_model_version: str | None = None
+
+    # Phase 36 / SLA-01/SLA-02 (Pitfall 3 — blocking prerequisite for D-11):
+    # server-computed risk-tier SLA state, read-time resolved by service.py
+    # via sla_tier_service.resolve_state_for_vuln. Never re-derived
+    # client-side (D-01/D-02, T-36-01). "not_tracked" + sla_due_at=None is
+    # the valid below-floor state (D-12), not an error condition.
+    sla_state: str | None = None
+    sla_due_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -95,6 +113,11 @@ class VulnerabilitySummary(BaseModel):
     sources: list[str] = Field(default_factory=list)
     sources_count: int = 1
 
+    # Phase 36 / SLA-01/SLA-02: see VulnerabilityResponse's sla_state comment
+    # above — identical contract, list view.
+    sla_state: str | None = None
+    sla_due_at: datetime | None = None
+
     model_config = {"from_attributes": True}
 
 
@@ -119,6 +142,14 @@ class VulnerabilityFilter(BaseModel):
     exploit_available: bool | None = None
     cisa_kev: bool | None = None
     asset_id: uuid.UUID | None = None
+    # Phase 44 / NLQ-01 / D-03: the north-star question's two missing
+    # predicates. asset_internet_facing filters via Asset.internet_facing
+    # (a subquery, not a JOIN -- see service.py::_apply_filters for the
+    # Pitfall-1 double-join rationale). sla_breached maps directly to the
+    # stored, scheduler-refreshed Vulnerability.sla_breached derived mirror
+    # (Pitfall 6) -- never a live resolve_state_for_vuln recompute.
+    asset_internet_facing: bool | None = None
+    sla_breached: bool | None = None
     search: str | None = Field(None, max_length=200, description="Search CVE ID or product name")
     age_days_min: int | None = Field(None, ge=0)
     age_days_max: int | None = Field(None, ge=0)
@@ -211,7 +242,7 @@ class TopVuln(BaseModel):
     cve_id: str | None = None
     host: str | None = None
     path: str | None = None
-    cvss: Decimal | None = None
+    cvss: ScoreDecimal | None = None
     on_kev: bool = False
     exploited: bool = False
 
@@ -267,7 +298,7 @@ class VulnerabilityByHost(BaseModel):
     high_count: int
     medium_count: int
     low_count: int
-    top_cvss: Decimal | None = None
+    top_cvss: ScoreDecimal | None = None
 
     model_config = {"from_attributes": True}
 

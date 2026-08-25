@@ -74,3 +74,7 @@ class AssetFilter(BaseModel):
     risk_score_min: int | None = Field(None, ge=0, le=100)
     device_category: str | None = None
     search: str | None = None
+    # Phase 44 / NLQ-01 / D-03: native Asset.internet_facing column -- no
+    # join needed (unlike VulnerabilityFilter.asset_internet_facing, which
+    # crosses tables via a subquery -- see vulnerabilities/service.py).
+    internet_facing: bool | None = None

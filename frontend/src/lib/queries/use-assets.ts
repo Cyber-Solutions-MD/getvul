@@ -16,6 +16,10 @@ export type AssetsFilters = {
   enrichment_source?: readonly string[];
   os_family?: readonly string[];
   search?: string;
+  // Phase 44 / NLQ-01 / D-17: native Asset.internet_facing column, now bound
+  // as a Query param on the router (see backend/app/assets/router.py) so a
+  // deep-linked `?internet_facing=` actually filters.
+  internet_facing?: boolean;
 };
 
 export type AssetSummary = {
@@ -95,6 +99,7 @@ export function buildSearchParams(opts: {
     sp.set('os_family', opts.filters.os_family.join(','));
   }
   if (opts.filters.search) sp.set('search', opts.filters.search);
+  if (opts.filters.internet_facing) sp.set('internet_facing', 'true');
   sp.set('page', String(opts.page));
   if (opts.sort) {
     sp.set('sort_by', opts.sort);

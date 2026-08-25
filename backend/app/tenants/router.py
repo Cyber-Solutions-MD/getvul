@@ -3,19 +3,189 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy import or_, select, update
 
 from app.audit import audit
 from app.auth.rbac import require_admin, require_owner
 from app.auth.schemas import CurrentUser
 from app.dependencies import AuthenticatedUser, DBSession
+from app.encryption import encrypt_value
 from app.tenants.models import Tenant, User
 from app.tenants.schemas import TenantResponse, UserResponse, UserRoleUpdate
 
 router = APIRouter()
+
+
+# ── SLA & Escalation policy (Phase 36 / SLA-01, SLA-03 — D-14) ──────────────
+#
+# Extends the existing per-tenant `sla_config` JSONB (Tenant.sla_config) with
+# the risk-tier SLA policy + escalation-channel routing that
+# sla_tier_service.py's get_tier_policy() (Plan 01) reads. Validation models
+# are defined endpoint-local (not tenants/schemas.py) — mirrors the
+# assets/router.py inline-Pydantic-model precedent (e.g. its BL-01
+# assigned_user_email model) rather than growing the shared schemas module
+# for a validation-only, PATCH-body-shaped concern.
+
+SLA_SECRET_MASK = "••••••••"  # D-14 mask-on-read placeholder for channel secrets
+_SLA_SECRET_FIELDS: dict[str, str] = {"slack": "url", "teams": "url", "pagerduty": "routing_key"}
+_VALID_SLA_TIER_FLOORS = ("critical", "high", "moderate")  # D-12 — three tiers only, no 4th "low" tier
+
+
+def _validate_https_url(v: str | None) -> str | None:
+    """https-only + mask-bypass (V5 input validation + SSRF pre-check, D-14).
+
+    A resubmitted SLA_SECRET_MASK is not a real URL — the PATCH handler's
+    keep-stored-on-masked-write trick relies on this exact value passing
+    through validation untouched, so the mask must not fail the https check.
+    """
+    if not v or v == SLA_SECRET_MASK:
+        return v
+    if not v.startswith("https://"):
+        raise ValueError("Webhook URL must use https://")
+    return v
+
+
+class SlaWebhookChannel(BaseModel):
+    """Slack / Microsoft Teams incoming-webhook channel (D-04/D-15)."""
+
+    url: str | None = None
+    enabled: bool = False
+
+    @field_validator("url")
+    @classmethod
+    def _https_only(cls, v: str | None) -> str | None:
+        return _validate_https_url(v)
+
+
+class SlaPagerDutyChannel(BaseModel):
+    """PagerDuty Events API v2 channel (D-04). Per D-13, fires on
+    approaching/breached transitions only — no resolve this phase."""
+
+    routing_key: str | None = None
+    enabled: bool = False
+
+
+class SlaEmailChannel(BaseModel):
+    """Email channel reuses the existing SMTP path (D-04); `to` is a list of
+    recipient addresses, not a secret — never masked or encrypted."""
+
+    to: list[str] = Field(default_factory=list)
+    enabled: bool = False
+
+
+class SlaChannelsConfig(BaseModel):
+    slack: SlaWebhookChannel | None = None
+    teams: SlaWebhookChannel | None = None
+    pagerduty: SlaPagerDutyChannel | None = None
+    email: SlaEmailChannel | None = None
+
+
+class SlaRoutingConfig(BaseModel):
+    """Per-transition-type channel routing (D-05) — each transition maps to
+    zero-or-more channel names."""
+
+    approaching: list[str] = Field(default_factory=list)
+    breached: list[str] = Field(default_factory=list)
+
+
+class SlaTierPolicy(BaseModel):
+    """Tier-keyed SLA day counts (D-01) — every tier must be a positive
+    integer day count."""
+
+    critical: int = Field(..., gt=0)
+    high: int = Field(..., gt=0)
+    moderate: int = Field(..., gt=0)
+
+
+class SlaConfigUpdate(BaseModel):
+    """PATCH /settings sla_config validation gate (SLA-01/SLA-03).
+
+    Validation-only — the PATCH handler persists the raw submitted dict
+    (after the masked-write/encrypt merge below), not this model's own
+    serialization, so unrelated legacy keys (e.g. the old severity-SLA
+    `days` map read by sla_service.py) round-trip untouched.
+    """
+
+    tier_policy: SlaTierPolicy | None = None
+    approaching_pct: float | None = Field(None, gt=0, le=1)
+    tier_floor: str | None = None
+    channels: SlaChannelsConfig | None = None
+    routing: SlaRoutingConfig | None = None
+
+    @field_validator("tier_floor")
+    @classmethod
+    def _valid_tier_floor(cls, v: str | None) -> str | None:
+        if v is not None and v not in _VALID_SLA_TIER_FLOORS:
+            raise ValueError(f"tier_floor must be one of {_VALID_SLA_TIER_FLOORS}")
+        return v
+
+
+# ── Alerting & digests config (Phase 40 / ALERT-03 — D-19) ──────────────────
+#
+# Clones the sla_config validation-only-gate + raw-dict-persist pattern
+# above. `alerting_config` is a partial-update body (every field optional,
+# same shape SlaConfigUpdate uses) — validation checks bounds/enums on
+# whatever keys are submitted; the handler persists the raw submitted dict
+# as-is (not this model's own serialization), same convention SlaConfigUpdate
+# documents for itself.
+
+
+class AlertingConfigUpdate(BaseModel):
+    """PATCH /settings alerting_config validation gate (ALERT-03).
+
+    Every field is optional so a partial save (e.g. just `epss_threshold`)
+    validates without requiring the caller to resubmit the entire config —
+    mirrors SlaConfigUpdate's partial-update shape. `routing` references
+    channel NAMES already configured under `sla_config["channels"]"
+    (D-19) — this model never accepts or stores a channel secret.
+    """
+
+    kev_enabled: bool | None = None
+    epss_threshold: float | None = Field(None, ge=0, le=1)
+    cadence: Literal["daily", "weekly"] | None = None
+    send_hour: int | None = Field(None, ge=0, le=23)
+    per_owner_digests: bool | None = None
+    per_team_digests: bool | None = None
+    routing: dict[str, list[str]] | None = None
+
+
+def _safe_alerting(cfg: dict | None) -> dict | None:
+    """Pass-through (no mask-on-read needed): unlike sla_config,
+    alerting_config holds NO channel secrets (D-19) — only routing
+    references to channel NAMES already configured/masked under
+    sla_config["channels"]. Kept as a named function (not inlined) so the
+    "no secrets live here" invariant is a single, documented, greppable
+    seam mirroring _safe_sla/_safe_smtp's shape, rather than an implicit
+    assumption at the GET /settings call site."""
+    return cfg
+
+
+def _safe_sla(cfg: dict | None) -> dict | None:
+    """Mask channel secrets on read (D-14): Slack/Teams webhook URLs and the
+    PagerDuty routing key are Fernet-encrypted at rest and must never
+    round-trip to the browser — not even as ciphertext. email.to is not a
+    secret and passes through untouched."""
+    if not cfg:
+        return cfg
+    safe = dict(cfg)
+    channels = cfg.get("channels")
+    if isinstance(channels, dict):
+        safe_channels: dict = {}
+        for name, chan in channels.items():
+            if isinstance(chan, dict) and name in _SLA_SECRET_FIELDS:
+                field = _SLA_SECRET_FIELDS[name]
+                safe_chan = dict(chan)
+                if safe_chan.get(field):
+                    safe_chan[field] = SLA_SECRET_MASK
+                safe_channels[name] = safe_chan
+            else:
+                safe_channels[name] = chan
+        safe["channels"] = safe_channels
+    return safe
 
 
 @router.get("/me", response_model=TenantResponse)
@@ -132,7 +302,8 @@ async def get_tenant_settings(
         },
         "syslog_config": tenant.syslog_config,
         "smtp_config": _safe_smtp(getattr(tenant, "smtp_config", None)),
-        "sla_config": getattr(tenant, "sla_config", None),
+        "sla_config": _safe_sla(getattr(tenant, "sla_config", None)),
+        "alerting_config": _safe_alerting(getattr(tenant, "alerting_config", None)),
         "branding": getattr(tenant, "branding", None),
     }
 
@@ -202,8 +373,85 @@ async def update_tenant_settings(
     if "sla_config" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm_sla
 
-        tenant.sla_config = body["sla_config"]
+        new_sla = body["sla_config"] or {}
+        try:
+            SlaConfigUpdate.model_validate(new_sla)
+        except ValidationError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+        existing_channels = (tenant.sla_config or {}).get("channels") or {}
+        new_channels = new_sla.get("channels")
+        if isinstance(new_channels, dict):
+            merged_channels: dict = {}
+            for name, chan in new_channels.items():
+                if not isinstance(chan, dict):
+                    merged_channels[name] = chan
+                    continue
+                chan = dict(chan)
+                secret_field = _SLA_SECRET_FIELDS.get(name)
+                if secret_field and chan.get(secret_field):
+                    if chan[secret_field] == SLA_SECRET_MASK:
+                        # keep-stored-on-masked-write (D-14): retain the existing ciphertext
+                        chan[secret_field] = (existing_channels.get(name) or {}).get(secret_field)
+                    else:
+                        chan[secret_field] = encrypt_value(chan[secret_field])
+                merged_channels[name] = chan
+            new_sla["channels"] = merged_channels
+
+        tenant.sla_config = new_sla
         _fm_sla(tenant, "sla_config")
+
+        # Dedicated audit action (D-07) — deliberately excludes raw channel
+        # config from `changed` below (added to that exclusion tuple) so
+        # even ciphertext never reaches the generic settings.update audit
+        # row or its optional syslog/SIEM forward.
+        await audit(
+            db,
+            user,
+            "sla.policy_update",
+            "tenant",
+            str(tenant.id),
+            {
+                "tier_policy": new_sla.get("tier_policy"),
+                "approaching_pct": new_sla.get("approaching_pct"),
+                "tier_floor": new_sla.get("tier_floor"),
+                "channels_configured": sorted(new_channels.keys()) if isinstance(new_channels, dict) else [],
+                "routing": new_sla.get("routing"),
+            },
+        )
+
+    if "alerting_config" in body:
+        from sqlalchemy.orm.attributes import flag_modified as _fm_alerting
+
+        new_alerting = body["alerting_config"] or {}
+        try:
+            AlertingConfigUpdate.model_validate(new_alerting)
+        except ValidationError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+        tenant.alerting_config = new_alerting
+        _fm_alerting(tenant, "alerting_config")
+
+        # Dedicated audit action (D-19 secret-free — alerting_config never
+        # holds a channel secret in the first place, but the audit row is
+        # deliberately excluded from the generic `changed` dict below too,
+        # matching sla.policy_update's own convention, so a future field
+        # addition can't accidentally widen either audit path).
+        await audit(
+            db,
+            user,
+            "alerting.config_update",
+            "tenant",
+            str(tenant.id),
+            {
+                "kev_enabled": new_alerting.get("kev_enabled"),
+                "epss_threshold": new_alerting.get("epss_threshold"),
+                "cadence": new_alerting.get("cadence"),
+                "send_hour": new_alerting.get("send_hour"),
+                "per_owner_digests": new_alerting.get("per_owner_digests"),
+                "per_team_digests": new_alerting.get("per_team_digests"),
+            },
+        )
 
     if "branding" in body:
         from sqlalchemy.orm.attributes import flag_modified as _fm_brand
@@ -221,12 +469,72 @@ async def update_tenant_settings(
         tenant.smtp_config = new_smtp
         _fm_smtp(tenant, "smtp_config")
 
-    # Audit log all changed fields (mask smtp password)
-    changed = {k: v for k, v in body.items() if k not in ("syslog_config", "smtp_config") or (v and v.get("enabled"))}
+    # Audit log all changed fields (mask smtp password). sla_config and
+    # alerting_config are excluded here — each gets its own dedicated audit
+    # row above ("sla.policy_update" / "alerting.config_update") with a
+    # secret-free details shape, whether or not other fields also changed
+    # in this same request.
+    changed = {
+        k: v
+        for k, v in body.items()
+        if k not in ("syslog_config", "smtp_config", "sla_config", "alerting_config") or (v and v.get("enabled"))
+    }
     await audit(db, user, "settings.update", "tenant", str(tenant.id), changed)
 
     await db.commit()
     return {"message": "Settings updated"}
+
+
+@router.post("/settings/alerting/test-digest")
+async def send_test_digest(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Preview the tenant's current alerting digest to the ACTING admin's
+    own email ONLY (T-40-18: require_admin + a recipient hard-pinned to the
+    caller — never an arbitrary or tenant-wide recipient list; this is a
+    preview action, not a broadcast primitive).
+
+    Reuses digests.py's assembly/render seam verbatim (Plan 03) rather than
+    re-deriving digest content. Returns a `status` distinguishing three
+    outcomes the settings pane's E1 backstop needs to branch on without a
+    false-positive error:
+      - "sent"  — the digest had content and the email round-tripped OK.
+      - "empty" — every section is empty right now (D-14); NOT an error.
+      - "error" — SMTP isn't configured/enabled, or the send itself failed.
+    """
+    from app.email import send_email
+    from app.notifications.alerting_config import merged_alerting_config
+    from app.notifications.digests import (
+        _assemble_sections,
+        _digest_plain_text,
+        _digest_subject,
+        _render_digest_html,
+        _sections_empty,
+    )
+
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one()
+
+    sections = await _assemble_sections(db, tenant)
+    if _sections_empty(sections):
+        return {"status": "empty"}
+
+    smtp_config = tenant.smtp_config or {}
+    if not smtp_config.get("enabled") or not smtp_config.get("host"):
+        return {"status": "error", "error": "SMTP is not configured for this tenant"}
+
+    config = merged_alerting_config(tenant)
+    total = sum(len(sections.get(key) or []) for key in ("due", "breaching", "newly_critical", "expiring_exceptions"))
+    result = send_email(
+        smtp_config=smtp_config,
+        to=[user.email],
+        subject=_digest_subject(config, total),
+        body=_digest_plain_text(sections),
+        html_body=_render_digest_html(sections, recipient_label=user.email),
+    )
+    if result.get("ok"):
+        return {"status": "sent"}
+    return {"status": "error", "error": result.get("error")}
 
 
 @router.post("/branding/logo")

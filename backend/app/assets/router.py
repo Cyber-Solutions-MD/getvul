@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -13,11 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset
 from app.assets.constants import ENRICHMENT_SOURCES, SCANNER_SOURCES
+from app.assets.directory import get_directory_user as _get_directory_user
 from app.assets.exposure import EXPOSURE_FIELDS, resolve_group_override_names
 from app.assets.models import Asset, BusinessCriticality, DataSensitivity
 from app.assets.risk_score import RISK_SCORE_TIER_CRITICAL, RISK_SCORE_TIER_HIGH, RISK_SCORE_TIER_MEDIUM
 from app.auth.dependencies import get_current_user, require_role
 from app.db.session import get_db
+from app.exceptions.service import active_exception_subquery
 from app.vulnerabilities.models import Vulnerability
 
 router = APIRouter(prefix="", tags=["Assets"])
@@ -77,50 +79,6 @@ class _ExposureOverrideUpdate(BaseModel):
         return self
 
 
-async def _get_directory_user(db: AsyncSession, tenant_id, asset) -> dict | None:
-    """Find matching directory user for an asset by email."""
-    from app.tenants.models import User
-
-    # Try to match by humaans_email, assigned_user email, or last_login_user
-    emails_to_try = []
-    mdm = asset.mdm_details or {}
-    if mdm.get("humaans_email"):
-        emails_to_try.append(mdm["humaans_email"].lower())
-    if asset.assigned_user and "@" in asset.assigned_user:
-        emails_to_try.append(asset.assigned_user.lower())
-    if asset.last_login_user and "@" in asset.last_login_user:
-        emails_to_try.append(asset.last_login_user.lower())
-
-    if not emails_to_try:
-        return None
-
-    from sqlalchemy import or_
-
-    result = await db.execute(
-        select(User)
-        .where(
-            User.tenant_id == tenant_id,
-            or_(*[User.email == e for e in emails_to_try]),
-        )
-        .limit(1)
-    )
-    u = result.scalar_one_or_none()
-    if not u:
-        return None
-
-    return {
-        "email": u.email,
-        "display_name": u.display_name,
-        "department": u.department,
-        "job_title": u.job_title,
-        "avatar_url": u.avatar_url,
-        "groups": u.groups or [],
-        "idp_source": u.idp_source,
-        "is_active": u.is_active,
-        "role": u.role,
-    }
-
-
 @router.get("")
 async def list_assets(
     page: int = Query(1, ge=1),
@@ -135,6 +93,13 @@ async def list_assets(
     sort_dir: str = Query("desc", description="asc or desc"),
     show_ignored: str = Query("active", description="active, ignored, or all"),
     os_family: str = Query("", description="comma-separated subset of {linux, windows, macos, other}"),
+    # Phase 44 / NLQ-01 / D-17: AssetFilter.internet_facing already exists
+    # (Plan 02, for the AI query-assistant's `list_assets` service-layer
+    # path in app/assets/service.py) but this router builds its query
+    # inline and never called that service function, so the deep-link's
+    # `?internet_facing=` param would otherwise be silently ignored (no
+    # filtering effect). Native column, no join — same pattern as min_risk.
+    internet_facing: bool | None = Query(None),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -211,6 +176,8 @@ async def list_assets(
 
     if min_risk > 0:
         query = query.where(Asset.risk_score >= min_risk)
+    if internet_facing is not None:
+        query = query.where(Asset.internet_facing == internet_facing)
 
     # T-12-01 mitigation: hardcoded ILIKE prefix patterns per family — values are baked
     # into source, never composed from user input. The `os_family` query param is parsed
@@ -270,7 +237,16 @@ async def list_assets(
                 Vulnerability.sla_due_at < func.now(),
             )
             .label("sla_breach"),
-        ).where(Vulnerability.asset_id == a.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
+        ).where(
+            Vulnerability.asset_id == a.id,
+            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            # EXC-02/D-15 (Phase 39 Tier 2 #11): an actively-excepted finding
+            # never inflates the list-badge counts, INCLUDING sla_breach --
+            # 39-03's run_sla_tier_pass fix already stopped updating the
+            # persisted sla_due_at mirror for excepted rows, so this
+            # read-time exclusion agrees with that stale-but-excluded state.
+            ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
+        )
         vcounts = (await db.execute(vuln_q)).one()
 
         items.append(
@@ -400,7 +376,13 @@ async def _build_asset_detail(db: AsyncSession, user, asset: Asset) -> dict:
             Vulnerability.sla_due_at < func.now(),
         )
         .label("sla_breach"),
-    ).where(Vulnerability.asset_id == asset.id, Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]))
+    ).where(
+        Vulnerability.asset_id == asset.id,
+        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        # EXC-02/D-15 (Phase 39 Tier 2 #11): same detail-badge exclusion as
+        # the list endpoint above, incl. sla_breach.
+        ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
+    )
     vc = (await db.execute(vuln_q)).one()
 
     # Phase 32 Plan 05 — which group (if any) currently drives a

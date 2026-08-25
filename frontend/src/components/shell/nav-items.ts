@@ -2,7 +2,8 @@
 // Consumed by: sidebar.tsx, bottom-nav.tsx, nav-drawer.tsx, nav-more-sheet.tsx
 // This is a plain .ts file (no JSX) — all types + arrays + helpers in one place.
 import {
-  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban,
+  Home, Bug, Server, Cloud, Ticket, Plug, Users, Settings, Zap, FolderKanban, Target, ShieldOff, Radar, LineChart,
+  ShieldCheck, Sparkles,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -43,6 +44,28 @@ export const WORKFLOW_ITEMS: NavItem[] = [
   // Phase 32 (32-05) — AssetGroup management surface. No chip per D-N-01
   // (this destination does not carry a live count badge).
   { label: 'Asset groups', href: '/dashboard/asset-groups', icon: FolderKanban },
+  // Phase 38 (38-04, CAMP-01) — dedicated campaign list view. No chip per
+  // D-N-01 (campaigns aren't one of the three chip-carrying destinations:
+  // vuln_open / asset_total / ticket_open).
+  { label: 'Campaigns', href: '/dashboard/campaigns', icon: Target },
+  // Phase 39 (39-06, EXC-02/EXC-03) — manage-only exceptions list view. No
+  // chip per D-N-01 (not one of the three chip-carrying destinations).
+  { label: 'Exceptions', href: '/dashboard/exceptions', icon: ShieldOff },
+  // Phase 41 (41-01, COV-01) — blind-spot detection list view. No chip per
+  // D-N-01 (not one of the three chip-carrying destinations).
+  { label: 'Coverage', href: '/dashboard/coverage', icon: Radar },
+  // Phase 42 (42-01, TREND-01..03) — risk-trend analytics & burndown deep
+  // view. No chip per D-N-01 (not one of the three chip-carrying
+  // destinations).
+  { label: 'Analytics', href: '/dashboard/analytics', icon: LineChart },
+  // Phase 43 (43-01, RPT-03) — framework-control compliance posture view.
+  // No chip per D-N-01 (not one of the three chip-carrying destinations).
+  { label: 'Compliance', href: '/dashboard/compliance', icon: ShieldCheck },
+  // Phase 44 (44-04, D-09/NLQ-01) — natural-language query assistant.
+  // ALWAYS visible regardless of AI-configured state (D-12: the inert
+  // "Configure AI" card lives on the page itself, never a hidden nav item).
+  // No chip per D-N-01 (not one of the three chip-carrying destinations).
+  { label: 'Ask', href: '/dashboard/ask', icon: Sparkles },
 ];
 
 export const UNLABELED_ITEMS: NavItem[] = [

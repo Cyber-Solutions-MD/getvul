@@ -18,6 +18,8 @@ export const STATIC_ROUTES = [
   '/dashboard/connectors',
   '/dashboard/users',
   '/dashboard/settings',
+  // Phase 41 (41-01, COV-01) — new /dashboard/coverage blind-spot list.
+  '/dashboard/coverage',
 ] as const;
 
 // Three-tier responsive nav (D-05):

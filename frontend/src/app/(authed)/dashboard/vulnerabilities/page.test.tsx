@@ -134,6 +134,21 @@ describe('VulnerabilitiesPage — page-level integration (Phase 11)', () => {
     expect(screen.getAllByText(/CVE-2024-3094/).length).toBeGreaterThanOrEqual(1);
   });
 
+  it('resolves the ?cve=<CVE-string> deep-link to the loaded item UUID before calling the detail hook (regression: the detail/escalations endpoints accept only a UUID, so passing a CVE 422d the whole drill)', () => {
+    mockParams = new URLSearchParams('cve=CVE-2024-3094&open=drill');
+    const detailMock = useVulnerabilityDetail as unknown as ReturnType<typeof vi.fn>;
+    detailMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { id: '1', cve_id: 'CVE-2024-3094', title: 'xz backdoor' },
+    });
+    render(<VulnerabilitiesPage />, { wrapper });
+    // item.id === '1' for cve_id 'CVE-2024-3094' — the drill must fetch by '1',
+    // never by the raw CVE string.
+    expect(detailMock).toHaveBeenCalledWith('1');
+    expect(detailMock).not.toHaveBeenCalledWith('CVE-2024-3094');
+  });
+
   it('clicking a row opens the panel + updates URL to ?cve={row.cve}&open=drill', () => {
     render(<VulnerabilitiesPage />, { wrapper });
     const bodyRows = screen

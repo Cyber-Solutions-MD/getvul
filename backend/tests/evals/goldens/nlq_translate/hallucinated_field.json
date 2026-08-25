@@ -1,0 +1,21 @@
+{
+  "question": "show me vulnerabilities owned by jane@acme.com",
+  "model_response": {
+    "entity": "vulnerabilities",
+    "vulnerability_filter": {
+      "severity": null,
+      "cisa_kev": null,
+      "exploit_available": null,
+      "age_days_min": null,
+      "status": null,
+      "asset_internet_facing": null,
+      "sla_breached": null,
+      "owner_email": "jane@acme.com"
+    },
+    "asset_filter": null,
+    "ticket_filter": null,
+    "groundable": true
+  },
+  "expect_valid": false,
+  "note": "T-44-03 hallucinated-field coverage: 'owner_email' is NOT a VulnFilterInput field (no owner-PII field exists anywhere in the NLQ filter contract). VulnFilterInput.model_config = {'extra': 'forbid'} -- NlqFilterResponse.model_validate_json() must raise pydantic.ValidationError. This fixture's own model_response is DELIBERATELY invalid; the golden asserts the REJECTION, not a matching filter."
+}

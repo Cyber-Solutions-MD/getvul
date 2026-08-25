@@ -71,6 +71,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import structlog
@@ -78,6 +79,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.exceptions.service import active_exception_subquery
 from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
 
 logger = structlog.get_logger()
@@ -395,6 +397,12 @@ async def compute_finding_risk_scores(db: AsyncSession, tenant_id: uuid.UUID) ->
             Vulnerability.tenant_id == tenant_id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
             Vulnerability.asset_id.isnot(None),
+            # EXC-02/D-15 (Phase 39 Tier 2 #15): an actively-excepted
+            # finding never drives the asset-level MAX rollup -- NOT
+            # applied to the per-finding write loop above (347-385), which
+            # still scores every OPEN/IN_PROGRESS finding individually
+            # regardless of exception status (D-01).
+            ~active_exception_subquery(tenant_id, datetime.now(UTC)),
         )
         .group_by(Vulnerability.asset_id)
         .subquery()

@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.assets.models import Asset
-from app.notifications.models import Notification
+from app.exceptions.service import active_exception_subquery
+from app.notifications.alerting_config import merged_alerting_config
+from app.notifications.models import AlertingGuard, Notification
 from app.notifications.service import create_notification
 from app.tenants.models import Tenant, User
 from app.ticketing.models import ConnectorConfig
@@ -31,6 +36,7 @@ async def run_alert_checks(db: AsyncSession) -> dict:
         alerts += await _check_sla_breaches(db, tenant)
         alerts += await _check_sync_failures(db, tenant)
         alerts += await _check_risk_score_changes(db, tenant)
+        alerts += await _check_new_kev_epss(db, tenant)  # NEW (D-03) -- distinct sibling, ALERT-01
         total_alerts += alerts
 
     await db.commit()
@@ -98,49 +104,20 @@ async def _check_new_critical_vulns(db: AsyncSession, tenant: Tenant) -> int:
 
 
 async def _check_sla_breaches(db: AsyncSession, tenant: Tenant) -> int:
-    """Find vulns with SLA due within 24 hours that are still open."""
-    now = datetime.now(UTC)
-    sla_window = now + timedelta(hours=24)
-    alerts_created = 0
+    """D-08 reconciliation (Phase 36 Plan 03): retired to a no-op.
 
-    vulns = (
-        await db.execute(
-            select(Vulnerability, Asset)
-            .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
-            .where(
-                Vulnerability.tenant_id == tenant.id,
-                Vulnerability.sla_due_at.isnot(None),
-                Vulnerability.sla_due_at <= sla_window,
-                Vulnerability.sla_due_at > now,
-                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
-            )
-        )
-    ).all()
-
-    for vuln, asset in vulns:
-        resource_id = vuln.cve_id or str(vuln.id)
-
-        # Only create if no existing sla_breach notification in last 24h
-        if await _notification_exists(db, tenant.id, "sla_breach", "vulnerability", resource_id, hours=24):
-            continue
-
-        hostname = asset.hostname if asset else "Unknown host"
-        hours_remaining = max(0, int((vuln.sla_due_at - now).total_seconds() / 3600))
-
-        await create_notification(
-            db,
-            tenant_id=tenant.id,
-            title=f"SLA Breach Warning: {resource_id}",
-            message=f"{resource_id} on {hostname} — SLA due in {hours_remaining}h",
-            severity="high",
-            category="sla_breach",
-            resource_type="vulnerability",
-            resource_id=resource_id,
-            details={"sla_due_at": vuln.sla_due_at.isoformat(), "hours_remaining": hours_remaining},
-        )
-        alerts_created += 1
-
-    return alerts_created
+    This was a flat, severity-agnostic 24h-lookahead in-app breach warning.
+    It has been superseded by the risk-tier SLA engine's own in-app twin
+    (`app.vulnerabilities.sla_tier_service.detect_and_escalate`, category=
+    "sla_escalation") -- keeping both alive would double-fire two unrelated
+    in-app signals for the same finding on every breach (36-RESEARCH.md
+    Pitfall 1). Kept as a callable no-op (rather than deleted + removing
+    its call site in `run_alert_checks`) so the diff stays minimal and the
+    reconciliation intent is self-documented at the retired function's own
+    definition. `tenant`/`db` are accepted but unused -- preserved for
+    call-site compatibility.
+    """
+    return 0
 
 
 async def _check_sync_failures(db: AsyncSession, tenant: Tenant) -> int:
@@ -266,6 +243,226 @@ async def _check_risk_score_changes(db: AsyncSession, tenant: Tenant) -> int:
             alerts_created += 1
 
     return alerts_created
+
+
+async def _check_new_kev_epss(db: AsyncSession, tenant: Tenant) -> int:
+    """ALERT-01 (D-01/D-02/D-04/D-05/D-06/D-20) -- a distinct sibling to
+    `_check_new_critical_vulns` (D-03: must NOT be folded together, a
+    different identity/dedup shape). Detects `(cve_id, asset_id)` pairs that
+    newly qualify as CISA KEV-listed or newly cross the tenant's EPSS
+    threshold, guarded by the durable `AlertingGuard` table (NOT the
+    time-windowed `_notification_exists` used by the other checks above) so
+    a pair fires exactly once per (tenant, cve, asset, trigger_type)
+    transition, ever.
+
+    `kev` and `epss` are each their own independent, self-contained SQL
+    query/guard-slice (`AlertingGuard.trigger_type`-scoped) -- but a finding
+    that is BOTH CISA KEV-listed AND above the EPSS threshold is classified
+    under "kev" only (the more authoritative signal, D-priority) so a single
+    qualifying finding never double-fires two alerts in the same pass; the
+    epss query explicitly excludes `cisa_kev=True` rows to keep that
+    exclusivity a property of the query itself, not runtime bookkeeping.
+
+    On a tenant's first-ever pass for a given trigger_type (its guard slice
+    is completely empty), every currently-qualifying pair is inserted into
+    the guard WITHOUT firing (D-06 cold-start seeding) -- otherwise day one
+    would alert-storm the tenant's entire existing backlog.
+
+    Own-flush/no-own-commit, matching this module's other checks -- the
+    caller (`run_alert_checks`) commits once per tick.
+    """
+    now = datetime.now(UTC)
+    config = merged_alerting_config(tenant)
+    fired_count = 0
+
+    for trigger_type in ("kev", "epss"):
+        trigger_predicate: ColumnElement[bool]
+        if trigger_type == "kev":
+            if not config.get("kev_enabled", True):
+                continue
+            trigger_predicate = Vulnerability.cisa_kev.is_(True)
+        else:
+            threshold = config.get("epss_threshold")
+            if threshold is None:
+                continue
+            trigger_predicate = and_(
+                ~Vulnerability.cisa_kev.is_(True),
+                # Comparison performed in SQL (literal bind) so Postgres
+                # coerces the Numeric(5,4)/float boundary itself.
+                Vulnerability.epss_score >= literal(Decimal(str(threshold))),
+            )
+
+        rows = (
+            await db.execute(
+                select(Vulnerability, Asset)
+                .outerjoin(Asset, Vulnerability.asset_id == Asset.id)
+                .where(
+                    Vulnerability.tenant_id == tenant.id,
+                    trigger_predicate,
+                    Vulnerability.status.notin_(["SUPPRESSED", "FALSE_POSITIVE"]),
+                    ~active_exception_subquery(tenant.id, now),
+                )
+            )
+        ).all()
+
+        qualifiers = {(vuln.cve_id, vuln.asset_id): (vuln, asset) for vuln, asset in rows if vuln.cve_id}
+        if not qualifiers:
+            continue
+
+        guard_rows = (
+            (
+                await db.execute(
+                    select(AlertingGuard).where(
+                        AlertingGuard.tenant_id == tenant.id,
+                        AlertingGuard.trigger_type == trigger_type,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        guard_keys = {(g.cve_id, g.asset_id) for g in guard_rows}
+        is_cold_start = len(guard_keys) == 0
+
+        # Deterministic ordering (stable subtraction) -- sort by cve_id then
+        # asset_id (str-cast, asset_id may be None).
+        new_keys = sorted(set(qualifiers) - guard_keys, key=lambda k: (k[0], str(k[1])))
+        if not new_keys:
+            continue
+
+        if is_cold_start:
+            for cve_id, asset_id in new_keys:
+                db.add(
+                    AlertingGuard(
+                        tenant_id=tenant.id,
+                        cve_id=cve_id,
+                        asset_id=asset_id,
+                        trigger_type=trigger_type,
+                        fired_at=None,
+                    )
+                )
+            await db.flush()
+            continue
+
+        for cve_id, asset_id in new_keys:
+            vuln, asset = qualifiers[(cve_id, asset_id)]
+            await _fire_kev_epss_alert(db, tenant, vuln, asset, trigger_type, config)
+            db.add(
+                AlertingGuard(
+                    tenant_id=tenant.id,
+                    cve_id=cve_id,
+                    asset_id=asset_id,
+                    trigger_type=trigger_type,
+                    fired_at=now,
+                )
+            )
+            fired_count += 1
+        await db.flush()
+
+    return fired_count
+
+
+async def _fire_kev_epss_alert(
+    db: AsyncSession,
+    tenant: Tenant,
+    vuln: Vulnerability,
+    asset: Asset | None,
+    trigger_type: str,
+    config: dict[str, Any],
+) -> None:
+    """ALERT-01 fire step -- resolves the asset's owner via the directory
+    (else falls back to admins + the tenant channel, D-10), pushes to every
+    channel configured for `routing.new_kev_epss` through the shared
+    Phase-36 dispatch seam (D-07/D-19, fail-isolated -- a channel POST
+    failure never blocks the in-app twin or any other channel), creates the
+    in-app notification twin (category `new_kev_epss`), and writes a
+    scheduler-side `AuditLog` row directly with the real `tenant.id` (T-40-06
+    -- never `audit(db, None, ...)`, which would mis-bucket under a nil
+    tenant).
+    """
+    from app.assets.directory import get_directory_user
+    from app.audit import AuditLog
+    from app.notifications.escalation_channels import dispatch_channel
+    from app.notifications.service import _send_notification_email
+    from app.vulnerabilities.sla_tier_service import _build_channel_config
+
+    hostname = asset.hostname if asset else "Unknown host"
+    vuln_name = vuln.vulnerability_name or vuln.cve_id or "Unknown vulnerability"
+    title = f"New {trigger_type.upper()} Match: {vuln.cve_id}"
+    message = f"{vuln_name} on {hostname} newly qualifies for {trigger_type.upper()} alerting"
+
+    # D-10: resolved owner(s) get emailed directly; an unresolved owner
+    # falls back to the tenant's OWNER/ADMIN users (`_email_owners_and_admins`
+    # already fans out to every matching user, i.e. "multiple owners" when
+    # more than one OWNER/ADMIN exists).
+    directory_user = await get_directory_user(db, tenant.id, asset) if asset is not None else None
+    if directory_user and directory_user.get("email"):
+        await _send_notification_email(db, tenant.id, directory_user["email"], title, message, "new_kev_epss")
+    else:
+        await _email_owners_and_admins(db, tenant, title, message, "new_kev_epss")
+
+    # D-07/D-19: tenant channel push, reusing Phase 36's shared-credential
+    # dispatch seam. Never raises -- a decrypt/dispatch failure is logged
+    # and skipped, it must not block the in-app twin or the audit row below.
+    sla_config = tenant.sla_config or {}
+    routing = config.get("routing") or {}
+    channels = routing.get("new_kev_epss") or []
+    for channel in channels:
+        try:
+            channel_config = _build_channel_config(sla_config, channel, tenant)
+            outcome = await dispatch_channel(
+                channel,
+                channel_config,
+                {
+                    "cve_id": vuln.cve_id,
+                    "hostname": hostname,
+                    "trigger_type": trigger_type,
+                    "to_state": "new_kev_epss",
+                },
+            )
+        except Exception as e:  # decrypt/dispatch failure -- never blocks the rest of the fire step
+            outcome = {"ok": False, "error": str(e)}
+        if not outcome.get("ok"):
+            logger.warning(
+                "kev_epss_channel_dispatch_failed",
+                tenant_id=str(tenant.id),
+                channel=channel,
+                cve_id=vuln.cve_id,
+                error=outcome.get("error"),
+            )
+
+    await create_notification(
+        db,
+        tenant_id=tenant.id,
+        title=title,
+        message=message,
+        severity="high",
+        category="new_kev_epss",
+        resource_type="vulnerability",
+        resource_id=vuln.cve_id,
+        details={
+            "cve_id": vuln.cve_id,
+            "asset_id": str(vuln.asset_id) if vuln.asset_id else None,
+            "trigger_type": trigger_type,
+        },
+    )
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=None,
+            user_email="system:scheduler",
+            action="alert.fire",
+            resource_type="vulnerability",
+            resource_id=vuln.cve_id,
+            details={
+                "trigger_type": trigger_type,
+                "asset_id": str(vuln.asset_id) if vuln.asset_id else None,
+            },
+            ip_address=None,
+            created_at=datetime.now(UTC),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -12,9 +12,10 @@ from sqlalchemy import case, distinct, func, select
 from sqlalchemy import update as sql_update
 
 from app.assets.models import Asset
-from app.auth.rbac import require_analyst, require_viewer
+from app.auth.rbac import require_admin, require_analyst, require_viewer
 from app.auth.schemas import CurrentUser
 from app.dependencies import DBSession
+from app.exceptions.service import active_exception_subquery
 from app.pagination import PaginationParams
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.schemas import (
@@ -61,6 +62,16 @@ async def list_vulns(
     search: str | None = Query(None),
     age_days_min: int | None = Query(None, ge=0),
     age_days_max: int | None = Query(None, ge=0),
+    # Phase 44 / NLQ-01 / D-17: VulnerabilityFilter already carries these two
+    # predicates (Plan 02, for the AI query-assistant path) but this router
+    # never bound them as explicit Query params, so `?sla_breached=` /
+    # `?asset_internet_facing=` were silently dropped before reaching
+    # VulnerabilityFilter — the deep-link's two additive predicates would
+    # otherwise 404-silently (no filtering effect). Wiring them here is the
+    # remaining piece that makes the D-17 deep-link's full param set actually
+    # filter (mirrors the existing exploit_available/cisa_kev pattern).
+    sla_breached: bool | None = Query(None),
+    asset_internet_facing: bool | None = Query(None),
     # T-11-01: pydantic-validated Literal. Unknown sort fields surface as
     # 422 (not 500) before the handler runs.
     sort: Literal[
@@ -128,6 +139,8 @@ async def list_vulns(
         search=search,
         age_days_min=age_days_min,
         age_days_max=age_days_max,
+        sla_breached=sla_breached,
+        asset_internet_facing=asset_internet_facing,
         sort=sort,
         order=order,
         group=group,
@@ -202,11 +215,21 @@ async def trend_analytics(
 async def sla_metrics(
     db: DBSession,
     user: Annotated[CurrentUser, Depends(require_viewer)],
+    exclude_exceptions: bool = Query(False),
 ):
-    """Get SLA compliance metrics."""
+    """Get SLA compliance metrics.
+
+    Phase 43 Plan 04 (RPT-02, T-43-15): additive, default-`False`
+    `exclude_exceptions` query param -- byte-identical for every existing
+    consumer that omits it. The leadership/compliance-lens SLA-compliance
+    tile (`use-sla-metrics.ts`) requests `exclude_exceptions=true` so its
+    % matches the compliance page (Plan 01) and the board PDF (Plan 02),
+    both of which already call `get_sla_metrics(..., exclude_exceptions=
+    True)` directly -- never a divergent board number (Pitfall 2).
+    """
     from app.vulnerabilities.sla_service import get_sla_metrics
 
-    return await get_sla_metrics(db, user.tenant_id)
+    return await get_sla_metrics(db, user.tenant_id, exclude_exceptions=exclude_exceptions)
 
 
 @router.post("/sla/backfill")
@@ -261,6 +284,26 @@ async def sla_recalculate(
     await audit(db, user, "sla.recalculate", "vulnerability", None, {**result, **breaches})
     await db.commit()
     return {**result, **breaches}
+
+
+# ── MTTR by tier (Phase 36 Plan 04 / SLA-04, D-09) ──
+
+
+@router.get("/mttr/by-tier")
+async def mttr_by_tier(
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_admin)],
+):
+    """Tier-grouped MTTR aggregate (avg duration_seconds + count per
+    tier_at_remediation), read from the durable `remediation_events` table.
+
+    Admin-gated + tenant-scoped (T-36-mttr-rbac / T-36-mttr-tenant) — feeds
+    Phase 42/43 reporting. Does not touch the pre-existing flat MTTR tiles
+    on `/stats`/`/trends` (Pitfall 11).
+    """
+    from app.vulnerabilities.service import get_mttr_by_tier
+
+    return await get_mttr_by_tier(db, user.tenant_id)
 
 
 # ── Saved Filters (must be before /{vuln_id} to avoid route conflicts) ──
@@ -704,6 +747,57 @@ async def get_vuln_correlation(
     return {"correlated": True, **corr}
 
 
+# ── Escalation history (Phase 36 Plan 03 / SLA-03, D-07) ──
+
+
+@router.get("/{vuln_id}/escalations")
+async def get_vuln_escalations(
+    vuln_id: uuid.UUID,
+    db: DBSession,
+    user: Annotated[CurrentUser, Depends(require_viewer)],
+):
+    """Get the escalation-fire history for a vulnerability (D-07
+    user-visible history), tenant-scoped, ordered by fired_at ascending.
+
+    `get_vulnerability` performs the tenant-scope + existence check (IDOR
+    pattern: a cross-tenant vuln_id is indistinguishable from a missing
+    one, 404 not 403 — matches `get_vuln_correlation` above).
+    """
+    from app.vulnerabilities.models import SlaEscalationEvent
+
+    vuln = await get_vulnerability(db, user.tenant_id, vuln_id)
+    if vuln is None:
+        raise HTTPException(status_code=404, detail="Vulnerability not found")
+
+    rows = (
+        (
+            await db.execute(
+                select(SlaEscalationEvent)
+                .where(
+                    SlaEscalationEvent.tenant_id == user.tenant_id,
+                    SlaEscalationEvent.vulnerability_id == vuln_id,
+                )
+                .order_by(SlaEscalationEvent.fired_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    return [
+        {
+            "id": str(row.id),
+            "from_state": row.from_state,
+            "to_state": row.to_state,
+            "channel": row.channel,
+            "fired_at": row.fired_at.isoformat(),
+            "delivery_status": row.delivery_status,
+            "error_message": row.error_message,
+        }
+        for row in rows
+    ]
+
+
 # ── Remediation views ──
 
 
@@ -896,6 +990,10 @@ async def remediations_for_host(
             Vulnerability.asset_id == asset_id,
             Vulnerability.tenant_id == user.tenant_id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            # EXC-02/D-15 (Phase 39 Consumer 11 / Pitfall 5): this endpoint
+            # is a hand-rolled ad hoc query that bypasses _base_open_vulns
+            # entirely -- it needs its own exclusion predicate.
+            ~active_exception_subquery(user.tenant_id, datetime.now(UTC)),
         )
         .group_by(Vulnerability.remediation_action, Vulnerability.affected_product)
         .order_by(

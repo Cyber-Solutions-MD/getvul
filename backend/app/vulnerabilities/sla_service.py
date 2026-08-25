@@ -9,6 +9,7 @@ import structlog
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions.service import active_exception_subquery
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import Vulnerability
 
@@ -115,20 +116,55 @@ async def check_sla_breaches(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     return {"newly_breached": newly_breached, "cleaned_up": cleanup.rowcount}
 
 
-async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
-    """Get comprehensive SLA compliance metrics."""
+async def get_sla_metrics(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    severity: str | None = None,
+    exclude_exceptions: bool = False,
+) -> dict:
+    """Get comprehensive SLA compliance metrics.
+
+    Phase 43 Plan 01 (RPT-01/RPT-03) extension: `severity` and
+    `exclude_exceptions` are additive, keyword-only, default-`None`/`False`
+    params -- every pre-existing call site (dashboard.py, router.py,
+    trends.py) passes neither and is byte-for-byte unaffected (D-01a
+    "never re-derive").
+
+    - `severity`: scopes every count below (open AND remediated) to a
+      single severity.
+    - `exclude_exceptions`: appends `~active_exception_subquery(tenant_id,
+      now)` (imported from app.exceptions.service, mirroring
+      analytics/service.py::_open_backlog_conditions verbatim) to every
+      count below. 43-RESEARCH.md Pitfall 2: this module predates Phase
+      39's exception workflow and, unlike analytics/service.py and
+      export.py::_collect_summary_data, never excluded actively-excepted
+      findings -- not from breached/at_risk, and not from the
+      compliance_pct source queries (remediated_total/
+      remediated_within_sla). Both needed the fix so a caller opting in
+      gets an internally-consistent number wherever exceptions are
+      already excluded elsewhere in the same page/document.
+    """
     now = datetime.now(UTC)
 
     # Get tenant SLA config for display
     tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
     sla_days = get_sla_days(tenant)
 
+    open_conditions = [
+        Vulnerability.tenant_id == tenant_id,
+        Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+    ]
+    if severity:
+        open_conditions.append(Vulnerability.severity == severity)
+    if exclude_exceptions:
+        open_conditions.append(~active_exception_subquery(tenant_id, now))
+
     # Open vulns with SLA tracking
     open_with_sla = (
         await db.execute(
             select(func.count(Vulnerability.id)).where(
-                Vulnerability.tenant_id == tenant_id,
-                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                *open_conditions,
                 Vulnerability.sla_due_at.isnot(None),
             )
         )
@@ -138,8 +174,7 @@ async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     breached = (
         await db.execute(
             select(func.count(Vulnerability.id)).where(
-                Vulnerability.tenant_id == tenant_id,
-                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                *open_conditions,
                 Vulnerability.sla_breached.is_(True),
             )
         )
@@ -150,8 +185,7 @@ async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     at_risk = (
         await db.execute(
             select(func.count(Vulnerability.id)).where(
-                Vulnerability.tenant_id == tenant_id,
-                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                *open_conditions,
                 Vulnerability.sla_due_at.isnot(None),
                 Vulnerability.sla_due_at <= at_risk_cutoff,
                 Vulnerability.sla_due_at > now,
@@ -165,24 +199,25 @@ async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
 
     # Compliance % (remediated within SLA in last 90 days)
     ninety_days_ago = now - timedelta(days=90)
+    remediated_conditions = [
+        Vulnerability.tenant_id == tenant_id,
+        Vulnerability.status == "REMEDIATED",
+        Vulnerability.remediated_at >= ninety_days_ago,
+        Vulnerability.sla_due_at.isnot(None),
+    ]
+    if severity:
+        remediated_conditions.append(Vulnerability.severity == severity)
+    if exclude_exceptions:
+        remediated_conditions.append(~active_exception_subquery(tenant_id, now))
+
     remediated_total = (
-        await db.execute(
-            select(func.count(Vulnerability.id)).where(
-                Vulnerability.tenant_id == tenant_id,
-                Vulnerability.status == "REMEDIATED",
-                Vulnerability.remediated_at >= ninety_days_ago,
-                Vulnerability.sla_due_at.isnot(None),
-            )
-        )
+        await db.execute(select(func.count(Vulnerability.id)).where(*remediated_conditions))
     ).scalar_one()
 
     remediated_within_sla = (
         await db.execute(
             select(func.count(Vulnerability.id)).where(
-                Vulnerability.tenant_id == tenant_id,
-                Vulnerability.status == "REMEDIATED",
-                Vulnerability.remediated_at >= ninety_days_ago,
-                Vulnerability.sla_due_at.isnot(None),
+                *remediated_conditions,
                 Vulnerability.remediated_at <= Vulnerability.sla_due_at,
             )
         )
@@ -194,8 +229,7 @@ async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     breach_by_sev_q = (
         select(Vulnerability.severity, func.count(Vulnerability.id))
         .where(
-            Vulnerability.tenant_id == tenant_id,
-            Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            *open_conditions,
             Vulnerability.sla_breached.is_(True),
         )
         .group_by(Vulnerability.severity)
@@ -206,8 +240,7 @@ async def get_sla_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     avg_days_remaining = (
         await db.execute(
             select(func.avg(func.extract("epoch", Vulnerability.sla_due_at - func.now()) / 86400)).where(
-                Vulnerability.tenant_id == tenant_id,
-                Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+                *open_conditions,
                 Vulnerability.sla_due_at.isnot(None),
                 Vulnerability.sla_breached.is_(False),
             )

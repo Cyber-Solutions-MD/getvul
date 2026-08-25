@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.exceptions.service import active_exception_subquery
 from app.vulnerabilities.models import Vulnerability
 
 
@@ -15,6 +17,11 @@ def _base_open_vulns(tenant_id: uuid.UUID, show_suppressed: str = "active"):
     """Base conditions for vulns.
 
     show_suppressed: "active" (default), "ignored", or "all"
+
+    EXC-02/D-15 (Phase 39 Consumer 7): the exclusion predicate is added to
+    the "active" (default) branch ONLY -- "ignored"/"all" intentionally
+    keep showing suppressed/excepted items, matching this function's own
+    show_suppressed axis convention.
     """
     if show_suppressed == "ignored":
         return and_(
@@ -29,6 +36,7 @@ def _base_open_vulns(tenant_id: uuid.UUID, show_suppressed: str = "active"):
     return and_(
         Vulnerability.tenant_id == tenant_id,
         Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+        ~active_exception_subquery(tenant_id, datetime.now(UTC)),
     )
 
 

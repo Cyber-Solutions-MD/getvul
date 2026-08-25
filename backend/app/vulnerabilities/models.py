@@ -94,6 +94,13 @@ class Vulnerability(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     risk_exposure_breakdown: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     risk_model_version: Mapped[str | None] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default=VulnStatus.OPEN.value, index=True)
+    # SYNC-02/D-02 (Phase 37 Plan 01): consecutive clean-scan counter, mirrors
+    # ConnectorConfig.consecutive_failure_count (ticketing/models.py:55).
+    # Incremented by run_sync's SUCCESS-branch absent-sweep when this
+    # finding's source completes a successful sync without re-detecting it;
+    # reset to 0 on re-detection. At >=2 (fixed threshold) the finding
+    # auto-closes as rescan-verified via mark_vulnerability_remediated.
+    clean_scan_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     remediated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -201,3 +208,90 @@ class RiskExposureBackfillJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class SlaEscalationEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Phase 36 Plan 02 (D-07) -- the durable once-only escalation-fire gate
+    AND the user-visible, auditable escalation history. One row per
+    (tenant, vulnerability, to_state, channel) EVER fired; the
+    `UniqueConstraint` below is both the identity key and the correctness
+    backstop for "exactly once per transition" (mirrors
+    `RiskExposureBackfillJob.uq_risk_backfill_job_tenant` above / 36-RESEARCH
+    Pattern 2), even though this project's single-process scheduler has no
+    concurrent-writer race today.
+
+    `delivery_status`/`error_message` record a channel POST's outcome per
+    row -- a failed send (Pattern 1: caught, never raised) is recorded here,
+    not silently dropped.
+
+    This plan defines the table shape + the channel senders
+    (`app/notifications/escalation_channels.py`) only. The transition-
+    detection + firing loop that actually INSERTs a row -- and the
+    `audit()` call that must accompany every fire (D-07) -- is Plan 03's
+    job, not this one's.
+    """
+
+    __tablename__ = "sla_escalation_events"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "vulnerability_id", "to_state", "channel", name="uq_escalation_once"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    vulnerability_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    from_state: Mapped[str] = mapped_column(String(20), nullable=False)
+    to_state: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    fired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    delivery_status: Mapped[str] = mapped_column(String(20), nullable=False, default="sent", server_default="sent")
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class RemediationEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Phase 36 Plan 04 (D-09/SLA-04) -- the durable per-remediation MTTR
+    capture row. Written by the single `mark_vulnerability_remediated()`
+    helper (`app/vulnerabilities/service.py`) on EVERY REMEDIATED
+    transition, across every scattered write site (36-RESEARCH.md Pitfall
+    6: vulnerabilities/service.py x2, ticketing/service.py x2, ticketing/
+    daily_sync.py x3) -- missing the helper at any one of them silently
+    drops MTTR data for that path.
+
+    `tier_at_remediation` freezes the FINAL risk tier at the moment of
+    remediation (never tier-at-detection, D-09): `tier_for_score` on the
+    frozen `risk_exposure_score` when scored, `severity_to_tier` fallback
+    when the score is NULL (D-03), or the literal string "not_tracked" when
+    a SCORED finding's tier resolves to None (score < RISK_SCORE_TIER_MEDIUM,
+    D-12) -- the row is still written in that case so a below-floor
+    finding's remediation isn't silently dropped from the aggregate, it
+    just buckets into its own "not_tracked" group rather than a named tier
+    (specless SLA-04 probe).
+
+    `duration_seconds` is `remediated_at - first_detected_at`, matching the
+    pre-existing flat MTTR queries' definition (service.py's
+    `get_dashboard_stats`, dashboard.py, trends.py's `get_mttr_trend`) --
+    this table is purely additive per-tier history alongside those, never a
+    replacement (Pitfall 11 -- those three queries are untouched by this
+    plan).
+
+    No `UniqueConstraint` here (unlike `SlaEscalationEvent.uq_escalation_
+    once`) -- the once-only guarantee for THIS table comes from every
+    REMEDIATED write routing through the single helper, not a DB
+    constraint; a vuln legitimately reaching REMEDIATED exactly once per
+    remediation lifecycle produces exactly one row via that helper.
+    """
+
+    __tablename__ = "remediation_events"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    vulnerability_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tier_at_remediation: Mapped[str] = mapped_column(String(20), nullable=False)
+    duration_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    remediated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

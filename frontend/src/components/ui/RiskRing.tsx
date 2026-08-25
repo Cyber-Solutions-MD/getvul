@@ -51,25 +51,60 @@ export type RiskRingProps = {
   score: number | null;
   size?: number; // default 120 (sketch 005 size)
   className?: string;
+  /**
+   * Phase 38 (38-05, CAMP-03) additive escape hatch — overrides the center
+   * score text's risk-band (severity) tint class entirely. Every existing
+   * risk-score call site omits this and keeps the default BAND_TINT lookup
+   * unchanged; the campaign burndown card passes a neutral tint since
+   * pct_remediated is a status concept, never a severity concept (the
+   * UI-SPEC explicitly prohibits severity red/orange/yellow on the
+   * burndown ring — reusing RiskRing "verbatim" means not forking its SVG
+   * arc math, not inheriting its severity-color lookup for a non-severity
+   * number).
+   */
+  tintClassName?: string;
+  /**
+   * Phase 38 (38-05) additive escape hatch — overrides the auto-derived
+   * caption ("Risk unavailable" / "No exposures", both risk-score-specific
+   * copy). Pass `null` to suppress the caption entirely (the caller renders
+   * its own stat text instead), or a string for custom copy. Omit to keep
+   * the default risk-score-derived caption — every existing call site
+   * omits this.
+   */
+  caption?: string | null;
+  /** Phase 38 (38-05) additive escape hatch — overrides the default
+   * risk-score aria-label. Omit to keep the default. */
+  ariaLabel?: string;
 };
 
-export function RiskRing({ score, size = 120, className }: RiskRingProps) {
+export function RiskRing({
+  score,
+  size = 120,
+  className,
+  tintClassName,
+  caption: captionProp,
+  ariaLabel: ariaLabelProp,
+}: RiskRingProps) {
   const band = getRiskBand(score);
   const showArc = score !== null && score > 0;
   const offset =
     score !== null ? CIRCUMFERENCE * (1 - score / 100) : CIRCUMFERENCE;
   const caption =
-    score === null
-      ? 'Risk unavailable'
-      : score === 0
-        ? 'No exposures'
-        : null;
+    captionProp !== undefined
+      ? captionProp
+      : score === null
+        ? 'Risk unavailable'
+        : score === 0
+          ? 'No exposures'
+          : null;
   const ariaLabel =
-    score === null
-      ? 'Risk score unavailable'
-      : score === 0
-        ? 'Risk score 0 — no exposures'
-        : `Risk score ${score} — ${BAND_LABEL[band]}`;
+    ariaLabelProp !== undefined
+      ? ariaLabelProp
+      : score === null
+        ? 'Risk score unavailable'
+        : score === 0
+          ? 'Risk score 0 — no exposures'
+          : `Risk score ${score} — ${BAND_LABEL[band]}`;
 
   return (
     <div
@@ -131,7 +166,7 @@ export function RiskRing({ score, size = 120, className }: RiskRingProps) {
         <span
           className={cn(
             'font-mono text-3xl font-semibold tabular-nums',
-            BAND_TINT[band],
+            tintClassName ?? BAND_TINT[band],
           )}
           data-testid="risk-ring-score"
         >

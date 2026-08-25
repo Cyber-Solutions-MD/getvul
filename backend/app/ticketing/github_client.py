@@ -222,6 +222,36 @@ class GitHubClient:
                 body=resp.text[:500],
             )
 
+    async def reopen_issue(self, number: int) -> None:
+        """Reopen a GitHub issue via PATCH .../issues/{number} {"state": "open"}.
+
+        SYNC-03/D-04: the ticket-side counterpart to a recurrence reopen —
+        mirrors `close_issue` exactly (same auth headers, single-429-retry,
+        log-and-never-raise-on-failure convention) with the inverse payload.
+        """
+        payload = {"state": "open"}
+        resp = await self._client.patch(
+            f"/repos/{self._owner}/{self._repo}/issues/{number}",
+            json=payload,
+        )
+
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", "5"))
+            logger.warning("github_rate_limited", retry_after=retry_after)
+            await asyncio.sleep(retry_after)
+            resp = await self._client.patch(
+                f"/repos/{self._owner}/{self._repo}/issues/{number}",
+                json=payload,
+            )
+
+        if resp.status_code != 200:
+            logger.error(
+                "github_reopen_issue_failed",
+                number=number,
+                status=resp.status_code,
+                body=resp.text[:500],
+            )
+
     async def close(self) -> None:
         """Close the underlying httpx client and release connections."""
         await self._client.aclose()

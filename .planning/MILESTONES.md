@@ -45,7 +45,7 @@ A historical log of shipped milestones. Full per-milestone detail lives in `.pla
 
 Turns GetVul from *see & decide* into *operationalize, close, and prove*: risk-tier SLA engine + escalation, two-way ticket sync + rescan-verified auto-close, remediation campaigns, exception/risk-acceptance governance, proactive KEV/EPSS alerting + digests, coverage/blind-spot detection, risk-trend/burndown analytics, executive + compliance reporting (SOC 2 / ISO 27001 / PCI / NIST CSF), a BYOK natural-language query assistant (AINL-01, deferred from v3.1), and a public API + webhooks + SDK. Research-grounded (2026 RBVM/CTEM market); scoped to GetVul's lane (a triage/orchestration layer on existing scanners, not a scanner or patch-deployer). Consumes v4.0's deterministic risk-exposure score throughout.
 
-**Proposal:** [milestones/v5.0-PROPOSAL.md](milestones/v5.0-PROPOSAL.md) · **Requirements stub:** [milestones/v5.0-REQUIREMENTS.md](milestones/v5.0-REQUIREMENTS.md) (32 requirements across 10 families, all Pending)
+**Proposal:** [milestones/v5.0-PROPOSAL.md](milestones/v5.0-PROPOSAL.md) · **Requirements stub:** [milestones/v5.0-REQUIREMENTS.md](milestones/v5.0-REQUIREMENTS.md) (34 requirements across 10 families, all Pending)
 
 ---
 

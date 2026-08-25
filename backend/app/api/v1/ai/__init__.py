@@ -37,6 +37,9 @@ ai_router = APIRouter(prefix="/api/v1/ai", tags=["AI"])
 # usage: Phase 28 Plan 03's AIE-04 require_admin usage/cost aggregation over
 #   the EXISTING ai.* AuditLog rows (D-08) -- also the single source of the
 #   derived breaker_tripped boolean (D-09) the admin pane (Plan 04) reads.
+# query: Phase 44 Plan 01's NLQ-01..03 "Ask" endpoint (POST /query, SSE,
+#   require_analyst) -- the D-01 tool/filter contract's tracer, proven on
+#   the vulnerabilities entity only; Plan 02 widens it to assets/tickets.
 from app.api.v1.ai import (
     explain_host,  # noqa: E402
     explain_prioritization,  # noqa: E402
@@ -44,6 +47,7 @@ from app.api.v1.ai import (
     explain_remediation_guidance,  # noqa: E402
     explain_vuln,  # noqa: E402
     feedback,  # noqa: E402
+    query,  # noqa: E402
     spike,  # noqa: F401
     status,  # noqa: E402
     usage,  # noqa: E402
@@ -57,3 +61,4 @@ ai_router.include_router(explain_prioritization.router)
 ai_router.include_router(feedback.router)
 ai_router.include_router(status.router)
 ai_router.include_router(usage.router)
+ai_router.include_router(query.router)

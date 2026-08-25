@@ -1,16 +1,21 @@
-"""Consolidated keyless prompt-injection red-team suite (AIE-02).
+"""Consolidated keyless prompt-injection red-team suite (AIE-02, extended by
+44-06-PLAN.md/NLQ-02 with a 6th capability).
 
 KEYLESS: zero model calls, zero network access -- every case here calls the
-REAL `build_explain_*_prompt()` functions directly, in-process, against a
-hand-authored adversarial corpus. This is the phase's CI-BLOCKING red-team
-gate (shares the `ai-redteam-injection` CI job with Plan 05).
+REAL `build_explain_*_prompt()` / `build_query_translate_prompt()` functions
+directly, in-process, against a hand-authored adversarial corpus. This is the
+phase's CI-BLOCKING red-team gate (shares the `ai-redteam-injection` CI job
+with Plan 05; Phase 44 Plan 06 extends it additively, never a parallel
+pipeline).
 
 Consolidates the 5 scattered single-payload `test_injection_isolation`-style
 functions previously spread across 4 files (`test_ai_prompt_builder.py`,
 `test_ai_prompt_builder_host.py` x2, `test_ai_prompt_builder_remediation_
 guidance.py`, `test_ai_prompt_builder_prioritization.py`) into ONE
-parametrized adversarial corpus x 5 capabilities -- widening from 1 payload
-per capability to `len(ADVERSARIAL_PAYLOADS)` payloads x 5 capabilities.
+parametrized adversarial corpus x 6 capabilities (the original 5 Explain*
+capabilities + Phase 44 Plan 06's NLQ translate prompt) -- widening from 1
+payload per capability to `len(ADVERSARIAL_PAYLOADS)` payloads x 6
+capabilities.
 
 Real `promptfoo redteam generate`/`redteam eval` cannot run keylessly
 (verified this phase: it always needs a remote/configured LLM, even with the
@@ -39,6 +44,7 @@ from app.ai.prompt_builder import (
     build_explain_remediation_guidance_prompt,
     build_explain_remediation_prompt,
     build_explain_vuln_prompt,
+    build_query_translate_prompt,
 )
 
 # ── Adversarial corpus (17 payloads x 5 categories, 28-RESEARCH.md Open
@@ -174,41 +180,76 @@ def _prioritization_record(payload: str) -> dict[str, Any]:
     }
 
 
+def _query_record(payload: str) -> str:
+    """The 6th capability's record factory (Phase 44 Plan 06, NLQ-02):
+    `build_query_translate_prompt(question: str)` takes the RAW question
+    string directly -- there is no larger fixed record to poison one field
+    of, the ENTIRE input IS the poisoned field (mirrors `question` in
+    `<user_question>{"question": ...}</user_question>`, prompt_builder.py)."""
+    return payload
+
+
 # ── CAPABILITY_CASES: one row per capability = (builder_fn, poisoned_field,
-# record_factory) -- all 5 build_explain_*_prompt functions referenced. ──
+# record_factory, close_tag) -- all 5 build_explain_*_prompt functions PLUS
+# the NLQ translate prompt (Plan 06, T-44-01). `close_tag` is the builder's
+# own untrusted-content wrapper tag: `</scanner_data>` for the 5 Explain*
+# builders, `</user_question>` for `build_query_translate_prompt` -- NOT the
+# same tag, so it must be parametrized rather than hardcoded (it was
+# hardcoded before this capability existed, since every prior builder shared
+# the one tag). ──
 
 BuilderFn = Callable[[Any], tuple[str, list[dict[str, str]]]]
-RecordFactory = Callable[[str], dict[str, Any]]
+RecordFactory = Callable[[str], Any]
 
 CAPABILITY_CASES = [
-    pytest.param(build_explain_vuln_prompt, "remediation_info", _vuln_record, id="vuln"),
-    pytest.param(build_explain_host_prompt, "hostname", _host_record, id="host"),
-    pytest.param(build_explain_remediation_prompt, "fix", _remediation_record, id="remediation"),
+    pytest.param(build_explain_vuln_prompt, "remediation_info", _vuln_record, "</scanner_data>", id="vuln"),
+    pytest.param(build_explain_host_prompt, "hostname", _host_record, "</scanner_data>", id="host"),
+    pytest.param(build_explain_remediation_prompt, "fix", _remediation_record, "</scanner_data>", id="remediation"),
     pytest.param(
         build_explain_remediation_guidance_prompt,
         "remediation_info",
         _remediation_guidance_record,
+        "</scanner_data>",
         id="remediation_guidance",
     ),
-    pytest.param(build_explain_prioritization_prompt, "department", _prioritization_record, id="prioritization"),
+    pytest.param(
+        build_explain_prioritization_prompt,
+        "department",
+        _prioritization_record,
+        "</scanner_data>",
+        id="prioritization",
+    ),
+    pytest.param(
+        build_query_translate_prompt,
+        "question",
+        _query_record,
+        "</user_question>",
+        id="query_translate",
+    ),
 ]
 
 
-# ── The consolidated test: (payload) x (capability) -- 17 x 5 = 85 cases ──
+# ── The consolidated test: (payload) x (capability) -- 17 x 6 = 102 cases ──
 
 
 @pytest.mark.parametrize("payload", ADVERSARIAL_PAYLOADS)
-@pytest.mark.parametrize("builder_fn,field,record_factory", CAPABILITY_CASES)
+@pytest.mark.parametrize("builder_fn,field,record_factory,close_tag", CAPABILITY_CASES)
 def test_injection_payload_isolated_to_scanner_data_block(
     builder_fn: BuilderFn,
     field: str,
     record_factory: RecordFactory,
+    close_tag: str,
     payload: str,
 ) -> None:
     """For every (payload, capability) pair: the payload is absent from the
-    system prompt AND present in the user/scanner_data block, as DATA only --
+    system prompt AND present in the user/data block, as DATA only --
     proving the untrusted-content-as-data contract holds across a widened
-    adversarial corpus, for every one of the 5 AI capabilities."""
+    adversarial corpus, for every one of the 5 Explain* capabilities AND
+    the NLQ translate prompt (T-44-01: the question text stays isolated to
+    <user_question>, never leaks into the system prompt, and no payload
+    steers a forbidden filter/enum -- the schema-level guarantee is
+    additionally covered by test_nlq_golden_evals.py's hallucinated-field/
+    cross-tenant-reach goldens, Plan 06 Task 1)."""
     record = record_factory(payload)
     system, blocks = builder_fn(record)
     assert len(blocks) == 1
@@ -220,8 +261,8 @@ def test_injection_payload_isolated_to_scanner_data_block(
     assert payload not in system
 
     # 2. Present in the user block, ONLY as DATA. Parse the REAL
-    #    <scanner_data>...</scanner_data> JSON body (rightmost close tag --
-    #    mirrors explain.py::_extract_scanner_data's own delimiter-safety
+    #    <...>...</close_tag> JSON body (rightmost close tag -- mirrors
+    #    explain.py::_extract_scanner_data's own delimiter-safety
     #    convention) and assert the poisoned field round-trips to EXACTLY
     #    the original payload. json.loads() correctly reverses ANY JSON
     #    escaping (quotes/backslashes/control characters/non-ASCII
@@ -231,16 +272,16 @@ def test_injection_payload_isolated_to_scanner_data_block(
     #    would give false negatives for a payload containing a quote,
     #    backslash, or non-ASCII character.
     start = user_text.index(">") + 1
-    end = user_text.rindex("</scanner_data>")
+    end = user_text.rindex(close_tag)
     inner = user_text[start:end]
     parsed = json.loads(inner)  # must not raise -- proves the block boundary held
     assert parsed[field] == payload
 
-    # 3. Tag-boundary breakout: a literal "</scanner_data>" embedded inside
-    #    the payload must stay counted ONLY inside the JSON-encoded field's
-    #    own string value, never as a second, structurally-real close tag.
+    # 3. Tag-boundary breakout: a literal close_tag embedded inside the
+    #    payload must stay counted ONLY inside the JSON-encoded field's own
+    #    string value, never as a second, structurally-real close tag.
     #    "<"/">"/"/" are not among the characters json.dumps escapes by
     #    default, so this substring survives byte-for-byte through JSON
     #    encoding -- the count-equality below holds on the RAW ENCODED text
     #    regardless of whatever else the payload contains.
-    assert inner.count("</scanner_data>") == payload.count("</scanner_data>")
+    assert inner.count(close_tag) == payload.count(close_tag)

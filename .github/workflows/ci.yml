@@ -180,7 +180,9 @@ jobs:
       - name: Run DeepEval golden-set suite (keyless -- structural metrics only, no DB/Redis needed)
         env:
           DEEPEVAL_TELEMETRY_OPT_OUT: "1"
-        run: deepeval test run tests/evals/test_golden_evals.py
+        # test_nlq_golden_evals.py (44-06-PLAN.md/NLQ-02) extends this SAME
+        # keyless job additively -- never a parallel eval pipeline.
+        run: deepeval test run tests/evals/test_golden_evals.py tests/evals/test_nlq_golden_evals.py
 
   ai-redteam-injection:
     # AIE-02/AIE-03 CI-blocking gate: static prompt-builder inspection

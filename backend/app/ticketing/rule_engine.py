@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.constants import SCANNER_SOURCES
 from app.assets.models import Asset
+from app.exceptions.service import active_exception_subquery
 from app.ticketing.dispatch import build_ticketing_client
 from app.ticketing.models import Ticket, TicketRule
 from app.ticketing.providers import TicketProvider
@@ -108,6 +109,11 @@ async def find_matching_assets(
         ).where(
             Vulnerability.asset_id == asset.id,
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
+            # EXC-02/D-15 (Phase 39 Consumer 10, Tier 2 #8 governance-critical):
+            # an actively-excepted finding must not make an asset match a
+            # rule -- otherwise a scheduler tick would auto-open a ticket for
+            # a governed accept-risk decision.
+            ~active_exception_subquery(tenant_id, datetime.now(UTC)),
         )
 
         vc = (await db.execute(counts_q)).one()
@@ -218,6 +224,10 @@ async def run_rule(
             Vulnerability.status.in_(["OPEN", "IN_PROGRESS"]),
             Vulnerability.remediation_id.isnot(None),
             Vulnerability.remediation_id != "",
+            # EXC-02/D-15 (Phase 39 Consumer 10 sibling): same governance
+            # exclusion as find_matching_assets' counts_q, applied to the
+            # per_remediation ticket-mode's own asset/remediation matcher.
+            ~active_exception_subquery(rule.tenant_id, datetime.now(UTC)),
         )
         # Apply severity filter to remediations too
         severity_filter = conditions.get("severity")

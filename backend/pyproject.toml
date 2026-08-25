@@ -23,6 +23,8 @@ dependencies = [
     "fpdf2>=2.8",
     "python-multipart>=0.0.9",
     "anthropic>=0.120.0",
+    "matplotlib>=3.9",
+    "Pillow>=10.0",
 ]
 
 [project.optional-dependencies]

@@ -42,6 +42,18 @@ import { useAiStatus } from '@/lib/queries/use-ai-status';
 // 4) -- the same per-resource SSE trigger the drill panel's own sections
 // already use, no new endpoint.
 import { useExplainStream, type ExplainStreamState } from '@/lib/ai/use-explain-stream';
+// Phase 36 (SLA-01/02, D-11): server-truth SLA state pill, matching the
+// finding row (vuln-table.tsx). Phase 36 (SLA-03, D-07): the escalation-fire
+// history list, its own query hook mirroring the drill panel's other
+// per-resource data hooks.
+import { SlaPill, type SlaPillState } from '@/components/tickets/sla-pill';
+import { useVulnEscalations, type VulnEscalationEvent } from '@/lib/queries/use-vuln-escalations';
+// Phase 39 Plan 07 (EXC-01 UI-SPEC Layout §1): "Accept risk" / "Mark false
+// positive" Actions-section entry points open this dialog with `type`
+// pre-set and the drill panel's own CVE x asset as the FINDING-scope
+// default.
+import { ExceptionGrantDialog, type ExceptionFinding } from '@/components/exceptions/exception-grant-dialog';
+import type { ExceptionType } from '@/lib/queries/use-exceptions';
 
 // D-P-05 — shared section order: Header → CVSS → Affected hosts →
 // Description → Remediation → Activity → Actions. Used by both desktop
@@ -63,7 +75,11 @@ type FlexibleDetail = {
   affected_hosts?: Array<{ host?: string; ip?: string }>;
   activity?: Array<unknown>;
   // Production-shape fields:
-  cvss_v3_score?: number | null;
+  // Backend serializes the Postgres numeric(3,1) as a JSON STRING ("10.0"),
+  // not a number — so this must tolerate string at runtime and be coerced
+  // before any numeric formatting (see cvssLabel below). Typing it `number`
+  // alone let `.toFixed()` compile but crash live.
+  cvss_v3_score?: number | string | null;
   cvss_v3_vector?: string | null;
   severity?: string;
   cisa_kev?: boolean;
@@ -82,6 +98,12 @@ type FlexibleDetail = {
   risk_exposure_score?: number | null;
   risk_exposure_breakdown?: RiskBreakdownComponent[] | null;
   risk_model_version?: string | null;
+  // Phase 36 (SLA-01/02, D-11): server-computed risk-tier SLA state. Never
+  // re-derived client-side — absent/undefined means "server didn't send a
+  // state" (older detail shape / test mock), in which case the pill is not
+  // rendered rather than falling back to a client-computed guess (T-36-01).
+  sla_state?: SlaPillState | null;
+  sla_due_at?: string | null;
 };
 
 // Phase 27 (AID-01, Plan 03): the gap-fill row's per-section render state.
@@ -188,6 +210,110 @@ function renderGapFillItem(item: GapFillItemState, kind: 'description' | 'remedi
   );
 }
 
+// ── Escalation-history list (Phase 36, SLA-03, D-07) ─────────────────────────
+//
+// Module-level (not a hook) — pure render of the escalationsQuery result,
+// mirroring the gap-fill row's own module-level render helpers above.
+// ActivityTimeline-style (dot + connecting line + chronological rows) but a
+// local implementation rather than importing the shared `ActivityTimeline`
+// component: that component's TimelineEntry union (comment | sync) has no
+// slot for a failed-delivery amber tint / audit-only "no retry" contract, and
+// this plan's file scope does not include activity-timeline.tsx.
+
+const CHANNEL_LABEL: Record<string, string> = {
+  slack: 'Slack',
+  teams: 'Microsoft Teams',
+  pagerduty: 'PagerDuty',
+  email: 'Email',
+};
+
+const STATE_LABEL: Record<string, string> = {
+  on_track: 'On track',
+  approaching: 'Approaching',
+  breached: 'Breached',
+  not_tracked: 'Not tracked',
+};
+
+function formatFiredAt(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  return `${d.toISOString().slice(11, 16)} UTC`;
+}
+
+function EscalationHistoryList({
+  isPending,
+  isError,
+  events,
+}: {
+  isPending: boolean;
+  isError: boolean;
+  events: VulnEscalationEvent[];
+}) {
+  if (isPending) {
+    return <p className="text-sm text-text-muted">Loading…</p>;
+  }
+  if (isError) {
+    return <p className="text-sm text-danger">Couldn’t load escalation history.</p>;
+  }
+  if (events.length === 0) {
+    // E3 empty: compact inline empty — NOT the full gradient-icon EmptyState
+    // shell (that shell is reserved for filtered-to-zero list views, not a
+    // sub-section inside an already-open drill panel).
+    return (
+      <div>
+        <p className="text-sm font-medium text-text">No escalations yet</p>
+        <p className="mt-1 text-sm text-text-faint">
+          This finding hasn&apos;t crossed the approaching or breach threshold — new
+          entries appear here the moment it does.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <ul role="list" className="space-y-2">
+      {events.map((ev) => {
+        const failed = ev.delivery_status === 'failed';
+        const channelLabel = CHANNEL_LABEL[ev.channel] ?? ev.channel;
+        const fromLabel = STATE_LABEL[ev.from_state] ?? ev.from_state;
+        const toLabel = STATE_LABEL[ev.to_state] ?? ev.to_state;
+        const firedLabel = formatFiredAt(ev.fired_at);
+
+        return (
+          <li
+            key={ev.id}
+            className={
+              failed
+                ? 'rounded-md border border-amber bg-amber-soft p-3'
+                : 'rounded-md border border-border-subtle bg-surface-2 p-3'
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-md border border-border-subtle bg-surface px-2 py-0.5 font-mono text-[11px] font-medium text-text-muted">
+                {channelLabel}
+              </span>
+              <span className="text-text">
+                {fromLabel} → {toLabel}
+              </span>
+              <span className="ml-auto font-mono text-text-faint">{firedLabel}</span>
+            </div>
+            {/* D-08: audit-only — amber-tinted, no retry button. The
+                transition record above stays visible even on failure (D-07). */}
+            {failed && (
+              <p
+                className="mt-1 truncate text-xs text-[var(--color-amber-on-soft)]"
+                title={`${channelLabel} delivery failed — ${ev.error_message ?? 'unknown error'} · fired ${firedLabel}`}
+              >
+                {channelLabel} delivery failed — {ev.error_message ?? 'unknown error'} · fired {firedLabel}
+              </p>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 type Props = {
   idOrCve: string;
   onClose: () => void;
@@ -236,6 +362,11 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   const snooze = useSnoozeMutation();
   const { toast } = useToast();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Phase 39 Plan 07 (EXC-01): null = ExceptionGrantDialog closed; a set
+  // value both opens it AND pre-sets its `type`. A single dialog instance
+  // (rendered once below) serves both "Accept risk" and "Mark false
+  // positive" — they differ only in which type this state holds.
+  const [exceptionGrantType, setExceptionGrantType] = useState<ExceptionType | null>(null);
   // D-14 (Plan 23-08): analyst-chosen ticketing provider, replacing the
   // hardcoded 'ASANA'. TicketProviderPicker default-selects the first
   // tenant-configured provider once its query loads.
@@ -288,6 +419,21 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // resolves, `v` reflects it exactly as it did before this restructure.
   const v = (q.data ?? {}) as unknown as FlexibleDetail;
   const cveLabel = v.cve_id ?? v.id ?? idOrCve;
+  // Phase 39 Plan 07 (EXC-01): the ExceptionGrantDialog's FINDING-scope
+  // default. `cveId` stays the REAL cve_id (or null) here, deliberately NOT
+  // falling back to `cveLabel`'s id/idOrCve — ASSET/ASSET_GROUP scope reuses
+  // this same value as a real `cve_id` payload field (T-39-26), so a
+  // non-CVE fallback string must never leak into it.
+  const exceptionFinding: ExceptionFinding = {
+    vulnerabilityId: v.id ?? idOrCve,
+    cveId: v.cve_id ?? null,
+    assetId: v.asset_id ?? null,
+    hostname: v.asset_hostname ?? null,
+  };
+  // CVSS arrives as a string ("10.0") — coerce before formatting so a present
+  // score renders and null/absent/non-numeric falls back to the em dash.
+  const cvssNum = v.cvss_v3_score == null ? null : Number(v.cvss_v3_score);
+  const cvssLabel = cvssNum != null && Number.isFinite(cvssNum) ? cvssNum.toFixed(1) : '—';
   const hostsLine =
     v.affected_hosts && v.affected_hosts.length > 0
       ? v.affected_hosts.map((h) => h.host ?? h.ip ?? '—').join(', ')
@@ -360,6 +506,11 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
   // the drill panel's own sections already use; no new endpoint.
   const explainGapFill = useExplainStream('vuln', v.id ?? idOrCve);
   const remediationGapFill = useExplainStream('remediation-guidance', v.id ?? idOrCve);
+
+  // Phase 36 (SLA-03, D-07): escalation-fire history for the drill panel's
+  // new "Escalation history" section. Called unconditionally (before the
+  // pending/error early returns) like the other per-resource hooks above.
+  const escalationsQuery = useVulnEscalations(v.id ?? idOrCve);
 
   // Phase 27 (AID-01, Plan 02, D-02/D-04): compose-on-open. Runs once per
   // resourceId, the first time the confirm dialog transitions open --
@@ -590,6 +741,13 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             >
               {sevLabel}
             </span>
+            {/* Phase 36 (SLA-01/02, D-11): server-truth SLA state, matching
+                the finding row (vuln-table.tsx). Only rendered when the
+                server actually sent a state — never a client-computed
+                fallback guess for the drill panel (T-36-01). */}
+            {v.sla_state != null && (
+              <SlaPill state={v.sla_state} dueAt={v.sla_due_at ?? null} />
+            )}
             {v.cisa_kev && (
               <span className="rounded-md bg-pink-soft px-2 py-0.5 font-mono text-[10px] font-medium uppercase text-[var(--color-severity-critical-on-soft)]">
                 ★ CISA KEV
@@ -626,7 +784,7 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             {microcopy.drill.sections.cvss}
           </h4>
           <div className="font-mono text-sm text-text">
-            Score: {v.cvss_v3_score?.toFixed(1) ?? '—'} · Vector:{' '}
+            Score: {cvssLabel} · Vector:{' '}
             {v.cvss_v3_vector ?? '—'}
           </div>
         </section>
@@ -761,6 +919,28 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
           </p>
         </section>
 
+        {/* Phase 36 (SLA-03, D-07): escalation-fire history — an
+            ActivityTimeline-style chronological list of every approaching/
+            breach transition fired for this finding, audit-only (D-08: no
+            retry affordance on a failed delivery row; the transition record
+            itself always stays visible). Opens inside an already-loaded
+            drill panel — the sub-list uses a plain muted "Loading…" text,
+            matching this panel's own top-level loading treatment (line
+            ~474), rather than a separate skeleton (UI-SPEC E3 loading). */}
+        <section aria-labelledby="drill-escalations-h">
+          <h4
+            id="drill-escalations-h"
+            className="mb-2 text-xs uppercase tracking-wide text-text-muted"
+          >
+            Escalation history
+          </h4>
+          <EscalationHistoryList
+            isPending={escalationsQuery.isPending}
+            isError={escalationsQuery.isError}
+            events={escalationsQuery.data ?? []}
+          />
+        </section>
+
         <section aria-labelledby="drill-actions-h">
           <h4
             id="drill-actions-h"
@@ -782,6 +962,20 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
               className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
             >
               {microcopy.drill.snooze24h}
+            </button>
+            <button
+              type="button"
+              onClick={() => setExceptionGrantType('ACCEPTED_RISK')}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+            >
+              {microcopy.drill.acceptRisk}
+            </button>
+            <button
+              type="button"
+              onClick={() => setExceptionGrantType('FALSE_POSITIVE')}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+            >
+              {microcopy.drill.markFalsePositive}
             </button>
           </div>
         </section>
@@ -872,6 +1066,22 @@ export const DrillContent = forwardRef<HTMLDivElement, Props>(function DrillCont
             </div>
           </ConfirmModal>
         )}
+
+      {/* Phase 39 Plan 07 (EXC-01): a single instance serves both "Accept
+          risk" and "Mark false positive" — `type` reflects whichever button
+          was clicked. Rendered via its own ResponsiveDialog (not nested
+          inside the ticket-confirm's renderConfirm render-prop, which is
+          typed specifically for the ticket-confirm fields) — see
+          39-07-SUMMARY.md for the mobile Drawer-nesting trade-off this
+          implies. */}
+      <ExceptionGrantDialog
+        open={exceptionGrantType !== null}
+        onOpenChange={(o) => {
+          if (!o) setExceptionGrantType(null);
+        }}
+        type={exceptionGrantType ?? 'ACCEPTED_RISK'}
+        finding={exceptionFinding}
+      />
     </div>
   );
 });

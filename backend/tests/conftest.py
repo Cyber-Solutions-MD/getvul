@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -289,9 +291,78 @@ async def admin_user(db_session, tenant_a):
 
 
 @pytest_asyncio.fixture(scope="function")
+async def owner_user(db_session, tenant_a):
+    """OWNER role user in tenant_a (top of the role hierarchy — require_owner-gated routes)."""
+    return await _make_user(db_session, tenant_a, "OWNER", "owner-a")
+
+
+@pytest_asyncio.fixture(scope="function")
 async def analyst_user_b(db_session, tenant_b):
     """ANALYST role user in tenant_b — used for IDOR / cross-tenant tests."""
     return await _make_user(db_session, tenant_b, "ANALYST", "analyst-b")
+
+
+# ── Phase 40 fixtures (Plan 40-01) ──────────────────────────────────────────
+#
+# A KEV/EPSS-qualifying (vulnerability, asset, owner_user) factory for
+# ALERT-01/02 Wave 0 RED scaffolds (test_alerts_kev_epss.py, test_digests.py).
+# Reuses the existing tenant_a/db_session fixtures above rather than
+# introducing a parallel fixture surface.
+# ────────────────────────────────────────────────────────────────────────────
+
+
+@pytest_asyncio.fixture(scope="function")
+async def kev_epss_finding(db_session: Any, tenant_a: uuid.UUID) -> AsyncIterator[tuple[Any, Any, Any]]:
+    """A KEV/EPSS-qualifying `(vulnerability, asset, owner_user)` triple.
+
+    `cisa_kev=True` AND `epss_score` (0.87) above `DEFAULT_ALERTING_CONFIG`'s
+    0.5 threshold, on an `Asset` whose `assigned_user` resolves to a real
+    tenant `User` row -- so owner resolution (D-10's owner-then-admin
+    fallback design) has a genuine match to find, distinguishing it from
+    `test_owner_fallback_to_admins_and_channel`'s deliberately-unresolvable
+    case. Yields `(vulnerability, asset, owner_user)`.
+    """
+    from app.assets.models import Asset
+    from app.tenants.models import User
+    from app.vulnerabilities.models import Vulnerability
+
+    suffix = uuid.uuid4().hex[:8]
+    owner_email = f"asset-owner-{suffix}@tenant-a.test"
+    owner = User(
+        tenant_id=tenant_a,
+        email=owner_email,
+        display_name="Asset Owner",
+        role="ANALYST",
+        idp_subject=f"test-owner-{suffix}",
+    )
+    db_session.add(owner)
+
+    asset = Asset(
+        tenant_id=tenant_a,
+        hostname=f"kev-host-{suffix}",
+        assigned_user=owner_email,
+    )
+    db_session.add(asset)
+    await db_session.flush()
+
+    now = datetime.now(UTC)
+    vuln = Vulnerability(
+        tenant_id=tenant_a,
+        cve_id=f"CVE-2026-{int(suffix, 16) % 100000:05d}",
+        vulnerability_name="Test KEV/EPSS-qualifying finding",
+        severity="CRITICAL",
+        cisa_kev=True,
+        epss_score=Decimal("0.87"),
+        epss_percentile=Decimal("0.95"),
+        asset_id=asset.id,
+        source="NESSUS",
+        first_detected_at=now,
+        last_seen_at=now,
+    )
+    db_session.add(vuln)
+    await db_session.flush()
+
+    yield vuln, asset, owner
 
 
 _TEST_USER_HEADER = "x-test-user-id"

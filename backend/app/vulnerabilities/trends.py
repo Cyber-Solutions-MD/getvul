@@ -35,10 +35,23 @@ class DailySnapshot(Base):
 # ── Trend queries (derived from existing data) ──
 
 
-async def get_vuln_trends(db: AsyncSession, tenant_id: uuid.UUID, days: int = 30) -> dict:
+async def get_vuln_trends(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    days: int = 30,
+    asset_ids: list[uuid.UUID] | None = None,
+) -> dict:
     """Get vulnerability trend data over the past N days.
 
     Returns daily counts of new, resolved, and open vulns derived from timestamps.
+
+    Phase 42 Plan 02 (42-RESEARCH.md Pitfall 5 / D-02): `asset_ids` is an
+    additive, backward-compatible group-scoping filter -- default `None`
+    preserves every existing call site byte-for-byte (mirrors
+    `sla_tier_service.compute_sla_state`'s `excepted_seconds: int = 0`
+    idiom). When provided, every query below gains an extra
+    `Vulnerability.asset_id.in_(asset_ids)` clause so the burndown rate can
+    be re-scoped to a group the same way the trend line already is.
     """
     now = datetime.now(UTC)
     start = now - timedelta(days=days)
@@ -56,6 +69,8 @@ async def get_vuln_trends(db: AsyncSession, tenant_id: uuid.UUID, days: int = 30
         .group_by(cast(Vulnerability.first_detected_at, Date))
         .order_by(cast(Vulnerability.first_detected_at, Date))
     )
+    if asset_ids is not None:
+        new_q = new_q.where(Vulnerability.asset_id.in_(asset_ids))
     new_rows = (await db.execute(new_q)).all()
 
     # Resolved vulns per day (by remediated_at)
@@ -72,6 +87,8 @@ async def get_vuln_trends(db: AsyncSession, tenant_id: uuid.UUID, days: int = 30
         .group_by(cast(Vulnerability.remediated_at, Date))
         .order_by(cast(Vulnerability.remediated_at, Date))
     )
+    if asset_ids is not None:
+        resolved_q = resolved_q.where(Vulnerability.asset_id.in_(asset_ids))
     resolved_rows = (await db.execute(resolved_q)).all()
 
     # New vulns by severity per day
@@ -88,6 +105,8 @@ async def get_vuln_trends(db: AsyncSession, tenant_id: uuid.UUID, days: int = 30
         .group_by(cast(Vulnerability.first_detected_at, Date), Vulnerability.severity)
         .order_by(cast(Vulnerability.first_detected_at, Date))
     )
+    if asset_ids is not None:
+        new_by_sev_q = new_by_sev_q.where(Vulnerability.asset_id.in_(asset_ids))
     sev_rows = (await db.execute(new_by_sev_q)).all()
 
     # Build per-day severity map

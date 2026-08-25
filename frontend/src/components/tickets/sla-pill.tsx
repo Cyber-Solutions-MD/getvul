@@ -1,10 +1,22 @@
 /**
- * SlaPill — client-side SLA tier computation from a due timestamp.
+ * SlaPill — dual-path SLA state: client-computed (tickets, legacy) OR
+ * server-truth (findings, Phase 36 D-11).
  *
- * D-SLA-04: Tiers computed CLIENT-SIDE from ticket.sla_due_at (no backend "state" column).
- * Thresholds defined ONCE here (Pitfall 5 — single source prevents tier drift between surfaces).
+ * D-SLA-04 (tickets, unchanged): when `dueAt` is passed WITHOUT `state`,
+ * tiers are computed CLIENT-SIDE from ticket.sla_due_at (no backend "state"
+ * column existed at the time). Thresholds defined ONCE here (Pitfall 5 —
+ * single source prevents tier drift between surfaces).
  *
- * Tiers:
+ * Phase 36 / D-01/D-02/D-11 (findings, NEW): when the optional `state` prop
+ * is present, it is the server-computed risk-tier SLA state
+ * (on_track/approaching/breached/not_tracked) and is rendered DIRECTLY —
+ * `computeTier()` is skipped entirely. The server is authoritative; this
+ * component never re-derives the tier formula client-side (T-36-01,
+ * Anti-Pattern). Existing ticket call sites (tickets-table.tsx,
+ * kanban-card.tsx, ticket-drill-content.tsx) never pass `state`, so their
+ * behavior is byte-identical to before this phase.
+ *
+ * Tiers (dueAt-only path):
  *   Overdue  < now              → severity-critical (red)
  *   Soon     < now + 7 days     → severity-high (amber)
  *   OK       >= now + 7 days    → severity-low (green)
@@ -84,14 +96,52 @@ function computeTier(dueAt: string | null): { tier: SlaTier; due: Date | null } 
   return { tier: 'ok', due };
 }
 
+/** Phase 36 / D-11: server-computed finding SLA state. */
+export type SlaPillState = 'on_track' | 'approaching' | 'breached' | 'not_tracked';
+
+// Direct 1:1 map onto the existing 4-tone vocabulary (UI-SPEC "Color state->tone
+// table") — never a new tone. not_tracked maps to the same faint tone as
+// `unknown`, but renders distinct copy (see SlaPill below): "No SLA" (a below-
+// floor / not-tracked signal, D-12) is a different situation from "Unknown"
+// (a client-side computeTier() null-dueAt signal) even though the tone matches.
+const SERVER_STATE_TO_TIER: Record<SlaPillState, SlaTier> = {
+  on_track: 'ok',
+  approaching: 'soon',
+  breached: 'overdue',
+  not_tracked: 'unknown',
+};
+
 export type SlaPillProps = {
-  /** ISO timestamp (or null). Tier computed client-side. */
+  /** ISO timestamp (or null). Tier computed client-side when `state` is absent. */
   dueAt: string | null;
+  /**
+   * Server-computed tier-engine state (Phase 36 / D-01/D-02/D-11). When
+   * present, this is rendered directly and `computeTier()` is never
+   * consulted — the server is authoritative, this component does not
+   * re-derive the tier formula (T-36-01). When absent, falls back to the
+   * original client-side `dueAt` path unchanged (ticket call sites keep
+   * their existing behavior).
+   */
+  state?: SlaPillState;
   className?: string;
 };
 
-export function SlaPill({ dueAt, className }: SlaPillProps) {
-  const { tier, due } = computeTier(dueAt);
+export function SlaPill({ dueAt, state, className }: SlaPillProps) {
+  let tier: SlaTier;
+  let label: string;
+
+  if (state) {
+    tier = SERVER_STATE_TO_TIER[state];
+    // D-12 / UI-SPEC Surface E2: not_tracked always renders "No SLA" — distinct
+    // copy from the client-computed "unknown" tier's "Unknown", even though
+    // both share the same faint tone (see SERVER_STATE_TO_TIER comment above).
+    label = state === 'not_tracked' ? 'No SLA' : TIER_CONFIG[tier].label(dueAt ? new Date(dueAt) : null);
+  } else {
+    const computed = computeTier(dueAt);
+    tier = computed.tier;
+    label = TIER_CONFIG[tier].label(computed.due);
+  }
+
   const config = TIER_CONFIG[tier];
 
   return (
@@ -102,7 +152,7 @@ export function SlaPill({ dueAt, className }: SlaPillProps) {
         className,
       )}
     >
-      {config.label(due)}
+      {label}
     </span>
   );
 }

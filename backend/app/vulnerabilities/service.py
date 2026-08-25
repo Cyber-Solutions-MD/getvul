@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
+import structlog
 from fastapi import HTTPException
 from sqlalchemy import Select, asc, case, desc, func, nulls_last, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset
+from app.audit import AuditLog
+from app.exceptions.service import active_exception_subquery, lapsed_exception_seconds
 from app.pagination import PaginatedResponse, PaginationParams
 from app.tenants.models import Tenant
-from app.vulnerabilities.models import Vulnerability, VulnerabilityCorrelation
+from app.vulnerabilities.models import RemediationEvent, Vulnerability, VulnerabilityCorrelation
 from app.vulnerabilities.schemas import (
     BulkStatusUpdate,
     DashboardStats,
@@ -24,6 +28,12 @@ from app.vulnerabilities.schemas import (
     VulnerabilityResponse,
     VulnerabilitySummary,
 )
+from app.vulnerabilities.sla_tier_service import (
+    get_tier_policy,
+    resolve_state_for_vuln,
+    severity_to_tier,
+    tier_for_score,
+)
 
 # Phase 11 / T-11-03: only these facet groups are allowed via ?facets=
 # CSV. Anything outside this set surfaces as HTTP 400 (not 500) so the
@@ -34,6 +44,12 @@ _ALLOWED_FACET_GROUPS: frozenset[str] = frozenset({"severity", "source", "status
 def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: VulnerabilityFilter) -> Select:
     """Apply filter conditions to a vulnerability query."""
     query = query.where(Vulnerability.tenant_id == tenant_id)
+    # Phase 39 / EXC-02 / D-01 / D-15: exclude findings covered by an active
+    # (non-expired, non-revoked) exception. This is the single choke point
+    # for list_vulnerabilities, list_vulnerabilities_by_host, and
+    # get_facets (39-RESEARCH.md Pattern 1) — additive to the legacy
+    # SUPPRESSED/FALSE_POSITIVE status filter (D-02), never a replacement.
+    query = query.where(~active_exception_subquery(tenant_id, datetime.now(UTC)))
 
     if filters.severity:
         query = query.where(Vulnerability.severity.in_(filters.severity))
@@ -93,6 +109,26 @@ def _apply_filters(query: Select, tenant_id: uuid.UUID, filters: VulnerabilityFi
     if filters.age_days_max is not None:
         cutoff = datetime.now(UTC) - timedelta(days=filters.age_days_max)
         query = query.where(Vulnerability.first_detected_at >= cutoff)
+    if filters.sla_breached is not None:
+        # Phase 44 / D-03 / Pitfall 6: the STORED derived-mirror column
+        # (refreshed <=60s by run_sla_tier_pass), never a live
+        # resolve_state_for_vuln recompute -- an ad-hoc NLQ answer accepts
+        # the same staleness window Phase 40 alerting already accepts.
+        query = query.where(Vulnerability.sla_breached == filters.sla_breached)
+    if filters.asset_internet_facing is not None:
+        # Phase 44 / D-03 / Pitfall 1: a correlated IN-subquery, deliberately
+        # NOT a `.join(Asset, ...)` call here. list_vulnerabilities (and
+        # list_vulnerabilities_by_host) already `.outerjoin(Asset, ...)`
+        # AFTER calling this function -- adding a second join to the same
+        # table inside _apply_filters would double-join on those two paths.
+        # A subquery predicate filters identically on both the COUNT path
+        # (which never joins Asset today) and the data path (which already
+        # does), with zero risk of a duplicate-join InvalidRequestError.
+        query = query.where(
+            Vulnerability.asset_id.in_(
+                select(Asset.id).where(Asset.internet_facing == filters.asset_internet_facing)
+            )
+        )
 
     return query
 
@@ -126,6 +162,13 @@ async def list_vulnerabilities(
     # flipped in this environment (34-CONTEXT locked).
     tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
     cutover_enabled = tenant.cutover_risk_exposure_scoring if tenant is not None else False
+
+    # Phase 36 / SLA-01/SLA-02: resolve the tenant's tier policy ONCE per
+    # request, then attach a freshly read-time-computed sla_state/sla_due_at
+    # to every row below (D-01/D-02 — server-authoritative "live" state;
+    # Pitfall 3 — the schema fields only populate if something sets them).
+    sla_policy = get_tier_policy(tenant)
+    sla_now = datetime.now(UTC)
 
     # D-T-01: 'triage' sort = KEV desc → CVSS desc → SLA-due asc.
     # nulls_last() so missing CVSS / SLA dates don't bubble to the top.
@@ -223,6 +266,15 @@ async def list_vulnerabilities(
         )
         corr_by_key = {(c.cve_id, c.asset_id): c for c in corr_rows}
 
+    # Phase 39 / D-16: page-scoped batched lapsed-exception lookup (mirrors
+    # corr_by_key immediately above) — reuses the SAME page_keys set so the
+    # live sla_state/sla_due_at of a recently-resurfaced finding reflects
+    # how long it spent under a now-lapsed exception, instead of instantly
+    # showing breached.
+    lapsed_by_key: dict[tuple[str, uuid.UUID], int] = {}
+    if page_keys:
+        lapsed_by_key = await lapsed_exception_seconds(db, tenant_id, page_keys, sla_now)
+
     items = []
     for row in results:
         vuln = row[0] if hasattr(row, "__getitem__") else row.Vulnerability
@@ -232,6 +284,8 @@ async def list_vulnerabilities(
         # risk_exposure_service.py:352's corr_by_key.get((...), 1) convention).
         sources = corr.sources if corr and corr.sources else [vuln.source]
         sources_count = corr.sources_count if corr else 1
+        excepted_seconds = lapsed_by_key.get((vuln.cve_id, vuln.asset_id), 0)
+        sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, sla_now, excepted_seconds=excepted_seconds)
         items.append(
             VulnerabilitySummary(
                 id=vuln.id,
@@ -248,6 +302,8 @@ async def list_vulnerabilities(
                 last_seen_at=vuln.last_seen_at,
                 sources=sources,
                 sources_count=sources_count,
+                sla_state=sla_state,
+                sla_due_at=sla_due_at,
             )
         )
 
@@ -284,6 +340,21 @@ async def get_vulnerability(
         corr_result = (await db.execute(corr_q)).scalar_one_or_none()
         corr_count = corr_result
 
+    # Phase 36 / SLA-01/SLA-02: same read-time resolution as list_vulnerabilities
+    # above — detail view must ALSO carry sla_state/sla_due_at (must_haves).
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
+    sla_policy = get_tier_policy(tenant)
+    sla_now = datetime.now(UTC)
+    # Phase 39 / D-16: single-row batched lookup (same lapsed_exception_seconds
+    # helper as list_vulnerabilities, called with a 1-key set) — the detail
+    # view inherits the identical subtraction so it never disagrees with the
+    # list it was drilled into from.
+    excepted_seconds = 0
+    if vuln.cve_id and vuln.asset_id:
+        lapsed_map = await lapsed_exception_seconds(db, tenant_id, {(vuln.cve_id, vuln.asset_id)}, sla_now)
+        excepted_seconds = lapsed_map.get((vuln.cve_id, vuln.asset_id), 0)
+    sla_due_at, sla_state = resolve_state_for_vuln(vuln, sla_policy, sla_now, excepted_seconds=excepted_seconds)
+
     return VulnerabilityResponse(
         id=vuln.id,
         tenant_id=vuln.tenant_id,
@@ -317,7 +388,187 @@ async def get_vulnerability(
         risk_exposure_score=vuln.risk_exposure_score,
         risk_exposure_breakdown=vuln.risk_exposure_breakdown,
         risk_model_version=vuln.risk_model_version,
+        sla_state=sla_state,
+        sla_due_at=sla_due_at,
     )
+
+
+# ── Phase 36 Plan 04 / SLA-04 / D-09 / Pitfall 6 ─────────────────────────────
+#
+# mark_vulnerability_remediated is the SINGLE helper every REMEDIATED write
+# site (vulnerabilities/service.py x2 below, ticketing/service.py x2,
+# ticketing/daily_sync.py x3) must route through. Missing it at any one
+# site silently drops that path's MTTR data -- see 36-RESEARCH.md Pitfall 6.
+
+logger = structlog.get_logger()
+
+
+def _freeze_tier_at_remediation(vuln: Vulnerability) -> str:
+    """D-09/D-12/Pitfall 13: freeze the FINAL risk tier at the moment of
+    remediation -- never tier-at-detection. Mirrors `resolve_state_for_vuln`'s
+    scored/NULL-fallback branch, but returns the literal "not_tracked"
+    string (rather than a `None` tier) for a scored-but-below-floor finding
+    so its remediation event is still written, just bucketed distinctly
+    instead of dropped (specless SLA-04 probe)."""
+    score = vuln.risk_exposure_score
+    if score is None:
+        return severity_to_tier(vuln.severity)
+    tier = tier_for_score(score)
+    return tier if tier is not None else "not_tracked"
+
+
+async def mark_vulnerability_remediated(
+    db: AsyncSession, vuln: Vulnerability, *, verified_by: str | None = None
+) -> RemediationEvent:
+    """The single REMEDIATED-transition helper (D-09/Pitfall 6).
+
+    Sets `status="REMEDIATED"` + `remediated_at=now` (matching the
+    pre-existing canonical write every call site already performed) AND
+    inserts a durable `RemediationEvent` row freezing `tier_at_remediation`
+    + `duration_seconds` (first_detected_at -> remediated_at). Callers pass
+    an already-loaded, already-tenant-scoped ORM `Vulnerability` (every one
+    of the six/seven pre-existing call sites already fetches the row before
+    this point) -- this function trusts `vuln.tenant_id`/`vuln.id`, it does
+    not re-derive or re-check tenant scope itself.
+
+    `verified_by` (Phase 37 Plan 01, SYNC-02) is an optional caller-supplied
+    provenance tag (e.g. "rescan") surfaced only via a structured log line
+    for the caller's own audit trail -- it does NOT change `remediated_at`
+    (resolved-open-question Q1: rescan is truth per D-03, so the honest MTTR
+    clock is the 2nd-clean-scan moment, not a separate fix moment) and does
+    NOT branch closure behavior. Omitting it (the default) reproduces the
+    exact pre-existing behavior for every regression caller.
+
+    Always resets `vuln.clean_scan_streak` to 0 -- a REMEDIATED row must
+    never carry a stale streak forward (e.g. into a later reopen-on-
+    recurrence cycle, SYNC-03).
+
+    Does not flush/commit -- matches every pre-existing call site's own
+    transaction-boundary convention (none of them commit inline either);
+    the caller's existing `await db.commit()` covers this too.
+    """
+    now = datetime.now(UTC)
+    vuln.status = "REMEDIATED"
+    vuln.remediated_at = now
+    vuln.clean_scan_streak = 0
+
+    tier = _freeze_tier_at_remediation(vuln)
+    duration_seconds = int((now - vuln.first_detected_at).total_seconds())
+
+    event = RemediationEvent(
+        tenant_id=vuln.tenant_id,
+        vulnerability_id=vuln.id,
+        tier_at_remediation=tier,
+        duration_seconds=duration_seconds,
+        first_detected_at=vuln.first_detected_at,
+        remediated_at=now,
+    )
+    db.add(event)
+
+    if verified_by is not None:
+        logger.info("vuln_remediated", vuln_id=str(vuln.id), verified_by=verified_by)
+
+    return event
+
+
+# ── Phase 37 Plan 02 / SYNC-03 / D-04 ────────────────────────────────────────
+#
+# reopen_vulnerability is the sibling resurrection helper to
+# mark_vulnerability_remediated: it undoes a soft REMEDIATED close when a
+# later scan re-detects the SAME finding row (routed here from
+# connectors/sync.py::_upsert_vulnerability's existing-row branch, which
+# already resolves recurrence to the same row via `uq_vuln_dedup`). It never
+# deletes the historical RemediationEvent row(s) -- MTTR lineage across a
+# close -> recur -> reopen -> re-close cycle stays fully reconstructable.
+
+
+async def reopen_vulnerability(db: AsyncSession, vuln: Vulnerability) -> bool:
+    """Resurrect a REMEDIATED row on recurrence (SYNC-03/D-04).
+
+    Sets `status="OPEN"`, clears `remediated_at`, resets
+    `clean_scan_streak=0`, and PRESERVES `first_detected_at` (MTTR lineage).
+    Writes a tenant-scoped system-actor `AuditLog`
+    (`user_email="system:rescan-reopen"`, `action="vuln.reopen_recurrence"`).
+    Any existing `RemediationEvent` row(s) for this vuln are left untouched --
+    they are historical and must never be deleted.
+
+    No-op (returns False) when called on a non-REMEDIATED row -- idempotent
+    guard so a caller can call this unconditionally on every existing-row
+    upsert branch without checking status itself first.
+
+    Does not flush/commit -- matches `mark_vulnerability_remediated`'s own
+    transaction-boundary convention; the caller's existing commit covers this.
+    """
+    if vuln.status != "REMEDIATED":
+        return False
+
+    vuln.status = "OPEN"
+    vuln.remediated_at = None
+    vuln.clean_scan_streak = 0
+    # first_detected_at is intentionally left untouched.
+
+    db.add(
+        AuditLog(
+            tenant_id=vuln.tenant_id,
+            user_id=None,
+            user_email="system:rescan-reopen",
+            action="vuln.reopen_recurrence",
+            resource_type="vulnerability",
+            resource_id=str(vuln.id),
+            details={"source": vuln.source},
+            ip_address=None,
+            created_at=datetime.now(UTC),
+        )
+    )
+
+    return True
+
+
+async def get_mttr_by_tier(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """SLA-04: tier-grouped MTTR aggregate over the durable `RemediationEvent`
+    table -- mirrors `trends.py`'s `get_mttr_trend` shape (group by tier
+    instead of week). Does NOT touch the pre-existing flat MTTR queries in
+    this file's `get_dashboard_stats`, `dashboard.py`, or `trends.py`
+    (Pitfall 11 -- those stay untouched, this is purely additive).
+
+    Phase 43 Plan 02 (RPT-01) extension: `start`/`end` are additive,
+    keyword-only, default-`None` params -- every pre-existing call site
+    (`compliance/service.py`, `GET /vulnerabilities/mttr/by-tier`) passes
+    neither and is byte-for-byte unaffected (43-RESEARCH.md Pitfall 3 --
+    this aggregate had no period parameter at all before this). When BOTH
+    are supplied, an inclusive `RemediationEvent.remediated_at.between(start,
+    end)` filter scopes the aggregate to that window -- one additive
+    `.where()` clause, never a re-derivation of the underlying MTTR
+    formula.
+    """
+    conditions = [RemediationEvent.tenant_id == tenant_id]
+    if start is not None and end is not None:
+        conditions.append(RemediationEvent.remediated_at.between(start, end))
+
+    mttr_q = (
+        select(
+            RemediationEvent.tier_at_remediation,
+            func.avg(RemediationEvent.duration_seconds).label("avg_seconds"),
+            func.count().label("count"),
+        )
+        .where(*conditions)
+        .group_by(RemediationEvent.tier_at_remediation)
+    )
+    rows = (await db.execute(mttr_q)).all()
+    return [
+        {
+            "tier_at_remediation": r.tier_at_remediation,
+            "avg_seconds": float(r.avg_seconds) if r.avg_seconds is not None else None,
+            "count": r.count,
+        }
+        for r in rows
+    ]
 
 
 async def update_vulnerability_status(
@@ -326,14 +577,30 @@ async def update_vulnerability_status(
     vuln_id: uuid.UUID,
     new_status: str,
 ) -> bool:
-    """Update status of a single vulnerability."""
+    """Update status of a single vulnerability.
+
+    D-09/Pitfall 6: a REMEDIATED transition fetches the row and routes it
+    through `mark_vulnerability_remediated` (so the durable MTTR
+    remediation-event row is never missed); every other status transition
+    keeps the original single-statement bulk `update()`.
+    """
     now = datetime.now(UTC)
-    values: dict = {"status": new_status, "updated_at": now}
+
     if new_status == "REMEDIATED":
-        values["remediated_at"] = now
+        vuln = (
+            await db.execute(
+                select(Vulnerability).where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id)
+            )
+        ).scalar_one_or_none()
+        if vuln is None:
+            return False
+        await mark_vulnerability_remediated(db, vuln)
+        return True
 
     result = await db.execute(
-        update(Vulnerability).where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id).values(**values)
+        update(Vulnerability)
+        .where(Vulnerability.id == vuln_id, Vulnerability.tenant_id == tenant_id)
+        .values(status=new_status, updated_at=now)
     )
     return result.rowcount > 0
 
@@ -343,11 +610,32 @@ async def bulk_update_status(
     tenant_id: uuid.UUID,
     body: BulkStatusUpdate,
 ) -> int:
-    """Bulk update status for multiple vulnerabilities."""
+    """Bulk update status for multiple vulnerabilities.
+
+    D-09/Pitfall 6: REMEDIATED fetches every matching row and routes each
+    one through `mark_vulnerability_remediated` (fetch-then-mutate per row)
+    instead of the single-statement bulk `update()`, so every remediated
+    row in the batch gets its own remediation-event row with its own
+    frozen tier (which can differ per row).
+    """
     now = datetime.now(UTC)
-    values: dict = {"status": body.status, "updated_at": now}
+
     if body.status == "REMEDIATED":
-        values["remediated_at"] = now
+        vulns = (
+            (
+                await db.execute(
+                    select(Vulnerability).where(
+                        Vulnerability.id.in_(body.vulnerability_ids),
+                        Vulnerability.tenant_id == tenant_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for vuln in vulns:
+            await mark_vulnerability_remediated(db, vuln)
+        return len(vulns)
 
     result = await db.execute(
         update(Vulnerability)
@@ -355,7 +643,7 @@ async def bulk_update_status(
             Vulnerability.id.in_(body.vulnerability_ids),
             Vulnerability.tenant_id == tenant_id,
         )
-        .values(**values)
+        .values(status=body.status, updated_at=now)
     )
     return result.rowcount
 
@@ -526,7 +814,11 @@ async def get_dashboard_stats(
     total_q = select(func.count(Vulnerability.id)).where(Vulnerability.tenant_id == tenant_id)
     total = (await db.execute(total_q)).scalar_one()
 
-    open_q = total_q.where(Vulnerability.status == "OPEN")
+    # EXC-02/D-15 (Phase 39 Tier 2 #13): open_vulnerabilities is an "active
+    # work" count, so it excludes actively-excepted findings -- unlike
+    # `total` above (a raw inventory count that intentionally still
+    # includes them, since exceptions never flip Vulnerability.status).
+    open_q = total_q.where(Vulnerability.status == "OPEN", ~active_exception_subquery(tenant_id, datetime.now(UTC)))
     open_count = (await db.execute(open_q)).scalar_one()
 
     # By severity

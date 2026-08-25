@@ -12,6 +12,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.assets.models import Asset
+from app.exceptions.models import ExceptionRecord
 from app.tenants.models import Tenant
 from app.vulnerabilities.models import Vulnerability
 from app.vulnerabilities.sla_service import (
@@ -33,6 +35,7 @@ def _vuln(
     sla_due_at: datetime | None = None,
     sla_breached: bool = False,
     remediated_at: datetime | None = None,
+    asset_id: uuid.UUID | None = None,
 ) -> Vulnerability:
     now = datetime.now(UTC)
     return Vulnerability(
@@ -47,7 +50,12 @@ def _vuln(
         sla_due_at=sla_due_at,
         sla_breached=sla_breached,
         remediated_at=remediated_at,
+        asset_id=asset_id,
     )
+
+
+def _asset(tenant_id) -> Asset:
+    return Asset(tenant_id=tenant_id, hostname=f"host-{uuid.uuid4().hex[:8]}")
 
 
 # ── get_sla_days (pure config resolution, no DB) ──────────────────────────────
@@ -202,3 +210,180 @@ async def test_sla_metrics_empty_tenant_is_fully_compliant(db_session, tenant_a)
     assert m["open_with_sla"] == 0
     assert m["breached"] == 0
     assert m["compliance_pct"] == 100.0  # no remediations → default 100%
+
+
+# ── Phase 43 Plan 01 (RPT-01/RPT-03) additive extension: severity +
+# exclude_exceptions on get_sla_metrics (43-RESEARCH.md Pitfall 1/2) ──────────
+
+
+def _finding_exception(
+    tenant_id, vuln: Vulnerability, *, expires_at: datetime, revoked_at: datetime | None = None
+) -> ExceptionRecord:
+    """A minimal FINDING-scope ExceptionRecord, constructed directly (not
+    via grant_exception) so the test controls expires_at/revoked_at
+    precisely. Mirrors active_exception_subquery's FINDING-scope match:
+    `ExceptionRecord.vulnerability_id == Vulnerability.id`."""
+    return ExceptionRecord(
+        tenant_id=tenant_id,
+        type="ACCEPTED_RISK",
+        scope_type="FINDING",
+        cve_id=vuln.cve_id,
+        vulnerability_id=vuln.id,
+        asset_id=None,
+        asset_group_id=None,
+        justification="Compensating control in place.",
+        approver_user_id=None,
+        granted_by_user_id=None,
+        expires_at=expires_at,
+        revoked_at=revoked_at,
+    )
+
+
+@pytest.mark.asyncio
+async def test_default_args_are_byte_identical_to_explicit_defaults(db_session, tenant_a):
+    """Calling with no kwargs must match calling with severity=None,
+    exclude_exceptions=False explicitly -- proves the additive params are
+    genuinely opt-in, never a hidden default-behavior change for the
+    existing dashboard.py/router.py/trends.py call sites."""
+    now = datetime.now(UTC)
+    breached = _vuln(tenant_a, status="OPEN", sla_due_at=now - timedelta(days=1), sla_breached=True)
+    db_session.add(breached)
+    await db_session.commit()
+
+    m_default = await get_sla_metrics(db_session, tenant_a)
+    m_explicit = await get_sla_metrics(db_session, tenant_a, severity=None, exclude_exceptions=False)
+    assert m_default == m_explicit
+
+
+@pytest.mark.asyncio
+async def test_exclude_exceptions_drops_actively_excepted_finding_from_breached_and_at_risk(db_session, tenant_a):
+    """43-RESEARCH.md Pitfall 2: a finding under an active accepted-risk
+    exception is excluded from breached/at_risk when exclude_exceptions=
+    True, and still counted when False (default, byte-compatible)."""
+    now = datetime.now(UTC)
+    excepted = _vuln(tenant_a, status="OPEN", sla_due_at=now - timedelta(days=1), sla_breached=True)
+    at_risk_excepted = _vuln(tenant_a, status="OPEN", sla_due_at=now + timedelta(hours=24), sla_breached=False)
+    plain_breached = _vuln(tenant_a, status="OPEN", sla_due_at=now - timedelta(days=1), sla_breached=True)
+    db_session.add_all([excepted, at_risk_excepted, plain_breached])
+    await db_session.flush()
+
+    active_grant = _finding_exception(tenant_a, excepted, expires_at=now + timedelta(days=30))
+    active_grant_2 = _finding_exception(tenant_a, at_risk_excepted, expires_at=now + timedelta(days=30))
+    db_session.add_all([active_grant, active_grant_2])
+    await db_session.commit()
+
+    m_included = await get_sla_metrics(db_session, tenant_a)
+    assert m_included["breached"] == 2  # excepted + plain_breached, exception not applied by default
+    assert m_included["at_risk"] == 1
+
+    m_excluded = await get_sla_metrics(db_session, tenant_a, exclude_exceptions=True)
+    assert m_excluded["breached"] == 1  # only plain_breached remains
+    assert m_excluded["at_risk"] == 0
+
+
+@pytest.mark.asyncio
+async def test_exclude_exceptions_expired_or_revoked_grant_still_counts(db_session, tenant_a):
+    """A LAPSED (expired or revoked) exception must NOT suppress the
+    finding -- active_exception_subquery's strict `expires_at > now` and
+    `revoked_at IS NULL` boundary, exercised through get_sla_metrics."""
+    now = datetime.now(UTC)
+    expired_grant_target = _vuln(tenant_a, status="OPEN", sla_due_at=now - timedelta(days=1), sla_breached=True)
+    revoked_grant_target = _vuln(tenant_a, status="OPEN", sla_due_at=now - timedelta(days=1), sla_breached=True)
+    db_session.add_all([expired_grant_target, revoked_grant_target])
+    await db_session.flush()
+
+    expired = _finding_exception(tenant_a, expired_grant_target, expires_at=now - timedelta(days=1))
+    revoked = _finding_exception(
+        tenant_a, revoked_grant_target, expires_at=now + timedelta(days=30), revoked_at=now - timedelta(hours=1)
+    )
+    db_session.add_all([expired, revoked])
+    await db_session.commit()
+
+    m = await get_sla_metrics(db_session, tenant_a, exclude_exceptions=True)
+    assert m["breached"] == 2  # both findings resurface -- neither exception is currently active
+
+
+@pytest.mark.asyncio
+async def test_severity_scopes_open_backlog_conditions(db_session, tenant_a):
+    """severity="CRITICAL" scopes open_with_sla/breached/at_risk to
+    CRITICAL only -- a HIGH-severity breach is excluded."""
+    now = datetime.now(UTC)
+    crit_breached = _vuln(tenant_a, severity="CRITICAL", status="OPEN", sla_due_at=now - timedelta(days=1), sla_breached=True)
+    high_breached = _vuln(tenant_a, severity="HIGH", status="OPEN", sla_due_at=now - timedelta(days=1), sla_breached=True)
+    db_session.add_all([crit_breached, high_breached])
+    await db_session.commit()
+
+    m_all = await get_sla_metrics(db_session, tenant_a)
+    assert m_all["breached"] == 2
+
+    m_critical_only = await get_sla_metrics(db_session, tenant_a, severity="CRITICAL")
+    assert m_critical_only["breached"] == 1
+    assert m_critical_only["open_with_sla"] == 1
+
+
+@pytest.mark.asyncio
+async def test_exclude_exceptions_applies_to_compliance_pct_source_queries(db_session, tenant_a):
+    """43-RESEARCH.md Pitfall 2: exclude_exceptions must also reach
+    remediated_total/remediated_within_sla (compliance_pct's source), not
+    just breached/at_risk -- otherwise RPT-03's sla_compliance_pct control
+    would pass exclude_exceptions=True with zero actual effect. An
+    ASSET-scope exception (D-11 forward-looking, matches on (cve_id,
+    asset_id) regardless of the row's current status) covering an
+    already-REMEDIATED finding is excluded from the compliance_pct
+    calculation when exclude_exceptions=True."""
+    now = datetime.now(UTC)
+    due = now - timedelta(days=1)
+    asset = _asset(tenant_a)
+    db_session.add(asset)
+    await db_session.flush()
+    on_time = _vuln(tenant_a, status="REMEDIATED", sla_due_at=due, remediated_at=due - timedelta(days=1))
+    late_but_excepted = _vuln(
+        tenant_a, status="REMEDIATED", sla_due_at=due, remediated_at=due + timedelta(hours=1), asset_id=asset.id
+    )
+    db_session.add_all([on_time, late_but_excepted])
+    await db_session.flush()
+
+    asset_scope_grant = ExceptionRecord(
+        tenant_id=tenant_a,
+        type="ACCEPTED_RISK",
+        scope_type="ASSET",
+        cve_id=late_but_excepted.cve_id,
+        vulnerability_id=None,
+        asset_id=late_but_excepted.asset_id,
+        asset_group_id=None,
+        justification="Compensating control in place.",
+        approver_user_id=None,
+        granted_by_user_id=None,
+        expires_at=now + timedelta(days=30),
+    )
+    db_session.add(asset_scope_grant)
+    await db_session.commit()
+
+    m_included = await get_sla_metrics(db_session, tenant_a)
+    assert m_included["remediated_total"] == 2
+    assert m_included["compliance_pct"] == 50.0
+
+    m_excluded = await get_sla_metrics(db_session, tenant_a, exclude_exceptions=True)
+    assert m_excluded["remediated_total"] == 1  # late_but_excepted dropped
+    assert m_excluded["remediated_within_sla"] == 1
+    assert m_excluded["compliance_pct"] == 100.0
+
+
+@pytest.mark.asyncio
+async def test_pitfall1_zero_remediated_is_fake_100_but_flagged_via_remediated_total(db_session, tenant_a):
+    """Regression for 43-RESEARCH.md Pitfall 1 CONSUMPTION: a tenant with
+    remediated_total==0 still gets the function's own documented
+    compliance_pct==100.0 fallback (this function's existing behavior is
+    intentionally untouched -- the fake-100 guard belongs at the CALL SITE,
+    per the plan's D-01a "never re-derive"), but remediated_total==0 is
+    present in the return dict so a caller (compliance/service.py) can
+    detect "not measured" and never trust compliance_pct blindly."""
+    m = await get_sla_metrics(db_session, tenant_a, exclude_exceptions=True)
+    assert m["remediated_total"] == 0
+    assert m["compliance_pct"] == 100.0
+
+
+# ── T-43 regression: pre-existing call sites are unchanged (grep-level,
+# not runtime) -- see acceptance_criteria; verified by reading router.py/
+# dashboard.py/trends.py source directly rather than re-asserting behavior
+# already covered by the tests above.

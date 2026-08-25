@@ -25,6 +25,12 @@ export type TicketsFilters = {
    * linked Vulnerability (backend `?source=`, Plan 04) — not display-only. */
   source?: readonly string[];
   search?: string;
+  // Phase 44 / NLQ-01 / D-17: backend GET /tickets already accepts `asset_id`
+  // (Phase 12 / UX-04-02, used by the asset-detail remediation rail) — no
+  // router change needed. Bound here so the tickets deep-link can scope to
+  // one asset the same way the AI orchestrator's server-side hostname
+  // resolution does (query_assistant.py's resolved_asset_id).
+  asset_id?: string;
 };
 
 // CR-04: snake_case end-to-end. The backend (service.py:list_tickets) emits
@@ -112,6 +118,10 @@ export function buildSearchParams(opts: {
 
   // Search — free-text, no allow-list (URL-encoded by URLSearchParams).
   if (filters.search) sp.set('search', filters.search);
+
+  // asset_id — already UUID-format-clamped by the page's URL-param reader
+  // (T-44-11) before it reaches this filter object.
+  if (filters.asset_id) sp.set('asset_id', filters.asset_id);
 
   sp.set('page', String(opts.page));
 

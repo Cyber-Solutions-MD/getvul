@@ -1,0 +1,23 @@
+{
+  "grounding_record": {
+    "question": "critical KEV vulns older than 30 days",
+    "filter": { "severity": ["CRITICAL"], "cisa_kev": true, "age_days_min": 30 },
+    "rows": [
+      { "cve_id": "CVE-2023-4863", "severity": "CRITICAL", "cisa_kev": true, "asset_hostname": "web-prod-03", "status": "OPEN" },
+      { "cve_id": "CVE-2024-0001", "severity": "CRITICAL", "cisa_kev": true, "asset_hostname": "web-prod-07", "status": "OPEN" }
+    ],
+    "total": 2
+  },
+  "schema_name": "NlqAnswerResponse",
+  "model_response": {
+    "summary": "2 critical, CISA KEV-listed vulnerabilities are older than 30 days and still open: CVE-2023-4863 on web-prod-03 and CVE-2024-0001 on web-prod-07.",
+    "business_risk": "Both are CISA KEV-listed and already past the 30-day mark -- treat as urgent, unremediated exposure.",
+    "citations": [
+      { "text": "CVE-2023-4863, CVE-2024-0001", "source": "scanner_verbatim", "source_field": "cve_id" },
+      { "text": "on web-prod-03 and web-prod-07", "source": "scanner_verbatim", "source_field": "asset_hostname" },
+      { "text": "treat as urgent", "source": "ai_interpreted", "source_field": null }
+    ],
+    "grounded": true
+  },
+  "note": "Mirrors FEW_SHOT_QUERY_NARRATE's first example verbatim (backend/app/ai/prompt_builder.py). NlqAnswerResponse adds ZERO fields to ExplainResponseBase, so the SAME 5 structural metrics (SchemaValidMetric/GroundingTraceabilityMetric/NoRankInvariantMetric/NoOwnerPiiMetric/CiteOrRefuseMetric) apply verbatim -- proven here with a populated (non-null) source_field on two citations so GroundingTraceabilityMetric's allowlist check is exercised non-trivially, not just against source_field=null."
+}

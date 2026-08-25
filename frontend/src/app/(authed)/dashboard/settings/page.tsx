@@ -44,6 +44,8 @@ import { NotificationsPane } from '@/components/settings/notifications-pane';
 import { ApiTokensPane } from '@/components/settings/api-tokens-pane';
 import { AuditLogPane } from '@/components/settings/audit-log-pane';
 import { AiUsagePane } from '@/components/settings/ai-usage-pane';
+import { SlaEscalationPane } from '@/components/settings/sla-escalation-pane';
+import { AlertingDigestsPane } from '@/components/settings/alerting-digests-pane';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { UNSAVED_GUARD } from '@/components/settings/microcopy';
 import { useUrlState } from '@/hooks/use-url-state';
@@ -57,6 +59,8 @@ const CATEGORY_ALLOW_LIST = [
   'api-tokens',
   'audit',
   'ai',
+  'sla',
+  'alerting',
 ] as const satisfies readonly Category[];
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -129,6 +133,10 @@ export default function SettingsPage() {
         return <AuditLogPane />;
       case 'ai':
         return <AiUsagePane />;
+      case 'sla':
+        return <SlaEscalationPane onDirtyChange={handleDirtyChange} />;
+      case 'alerting':
+        return <AlertingDigestsPane onDirtyChange={handleDirtyChange} />;
       default:
         return <ProfilePane />;
     }

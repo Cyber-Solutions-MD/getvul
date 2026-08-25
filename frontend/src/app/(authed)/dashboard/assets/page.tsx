@@ -32,6 +32,7 @@ import Pagination from '@/components/ui/Pagination';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useUrlState } from '@/hooks/use-url-state';
 import { useUrlStateList } from '@/hooks/use-url-state-list';
+import { useUrlStateBool } from '@/hooks/use-url-state-scalar';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useAssets, type AssetsFilters } from '@/lib/queries/use-assets';
 
@@ -91,6 +92,10 @@ function AssetsPageInner() {
   const [sourceMode] = useUrlState<(typeof SOURCE_MODES)[number]>('source_mode', SOURCE_MODES, 'or');
   const [os_family] = useUrlStateList<string>('os_family', OS_FAMILIES, []);
   const [order] = useUrlState<Order>('order', ORDERS, 'desc');
+  // Phase 44 / NLQ-01 / D-17 — native Asset.internet_facing predicate, now
+  // bound as a Query param on the router; param name matches
+  // buildNlqDeepLink's FIELD_MAP exactly.
+  const [internetFacing] = useUrlStateBool('internet_facing', false);
   const search = params?.get('search') ?? '';
   const pageNum = Math.max(1, Number(params?.get('page') ?? '1') || 1);
 
@@ -106,8 +111,9 @@ function AssetsPageInner() {
       enrichment_source: enrichmentSource.length ? enrichmentSource : undefined,
       os_family: os_family.length ? os_family : undefined,
       search: search || undefined,
+      internet_facing: internetFacing || undefined,
     }),
-    [category, risk_band, scanner, sourceMode, enrichmentSource, os_family, search],
+    [category, risk_band, scanner, sourceMode, enrichmentSource, os_family, search, internetFacing],
   );
 
   const q = useAssets({ filters, page: pageNum, sort: 'risk_score', order });

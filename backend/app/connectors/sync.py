@@ -8,13 +8,14 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.classification import classify_asset_from_data
 from app.assets.exposure import apply_inference_to_asset, audit_auto_inference_changes
 from app.assets.models import Asset
 from app.assets.risk_score import compute_risk_scores
+from app.audit import AuditLog
 from app.connectors.base import BaseConnector, NormalizedMisconfiguration, NormalizedVulnerability
 from app.connectors.crowdstrike import CrowdStrikeConnector
 from app.connectors.defender import DefenderConnector
@@ -29,6 +30,7 @@ from app.ticketing.models import ConnectorConfig, SyncLog
 from app.vulnerabilities.correlation_service import run_correlations
 from app.vulnerabilities.models import CisaKev, EpssScore, Vulnerability
 from app.vulnerabilities.risk_exposure_service import compute_finding_risk_scores
+from app.vulnerabilities.service import mark_vulnerability_remediated
 
 logger = structlog.get_logger()
 
@@ -179,6 +181,17 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
         # already satisfies "shadow-computed for >=1 full sync cycle".
         finding_risk_stats = await compute_finding_risk_scores(db, connector_config.tenant_id)
 
+        # SYNC-02 (Phase 37 Plan 01, D-02/D-03): rescan-verified absent-sweep.
+        # Runs ONLY here, inside the SUCCESS branch that already survived the
+        # full upsert loop without raising -- a FAILED/partial sync (the
+        # `except`/auth-failure branches above and below) never reaches this
+        # line, so it can never advance a streak or false-close a finding
+        # (Pitfall 2). `now` is the entry timestamp captured before the
+        # upsert loop; present findings get a FRESH last_seen_at inside
+        # _upsert_vulnerability, so `last_seen_at < now` is exactly "absent
+        # this cycle" for this connector's own tenant_id + source only.
+        rescan_close_count = await _run_rescan_verify_sweep(db, connector_config, sync_start=now)
+
         log.status = "SUCCESS"
         log.records_fetched = len(vulns) + len(misconfigs)
         log.records_created = vc + mc
@@ -192,6 +205,7 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
             "correlations": corr_stats,
             "risk_scores": risk_stats,
             "finding_risk_scores": finding_risk_stats,
+            "rescan_verified_closed": rescan_close_count,
         }
         connector_config.last_sync_at = datetime.now(UTC)
         connector_config.last_sync_status = "SUCCESS"
@@ -213,6 +227,65 @@ async def run_sync(db: AsyncSession, connector_config: ConnectorConfig) -> SyncL
             await connector.close()
 
     return log
+
+
+async def _run_rescan_verify_sweep(db: AsyncSession, connector_config: ConnectorConfig, *, sync_start: datetime) -> int:
+    """SYNC-02 (D-02/D-03): after a SUCCESSful scanner sync, sweep this
+    connector's own (tenant_id, source) OPEN/IN_PROGRESS findings for
+    absence, bump/reset `clean_scan_streak`, and auto-close at streak>=2.
+
+    Called ONLY from `run_sync`'s SUCCESS branch (never on FAILED/partial --
+    Pitfall 2). Scoped strictly to `connector_config.tenant_id` +
+    `connector_config.connector_type` (T-37-03: no cross-tenant/source
+    bleed). Returns the count of findings auto-closed this sweep (for
+    `SyncLog.details` observability only).
+    """
+    tenant_id = connector_config.tenant_id
+    source = connector_config.connector_type
+
+    absent = await db.execute(
+        select(Vulnerability).where(
+            Vulnerability.tenant_id == tenant_id,
+            Vulnerability.source == source,
+            Vulnerability.status.in_(("OPEN", "IN_PROGRESS")),
+            Vulnerability.last_seen_at < sync_start,
+        )
+    )
+    closed_count = 0
+    for vuln in absent.scalars():
+        vuln.clean_scan_streak = (vuln.clean_scan_streak or 0) + 1
+        if vuln.clean_scan_streak >= 2:
+            await mark_vulnerability_remediated(db, vuln, verified_by="rescan")
+            db.add(
+                AuditLog(
+                    tenant_id=vuln.tenant_id,
+                    user_id=None,
+                    user_email="system:rescan-verify",
+                    action="vuln.rescan_verified_close",
+                    resource_type="vulnerability",
+                    resource_id=str(vuln.id),
+                    details={"clean_scan_streak": vuln.clean_scan_streak, "source": source},
+                    ip_address=None,
+                    created_at=datetime.now(UTC),
+                )
+            )
+            closed_count += 1
+
+    # Findings re-detected this cycle (last_seen_at refreshed by
+    # _upsert_vulnerability's existing-row branch) reset their streak --
+    # a single statement, scoped to the same tenant_id + source.
+    await db.execute(
+        update(Vulnerability)
+        .where(
+            Vulnerability.tenant_id == tenant_id,
+            Vulnerability.source == source,
+            Vulnerability.last_seen_at >= sync_start,
+            Vulnerability.clean_scan_streak > 0,
+        )
+        .values(clean_scan_streak=0)
+    )
+
+    return closed_count
 
 
 async def _upsert_asset(db: AsyncSession, tenant_id: uuid.UUID, v: NormalizedVulnerability, source: str) -> Asset:
@@ -390,6 +463,16 @@ async def _upsert_vulnerability(
         existing.exploit_status_name = getattr(v, "exploit_status_name", None)
         if getattr(v, "file_paths", None):
             existing.file_paths = v.file_paths
+        # SYNC-03 (D-04): a re-detected finding lands on this SAME row via
+        # `uq_vuln_dedup` -- if it was rescan-verified REMEDIATED, this is a
+        # recurrence: resurrect it via the single reopen helper (never a
+        # second status-writer). No-op (idempotent) for any other status,
+        # including OPEN/IN_PROGRESS re-detections that already reach here
+        # via the field-refresh above.
+        if existing.status == "REMEDIATED":
+            from app.vulnerabilities.service import reopen_vulnerability
+
+            await reopen_vulnerability(db, existing)
         return False
     else:
         vuln = Vulnerability(

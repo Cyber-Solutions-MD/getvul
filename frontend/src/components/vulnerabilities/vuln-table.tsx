@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useRef, useState, type KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
+import { SlaPill, type SlaPillState } from '@/components/tickets/sla-pill';
 import { microcopy } from './microcopy';
 import { SourceBadgeGroup } from './source-badge-group';
 
@@ -8,6 +9,10 @@ import { SourceBadgeGroup } from './source-badge-group';
 // 7 columns: Severity / CVE / Title / Asset / CVSS / Status / SLA.
 // Sticky thead (D-T-04). Plain <table> — semantic only, no grid role (Pitfall 5).
 // Row keyboard nav per RESEARCH §Pattern 6 (ArrowDown/Up/Home/End/Enter/Space).
+// Phase 36 / D-11: the SLA column renders the shared SlaPill primitive with
+// the server-computed `state` prop (sla_state) — server is authoritative,
+// never re-derived client-side (D-01/D-02). Replaces the prior local
+// per-row SLA band formatter.
 // Stale-row tinting per D-V-04 — failedSources prop drives `data-stale`.
 
 type SeverityLower = 'critical' | 'high' | 'medium' | 'low' | 'info';
@@ -47,6 +52,10 @@ export type VulnTableRow = {
   sources?: string[];
   sources_count?: number;
   sla_due_at: string | null;
+  // Phase 36 / SLA-01/SLA-02: server-computed risk-tier SLA state. Optional
+  // so pre-Phase-36 test fixtures without this field still type-check —
+  // SlaPill falls back to its client-computed dueAt path when absent.
+  sla_state?: SlaPillState | null;
 };
 
 type Props = {
@@ -94,24 +103,6 @@ function normalizeSeverity(s: VulnTableRow['severity']): SeverityLower {
     return lower;
   }
   return 'info';
-}
-
-function slaBand(iso: string | null): { label: string; tone: string } {
-  if (!iso) return { label: '—', tone: 'text-text-muted' };
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return { label: '—', tone: 'text-text-muted' };
-  const hours = (t - Date.now()) / 3_600_000;
-  if (hours < 0)
-    return {
-      label: `−${Math.abs(Math.round(hours))}h SLA`,
-      tone: 'text-[var(--color-severity-critical-on-soft)]',
-    };
-  if (hours < 24)
-    return { label: `${Math.round(hours)}h left`, tone: 'text-[var(--color-severity-high-on-soft)]' };
-  return {
-    label: `${Math.round(hours / 24)}d left`,
-    tone: 'text-success',
-  };
 }
 
 // Cycle sort order: not-set → asc → desc → clear (null, null).
@@ -249,7 +240,6 @@ export function VulnTable({
           const sev = normalizeSeverity(row.severity);
           const idOrCve = row.cve_id ?? row.id;
           const stale = failedSources.includes(row.source);
-          const sla = slaBand(row.sla_due_at);
           const cvss = row.cvss ?? row.cvss_v3_score ?? null;
           const titleText = row.title ?? row.affected_product ?? '—';
           const assetText = row.asset ?? row.asset_hostname ?? '—';
@@ -320,12 +310,9 @@ export function VulnTable({
               </td>
               <td
                 data-col="sla"
-                className={cn(
-                  'px-3 py-2.5 text-right font-mono text-xs',
-                  sla.tone,
-                )}
+                className="px-3 py-2.5 text-right font-mono text-xs"
               >
-                {sla.label}
+                <SlaPill state={row.sla_state ?? undefined} dueAt={row.sla_due_at} />
               </td>
             </tr>
           );
@@ -352,7 +339,6 @@ export function VulnTable({
         const sev = normalizeSeverity(row.severity);
         const idOrCve = row.cve_id ?? row.id;
         const stale = failedSources.includes(row.source);
-        const sla = slaBand(row.sla_due_at);
         const cvss = row.cvss ?? row.cvss_v3_score ?? null;
         const titleText = row.title ?? row.affected_product ?? '—';
         const assetText = row.asset ?? row.asset_hostname ?? '—';
@@ -383,7 +369,11 @@ export function VulnTable({
                 <span className={GLYPH_COLOR[sev]}>{SEVERITY_LABEL[sev]}</span>
               </span>
               <span className="truncate font-mono text-xs text-text">{row.cve_id ?? '—'}</span>
-              <span className={cn('ml-auto shrink-0 font-mono text-xs', sla.tone)}>{sla.label}</span>
+              <SlaPill
+                state={row.sla_state ?? undefined}
+                dueAt={row.sla_due_at}
+                className="ml-auto shrink-0"
+              />
             </div>
             {/* Row 2: Title / Product */}
             <div className="mt-1.5 truncate text-sm text-text" title={titleText}>{titleText}</div>

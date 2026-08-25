@@ -44,7 +44,7 @@ _FAKE_URL_BASE = {
 
 class FakeTicketingClient:
     """Records every dispatch verb call; returns a provider-shaped fake URL
-    from create() so _extract_ref's "last path segment" parsing is exercised
+    from create() so extract_ticket_ref's "last path segment" parsing is exercised
     exactly as it would be against a real adapter."""
 
     def __init__(self, provider: str, get_payload: dict | None = None) -> None:

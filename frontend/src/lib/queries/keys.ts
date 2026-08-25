@@ -19,6 +19,13 @@ export const queryKeys = {
       order: string;
     }) => ['vulnerabilities', 'list', opts] as const,
     detail: (id: string) => ['vulnerabilities', 'detail', id] as const,
+    // Phase 36 (SLA-03, D-07): escalation-fire history list in the drill panel.
+    escalations: (id: string) => ['vulnerabilities', id, 'escalations'] as const,
+    // Phase 38 (WR-03 fix): member-hosts list on the campaign detail page
+    // (GET /vulnerabilities/remediations/{id}/hosts) -- previously an inline
+    // key bypassing this registry.
+    remediationHosts: (remediationId: string) =>
+      ['vulnerabilities', 'remediation-hosts', remediationId] as const,
   },
   notifications: {
     all: ['notifications'] as const,
@@ -107,5 +114,82 @@ export const queryKeys = {
       ['ai', 'explain', resourceType, resourceId] as const,
     status: () => ['ai', 'status'] as const,
     usage: () => ['ai', 'usage'] as const,
+  },
+  // Phase 38 (38-04) — /dashboard/campaigns list + detail surface. GET
+  // /api/v1/campaigns has no filter/pagination params (D-07 compute-on-read
+  // returns the full tenant-scoped list every time; the status chip-bar
+  // filters client-side) so `list()` takes no opts, unlike `tickets.list`.
+  campaigns: {
+    all: ['campaigns'] as const,
+    list: () => ['campaigns', 'list'] as const,
+    detail: (id: string) => ['campaigns', 'detail', id] as const,
+  },
+  // Phase 39 (39-06) — /dashboard/exceptions manage-only list surface. GET
+  // /api/v1/exceptions has no filter/pagination params (mirrors campaigns'
+  // D-07 compute-on-read full-tenant-list precedent) so list() takes no
+  // opts; the chip-bar filters + client-side pagination apply over the
+  // fetched array. No detail key — the row's inline-expand accordion reads
+  // from the already-fetched list array, not a per-row fetch.
+  exceptions: {
+    all: ['exceptions'] as const,
+    list: () => ['exceptions', 'list'] as const,
+  },
+  // Phase 38 (38-05) — /dashboard/vulnerabilities/remediations entry point
+  // (CAMP-01). GET /api/v1/vulnerabilities/remediations/grouped supports
+  // page/page_size (plus severity/exploit/kev/search/device_type filters
+  // this plan's minimal entry point doesn't surface yet) — list() takes an
+  // opts object so pagination stays part of the cache key, mirroring
+  // tickets.list's shape rather than campaigns.list's no-opts shape.
+  remediationsGrouped: {
+    all: ['remediations-grouped'] as const,
+    list: (opts: { page: number; pageSize: number }) =>
+      ['remediations-grouped', 'list', opts] as const,
+  },
+  // Phase 41 (41-01, COV-01) — /dashboard/coverage blind-spot-detection
+  // tracer slice. GET /api/v1/coverage/blind-spots supports page/page_size
+  // (mirrors tickets.list's opts-object shape so pagination stays part of
+  // the cache key). `summary()` is added now (no opts) so Plan 02 (COV-02
+  // coverage strip, GET /api/v1/coverage/summary) needs no re-touch here.
+  coverage: {
+    all: ['coverage'] as const,
+    summary: () => ['coverage', 'summary'] as const,
+    blindSpots: (opts: { page: number }) => ['coverage', 'blind-spots', opts] as const,
+  },
+  // Phase 42 (42-01, TREND-01..03) — /dashboard/analytics tracer slice. ONE
+  // combined read (single compute pass, D-13's live-on-read shape) so
+  // overview() takes the full scope+window opts object as its cache key
+  // (mirrors tickets.list's opts-object shape, not coverage.summary's
+  // no-arg shape). `scope`/`from`/`to` are placeholders this plan's hook
+  // always passes as scope:'all'/undefined — Plan 03 wires group scope +
+  // custom range through fully without needing to re-touch this key shape.
+  analytics: {
+    all: ['analytics'] as const,
+    overview: (opts: { scope: string; window: string; from?: string; to?: string }) =>
+      ['analytics', 'overview', opts] as const,
+  },
+  // Phase 43 (43-01, RPT-03) — /dashboard/compliance tracer slice. GET
+  // /api/v1/compliance/overview has no filter/pagination params (mirrors
+  // coverage.summary's no-arg shape) so overview() takes no opts; the
+  // framework chip bar filters the fetched array client-side. Top-level
+  // key, distinct from the pre-existing CSPM-nested `cspm.compliance()`
+  // above — no collision (different top-level property name).
+  compliance: {
+    all: ['compliance'] as const,
+    overview: () => ['compliance', 'overview'] as const,
+  },
+  // Phase 43 (43-04, RPT-02) — leadership/compliance dashboard-lens tiles.
+  // Both GET routes have no filter/pagination params (mirror coverage.
+  // summary's/compliance.overview's no-arg shape).
+  mttrByTier: {
+    all: ['mttr-by-tier'] as const,
+    list: () => ['mttr-by-tier', 'list'] as const,
+  },
+  slaMetrics: {
+    all: ['sla-metrics'] as const,
+    // Cache key carries excludeExceptions so a future caller that wants
+    // the raw (non-exception-excluded) number can coexist in the cache
+    // without collision — this plan's use-sla-metrics.ts only ever passes
+    // true (D-15/T-43-15 exception-consistency requirement).
+    get: (opts: { excludeExceptions: boolean }) => ['sla-metrics', opts] as const,
   },
 } as const;

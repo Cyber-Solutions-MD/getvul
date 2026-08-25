@@ -311,18 +311,30 @@ async def _scheduler_loop() -> None:
         except Exception as e:
             logger.error("scheduled_reports_error", error=str(e))
 
-        # SLA breach check (runs every loop — lightweight query)
+        # SLA tier-engine pass (Phase 36 / SLA-01/SLA-02 — runs every loop,
+        # lightweight per-tenant query). Replaces the flat severity-keyed
+        # due-date-backfill + breach-detection calls from sla_service.py:
+        # run_sla_tier_pass now owns sla_due_at + the sla_breached derived
+        # mirror (D-08). A NULL risk_exposure_score still gets a due date via
+        # the severity fallback resolve_state_for_vuln applies internally
+        # (D-03) — no separate backfill pass is needed. detect_and_escalate
+        # (Plan 03 / SLA-03) runs immediately after in the SAME isolated
+        # block -- it re-resolves the just-written state and fires any
+        # approaching/breached transition's routed channels exactly once
+        # (D-05/D-06/D-07), audited, with a single in-app twin per breach
+        # (D-08). No new scheduler is registered — this extends the
+        # existing tick block in place.
         try:
             async with async_session_factory() as db:
                 from sqlalchemy import select as _sel  # noqa: N814
 
                 from app.tenants.models import Tenant as TenantModel
-                from app.vulnerabilities.sla_service import backfill_sla_due_dates, check_sla_breaches
+                from app.vulnerabilities.sla_tier_service import detect_and_escalate, run_sla_tier_pass
 
                 tenants = (await db.execute(_sel(TenantModel).where(TenantModel.is_active.is_(True)))).scalars().all()
                 for t in tenants:
-                    await backfill_sla_due_dates(db, t.id)
-                    await check_sla_breaches(db, t.id)
+                    await run_sla_tier_pass(db, t)
+                    await detect_and_escalate(db, t)
                 await db.commit()
         except Exception as e:
             logger.error("sla_check_error", error=str(e))
@@ -365,6 +377,22 @@ async def _scheduler_loop() -> None:
                         logger.info("alerts_created", **alert_result)
         except Exception as e:
             logger.error("alert_check_error", error=str(e))
+
+        # ── ALERT-02 digest dispatch (every tick) ──
+        # The wall-clock send-hour gate lives INSIDE run_digests
+        # (digests.py::_send_hour_due) -- this block itself runs every tick,
+        # like the SLA pass above, with no elapsed-hours guard here (that
+        # would be the reports.py::_is_due anti-pattern D-12 explicitly
+        # rejects for digests).
+        try:
+            async with async_session_factory() as db:
+                from app.notifications.digests import run_digests
+
+                digests_sent = await run_digests(db)
+                if digests_sent > 0:
+                    logger.info("digests_sent", count=digests_sent)
+        except Exception as e:
+            logger.error("digest_dispatch_error", error=str(e))
 
         # AI batch prewarm (nightly, 24h-gated) + poll (every tick) --
         # AIP-02/D-05: both non-blocking asyncio.create_task dispatches;

@@ -8,6 +8,15 @@ and ships a Jira/Asana/GitHub ticket — without opening a scanner console. All 
 are shipped and archived; see [MILESTONES.md](MILESTONES.md) for the full log and `.planning/milestones/`
 for per-milestone detail (roadmap + requirements + audit + archived phase dirs).
 
+**Current milestone: v5.0 — Close the Loop: Remediation Orchestration & Assurance.** v4.0 solved *seeing
+and deciding* (correlation, enrichment, a deterministic risk-exposure score, source-aware provenance).
+v5.0 closes the loop downstream of that score: route findings to owners, drive them to fixed under
+risk-based SLAs with automatic escalation, verify the fix on rescan, orchestrate bulk campaigns, govern
+exceptions/risk-acceptance, alert proactively on new KEV/EPSS matches, find coverage blind spots, chart
+risk-trend/burndown, produce executive + compliance reporting, answer natural-language questions
+(BYOK), and expose it all through a public API/webhooks/SDK. Continues phase numbering from Phase 35
+(last shipped phase, v4.0).
+
 ## Milestones
 
 - ✅ **v1.0 Production Readiness** — Phases 1–8 (SHIPPED 2026-07-14)
@@ -16,9 +25,14 @@ for per-milestone detail (roadmap + requirements + audit + archived phase dirs).
 - ✅ **v2.2 Deferred UI Features** — Phases 16–22 (SHIPPED 2026-07-22) — [archive](milestones/v2.2-ROADMAP.md)
 - ✅ **v3.0 AI-Assisted Triage ("Triage Copilot")** — Phases 23–29 (SHIPPED 2026-08-04) — [archive](milestones/v3.0-ROADMAP.md)
 - ✅ **v4.0 Enriched Risk Exposure & Source-Aware Triage** — Phases 30–35 (SHIPPED 2026-08-13) — [archive](milestones/v4.0-ROADMAP.md)
-- 📋 **v5.0 Close the Loop — Remediation Orchestration & Assurance** — PROPOSED (not started) — [proposal](milestones/v5.0-PROPOSAL.md) · [requirements stub](milestones/v5.0-REQUIREMENTS.md)
+- 🚧 **v5.0 Close the Loop — Remediation Orchestration & Assurance** — Phases 36–45 (IN PROGRESS, started 2026-08-13)
 
 ## Phases
+
+**Phase Numbering:**
+
+- Integer phases (36, 37, 38...): Planned milestone work
+- Decimal phases (36.1, 36.2): Urgent insertions (marked with INSERTED)
 
 <details>
 <summary>✅ v4.0 Enriched Risk Exposure & Source-Aware Triage (Phases 30–35) — SHIPPED 2026-08-13</summary>
@@ -38,10 +52,328 @@ for per-milestone detail (roadmap + requirements + audit + archived phase dirs).
 
 Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 
+**v5.0 Close the Loop — Remediation Orchestration & Assurance (IN PROGRESS — Phases 36–45):**
+
+- [x] **Phase 36: Remediation SLA Engine & Escalation** — Risk-tier SLA policy, live SLA state per finding, auto-escalation, MTTR-by-tier ✅ verified 29/29 UAT + threats_open:0 (2026-08-18)
+- [x] **Phase 37: Two-Way Ticket Sync & Remediation Verification** — Bi-directional ticket status sync + rescan-verified auto-close + reopen guard ✅ verified 7/7 (2026-08-17)
+- [x] **Phase 38: Remediation Campaigns** — Bulk-group findings by shared fix, bulk ticket create/assign, live campaign progress + MTTR (completed 2026-08-18)
+- [x] **Phase 39: Exception & Risk-Acceptance Workflow** — First-class false-positive/accept-risk with justification, approver, scope, mandatory expiry (completed 2026-08-19)
+- [x] **Phase 40: Proactive Alerting & Digests** — New-KEV/high-EPSS targeted alerts + scheduled owner/team digests (completed 2026-08-19; Task 3 live-verify checkpoint approved on-trust, live third-party delivery deferred to /gsd-verify-work 40)
+- [x] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %; route-to-owner (5/5 plans executed; verification = human_needed — awaiting UAT on SC3 route-to-owner dialog copy) (completed 2026-08-21)
+- [x] **Phase 42: Risk Trend Analytics & Burndown** — Trend lines, backlog aging/burndown, version-boundary-aware (3/3 plans executed; human-verify checkpoints approved against orchestrator-seeded synthetic data — TREND-03's version-boundary proof is synthetic-fixture-only by design, real tenant history stays single-version; run /gsd-verify-work 42) (completed 2026-08-21)
+- [x] **Phase 43: Executive & Compliance Reporting** — Exec/board PDF (RPT-01) + built-in framework-control compliance view (RPT-03) + 4-lens role-scoped dashboard (RPT-02): analyst/IT-ops unchanged, leadership/compliance surface trend-and-posture widgets + framework-posture strip (4/4 plans executed; human-verify checkpoints approved — 43-03 PDF export dialog live-verified against real generated PDFs, 43-04 all four dashboard lenses live-verified in-browser) (completed 2026-08-24)
+- [x] **Phase 44: Natural-Language Query Assistant** — BYOK plain-English Q&A over tenant data, safe-schema constrained (6/6 plans executed; /dashboard/ask composes every state (inert/empty/results-first/refuse/zero/budget/safety/transient-error) + Open-in deep-link; 44-04's live human-verify checkpoint approved on-trust, live browser/key flow deferred to /gsd-verify-work 44) (completed 2026-08-25)
+- [ ] **Phase 45: Public API, Webhooks & SDK** — Tenant-scoped REST API, signed event webhooks, OpenAPI spec + SDK
+
+## Phase Details
+
+### Phase 36: Remediation SLA Engine & Escalation
+
+**Goal**: Every open finding carries a live, tenant-configurable SLA state driven by its v4.0 risk tier, escalates automatically to the right channel exactly once per state transition, and accumulates MTTR-by-tier data for later reporting — replacing today's flat severity-keyed SLA with a real engine.
+**Depends on**: Nothing (first phase of v5.0; extends the v4.0 risk-exposure model, already shipped — never re-derives it)
+**Requirements**: SLA-01, SLA-02, SLA-03, SLA-04
+**Success Criteria** (what must be TRUE):
+
+  1. A tenant-configurable, risk-tier-keyed SLA policy exists (default critical 7d / high 30d / moderate 90d), computed off the v4.0 risk-exposure tier, editable on an admin settings page
+  2. Every open finding shows a live SLA state (on-track / approaching / breached) derived from that policy, visible on the finding row and drill panel
+  3. An approaching-or-breach state transition fires the tenant-configured escalation channel (Slack / Microsoft Teams / email / PagerDuty) exactly once per transition, and every escalation is audited
+  4. MTTR is captured per risk tier and is queryable (feeds Phase 42 trend + Phase 43 reporting)
+
+**Plans**: 6/6 plans executed
+**Wave 1**
+
+- [x] 36-01-PLAN.md — LEAD TRACER: tier-SLA engine + live SLA state on the finding row (SLA-01/02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 36-02-PLAN.md — Escalation channel infra: escalation-event table + Slack/Teams/PagerDuty/email senders (SLA-03)
+- [x] 36-05-PLAN.md — SLA policy + channel-config settings backend: Fernet + mask + validation + RBAC + audit (SLA-01/03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 36-03-PLAN.md — Escalation dispatch: exactly-once transition firing + D-08 reconcile + history endpoint (SLA-03)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 36-04-PLAN.md — MTTR capture: remediation-event table + mark_vulnerability_remediated helper + MTTR-by-tier (SLA-04)
+- [x] 36-06-PLAN.md — Frontend: SLA & Escalation admin pane + drill-panel SLA pill + escalation history (SLA-01/02/03) *(committed + live-verified 2026-08-14; SLA-03 live webhook delivery is the one open manual gate — see 36-VERIFICATION.md addendum)*
+
+**UI hint**: yes
+
+### Phase 37: Two-Way Ticket Sync & Remediation Verification
+
+**Goal**: Ticket state stops being one-way (GetVul → Jira/Asana/GitHub only); a fix is verified by the scanner itself re-scanning clean, not by a human remembering to close the loop.
+**Depends on**: Nothing (independent of Phase 36; extends the existing ticketing connectors)
+**Requirements**: SYNC-01, SYNC-02, SYNC-03, SYNC-04
+**Success Criteria** (what must be TRUE):
+
+  1. A ticket status change in Jira, Asana, or GitHub writes back onto the linked GetVul finding without any manual action
+  2. A finding absent from N consecutive post-fix scanner syncs auto-closes as rescan-verified, with a full audit trail of the auto-close decision
+  3. A later recurrence of an auto-closed finding reopens it rather than silently creating a duplicate finding/ticket
+  4. A connector or provider API outage never loses sync data — failed syncs retry, and the last-successful-sync state is surfaced per connector
+
+**Plans**: 4 plans (37-04 = gap closure)
+
+Plans:
+
+- [x] 37-01-PLAN.md — TRACER: rescan-verified auto-close (SYNC-02): clean_scan_streak column + SUCCESS-branch absent-sweep + single-helper close
+- [x] 37-02-PLAN.md — SYNC-03: reopen-on-recurrence (soft-close resurrection of the same finding row, MTTR preserved)
+- [x] 37-03-PLAN.md — SYNC-01 D-03 split (ticket status → IN_PROGRESS, never closes) + SYNC-04 resilience/last-sync + external-ticket reopen
+- [x] 37-04-PLAN.md — GAP CLOSURE (SYNC-01 / D-03 addendum): apply the daily_sync.py IN_PROGRESS-only pattern to service.py::sync_ticket_status + close_ticket (the router-invoked twins still force-closed findings) + rewrite the two test_mttr.py regressions
+
+> **Execution note (gsd-plan-checker F-2):** 37-02 and 37-03 are wave-2 with disjoint `files_modified`, but run 37-01 → then 37-02 → 37-03 **sequentially on `main`**, NOT in parallel worktrees (stale-base hazard: parallel executor worktrees can silently revert prior phases).
+
+### Phase 38: Remediation Campaigns
+
+**Goal**: An analyst can act on a whole class of findings at once — group by shared fix across every affected asset/owner, bulk-create/assign tickets respecting existing routing, and watch the campaign burn down live — instead of ticketing one finding at a time.
+**Depends on**: Nothing new (independent; builds on GetVul's existing cross-asset-by-CVE grouping and owner-routing logic)
+**Requirements**: CAMP-01, CAMP-02, CAMP-03, CAMP-04
+**Success Criteria** (what must be TRUE):
+
+  1. An analyst groups findings sharing a fix (CVE / patch / product) across multiple assets and owners into a single campaign in one action, from a dedicated campaign view
+  2. Bulk ticket create/assign for a campaign respects each finding's existing owner routing (no re-derivation, no owner overrides silently dropped)
+  3. Per-campaign progress (open / in-progress / done, % remediated) and campaign MTTR update live as linked tickets/findings change
+  4. Every campaign action (create, bulk-assign, close) is audited
+
+**Plans**: 5/5 plans executed
+**Wave 1**
+
+- [x] 38-01-PLAN.md — TRACER: campaigns table + model + race-safe get-or-create + list/detail read + audit/RBAC
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 38-02-PLAN.md — CAMP-02 per-owner bulk-create/adopt tickets + bulk-assign endpoint
+- [x] 38-04-PLAN.md — Campaign list view + nav + status ribbon + use-campaigns hook
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 38-03-PLAN.md — CAMP-03 progress/MTTR + manual close + lazy auto-complete/reactivate audit
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 38-05-PLAN.md — Remediation-grouped entry point + burndown detail + Create/Close actions
+
+**UI hint**: yes
+
+### Phase 39: Exception & Risk-Acceptance Workflow
+
+**Goal**: False-positive and accept-risk decisions become first-class, governed records — not an ad-hoc suppress flag — with a mandatory expiry so nothing is silently ignored forever.
+**Depends on**: Nothing new (independent; extends the existing per-asset "ignored" / exposure-override precedent from v4.0)
+**Requirements**: EXC-01, EXC-02, EXC-03, EXC-04
+**Success Criteria** (what must be TRUE):
+
+  1. An analyst can mark a finding/asset/asset-group false-positive or accept-risk via a form requiring justification, an approver, and an explicit scope
+  2. An accepted-risk item is excluded from active queues, SLA timers, and dashboards until its mandatory expiry date — never permanently silenced
+  3. Every exception records who/why/scope/expiry as a tenant-scoped audit event
+  4. An expired exception automatically resurfaces into the active queue with no manual re-trigger
+
+**Plans**: 8/8 plans executed
+
+Plans:
+**Wave 1**
+
+- [x] 39-01-PLAN.md — TRACER: exceptions table + module + grant/list/revoke + shared active_exception_subquery seam, proven end-to-end against the vuln list (grant→exclude→expiry/revoke resurface→audit)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 39-02-PLAN.md — Full scope semantics (FINDING/ASSET/ASSET_GROUP live membership), D-03 per-scope precondition, D-12 overlap, D-14 hard expiry cap + defaults, Pitfall-9 server derivation
+- [x] 39-04-PLAN.md — Core consumer sweep: risk score, remediation view (+ hand-rolled bypass), campaigns denominator/bulk-ticket, governance-critical rule engine
+- [x] 39-06-PLAN.md — Frontend exceptions list page + sortable table (inline-expand) + two-axis chip-bar + query hook/keys + sidebar nav entry
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 39-03-PLAN.md — SLA integration: D-15 exclusion in run_sla_tier_pass + detect_and_escalate, D-16 SLA-clock subtraction (interval-merged), read-time + persisted-mirror parity
+- [x] 39-07-PLAN.md — Frontend grant dialog + approver-combobox (controlled) + grant/revoke mutations + drill-panel entry points + microcopy
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 39-05-PLAN.md — Tier 2 dashboards/exports: asset+owner badges, /dashboard tiles+nav, CSV/exec-summary export, risk_exposure_score rollup (Tier 3 explicitly untouched)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 39-08-PLAN.md — Checkpoint: human-verify the full grant→exclude-everywhere→list→revoke→resurface loop live
+
+**UI hint**: yes
+
+### Phase 40: Proactive Alerting & Digests
+
+**Goal**: Analysts and owners learn about a new critical exposure or a looming SLA breach from GetVul pushing to them, not from opening the dashboard and finding out late.
+**Depends on**: Phase 36 (ALERT-02's due/breaching digest content reads the SLA state machine Phase 36 introduces); also extends the v4.0 EPSS/KEV enrichment feeds (already shipped) and the existing notification primitives
+**Requirements**: ALERT-01, ALERT-02, ALERT-03
+**Success Criteria** (what must be TRUE):
+
+  1. A newly KEV-listed or high-EPSS CVE that matches one of the tenant's own assets fires a targeted alert to the right channel
+  2. Scheduled per-owner / per-team digests (Slack / Teams / email) of due, breaching, and newly-critical findings deliver on the in-process scheduler, no new infra
+  3. Alert rules and delivery channels are tenant-configurable on a settings page and every configuration change is audited
+
+**Plans**: 5/5 plans executed
+
+**Wave 1**
+
+- [x] 40-01-PLAN.md — Foundation: alerting_guard table + Tenant.alerting_config/send-marker (migration 051) + canonical config-schema module + Wave 0 test scaffolds (ALERT-01/02/03)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [x] 40-02-PLAN.md — LEAD TRACER: ALERT-01 _check_new_kev_epss end-to-end (guard subtraction + D-06 seed-silent + owner/channel/in-app routing + audit) (ALERT-01)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [x] 40-03-PLAN.md — ALERT-02 digests: email.py HTML body + digests.py (send-hour gate, sections, exclusion, top-N, suppression, per-owner/per-team) + scheduler block (ALERT-02)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [x] 40-04-PLAN.md — ALERT-03 backend: alerting_config PATCH branch + AlertingConfigUpdate + fail-closed audit + GET exposure + self-targeted test-digest endpoint (ALERT-03)
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [x] 40-05-PLAN.md — ALERT-03 frontend: Alerting & Digests settings pane (clone) + sidebar/microcopy/page registration + live human-verify (ALERT-03) — checkpoint approved on-trust
+
+**UI hint**: yes
+
+### Phase 41: Coverage & Blind-Spot Detection
+
+**Goal**: GetVul tells a tenant what it doesn't know — assets the IdP/MDM/HR/CMDB knows about but no scanner has ever touched — instead of only reporting on what scanners already found.
+**Depends on**: Nothing new (independent; extends GetVul's existing IdP/MDM/HR asset-enrichment data)
+**Requirements**: COV-01, COV-02, COV-03
+**Success Criteria** (what must be TRUE):
+
+  1. A coverage view reconciles the authoritative inventory (IdP / MDM / HR / CMDB) against scanner-seen assets and lists assets with zero findings or no last-seen date
+  2. Per-connector coverage percentage and stale-source gaps (a connector that hasn't reported in N days) are visible
+  3. A newly-discovered unmanaged asset can be routed to an owner directly from the coverage view
+
+**Plans**: 5/5 plans executed
+**Wave 1**
+
+- [x] 41-01-PLAN.md — TRACER: blind-spot list end-to-end (COV-01) — backend coverage module + /dashboard/coverage page *(2026-08-20 — GET /api/v1/coverage/blind-spots + /dashboard/coverage page, all 5 loading/error/no-inventory/all-covered/populated states; 5/5 backend + 5/5 frontend tests green)*
+- [x] 41-02-PLAN.md — Intune sync defect fix (protects D-01 INTUNE baseline; latent cross-tenant bug) *(2026-08-20 — run_intune_sync SyncLog construction fixed (connector_id/tenant_id, uppercase status) + both Asset lookups + constructor tenant-scoped, closing T-41-05/T-41-06; DB-integration test green)*
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 41-03-PLAN.md — Per-connector coverage strip + staleness (COV-02) *(2026-08-21 — GET /api/v1/coverage/summary + CoverageConnectorCard strip above the blind-spot list + "No scanner connected" empty variant; 11/11 backend + 16/16 frontend tests green)*
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 41-04-PLAN.md — Route-to-owner write endpoint + D-09 fallback + audit (COV-03 backend) *(2026-08-21 — POST /api/v1/coverage/assets/{asset_id}/route-to-owner (require_analyst): resolve-then-notify-with-fallback mirroring _fire_kev_epss_alert, D-09 admin+channel fallback, fail-closed audit-then-commit, notify-only; 5 new backend tests, 16/16 green)*
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 41-05-PLAN.md — Route-to-owner drill panel + confirm dialog + mutation (COV-03 frontend) *(2026-08-21 — CoverageAssetDrillContent (idKey="asset", tickets-page precedent) + RouteToOwnerDialog (2-branch confirm, secondary/violet chrome) + useRouteToOwner mutation; per-row + drill-footer actions share one dialog/mutation instance; canRouteToOwner (OWNER/ADMIN/ANALYST) gates both; 30/30 frontend tests green. COV-03 fully closed (backend 41-04 + frontend 41-05); Phase 41 complete, 5/5 plans)*
+
+**UI hint**: yes
+
+### Phase 42: Risk Trend Analytics & Burndown
+
+**Goal**: A tenant can see whether its risk posture is actually improving over time and how fast the backlog is burning down — not just today's snapshot.
+**Depends on**: Nothing new (independent; extends v4.0 Phase 34's historical recompute, already shipped, for a clean score history)
+**Requirements**: TREND-01, TREND-02, TREND-03
+**Success Criteria** (what must be TRUE):
+
+  1. Tenant / team / asset-group risk-exposure trend lines render on a dashboard over a selectable time window
+  2. Backlog aging (open findings by age × severity) and a burndown rate are visible on the same dashboard
+  3. Trends annotate risk-model version boundaries rather than blending across them — a v4.0 model version change never produces a false cliff or false improvement
+
+**Plans**: 3/3 plans executed (tracer-led)
+
+- [x] 42-01-PLAN.md — Tracer: tenant risk-exposure trend line end-to-end (new analytics module + /analytics page + segmented chart + states) [TREND-01, TREND-03] *(2026-08-21 — GET /api/v1/analytics/overview + /dashboard/analytics; 5/5 backend + 7/7 frontend tests green; human-verify checkpoint approved; TREND-01/TREND-03 stay open pending 42-03)*
+- [x] 42-02-PLAN.md — Backlog aging (SLA-tier buckets x severity) + burndown rate tile [TREND-02] *(2026-08-21 — get_aging_distribution + get_burndown_rate (Phase 39 exclusion predicate + Phase 36 tier windows verbatim, MAX_PROJECTION_DAYS=500 capped); BacklogAgingChart + BurndownTile on /dashboard/analytics; 11/11 backend + 12/12 frontend tests green; human-verify checkpoint approved against orchestrator-seeded synthetic data; TREND-02 complete)*
+- [x] 42-03-PLAN.md — Group scope (retroactive) + custom date range + synthetic-fixture version-boundary verification [TREND-01, TREND-03] *(2026-08-21 — searchable scope dropdown (All tenant + asset groups) re-scopes trend/aging/burndown via retroactive current-membership intersection (None-for-empty-day) + IDOR 404 guard; 5th "Custom range" preset with native From/To date inputs + To>From validation; synthetic 3-version ("v1"->"v2"->"v3") fixture proves segmented non-interpolated trend lines with neutral boundary markers (2 boundaries for 3 versions); 17/17 backend + 18/18 frontend tests green; human-verify checkpoint approved against orchestrator-seeded synthetic data. TREND-01/TREND-03 fully closed; Phase 42 complete, 3/3 plans)*
+
+**UI hint**: yes
+
+### Phase 43: Executive & Compliance Reporting
+
+**Goal**: A CISO or compliance owner can prove the program is working — and where findings sit against a named framework — without an analyst hand-building a slide deck.
+**Depends on**: Phase 36 (MTTR-by-tier + SLA compliance data) and Phase 42 (risk trend + burndown data) — the capstone reporting layer over both
+**Requirements**: RPT-01, RPT-02, RPT-03
+**Success Criteria** (what must be TRUE):
+
+  1. An exec/board PDF exports risk trend + MTTR-by-tier + SLA compliance for a selected period
+  2. Role-scoped dashboards (analyst / IT-ops / compliance / leadership) render, each tenant-scoped and each showing only what that role needs
+  3. A compliance view maps findings to framework controls (SOC 2 / ISO 27001 / PCI DSS / NIST CSF)
+
+**Plans**: 4/4 plans executed (tracer-led)
+**Wave 1**
+
+- [x] 43-01-PLAN.md — Tracer: compliance posture end-to-end (new compliance/ package + catalog + /overview endpoint + /dashboard/compliance page) [RPT-03]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 43-02-PLAN.md — RPT-01 backend: matplotlib chart PDF sections + period params + MTTR period extension + scheduled board report [RPT-01]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 43-03-PLAN.md — RPT-01 frontend: export-board-report dialog (period presets + scheduling disclosure) + human-verify PDF [RPT-01]
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 43-04-PLAN.md — RPT-02: dashboard lens switcher + leadership/compliance widgets + framework-posture strip + human-verify [RPT-02] *(2026-08-24 — useLens (URL + localStorage dual-persistence, default analyst) + 4-segment LensSwitcher; analyst/IT-ops render the pre-existing triage dashboard byte-for-byte; leadership lens = Export board report CTA + risk-trend + MTTR-by-tier tile + SLA-compliance tile + framework-posture strip (no triage widgets); compliance lens = hero-sized posture strip + compact SLA/trend + "View full compliance page" link; GET /vulnerabilities/sla/metrics gained an additive exclude_exceptions param so the SLA tile matches the compliance page/board PDF (Pitfall 2); "Not yet measured" honesty on every zero-denominator tile, never 0/0%; 2 backend + 19 new frontend tests green (44 backend / 1169 frontend total unaffected elsewhere); human-verify checkpoint approved in-browser. Phase 43 complete, 4/4 plans)*
+
+**UI hint**: yes
+
+### Phase 44: Natural-Language Query Assistant
+
+**Goal**: An analyst can ask a plain-English question over their own vuln/asset/ticket data and get a grounded, tenant-scoped answer with the underlying result set shown — reusing the v3.0 BYOK AI scaffold rather than building a second AI stack.
+**Depends on**: Nothing hard (extends the v3.0 AI scaffold, already shipped); sequenced late in v5.0 so answers can meaningfully reference the SLA/exception/campaign/coverage data model Phases 36–41 introduce
+**Requirements**: NLQ-01, NLQ-02, NLQ-03
+**Success Criteria** (what must be TRUE):
+
+  1. A plain-English question over the tenant's own vuln/asset/ticket data returns a grounded, tenant-scoped answer through a query interface, with the underlying result set shown alongside the answer
+  2. Queries are constrained to a safe, predefined schema — no free-form SQL generation, no injection path, no cross-tenant reach
+  3. The assistant is inert (a "configure AI" state) until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold and guardrails verbatim — no shared/fallback key
+
+**Plans**: 6/6 plans executed (tracer-led)
+
+Plans:
+**Wave 1**
+
+- [x] 44-01-PLAN.md — TRACER: end-to-end NLQ backend spine (translate→execute→results-first→narrate, vuln entity, BYOK-gated) *(2026-08-25 — POST /api/v1/ai/query SSE endpoint: translate (CALL 1)→execute list_vulnerabilities (session tenant_id, sort="triage" for deterministic top-N)→results-first SSE→narrate (CALL 2, grounded)→done; flat non-union NlqFilterResponse (VulnFilterInput/AssetFilterInput/TicketFilterInput, no oneOf) + recheck_nlq_filter_exclusivity; <user_question>/<query_results> untrusted-content-as-data isolation; BYOK no_key gate, fail-closed budget, single inflight lock for the whole flow, translation-only D-19 cache; assets/tickets entities are a guarded refuse placeholder for Plan 02. 63 new/modified tests green + 157+69 regression tests unaffected.)*
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 44-02-PLAN.md — Backend query surface expansion (D-03 predicates + assets/tickets entity branches + hostname resolution) *(2026-08-25 — VulnerabilityFilter.asset_internet_facing (subquery, no Pitfall-1 double-join) + sla_breached (stored derived-mirror column); AssetFilter.internet_facing (native column); ticketing/schemas.py TicketQueryFilter (extra=forbid, list_tickets untouched); _run_query_stream's assets/tickets branches replace the Plan-01 guarded refuse placeholder with real list_assets/list_tickets execution, server-side _resolve_hostname before list_tickets (never a model-emitted UUID), unresolvable hostname -> zero-results not refusal; FEW_SHOT_QUERY_TRANSLATE extended with the north-star + all 4 UI-SPEC starter questions. 29 new/modified tests green + 48+58 regression tests unaffected. Phase 44 NLQ-01 complete (all 3 entities wired).)*
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 44-03-PLAN.md — Frontend data + components (useQueryStream, DegradedCard export, ask/ query-box/starter/interpreted/result-table) *(2026-08-25 — useQueryStream: body-carrying SSE hook, D-15 results-first state machine (interpreted→results→streaming→done, entity/filter/rows/total carried forward), no_key/refuse/error{kind} terminal states; DegradedCard exported (zero-behavior-change one-line diff); 4 ask/ components — query-box (~500-char cap + counter mirroring CommentInput, gradient-sunset CTA), starter-questions (exactly 4 curated UI-SPEC chips, EmptyState.Suggestion chrome), interpreted-filter (D-04 "Interpreted as:" mono predicate tokens, known-key map + generic fallback so no predicate is ever silently dropped), result-table (D-08 entity-dispatch thin wrapper over VulnTable/AssetsTable/TicketsTable + "{topN} of {total} total" caption). TDD RED/GREEN pairs for Tasks 1+3; tsc/eslint clean; no deviations.)*
+- [x] 44-05-PLAN.md — D-17 read-only deep-link (buildNlqDeepLink + boolean/numeric URL-state + list-page wiring) *(2026-08-25 — buildNlqDeepLink(entity, filter) is the single source of truth for the D-17 param contract (per-entity FIELD_MAP, list serialization, null omission); useUrlStateBool/useUrlStateNumber fill the boolean/bounded-numeric gap use-url-state(-list).ts can't express; vulnerabilities/assets/tickets list pages now read the full D-17 field set (cisa_kev/exploit_available/sla_breached/asset_internet_facing/age_days_min, internet_facing, asset_id) with T-44-11 clamps. Rule 3 deviation: the vulnerabilities/assets ROUTERS never bound sla_breached/asset_internet_facing/internet_facing as Query params despite the filter schemas already supporting them (Plan 02) — fixed so the deep-link's full param set actually filters, not just 3 of 6 fields; query_assistant.py's tickets interpreted-filter now surfaces the server-resolved asset UUID so the tickets deep-link has an asset_id to carry. 22 new frontend tests green + full 1207-test frontend suite and the backend vuln/asset/ai-query-stream suites unaffected.)*
+- [x] 44-06-PLAN.md — Eval + red-team CI gate (NLQ goldens + 6th red-team capability + ci.yml wiring) *(2026-08-25 — NLQ-02 provable in CI: test_nlq_golden_evals.py (new FilterCorrectnessMetric calling the real NlqFilterResponse.model_validate_json + recheck_nlq_filter_exclusivity gates for nlq_translate; the 5 existing structural metrics reused verbatim for nlq_narrate; 9 hand-authored goldens incl. hallucinated-field + cross-tenant-reach rejection cases) runs inside the existing ai-evals job; test_ai_injection_redteam.py gains a 6th capability (build_query_translate_prompt, 17x6=102 total cases) inside the existing ai-redteam-injection job; redteam/promptfooconfig.yaml (unscaffolded since Phase 28) now carries NLQ intent-plugin scenarios, still inert without a dev key. Two Rule-3 fixes (metrics.py _RESPONSE_MODELS entry; a generalized per-capability close_tag param) + one Rule-1 fix (test_golden_evals.py's _load_goldens scoped to registered capabilities, preventing the new sibling goldens dirs from breaking the existing gate). 20/20 + 102/102 green locally, matching the exact CI invocations.)*
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 44-04-PLAN.md — Ask page composition + 'Ask' nav entry + all states + human-verify checkpoint *(2026-08-25 — /dashboard/ask composes every NLQ-01/NLQ-03 state: D-12 Configure-AI inert gate (role-specific body), D-11 first-run empty state (4 starter chips, click-to-fill), D-15 results-first (interpreted filter + result table before the streamed narrative), D-04 interpretation always shown, D-17 Open-in deep-link, D-14 refuse, zero-results with interpretation retained, budget-exceeded (amber)/safety-flagged (danger, grounded_false by elimination)/transient-error (banner with real HTTP code + X-Request-ID + Retry now) terminal states; always-visible 'Ask' WORKFLOW_ITEMS nav entry (Sparkles, no chip). 3 Rule-2 deviations to Plan 03 files (QueryBox lifted to controlled component; interpreted-filter.tsx exports formatInterpretedFilterSummary(); use-query-stream.ts's error phase gains optional httpStatus/requestId off the real fetch Response). 8 new page tests green + full 1215-test frontend suite unaffected; tsc/eslint clean. Live human-verify checkpoint deferred on trust (Phase 24-27/40 precedent) — documented PENDING in 44-04-SUMMARY.md with exact manual steps. Phase 44 complete, 6/6 plans.)*
+
+**UI hint**: yes
+
+### Phase 45: Public API, Webhooks & SDK
+
+**Goal**: A SOAR/ITSM/data-pipeline integrator can read and write GetVul's core objects and subscribe to its key events without opening the dashboard — the capstone platform layer over everything v5.0 ships.
+**Depends on**: Phases 36–39 (the event surface — SLA breach, ticket sync, exception grant, campaign action — that the webhook payloads and write API expose)
+**Requirements**: API-01, API-02, API-03
+**Success Criteria** (what must be TRUE):
+
+  1. A tenant-scoped API key is RBAC-gated, rate-limited, and every call is audited; the API covers read + write for findings, tickets, exceptions, and campaigns, with keys managed from an admin settings page
+  2. Signed event webhooks (finding created / SLA breached / ticket synced / exception granted) deliver with retry on failure
+  3. A published OpenAPI spec and a minimal client SDK cover the core read/write surface
+
+**Plans**: TBD
+
+## Progress
+
+**Execution Order:** Phase 36 is the first v5.0 phase; Phase 37 can run independently/parallel with 36 (no shared files). Phases 38, 39, 41, 42 are each independent of 36/37/one another. Phase 40 requires Phase 36 (SLA state feeds its digest content). Phase 43 requires Phase 36 + Phase 42. Phase 44 has no hard v5.0-internal dependency but is sequenced after 36–41 for maximum answer coverage. Phase 45 requires Phases 36–39 (event surface).
+
+| Phase | Plans Complete | Status | Completed |
+|-------|-----------------|--------|-----------|
+| 36. Remediation SLA Engine & Escalation | 6/6 | Complete    | 2026-08-18 |
+| 37. Two-Way Ticket Sync & Remediation Verification | 3/3 | In Progress | - |
+| 38. Remediation Campaigns | 5/5 | Complete    | 2026-08-18 |
+| 39. Exception & Risk-Acceptance Workflow | 8/8 | Complete    | 2026-08-19 |
+| 40. Proactive Alerting & Digests | 5/5 | Complete    | 2026-08-20 |
+| 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
+| 42. Risk Trend Analytics & Burndown | 3/3 | Complete    | 2026-08-21 |
+| 43. Executive & Compliance Reporting | 4/4 | Complete    | 2026-08-24 |
+| 44. Natural-Language Query Assistant | 6/6 | Complete    | 2026-08-25 |
+| 45. Public API, Webhooks & SDK | 0/? | Not started | - |
+
 ## Next
 
-**v5.0 "Close the Loop"** is drafted but not started — activate via `/gsd-new-milestone` (it will seed a
-fresh REQUIREMENTS.md from the [v5.0 requirements stub](milestones/v5.0-REQUIREMENTS.md): 32 requirements
-across 10 families — SLA engine, two-way ticket sync + rescan-verified auto-close, remediation campaigns,
-exception/risk-acceptance, proactive alerting, coverage/blind-spot detection, risk-trend analytics,
-executive + compliance reporting, NL query assistant, public API/webhooks).
+`/gsd-verify-work 38`

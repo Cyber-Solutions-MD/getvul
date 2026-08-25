@@ -24,7 +24,10 @@ import type { TicketProvider } from './types';
 export type LinkedVuln = {
   cveId: string;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
-  cvss: number;
+  // The backend serializes Postgres numeric(3,1) as a JSON string ("10.0").
+  // Tolerate string at runtime and coerce before .toFixed() (see render) so a
+  // future wiring of linkedVulns can't reintroduce the drill-content crash.
+  cvss: number | string | null;
 };
 
 /** Minimal ticket shape consumed by the drill panel. Caller (list row) supplies this. */
@@ -162,7 +165,7 @@ export function TicketDrillContent({
                 </span>
                 <span className="font-mono text-text">{v.cveId}</span>
                 <span className="ml-auto font-mono text-xs text-text-muted">
-                  {v.cvss.toFixed(1)}
+                  {v.cvss != null && Number.isFinite(Number(v.cvss)) ? Number(v.cvss).toFixed(1) : '—'}
                 </span>
               </li>
             ))}

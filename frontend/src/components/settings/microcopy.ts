@@ -14,7 +14,9 @@ export type Category =
   | 'notifications'
   | 'api-tokens'
   | 'audit'
-  | 'ai';
+  | 'ai'
+  | 'sla'
+  | 'alerting';
 
 /** Sidebar category labels — sentence case per copy-voice.md. */
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -25,6 +27,11 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   'api-tokens': 'API tokens',
   audit: 'Audit log',
   ai: 'AI usage & settings',
+  // Phase 36 (D-10): risk-tier SLA policy + escalation-channel admin pane.
+  sla: 'SLA & Escalation',
+  // Phase 40 (D-17): proactive KEV/EPSS alerting + owner/team digest config.
+  // Title-cased "&"-joined label, matching the 'SLA & Escalation' precedent.
+  alerting: 'Alerting & Digests',
 } as const;
 
 /**

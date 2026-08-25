@@ -14,6 +14,13 @@ export type VulnerabilitiesFilters = {
   // Phase 12 (D-D-01) — pre-set by useAssetVulnerabilities to scope the list to one host.
   // Backend `/api/v1/vulnerabilities` already accepts `asset_id` (verified RESEARCH §5).
   asset_id?: string;
+  // Phase 44 / NLQ-01 / D-17: the two D-03 additive predicates (VulnerabilityFilter
+  // already supports both; the router now binds them as Query params — see
+  // backend/app/vulnerabilities/router.py) + the bounded-age param, all three
+  // wired into the URL by vulnerabilities/page.tsx's useUrlStateBool/useUrlStateNumber.
+  sla_breached?: boolean;
+  asset_internet_facing?: boolean;
+  age_days_min?: number | null;
 };
 
 export type FacetsResponse = {
@@ -77,6 +84,9 @@ export function buildSearchParams(opts: {
   if (opts.filters.kev_only) sp.set('cisa_kev', 'true');
   if (opts.filters.exploit_only) sp.set('exploit_available', 'true');
   if (opts.filters.asset_id) sp.set('asset_id', opts.filters.asset_id);
+  if (opts.filters.sla_breached) sp.set('sla_breached', 'true');
+  if (opts.filters.asset_internet_facing) sp.set('asset_internet_facing', 'true');
+  if (opts.filters.age_days_min != null) sp.set('age_days_min', String(opts.filters.age_days_min));
   // D-F-02: always request facets so chip counts stay synced with the list.
   sp.set('facets', 'severity,source,status');
   if (opts.group === 'host') sp.set('group', 'host');

@@ -42,6 +42,7 @@ from app.ai.schemas import (
     ExplainRemediationResponse,
     ExplainResponseBase,
     ExplainVulnResponse,
+    NlqAnswerResponse,
     recheck_business_rules,
 )
 
@@ -49,13 +50,17 @@ from app.ai.schemas import (
 # goldens/**/*.json) to its real production response class -- the ONLY
 # place this string-to-class resolution happens, so a typo'd schema_name
 # fails loudly (KeyError) rather than silently validating against the
-# wrong shape.
+# wrong shape. `NlqAnswerResponse` (Phase 44 Plan 06) is an
+# `ExplainResponseBase` subclass with zero added fields (schemas.py) --
+# added here so `test_nlq_golden_evals.py` can reuse `SchemaValidMetric`
+# VERBATIM (same class, same code path) rather than re-implementing it.
 _RESPONSE_MODELS: dict[str, type[ExplainResponseBase]] = {
     "ExplainVulnResponse": ExplainVulnResponse,
     "ExplainHostResponse": ExplainHostResponse,
     "ExplainRemediationResponse": ExplainRemediationResponse,
     "ExplainRemediationGuidanceResponse": ExplainRemediationGuidanceResponse,
     "ExplainPrioritizationResponse": ExplainPrioritizationResponse,
+    "NlqAnswerResponse": NlqAnswerResponse,
 }
 
 # The no-rank invariant (SC2/T-26-02): every ExplainResponseBase subclass
