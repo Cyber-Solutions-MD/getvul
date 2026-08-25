@@ -321,7 +321,15 @@ Plans:
   2. Queries are constrained to a safe, predefined schema — no free-form SQL generation, no injection path, no cross-tenant reach
   3. The assistant is inert (a "configure AI" state) until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold and guardrails verbatim — no shared/fallback key
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 44-01-PLAN.md — TRACER: end-to-end NLQ backend spine (translate→execute→results-first→narrate, vuln entity, BYOK-gated)
+- [ ] 44-02-PLAN.md — Backend query surface expansion (D-03 predicates + assets/tickets entity branches + hostname resolution)
+- [ ] 44-03-PLAN.md — Frontend data + components (useQueryStream, DegradedCard export, ask/ query-box/starter/interpreted/result-table)
+- [ ] 44-04-PLAN.md — Ask page composition + 'Ask' nav entry + all states + human-verify checkpoint
+- [ ] 44-05-PLAN.md — D-17 read-only deep-link (buildNlqDeepLink + boolean/numeric URL-state + list-page wiring)
+- [ ] 44-06-PLAN.md — Eval + red-team CI gate (NLQ goldens + 6th red-team capability + ci.yml wiring)
 **UI hint**: yes
 
 ### Phase 45: Public API, Webhooks & SDK
