@@ -52,10 +52,23 @@ _ALLOWLISTS: dict[str, frozenset[str]] = {
 def _load_goldens() -> Iterator[tuple[str, pathlib.Path]]:
     """Yield (capability, fixture_path) for every committed
     `goldens/<capability>/<case>.json` file -- sorted for stable
-    parametrize-id ordering across runs/platforms."""
-    for capability_dir in sorted(p for p in GOLDENS_DIR.iterdir() if p.is_dir()):
+    parametrize-id ordering across runs/platforms.
+
+    Only iterates capabilities registered in `_ALLOWLISTS` (never a bare
+    `GOLDENS_DIR.iterdir()`) -- Phase 44 Plan 06 added SIBLING
+    `goldens/nlq_translate/` and `goldens/nlq_narrate/` dirs owned by
+    `test_nlq_golden_evals.py` (a different response shape + a dedicated
+    filter-correctness metric, not this suite's 5 Explain*-shaped
+    structural metrics). Iterating every subdirectory unconditionally
+    would KeyError on `_ALLOWLISTS[capability]` for those two -- this
+    suite must stay scoped to the capabilities it actually knows how to
+    grade."""
+    for capability in sorted(_ALLOWLISTS):
+        capability_dir = GOLDENS_DIR / capability
+        if not capability_dir.is_dir():
+            continue
         for fixture_path in sorted(capability_dir.glob("*.json")):
-            yield capability_dir.name, fixture_path
+            yield capability, fixture_path
 
 
 _GOLDEN_CASES = list(_load_goldens())

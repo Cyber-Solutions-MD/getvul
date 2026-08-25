@@ -1,0 +1,18 @@
+{
+  "grounding_record": {
+    "question": "critical KEV vulns older than 30 days",
+    "filter": { "severity": ["CRITICAL"], "cisa_kev": true, "age_days_min": 30 },
+    "rows": [],
+    "total": 0
+  },
+  "schema_name": "NlqAnswerResponse",
+  "model_response": {
+    "summary": "No critical, CISA KEV-listed vulnerabilities older than 30 days were found.",
+    "business_risk": "No action needed for this specific question -- the filtered result set is empty.",
+    "citations": [
+      { "text": "0 results matched this filter", "source": "scanner_verbatim", "source_field": "total" }
+    ],
+    "grounded": true
+  },
+  "note": "D-06/D-13: zero matching rows is a complete, truthful answer, not a refusal. Mirrors FEW_SHOT_QUERY_NARRATE's second example verbatim -- must never fabricate a count or a row not in the executed result set (prohibition)."
+}

@@ -1,0 +1,35 @@
+{
+  "question": "Show critical vulns breaching SLA",
+  "model_response": {
+    "entity": "vulnerabilities",
+    "vulnerability_filter": {
+      "severity": ["CRITICAL"],
+      "cisa_kev": null,
+      "exploit_available": null,
+      "age_days_min": null,
+      "status": null,
+      "asset_internet_facing": null,
+      "sla_breached": true
+    },
+    "asset_filter": null,
+    "ticket_filter": null,
+    "groundable": true
+  },
+  "expected_filter": {
+    "entity": "vulnerabilities",
+    "vulnerability_filter": {
+      "severity": ["CRITICAL"],
+      "cisa_kev": null,
+      "exploit_available": null,
+      "age_days_min": null,
+      "status": null,
+      "asset_internet_facing": null,
+      "sla_breached": true
+    },
+    "asset_filter": null,
+    "ticket_filter": null,
+    "groundable": true
+  },
+  "expect_valid": true,
+  "note": "UI-SPEC starter question #2 (frontend/src/components/ai/ask/starter-questions.tsx). Mirrors FEW_SHOT_QUERY_TRANSLATE's SLA-breach example verbatim."
+}

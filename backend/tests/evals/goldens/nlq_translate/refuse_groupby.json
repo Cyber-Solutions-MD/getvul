@@ -1,0 +1,19 @@
+{
+  "question": "how many vulnerabilities do we have, grouped by owning department?",
+  "model_response": {
+    "entity": "vulnerabilities",
+    "vulnerability_filter": null,
+    "asset_filter": null,
+    "ticket_filter": null,
+    "groundable": false
+  },
+  "expected_filter": {
+    "entity": "vulnerabilities",
+    "vulnerability_filter": null,
+    "asset_filter": null,
+    "ticket_filter": null,
+    "groundable": false
+  },
+  "expect_valid": true,
+  "note": "D-14 honest refusal, out-of-scope: a group-by/aggregation shape is explicitly outside D-06's filtered-lists-plus-count scope. groundable=false with every filter null is a STRUCTURALLY VALID shape (recheck_nlq_filter_exclusivity passes it cleanly) -- refusal is not an error. Mirrors FEW_SHOT_QUERY_TRANSLATE's own refuse example verbatim."
+}

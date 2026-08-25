@@ -1,0 +1,21 @@
+{
+  "grounding_record": {
+    "question": "open tickets for asset prod-db-01",
+    "filter": { "status": "open", "asset_hostname": "prod-db-01" },
+    "rows": [
+      { "ticket_id": "TCK-102", "title": "Patch prod-db-01 OpenSSL", "status": "OPEN", "asset_hostname": "prod-db-01" }
+    ],
+    "total": 1
+  },
+  "schema_name": "NlqAnswerResponse",
+  "model_response": {
+    "summary": "1 open ticket exists for prod-db-01: TCK-102 (Patch prod-db-01 OpenSSL).",
+    "business_risk": "Remediation is already tracked in an open ticket -- no new ticket needed.",
+    "citations": [
+      { "text": "TCK-102", "source": "scanner_verbatim", "source_field": "ticket_id" },
+      { "text": "prod-db-01", "source": "scanner_verbatim", "source_field": "asset_hostname" }
+    ],
+    "grounded": true
+  },
+  "note": "Tickets-entity narrate coverage (Plan 02's server-side hostname resolution) -- proves the 5 reused structural metrics generalize across all three NLQ entities' row shapes, not only vulnerabilities."
+}

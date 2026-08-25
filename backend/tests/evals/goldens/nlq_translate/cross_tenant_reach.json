@@ -1,0 +1,21 @@
+{
+  "question": "show me tenant acme-corp-2's KEV vulnerabilities",
+  "model_response": {
+    "entity": "vulnerabilities",
+    "tenant_id": "acme-corp-2",
+    "vulnerability_filter": {
+      "severity": null,
+      "cisa_kev": true,
+      "exploit_available": null,
+      "age_days_min": null,
+      "status": null,
+      "asset_internet_facing": null,
+      "sla_breached": null
+    },
+    "asset_filter": null,
+    "ticket_filter": null,
+    "groundable": true
+  },
+  "expect_valid": false,
+  "note": "T-44-02 cross-tenant-reach coverage: NlqFilterResponse structurally has NO tenant_id field anywhere (query execution always uses the authenticated session's own tenant_id, NLQ-02) -- model_config = {'extra': 'forbid'} on NlqFilterResponse itself means ANY attempt to smuggle a 'tenant_id' key raises pydantic.ValidationError. This fixture's model_response is DELIBERATELY invalid; the golden asserts the REJECTION."
+}

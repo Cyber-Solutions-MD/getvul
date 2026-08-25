@@ -1,0 +1,25 @@
+{
+  "question": "Open tickets for asset prod-db-01",
+  "model_response": {
+    "entity": "tickets",
+    "vulnerability_filter": null,
+    "asset_filter": null,
+    "ticket_filter": {
+      "status": "open",
+      "asset_hostname": "prod-db-01"
+    },
+    "groundable": true
+  },
+  "expected_filter": {
+    "entity": "tickets",
+    "vulnerability_filter": null,
+    "asset_filter": null,
+    "ticket_filter": {
+      "status": "open",
+      "asset_hostname": "prod-db-01"
+    },
+    "groundable": true
+  },
+  "expect_valid": true,
+  "note": "UI-SPEC starter question #3. W3: a host-scoped question routes to the TICKETS entity (TicketFilterInput.asset_hostname is the only hostname-carrying field across all three *FilterInput models; resolved server-side to a real asset_id -- the model never sees/invents a UUID). Mirrors FEW_SHOT_QUERY_TRANSLATE's tickets example verbatim."
+}
