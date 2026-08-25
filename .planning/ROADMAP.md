@@ -321,7 +321,7 @@ Plans:
   2. Queries are constrained to a safe, predefined schema — no free-form SQL generation, no injection path, no cross-tenant reach
   3. The assistant is inert (a "configure AI" state) until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold and guardrails verbatim — no shared/fallback key
 
-**Plans**: 3/6 plans executed (tracer-led)
+**Plans**: 4/6 plans executed (tracer-led)
 
 Plans:
 **Wave 1**
@@ -335,7 +335,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 44-03-PLAN.md — Frontend data + components (useQueryStream, DegradedCard export, ask/ query-box/starter/interpreted/result-table) *(2026-08-25 — useQueryStream: body-carrying SSE hook, D-15 results-first state machine (interpreted→results→streaming→done, entity/filter/rows/total carried forward), no_key/refuse/error{kind} terminal states; DegradedCard exported (zero-behavior-change one-line diff); 4 ask/ components — query-box (~500-char cap + counter mirroring CommentInput, gradient-sunset CTA), starter-questions (exactly 4 curated UI-SPEC chips, EmptyState.Suggestion chrome), interpreted-filter (D-04 "Interpreted as:" mono predicate tokens, known-key map + generic fallback so no predicate is ever silently dropped), result-table (D-08 entity-dispatch thin wrapper over VulnTable/AssetsTable/TicketsTable + "{topN} of {total} total" caption). TDD RED/GREEN pairs for Tasks 1+3; tsc/eslint clean; no deviations.)*
-- [ ] 44-05-PLAN.md — D-17 read-only deep-link (buildNlqDeepLink + boolean/numeric URL-state + list-page wiring)
+- [x] 44-05-PLAN.md — D-17 read-only deep-link (buildNlqDeepLink + boolean/numeric URL-state + list-page wiring) *(2026-08-25 — buildNlqDeepLink(entity, filter) is the single source of truth for the D-17 param contract (per-entity FIELD_MAP, list serialization, null omission); useUrlStateBool/useUrlStateNumber fill the boolean/bounded-numeric gap use-url-state(-list).ts can't express; vulnerabilities/assets/tickets list pages now read the full D-17 field set (cisa_kev/exploit_available/sla_breached/asset_internet_facing/age_days_min, internet_facing, asset_id) with T-44-11 clamps. Rule 3 deviation: the vulnerabilities/assets ROUTERS never bound sla_breached/asset_internet_facing/internet_facing as Query params despite the filter schemas already supporting them (Plan 02) — fixed so the deep-link's full param set actually filters, not just 3 of 6 fields; query_assistant.py's tickets interpreted-filter now surfaces the server-resolved asset UUID so the tickets deep-link has an asset_id to carry. 22 new frontend tests green + full 1207-test frontend suite and the backend vuln/asset/ai-query-stream suites unaffected.)*
 - [ ] 44-06-PLAN.md — Eval + red-team CI gate (NLQ goldens + 6th red-team capability + ci.yml wiring)
 
 **Wave 4** *(blocked on Wave 3 completion)*
@@ -371,7 +371,7 @@ Plans:
 | 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
 | 42. Risk Trend Analytics & Burndown | 3/3 | Complete    | 2026-08-21 |
 | 43. Executive & Compliance Reporting | 4/4 | Complete    | 2026-08-24 |
-| 44. Natural-Language Query Assistant | 2/6 | In Progress | - |
+| 44. Natural-Language Query Assistant | 4/6 | In Progress | - |
 | 45. Public API, Webhooks & SDK | 0/? | Not started | - |
 
 ## Next
