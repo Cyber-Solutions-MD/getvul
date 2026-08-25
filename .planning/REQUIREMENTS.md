@@ -80,7 +80,7 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 ### Natural-Language Query Assistant (NLQ) — Phase 44 · (AINL-01, deferred from v3.1)
 
 - [x] **NLQ-01**: Plain-English questions over the tenant's own vuln/asset/ticket data return grounded, tenant-scoped answers with the underlying result set shown *(Phase 44-01/44-02, 2026-08-25 — all three entities (vulnerabilities/assets/tickets) wired end-to-end)*
-- [ ] **NLQ-02**: Queries are constrained to a safe schema (no free-form SQL, no injection, no cross-tenant reach)
+- [x] **NLQ-02**: Queries are constrained to a safe schema (no free-form SQL, no injection, no cross-tenant reach) *(Phase 44-01/44-06, 2026-08-25 — extra="forbid" schema + recheck_nlq_filter_exclusivity + no tenant_id field anywhere; now provable in CI via test_nlq_golden_evals.py's FilterCorrectnessMetric + the extended test_ai_injection_redteam.py's 6th capability)*
 - [ ] **NLQ-03**: Inert until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold + guardrails
 
 ### Public API, Webhooks & SDK (API) — Phase 45
