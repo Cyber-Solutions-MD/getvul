@@ -4,8 +4,6 @@ milestone: v5.0
 milestone_name: Close the Loop — Remediation Orchestration & Assurance
 current_phase: 44
 current_phase_name: Natural-Language Query Assistant
-current_phase: 44
-current_phase_name: Natural-Language Query Assistant
 status: executing
 stopped_at: Phase 44 Plan 01 (tracer) complete — NLQ backend spine proven end-to-end
 last_updated: "2026-08-25T10:41:00.000Z"
