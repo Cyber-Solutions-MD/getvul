@@ -521,19 +521,21 @@ async def audit_log_ai_call(
 
 **If this table is empty:** N/A — see rows above. Everything else in this document is either directly verified by reading the real source this session (tagged VERIFIED) or cross-checked against official Anthropic documentation (tagged CITED).
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does Pydantic's `model_json_schema()` for the recommended flat `NlqFilterResponse` (Pattern 2) produce zero `oneOf`/recursive-schema keywords?**
+> All three resolved during Phase 44 planning (2026-08-24). Adopted decisions inlined below.
+
+1. **[RESOLVED — no `oneOf`, verified by Plan 01 tests]** Does Pydantic's `model_json_schema()` for the recommended flat `NlqFilterResponse` (Pattern 2) produce zero `oneOf`/recursive-schema keywords?**
    - What we know: the three filter fields are independently-optional (no `Union` type), which should avoid `oneOf` by construction.
    - What's unclear: whether `$ref`/`$defs` generated for the nested `VulnFilterInput`/`AssetFilterInput`/`TicketFilterInput` sub-models trip the "no recursive schemas" / "no external `$ref`" limitation also documented at platform.claude.com/docs.
    - Recommendation: a 5-minute check (`NlqFilterResponse.model_json_schema()`, grep the output for `oneOf`/external `$ref`) before finalizing the schema in a plan — cheap, deterministic, no live API key needed.
 
-2. **Should "Open tickets for asset X" with an unresolvable hostname be a zero-results state or a D-14 refusal?**
+2. **[RESOLVED — zero-results, adopted in Plan 02 (44-02 Task 2 + must_haves)]** Should "Open tickets for asset X" with an unresolvable hostname be a zero-results state or a D-14 refusal?
    - What we know: D-06 frames every question as "resolves to a filtered list"; D-14 is specifically for schema-mapping failures (can't map to ANY valid filter), not "valid filter, zero matches."
    - What's unclear: whether the eval-planner wants a red-team case distinguishing "wrong hostname" from "well-formed but empty" for UX-honesty reasons.
    - Recommendation: treat as zero-results (Pattern 3) unless eval-planner's D-16 case design says otherwise.
 
-3. **Exact top-N cap value (D-07 discretion).**
+3. **[RESOLVED — top-N cap = 10, adopted in Plans 01/03 (PaginationParams page_size=10)]** Exact top-N cap value (D-07 discretion).
    - What we know: UI-SPEC's own copy example is `"10 of 47 total"`; `PaginationParams.page_size` already supports 1-200.
    - What's unclear: whether 10 is enough for the north-star query's typical result size, or whether a slightly larger cap (e.g. 20) better serves the narrate call's grounding richness without meaningfully increasing cost (MAX_TOKENS=1024 already bounds narrate regardless of row count fed in, up to a point).
    - Recommendation: start with 10 (matches UI-SPEC's copy precedent exactly), revisit only if eval feedback shows the narrate call under-cites.
