@@ -321,12 +321,12 @@ Plans:
   2. Queries are constrained to a safe, predefined schema — no free-form SQL generation, no injection path, no cross-tenant reach
   3. The assistant is inert (a "configure AI" state) until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold and guardrails verbatim — no shared/fallback key
 
-**Plans**: 6 plans
+**Plans**: 1/6 plans executed (tracer-led)
 
 Plans:
 **Wave 1**
 
-- [ ] 44-01-PLAN.md — TRACER: end-to-end NLQ backend spine (translate→execute→results-first→narrate, vuln entity, BYOK-gated)
+- [x] 44-01-PLAN.md — TRACER: end-to-end NLQ backend spine (translate→execute→results-first→narrate, vuln entity, BYOK-gated) *(2026-08-25 — POST /api/v1/ai/query SSE endpoint: translate (CALL 1)→execute list_vulnerabilities (session tenant_id, sort="triage" for deterministic top-N)→results-first SSE→narrate (CALL 2, grounded)→done; flat non-union NlqFilterResponse (VulnFilterInput/AssetFilterInput/TicketFilterInput, no oneOf) + recheck_nlq_filter_exclusivity; <user_question>/<query_results> untrusted-content-as-data isolation; BYOK no_key gate, fail-closed budget, single inflight lock for the whole flow, translation-only D-19 cache; assets/tickets entities are a guarded refuse placeholder for Plan 02. 63 new/modified tests green + 157+69 regression tests unaffected.)*
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
