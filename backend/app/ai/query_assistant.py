@@ -72,9 +72,11 @@ from app.ai.prompt_builder import (
     query_translate_prompt_version,
 )
 from app.ai.schemas import (
+    AssetFilterInput,
     BusinessRuleError,
     NlqAnswerResponse,
     NlqFilterResponse,
+    TicketFilterInput,
     VulnFilterInput,
     recheck_business_rules,
     recheck_nlq_filter_exclusivity,
@@ -83,6 +85,8 @@ from app.ai.tenant_keys import get_tenant_anthropic_key
 from app.assets.schemas import AssetFilter
 from app.assets.service import list_assets
 from app.pagination import PaginatedResponse, PaginationParams
+from app.ticketing.schemas import TicketQueryFilter
+from app.ticketing.service import list_tickets
 from app.vulnerabilities.schemas import VulnerabilityFilter
 from app.vulnerabilities.service import list_vulnerabilities
 
@@ -241,19 +245,41 @@ async def _audit(
 def _map_vuln_filter(rows_filter: VulnFilterInput) -> VulnerabilityFilter:
     """Map the model-emitted, allowlisted `VulnFilterInput` onto the REAL
     `VulnerabilityFilter` the existing, tenant-scoped `list_vulnerabilities`
-    already knows how to execute (D-01) -- EXISTING predicate fields only
-    this plan. `sort="triage"` is hardcoded here, never model-supplied: it
-    is what makes the top-N deterministic and risk-ranked (KEV desc -> CVSS
-    desc -> SLA-due asc), so the narrated top-N is stable and matches the
-    shown result set run-to-run (D-07)."""
+    already knows how to execute (D-01). `sort="triage"` is hardcoded here,
+    never model-supplied: it is what makes the top-N deterministic and
+    risk-ranked (KEV desc -> CVSS desc -> SLA-due asc), so the narrated
+    top-N is stable and matches the shown result set run-to-run (D-07)."""
     return VulnerabilityFilter(
         severity=rows_filter.severity,
         status=rows_filter.status,
         cisa_kev=rows_filter.cisa_kev,
         exploit_available=rows_filter.exploit_available,
         age_days_min=rows_filter.age_days_min,
+        # Phase 44 Plan 02 / D-03: the north-star question's two additive
+        # predicates.
+        asset_internet_facing=rows_filter.asset_internet_facing,
+        sla_breached=rows_filter.sla_breached,
         sort="triage",
     )
+
+
+def _map_asset_filter(rows_filter: AssetFilterInput) -> AssetFilter:
+    """Map the model-emitted, allowlisted `AssetFilterInput` onto the REAL
+    `AssetFilter` the existing, tenant-scoped `list_assets` already knows
+    how to execute (D-01), mirroring `_map_vuln_filter` above."""
+    return AssetFilter(
+        device_category=rows_filter.device_category,
+        internet_facing=rows_filter.internet_facing,
+    )
+
+
+def _map_ticket_filter(rows_filter: TicketFilterInput) -> TicketQueryFilter:
+    """Convert the model-emitted `TicketFilterInput` (ai/schemas.py -- what
+    the model emits) into `TicketQueryFilter` (ticketing/schemas.py -- the
+    ticketing-layer-validated, `extra="forbid"` wrapper `list_tickets` is
+    actually called through). This is the single documented type flow (W4)
+    -- the two are a producer/consumer pair, never used interchangeably."""
+    return TicketQueryFilter(status=rows_filter.status, asset_hostname=rows_filter.asset_hostname)
 
 
 async def _run_query_stream(
@@ -394,6 +420,8 @@ async def _run_query_stream(
         # ── Execute deterministically -- tenant_id ALWAYS from the
         # authenticated session, never from the model's output (NLQ-02) ──
         vuln_filter_input = filter_resp.vulnerability_filter
+        asset_filter_input = filter_resp.asset_filter
+        ticket_filter_input = filter_resp.ticket_filter
         if filter_resp.entity == "vulnerabilities" and vuln_filter_input is not None:
             vuln_filter = _map_vuln_filter(vuln_filter_input)
             pagination = PaginationParams(page=1, page_size=TOP_N_RESULTS)
@@ -401,10 +429,48 @@ async def _run_query_stream(
             rows = [item.model_dump(mode="json") for item in paginated.items]
             total = paginated.total
             interpreted_filter = vuln_filter_input.model_dump(mode="json")
+        elif filter_resp.entity == "assets" and asset_filter_input is not None:
+            asset_filter = _map_asset_filter(asset_filter_input)
+            pagination = PaginationParams(page=1, page_size=TOP_N_RESULTS)
+            paginated_assets: PaginatedResponse[Any] = await list_assets(db, tenant_id, asset_filter, pagination)
+            rows = [item.model_dump(mode="json") for item in paginated_assets.items]
+            total = paginated_assets.total
+            interpreted_filter = asset_filter_input.model_dump(mode="json")
+        elif filter_resp.entity == "tickets" and ticket_filter_input is not None:
+            query_filter = _map_ticket_filter(ticket_filter_input)
+            interpreted_filter = ticket_filter_input.model_dump(mode="json")
+            resolved_asset_id: uuid.UUID | None = None
+            if query_filter.asset_hostname is not None:
+                resolved_asset_id = await _resolve_hostname(db, tenant_id, query_filter.asset_hostname)
+                if resolved_asset_id is None:
+                    # RESEARCH Pattern 3 / Open Question 2 (resolved): an
+                    # unresolvable "asset X" hostname is a well-formed
+                    # zero-results answer, NEVER a D-14 refusal -- the
+                    # question was honestly mapped, it simply matched no
+                    # asset in this tenant.
+                    rows, total = [], 0
+                else:
+                    ticket_result = await list_tickets(
+                        db,
+                        tenant_id,
+                        status=query_filter.status,
+                        asset_id=str(resolved_asset_id),
+                        page=1,
+                        page_size=TOP_N_RESULTS,
+                    )
+                    rows = ticket_result["items"]
+                    total = ticket_result["total"]
+            else:
+                ticket_result = await list_tickets(
+                    db, tenant_id, status=query_filter.status, page=1, page_size=TOP_N_RESULTS
+                )
+                rows = ticket_result["items"]
+                total = ticket_result["total"]
         else:
-            # Plan 02 wires the real assets/tickets branches -- this
-            # TRACER plan proves the whole spine on the vulnerabilities
-            # entity only (D-02/D-05), at minimum blast radius.
+            # Every groundable NlqFilterResponse structurally has its own
+            # entity's filter populated (recheck_nlq_filter_exclusivity) --
+            # this branch is an unreachable defensive backstop, not a
+            # scoped-out placeholder.
             yield _sse_event({"type": "refuse"})
             return
 

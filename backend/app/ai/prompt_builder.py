@@ -1275,8 +1275,74 @@ FEW_SHOT_QUERY_TRANSLATE: tuple[dict[str, Any], ...] = (
                 "exploit_available": None,
                 "age_days_min": 30,
                 "status": None,
+                "asset_internet_facing": None,
+                "sla_breached": None,
             },
             "asset_filter": None,
+            "ticket_filter": None,
+            "groundable": True,
+        },
+    },
+    {
+        # D-02/D-03 north-star: a multi-predicate question that STILL
+        # resolves to a single vulnerabilities-entity filter -- asset
+        # exposure is expressed via asset_internet_facing, never a
+        # model-side second tool/join.
+        "input": {"question": "which internet-facing hosts have an unremediated KEV older than 30 days?"},
+        "output": {
+            "entity": "vulnerabilities",
+            "vulnerability_filter": {
+                "severity": None,
+                "cisa_kev": True,
+                "exploit_available": None,
+                "age_days_min": 30,
+                "status": ["OPEN", "IN_PROGRESS"],
+                "asset_internet_facing": True,
+                "sla_breached": None,
+            },
+            "asset_filter": None,
+            "ticket_filter": None,
+            "groundable": True,
+        },
+    },
+    {
+        "input": {"question": "show critical vulns breaching SLA"},
+        "output": {
+            "entity": "vulnerabilities",
+            "vulnerability_filter": {
+                "severity": ["CRITICAL"],
+                "cisa_kev": None,
+                "exploit_available": None,
+                "age_days_min": None,
+                "status": None,
+                "asset_internet_facing": None,
+                "sla_breached": True,
+            },
+            "asset_filter": None,
+            "ticket_filter": None,
+            "groundable": True,
+        },
+    },
+    {
+        # W3: a host-scoped question routes to the TICKETS entity, never
+        # the vulnerabilities entity (VulnFilterInput has no hostname
+        # field). asset_hostname is resolved server-side to a real
+        # asset_id -- the model only ever emits the hostname string.
+        "input": {"question": "open tickets for asset prod-db-01"},
+        "output": {
+            "entity": "tickets",
+            "vulnerability_filter": None,
+            "asset_filter": None,
+            "ticket_filter": {"status": "open", "asset_hostname": "prod-db-01"},
+            "groundable": True,
+        },
+    },
+    {
+        "input": {"question": "how many internet-facing assets do we have?"},
+        "output": {
+            "entity": "assets",
+            "vulnerability_filter": None,
+            "asset_filter": {"device_category": None, "internet_facing": True},
             "ticket_filter": None,
             "groundable": True,
         },
@@ -1317,8 +1383,13 @@ using values drawn ONLY from these ALLOWED fields:
   cisa_kev (bool), exploit_available (bool), age_days_min (int -- the
   finding was first detected at least this many days ago), status (list of
   OPEN/IN_PROGRESS/REMEDIATED/SUPPRESSED/FALSE_POSITIVE -- "unremediated"
-  means ["OPEN", "IN_PROGRESS"]).
-- assets: device_category (a device category string).
+  means ["OPEN", "IN_PROGRESS"]), asset_internet_facing (bool -- true when
+  the question is scoped to internet-facing hosts/assets), sla_breached
+  (bool -- true when the question asks about SLA-breaching findings).
+  NEVER a hostname field here -- a question naming a specific host/asset
+  belongs to the tickets entity instead.
+- assets: device_category (a device category string), internet_facing
+  (bool).
 - tickets: status (a ticket status string), asset_hostname (a hostname --
   resolved to the real asset server-side; you never see or invent a UUID).
 

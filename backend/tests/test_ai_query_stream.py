@@ -27,6 +27,7 @@ from app.audit import AuditLog
 from app.encryption import encrypt_value
 from app.pagination import PaginatedResponse, PaginationParams
 from app.ticketing.models import ConnectorConfig
+from app.ticketing.service import list_tickets as _real_list_tickets
 
 # ── Fake Anthropic client (SDK-boundary test seam, mirrors
 # test_ai_explain_stream.py's own local test doubles) ──────────────────────
@@ -382,28 +383,130 @@ async def test_groundable_false_yields_refuse_only(db_session: Any, tenant_a: An
     assert fake_client.messages.call_count == 1  # narrate never dispatched
 
 
-async def test_assets_entity_yields_guarded_refuse_placeholder(
-    db_session: Any, tenant_a: Any, flushed_redis: Any
-) -> None:
-    """Plan 01 proves the spine on vulnerabilities only -- assets/tickets
-    are a guarded no-op placeholder this plan (Plan 02 wires the real
-    branches)."""
+async def test_assets_entity_branch(db_session: Any, tenant_a: Any, flushed_redis: Any) -> None:
+    """Phase 44 Plan 02: an assets question executes the REAL `list_assets`
+    (tenant-scoped) and streams interpreted->results->narrate, exactly like
+    the vulnerabilities entity."""
+    from app.assets.models import Asset
+
     await _seed_anthropic_connector(db_session, tenant_a)
+    asset = Asset(tenant_id=tenant_a, hostname="web-prod-09", internet_facing=True)
+    db_session.add(asset)
+    await db_session.commit()
+
     translate = _translate_payload(
         entity="assets",
         vulnerability_filter=None,
-        asset_filter={"device_category": "SERVER"},
+        asset_filter={"device_category": None, "internet_facing": True},
         groundable=True,
     )
-    fake_client = _FakeAsyncAnthropic([_make_message(translate)])
+    fake_client = _FakeAsyncAnthropic([_make_message(translate), _make_message(_narrate_payload())])
 
     frames = [
         f
         async for f in _run_stream(db_session, tenant_a, flushed_redis, anthropic_client_factory=lambda k: fake_client)
     ]
     decoded = [_decode_frame(f) for f in frames]
+    types = [d["type"] for d in decoded]
 
-    assert decoded == [{"type": "refuse"}]
+    assert "interpreted" in types
+    assert "results" in types
+    assert types[-1] == "done"
+    results = next(d for d in decoded if d["type"] == "results")
+    assert results["total"] == 1
+    assert results["rows"][0]["hostname"] == "web-prod-09"
+
+
+async def test_tickets_entity_branch(db_session: Any, tenant_a: Any, flushed_redis: Any) -> None:
+    """"Open tickets for asset prod-db-01" -- _resolve_hostname runs
+    server-side BEFORE list_tickets; the model never supplies asset_id,
+    only the hostname string (D-01/D-02)."""
+    from app.assets.models import Asset
+    from app.ticketing.models import Ticket
+    from app.vulnerabilities.models import Vulnerability
+
+    await _seed_anthropic_connector(db_session, tenant_a)
+    asset = Asset(tenant_id=tenant_a, hostname="prod-db-01")
+    db_session.add(asset)
+    await db_session.flush()
+
+    vuln = Vulnerability(
+        tenant_id=tenant_a,
+        asset_id=asset.id,
+        cve_id="CVE-2026-T001",
+        severity="HIGH",
+        status="OPEN",
+        source="MOCK",
+        source_vuln_id=str(uuid.uuid4()),
+        first_detected_at=datetime.now(UTC),
+        last_seen_at=datetime.now(UTC),
+    )
+    db_session.add(vuln)
+    await db_session.flush()
+
+    ticket = Ticket(
+        tenant_id=tenant_a,
+        vulnerability_id=vuln.id,
+        provider="ASANA",
+        external_ticket_id=uuid.uuid4().hex,
+        external_ticket_url="https://asana/T-1",
+        external_status="open",
+        ticket_created_at=datetime.now(UTC),
+    )
+    db_session.add(ticket)
+    await db_session.commit()
+
+    translate = _translate_payload(
+        entity="tickets",
+        vulnerability_filter=None,
+        ticket_filter={"status": "open", "asset_hostname": "prod-db-01"},
+        groundable=True,
+    )
+    fake_client = _FakeAsyncAnthropic([_make_message(translate), _make_message(_narrate_payload())])
+
+    with patch("app.ai.query_assistant.list_tickets", wraps=_real_list_tickets) as mock_list_tickets:
+        frames = [
+            f
+            async for f in _run_stream(
+                db_session, tenant_a, flushed_redis, anthropic_client_factory=lambda k: fake_client
+            )
+        ]
+    decoded = [_decode_frame(f) for f in frames]
+
+    results = next(d for d in decoded if d["type"] == "results")
+    assert results["total"] == 1
+    assert results["rows"][0]["external_ticket_url"] == "https://asana/T-1"
+
+    mock_list_tickets.assert_awaited_once()
+    call_kwargs = mock_list_tickets.await_args.kwargs
+    assert call_kwargs["asset_id"] == str(asset.id)
+    assert call_kwargs["status"] == "open"
+
+
+async def test_unresolvable_hostname_is_zero_results(db_session: Any, tenant_a: Any, flushed_redis: Any) -> None:
+    """RESEARCH Pattern 3 / Open Question 2: an unresolvable "asset X"
+    hostname yields a zero-results answer, NOT a D-14 refusal."""
+    await _seed_anthropic_connector(db_session, tenant_a)
+    translate = _translate_payload(
+        entity="tickets",
+        vulnerability_filter=None,
+        ticket_filter={"status": None, "asset_hostname": "does-not-exist-anywhere"},
+        groundable=True,
+    )
+    fake_client = _FakeAsyncAnthropic([_make_message(translate), _make_message(_narrate_payload())])
+
+    frames = [
+        f
+        async for f in _run_stream(db_session, tenant_a, flushed_redis, anthropic_client_factory=lambda k: fake_client)
+    ]
+    decoded = [_decode_frame(f) for f in frames]
+    types = [d["type"] for d in decoded]
+
+    assert "refuse" not in types
+    results = next(d for d in decoded if d["type"] == "results")
+    assert results["total"] == 0
+    assert results["rows"] == []
+    assert types[-1] == "done"
 
 
 # ── D-19: translation cache (question -> filter only) ────────────────────────

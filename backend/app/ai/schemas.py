@@ -179,10 +179,12 @@ def recheck_business_rules(
 
 class VulnFilterInput(BaseModel):
     """The ONLY filter shape a vulnerabilities-entity NLQ answer may take.
-    EXISTING VulnerabilityFilter predicates only this plan (severity,
-    cisa_kev, exploit_available, age_days_min, status) -- Plan 02 adds
-    asset_internet_facing/sla_breached. Deliberately NO asset_hostname: the
-    vulnerabilities entity is never host-scoped (W3) -- a hostname
+    Phase 44 Plan 02 (W2) adds asset_internet_facing/sla_breached, matching
+    VulnerabilityFilter.asset_internet_facing/sla_breached exactly (the
+    buildNlqDeepLink param contract uses the SAME name --
+    "asset_internet_facing", never bare "internet_facing", which is the
+    AssetFilterInput/AssetFilter name only). Deliberately NO asset_hostname:
+    the vulnerabilities entity is never host-scoped (W3) -- a hostname
     predicate is outside the D-17 vuln deep-link's own param set, so
     allowing one here would let a vulnerabilities answer silently narrow
     past what "Open in Vulnerabilities" can express. Host-scoped questions
@@ -196,18 +198,21 @@ class VulnFilterInput(BaseModel):
     exploit_available: bool | None = None
     age_days_min: int | None = None
     status: list[str] | None = None
+    asset_internet_facing: bool | None = None
+    sla_breached: bool | None = None
 
 
 class AssetFilterInput(BaseModel):
-    """The ONLY filter shape an assets-entity NLQ answer may take. Maps an
-    EXISTING AssetFilter predicate this plan (device_category) --
-    deliberately NO internet_facing (Plan 02 adds it once AssetFilter
-    itself gains the field) and NO hostname (TicketFilterInput is the only
-    *FilterInput model carrying one)."""
+    """The ONLY filter shape an assets-entity NLQ answer may take. Maps
+    EXISTING AssetFilter predicates: device_category (Plan 01) and
+    internet_facing (Plan 02, now that AssetFilter itself has the field).
+    Deliberately NO hostname (TicketFilterInput is the only *FilterInput
+    model carrying one)."""
 
     model_config = {"extra": "forbid"}
 
     device_category: str | None = None
+    internet_facing: bool | None = None
 
 
 class TicketFilterInput(BaseModel):
