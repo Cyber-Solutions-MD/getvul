@@ -62,7 +62,7 @@ Earlier milestones (v1.0–v3.0) are archived under `.planning/milestones/`.
 - [x] **Phase 41: Coverage & Blind-Spot Detection** — Reconcile authoritative inventory vs. scanner-seen assets; per-connector coverage %; route-to-owner (5/5 plans executed; verification = human_needed — awaiting UAT on SC3 route-to-owner dialog copy) (completed 2026-08-21)
 - [x] **Phase 42: Risk Trend Analytics & Burndown** — Trend lines, backlog aging/burndown, version-boundary-aware (3/3 plans executed; human-verify checkpoints approved against orchestrator-seeded synthetic data — TREND-03's version-boundary proof is synthetic-fixture-only by design, real tenant history stays single-version; run /gsd-verify-work 42) (completed 2026-08-21)
 - [x] **Phase 43: Executive & Compliance Reporting** — Exec/board PDF (RPT-01) + built-in framework-control compliance view (RPT-03) + 4-lens role-scoped dashboard (RPT-02): analyst/IT-ops unchanged, leadership/compliance surface trend-and-posture widgets + framework-posture strip (4/4 plans executed; human-verify checkpoints approved — 43-03 PDF export dialog live-verified against real generated PDFs, 43-04 all four dashboard lenses live-verified in-browser) (completed 2026-08-24)
-- [ ] **Phase 44: Natural-Language Query Assistant** — BYOK plain-English Q&A over tenant data, safe-schema constrained
+- [x] **Phase 44: Natural-Language Query Assistant** — BYOK plain-English Q&A over tenant data, safe-schema constrained (6/6 plans executed; /dashboard/ask composes every state (inert/empty/results-first/refuse/zero/budget/safety/transient-error) + Open-in deep-link; 44-04's live human-verify checkpoint approved on-trust, live browser/key flow deferred to /gsd-verify-work 44) (completed 2026-08-25)
 - [ ] **Phase 45: Public API, Webhooks & SDK** — Tenant-scoped REST API, signed event webhooks, OpenAPI spec + SDK
 
 ## Phase Details
@@ -321,7 +321,7 @@ Plans:
   2. Queries are constrained to a safe, predefined schema — no free-form SQL generation, no injection path, no cross-tenant reach
   3. The assistant is inert (a "configure AI" state) until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold and guardrails verbatim — no shared/fallback key
 
-**Plans**: 5/6 plans executed (tracer-led)
+**Plans**: 6/6 plans executed (tracer-led)
 
 Plans:
 **Wave 1**
@@ -340,7 +340,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 44-04-PLAN.md — Ask page composition + 'Ask' nav entry + all states + human-verify checkpoint
+- [x] 44-04-PLAN.md — Ask page composition + 'Ask' nav entry + all states + human-verify checkpoint *(2026-08-25 — /dashboard/ask composes every NLQ-01/NLQ-03 state: D-12 Configure-AI inert gate (role-specific body), D-11 first-run empty state (4 starter chips, click-to-fill), D-15 results-first (interpreted filter + result table before the streamed narrative), D-04 interpretation always shown, D-17 Open-in deep-link, D-14 refuse, zero-results with interpretation retained, budget-exceeded (amber)/safety-flagged (danger, grounded_false by elimination)/transient-error (banner with real HTTP code + X-Request-ID + Retry now) terminal states; always-visible 'Ask' WORKFLOW_ITEMS nav entry (Sparkles, no chip). 3 Rule-2 deviations to Plan 03 files (QueryBox lifted to controlled component; interpreted-filter.tsx exports formatInterpretedFilterSummary(); use-query-stream.ts's error phase gains optional httpStatus/requestId off the real fetch Response). 8 new page tests green + full 1215-test frontend suite unaffected; tsc/eslint clean. Live human-verify checkpoint deferred on trust (Phase 24-27/40 precedent) — documented PENDING in 44-04-SUMMARY.md with exact manual steps. Phase 44 complete, 6/6 plans.)*
 
 **UI hint**: yes
 
@@ -371,7 +371,7 @@ Plans:
 | 41. Coverage & Blind-Spot Detection | 5/5 | Complete    | 2026-08-21 |
 | 42. Risk Trend Analytics & Burndown | 3/3 | Complete    | 2026-08-21 |
 | 43. Executive & Compliance Reporting | 4/4 | Complete    | 2026-08-24 |
-| 44. Natural-Language Query Assistant | 5/6 | In Progress | - |
+| 44. Natural-Language Query Assistant | 6/6 | Complete    | 2026-08-25 |
 | 45. Public API, Webhooks & SDK | 0/? | Not started | - |
 
 ## Next

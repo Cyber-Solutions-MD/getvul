@@ -79,9 +79,9 @@ risk-based SLAs, verifies the fix, governs exceptions, and proves the program to
 
 ### Natural-Language Query Assistant (NLQ) — Phase 44 · (AINL-01, deferred from v3.1)
 
-- [x] **NLQ-01**: Plain-English questions over the tenant's own vuln/asset/ticket data return grounded, tenant-scoped answers with the underlying result set shown *(Phase 44-01/44-02, 2026-08-25 — all three entities (vulnerabilities/assets/tickets) wired end-to-end)*
+- [x] **NLQ-01**: Plain-English questions over the tenant's own vuln/asset/ticket data return grounded, tenant-scoped answers with the underlying result set shown *(Phase 44-01/44-02, 2026-08-25 — all three entities (vulnerabilities/assets/tickets) wired end-to-end; Phase 44-04, 2026-08-25 — /dashboard/ask page now surfaces the D-15 results-first interpreted-filter + result table + streamed narrative to the analyst, with the D-17 Open-in deep-link closing the loop back to the real list views)*
 - [x] **NLQ-02**: Queries are constrained to a safe schema (no free-form SQL, no injection, no cross-tenant reach) *(Phase 44-01/44-06, 2026-08-25 — extra="forbid" schema + recheck_nlq_filter_exclusivity + no tenant_id field anywhere; now provable in CI via test_nlq_golden_evals.py's FilterCorrectnessMetric + the extended test_ai_injection_redteam.py's 6th capability)*
-- [ ] **NLQ-03**: Inert until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold + guardrails
+- [x] **NLQ-03**: Inert until the tenant configures their own Anthropic key (BYOK), reusing the v3.0 scaffold + guardrails *(Phase 44-04, 2026-08-25 — /dashboard/ask's D-12 gate: useAiStatus() renders the "AI isn't set up yet" Configure-AI card with role-specific body until the tenant configures their own key; backend fail-closes with {type:"no_key"}, no shared/fallback key path)*
 
 ### Public API, Webhooks & SDK (API) — Phase 45
 
